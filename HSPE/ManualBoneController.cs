@@ -35,6 +35,14 @@ namespace HSPE
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
         private int _cachedSolverIterations;
+        private Transform _legKneeDamL;
+        private Transform _legKneeDamR;
+        private Transform _legKneeBackL;
+        private Transform _legKneeBackR;
+        private Transform _legUpL;
+        private Transform _legUpR;
+        private Transform _elbowDamL;
+        private Transform _elbowDamR;
         #endregion
 
         #region Public Accessors
@@ -130,6 +138,28 @@ namespace HSPE
                     this._bendGoalsControllers[i] = controller;
                 }
             }
+
+            this._legKneeDamL = this._body.solver.leftLegMapping.bone1.GetChild(0);
+            this._legKneeDamR = this._body.solver.rightLegMapping.bone1.GetChild(0);
+            if (this._isFemale)
+            {
+                this._legKneeBackL = this._body.solver.leftLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_L");
+                this._legKneeBackR = this._body.solver.rightLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_R");
+                this._legUpL = this.transform.FindDescendant("cf_J_LegUpDam_L");
+                this._legUpR = this.transform.FindDescendant("cf_J_LegUpDam_R");
+                this._elbowDamL = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_L");
+                this._elbowDamR = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_R");
+            }
+            else
+            {
+                this._legKneeBackL = this._body.solver.leftLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_s_L");
+                this._legKneeBackR = this._body.solver.rightLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_s_R");
+                this._legUpL = this.transform.FindDescendant("cm_J_LegUpDam_L");
+                this._legUpR = this.transform.FindDescendant("cm_J_LegUpDam_R");
+                this._elbowDamL = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_L");
+                this._elbowDamR = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_R");
+            }
+
             this._cachedSpineStiffness = this._body.solver.spineStiffness;
             this._cachedPullBodyVertical = this._body.solver.pullBodyVertical;
             this._cachedSolverIterations = this._body.solver.iterations;
@@ -434,12 +464,7 @@ namespace HSPE
                 {
                     Vector3 position = Vector3.zero;
                     if (this._advancedTarget != null)
-                    {
-                        if (this._advancedCoordWorld)
-                            position = this._advancedTarget.position;
-                        else
-                            position = this._advancedTarget.localPosition;
-                    }
+                        position = this._advancedCoordWorld ? this._advancedTarget.position : this._advancedTarget.localPosition;
                     GUILayout.BeginHorizontal();
                     GUILayout.Label("X: " + position.x.ToString("0.0000"));
                     GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
@@ -518,7 +543,6 @@ namespace HSPE
                 {
                     if (this._openGameObjects.Contains(go) == false)
                         this._openGameObjects.Add(go);
-                    
                 }
                 else
                 {
@@ -561,40 +585,14 @@ namespace HSPE
 
         private void OnPostSolve()
         {
-            if (this._isFemale)
-            {
-                this._body.solver.leftLegMapping.bone1.GetChild(0).transform.rotation = Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.leftLegMapping.bone2.rotation, 0.5f);
-                this._body.solver.rightLegMapping.bone1.GetChild(0).transform.rotation = Quaternion.Lerp(this._body.solver.rightLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone2.rotation, 0.5f);
-                this._body.solver.leftLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_L").transform.rotation = this._body.solver.leftLegMapping.bone2.rotation;
-                this._body.solver.rightLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_R").transform.rotation = this._body.solver.rightLegMapping.bone2.rotation;
-                Transform t;
-                t = this.transform.FindDescendant("cf_J_LegUpDam_L");
-                t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.leftThighEffector.bone.rotation, 0.85f);
-                t = this.transform.FindDescendant("cf_J_LegUpDam_R");
-                t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.rightThighEffector.bone.rotation, 0.85f);
-                t = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_L");
-                t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.65f);
-                t = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_R");
-                t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);                
-            }
-            else
-            {
-                this.transform.FindDescendant("cm_J_Neck").transform.localRotation = Quaternion.identity;
-                this.transform.FindDescendant("NeckCtrlObj").transform.localRotation = Quaternion.identity;
-                //this._body.solver.leftLegMapping.bone1.GetChild(0).transform.rotation = Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.leftLegMapping.bone2.rotation, 0.5f);
-                //this._body.solver.rightLegMapping.bone1.GetChild(0).transform.rotation = Quaternion.Lerp(this._body.solver.rightLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone2.rotation, 0.5f);
-                //this._body.solver.leftLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_L").transform.rotation = this._body.solver.leftLegMapping.bone2.rotation;
-                //this._body.solver.rightLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_R").transform.rotation = this._body.solver.rightLegMapping.bone2.rotation;
-                //Transform t;
-                //t = this.transform.FindDescendant("cm_J_LegUpDam_L");
-                //t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.leftThighEffector.bone.rotation, 0.85f);
-                //t = this.transform.FindDescendant("cm_J_LegUpDam_R");
-                //t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.rightThighEffector.bone.rotation, 0.85f);
-                //t = this.transform.FindDescendant("cm_J_ArmElbo_dam_01_L");
-                //t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.65f);
-                //t = this.transform.FindDescendant("cm_J_ArmElbo_dam_01_R");
-                //t.rotation = Quaternion.Lerp(t.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);
-            }
+            this._legKneeDamL.rotation = Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.leftLegMapping.bone2.rotation, 0.5f);
+            this._legKneeDamR.rotation = Quaternion.Lerp(this._body.solver.rightLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone2.rotation, 0.5f);
+            this._legKneeBackL.rotation = this._body.solver.leftLegMapping.bone2.rotation;
+            this._legKneeBackR.rotation = this._body.solver.rightLegMapping.bone2.rotation;
+            this._legUpL.rotation = Quaternion.Lerp(this._legUpL.parent.rotation, this._body.solver.leftThighEffector.bone.rotation, 0.85f);
+            this._legUpR.rotation = Quaternion.Lerp(this._legUpR.parent.rotation, this._body.solver.rightThighEffector.bone.rotation, 0.85f);
+            this._elbowDamL.rotation = Quaternion.Lerp(this._elbowDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.65f);
+            this._elbowDamR.rotation = Quaternion.Lerp(this._elbowDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);
         }
 
         private void DrawGizmos()
