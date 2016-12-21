@@ -226,10 +226,12 @@ namespace HSPE
             toggleRT.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
 
             this._targetText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Target Text").gameObject, "Target Text");
+            this._targetText.fontStyle = FontStyle.Bold;
             this._targetText.alignment = TextAnchor.MiddleRight;
             this._targetText.resizeTextForBestFit = true;
             this._targetText.resizeTextMinSize = 1;
-            this._targetText.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
+            this._targetText.resizeTextMaxSize = (int)(UIUtility.defaultFontSize * 0.75f);
+            this._targetText.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-5f, -2.5f));
 
             this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
             this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -30f));
@@ -288,13 +290,13 @@ namespace HSPE
             buttonRT = leftThigh.transform as RectTransform;
             buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -150f), new Vector2(0f, -120f));
 
-            Button rightLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Leg Bend Goal Button").gameObject, "Right Elbow Direction");
+            Button rightLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Leg Bend Goal Button").gameObject, "Right Knee Direction");
             rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
             rightLegBendGoal.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             buttonRT = rightLegBendGoal.transform as RectTransform;
             buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -180f), new Vector2(0f, -150f));
 
-            Button leftLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Leg Bend Goal Button").gameObject, "Left Elbow Direction");
+            Button leftLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Leg Bend Goal Button").gameObject, "Left Knee Direction");
             leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
             leftLegBendGoal.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             buttonRT = leftLegBendGoal.transform as RectTransform;

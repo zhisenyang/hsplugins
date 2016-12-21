@@ -101,6 +101,8 @@ namespace HSPE
             t.color = Color.black;
             t.font = defaultFont;
             t.fontSize = defaultFontSize;
+            t.resizeTextMinSize = 1;
+            t.resizeTextMaxSize = defaultFontSize;
             t.alignment = TextAnchor.UpperLeft;
             return t;
         }
@@ -146,7 +148,9 @@ namespace HSPE
             t.graphic = AddImageToObject(check.gameObject, checkMark);
 
             RectTransform label = CreateNewUIObject(go.transform, "Label");
-            AddTextToObject(label.gameObject, text).alignment = TextAnchor.MiddleLeft;
+            Text te = AddTextToObject(label.gameObject, text);
+            te.alignment = TextAnchor.MiddleLeft;
+            te.fontSize = (int)(defaultFontSize * 0.75f);
 
             RectTransform rt = t.transform as RectTransform;
             rt.sizeDelta = new Vector2(160f, 20f);
