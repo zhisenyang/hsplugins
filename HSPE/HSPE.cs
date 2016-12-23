@@ -12,11 +12,97 @@ namespace HSPE
 {
     public class HSPE : IPlugin
     {
+        public struct VersionNumber
+        {
+            public readonly int x;
+            public readonly int y;
+            public readonly int z;
+            public readonly bool valid;
+
+            public VersionNumber(int x, int y, int z)
+            {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.valid = true;
+            }
+
+            public VersionNumber(string str)
+            {
+                string[] s = str.Split('.');
+                this.valid = false;
+                this.x = 0;
+                this.y = 0;
+                this.z = 0;
+                if (!int.TryParse(s[0], out this.x))
+                    return;
+                if (!int.TryParse(s[1], out this.y))
+                    return;
+                if (!int.TryParse(s[2], out this.z))
+                    return;
+                this.valid = true;
+            }
+
+            public override string ToString()
+            {
+                return this.x + "." + this.y + "." + this.z;
+            }
+
+            public static bool operator <(VersionNumber first, VersionNumber second)
+            {
+                return (first.x < second.x || first.y < second.y || first.z < second.z);
+            }
+            public static bool operator >(VersionNumber first, VersionNumber second)
+            {
+                return (first.x > second.x || first.y > second.y || first.z > second.z);
+            }
+            public static bool operator ==(VersionNumber first, VersionNumber second)
+            {
+                return (first.x == second.x && first.y == second.y && first.z == second.z);
+            }
+            public static bool operator !=(VersionNumber first, VersionNumber second)
+            {
+                return !(first == second);
+            }
+            public static bool operator <(VersionNumber first, string s)
+            {
+                VersionNumber second = new VersionNumber(s);
+                if (!second.valid)
+                    return false;
+                return (first.x < second.x || first.y < second.y || first.z < second.z);
+            }
+            public static bool operator >(VersionNumber first, string s)
+            {
+                VersionNumber second = new VersionNumber(s);
+                if (!second.valid)
+                    return false;
+                return (first.x > second.x || first.y > second.y || first.z > second.z);
+            }
+            public static bool operator ==(VersionNumber first, string s)
+            {
+                VersionNumber second = new VersionNumber(s);
+                if (!second.valid)
+                    return false;
+                return (first.x == second.x && first.y == second.y && first.z == second.z);
+            }
+            public static bool operator !=(VersionNumber first, string s)
+            {
+                VersionNumber second = new VersionNumber(s);
+                if (!second.valid)
+                    return false;
+                return !(first == second);
+            }
+        }
+
         public static int level;
+
+        private static VersionNumber _versionNumber = new VersionNumber("1.1.0");
+
+        public static VersionNumber VersionNum { get { return _versionNumber; } }
 
         public string Name { get { return "HSPE"; } }
 
-        public string Version { get { return "1.0.0"; } }
+        public string Version { get { return _versionNumber.ToString(); } }
 
         public void OnApplicationQuit()
         {

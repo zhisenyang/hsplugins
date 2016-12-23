@@ -26,6 +26,7 @@ namespace HSPE
         public static Color yellowColor = new Color(0.993f, 1.000f, 0.463f, 1.000f);
         public static Color greyColor = new Color(0.784f, 0.784f, 0.784f, 0.502f);
         public static Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
+        public static Color blueColor = new Color(0.270f, 0.647f, 0.780f, 1.000f);
         public static Font defaultFont;
         public static int defaultFontSize;
         #endregion
@@ -84,6 +85,11 @@ namespace HSPE
             return t;
         }
 
+        public static Image AddImageToObject(Transform t, Sprite sprite = null)
+        {
+            return AddImageToObject(t.gameObject, sprite);
+        }
+
         public static Image AddImageToObject(GameObject go, Sprite sprite = null)
         {
             Image i = go.AddComponent<Image>();
@@ -92,6 +98,11 @@ namespace HSPE
             i.color = whiteColor;
             i.sprite = sprite == null ? backgroundSprite : sprite;
             return i;
+        }
+
+        public static Text AddTextToObject(Transform t, string text = "")
+        {
+            return AddTextToObject(t.gameObject, text);
         }
 
         public static Text AddTextToObject(GameObject go, string text = "")
@@ -105,6 +116,11 @@ namespace HSPE
             t.resizeTextMaxSize = defaultFontSize;
             t.alignment = TextAnchor.UpperLeft;
             return t;
+        }
+
+        public static Button AddButtonToObject(Transform t, string s = "Button")
+        {
+            return AddButtonToObject(t.gameObject, s);
         }
 
         public static Button AddButtonToObject(GameObject go, string t = "Button")
@@ -135,6 +151,11 @@ namespace HSPE
             o.effectDistance = new Vector2(0.75f, -0.75f);
 
             return b;
+        }
+
+        public static Toggle AddToggleToObject(Transform t, string text = "Label")
+        {
+            return AddToggleToObject(t.gameObject, text);
         }
 
         public static Toggle AddToggleToObject(GameObject go, string text = "Label")
