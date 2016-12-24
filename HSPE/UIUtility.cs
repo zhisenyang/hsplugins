@@ -129,6 +129,7 @@ namespace HSPE
             RectTransform bRT = b.transform as RectTransform;
             bRT.sizeDelta = new Vector2(160f, 30f);
             Image img = AddImageToObject(go);
+            img.raycastTarget = false;
             b.targetGraphic = img;
             b.colors = new ColorBlock()
             {

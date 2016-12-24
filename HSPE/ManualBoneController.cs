@@ -43,9 +43,8 @@ namespace HSPE
 
         #region Public Accessors
         public StudioChara chara { get; set; }
-        public bool advancedMode { get; set; }
-
         public bool isEnabled { get { return this.chara.ikCtrl.ikEnable; } }
+        public bool draw { get; set; }
         #endregion
 
         #region Unity Methods
@@ -118,14 +117,10 @@ namespace HSPE
 
         void LateUpdate()
         {
+            if (!this.isEnabled)
+                return;
             for (int i = 0; i < 4; ++i)
                 this.chara.ikCtrl.drivingRig.bendGoals[i].weight = 1f;
-        }
-
-        void OnGUI()
-        {
-            if (this.advancedMode)
-                GUILayout.Window(50, new Rect(Screen.width * 0.66f, Screen.height * 0.66f, Screen.width * 0.33f, Screen.height * 0.33f), this.AdvancedModeWindow, "Advanced mode");
         }
 
         void OnDestroy()
@@ -177,23 +172,13 @@ namespace HSPE
                 return Vector3.zero;
             return this.chara.ikCtrl.drivingRig.bendGoals[(int)type].transform.position;
         }
-        #endregion
 
-        #region Private Methods
-        private void CheckIkEnabled()
-        {
-            if (this._animator.enabled == this.isEnabled)
-               this._animator.enabled = !this.isEnabled;
-        }
-
-
-        private void AdvancedModeWindow(int id)
+        public void AdvancedModeWindow(int id)
         {
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical();
             this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             GUILayout.Label("Character Tree");
-
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
             //if (this._advancedTarget != null)
@@ -329,6 +314,15 @@ namespace HSPE
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
+            GUI.DragWindow();
+        }
+        #endregion
+
+        #region Private Methods
+        private void CheckIkEnabled()
+        {
+            if (this._animator.enabled == this.isEnabled)
+               this._animator.enabled = !this.isEnabled;
         }
 
         private void DisplayObjectTree(GameObject go, int indent)
@@ -413,17 +407,48 @@ namespace HSPE
 
         private void DrawGizmos()
         {
-            if (!this.advancedMode)
+            if (!this.draw || !this.isEnabled)
                 return;
-            GL.PushMatrix();
-            this._mat.SetPass(0);
-            GL.LoadProjectionMatrix(Studio.Instance.MainCamera.projectionMatrix);
-            GL.MultMatrix(Studio.Instance.MainCamera.transform.worldToLocalMatrix);
-            GL.Begin(GL.LINES);
-            if (this._advancedTarget)    
-                this.GLDrawCube(this._advancedTarget.position, this._advancedTarget.rotation, 0.025f, true);
-            GL.End();
-            GL.PopMatrix();
+            if (!(this._advancedTarget is RectTransform))
+            {
+                GL.PushMatrix();
+                this._mat.SetPass(0);
+                GL.LoadProjectionMatrix(Studio.Instance.MainCamera.projectionMatrix);
+                GL.MultMatrix(Studio.Instance.MainCamera.transform.worldToLocalMatrix);
+                GL.Begin(GL.LINES);
+                if (this._advancedTarget)
+                    this.GLDrawCube(this._advancedTarget.position, this._advancedTarget.rotation, 0.025f, true);
+                GL.End();
+                GL.PopMatrix();
+            }
+            else
+            {
+                RectTransform rt = this._advancedTarget as RectTransform;
+                GL.PushMatrix();
+                this._mat.SetPass(0);
+                GL.LoadPixelMatrix();
+                GL.Begin(GL.LINES);
+                Vector2 size = Vector2.Scale(rt.rect.size, rt.lossyScale);
+                float x = rt.position.x + rt.anchoredPosition.x;
+                float y = Screen.height - rt.position.y - rt.anchoredPosition.y;
+                Rect r = new Rect(x, y, size.x, size.y);
+                //r.position += new Vector2(Screen.width / 2f, Screen.height / 2f);
+                GL.Vertex(r.min);
+                GL.Vertex(new Vector2(r.max.x, r.min.y));
+
+                GL.Vertex(new Vector2(r.max.x, r.min.y));
+                GL.Vertex(r.max);
+
+                GL.Vertex(r.max);
+                GL.Vertex(new Vector2(r.min.x, r.max.y));
+
+                GL.Vertex(new Vector2(r.min.x, r.max.y));
+                GL.Vertex(r.min);
+
+                GL.End();
+                GL.PopMatrix();
+                
+            }
         }
 
         private void GLDrawCube(Vector3 position, Quaternion rotation, float size, bool up = false)

@@ -42,16 +42,17 @@ namespace HSPE
         private bool _yRot;
         private bool _zRot;
         private bool _isVisible = false;
+        private Rect _advancedModeRect = new Rect(Screen.width * 0.66f, Screen.height * 0.66f, Screen.width * 0.33f, Screen.height * 0.33f);
         private Canvas _ui;
         private Text _nothingText;
         private Text _nothingText2;
         private RectTransform _controls;
         private RectTransform _bones;
         private Toggle _advancedModeToggle;
-        private Text _targetText;
-        private Button[] _effectorsButtons = new Button[9];
-        private Button[] _bendGoalsButtons = new Button[4];
-        private Button[] _rotationButtons = new Button[3];
+        private bool _movingAdvancedWindow = false;
+        private readonly Button[] _effectorsButtons = new Button[9];
+        private readonly Button[] _bendGoalsButtons = new Button[4];
+        private readonly Button[] _rotationButtons = new Button[3];
         #endregion
 
         #region Unity Methods
@@ -114,39 +115,59 @@ namespace HSPE
 
             this.GUILogic();
         }
+
+        protected virtual void OnGUI()
+        {
+            if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled)
+            {
+                if (this._advancedModeToggle.isOn)
+                {
+                    this._manualBoneTarget.draw = true;
+                    this._advancedModeRect = GUILayout.Window(50, this._advancedModeRect, this._manualBoneTarget.AdvancedModeWindow, "Advanced mode");
+                }
+                else
+                    this._manualBoneTarget.draw = false;
+                Event e = Event.current;
+                switch (e.type)
+                {
+                    case EventType.mouseDown:
+                        this._movingAdvancedWindow = this._advancedModeToggle.isOn && this._advancedModeRect.Contains(Input.mousePosition);
+                        UnityEngine.Debug.Log(this._movingAdvancedWindow + " " + this._advancedModeRect.Contains(e.mousePosition) + " " + e.mousePosition);
+                        break;
+                    case EventType.mouseUp:
+                        this._movingAdvancedWindow = false;
+                        break;
+                }
+            }
+        }
         #endregion
 
         #region GUI
         private void SpawnGUI()
         {
             this._ui = UIUtility.CreateNewUISystem();
-            Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
 
+            Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
+            bg.raycastTarget = false;
             bg.rectTransform.SetRect(Vector2.zero, new Vector2(0.2f, 0.5f), Vector2.zero, Vector2.zero);
 
+            Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.rectTransform, "Top Container").gameObject);
+            topContainer.color = UIUtility.beigeColor;
+            topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(5f, -25f), new Vector2(-5f, -5f));
+
+            topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
+
+            Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "HSPE");
+            titleText.alignment = TextAnchor.MiddleCenter;
+            titleText.resizeTextForBestFit = true;
+            titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
+
             this._nothingText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(bg.transform, "Nothing Text").gameObject, "There is no character selected. Please select a character to begin pose edition.");
-            this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
+            this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
             this._nothingText.gameObject.SetActive(false);
 
             this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
             this._controls.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
-
-            Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._controls, "Top Container").gameObject);
-            topContainer.color = UIUtility.beigeColor;
-            topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -25f), Vector2.zero);
-
-            Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "HSPE");
-            titleText.alignment = TextAnchor.MiddleLeft;
-            titleText.resizeTextForBestFit = true;
-            titleText.rectTransform.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
-
-            this._targetText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Target Text").gameObject, "Target Text");
-            this._targetText.fontStyle = FontStyle.Bold;
-            this._targetText.alignment = TextAnchor.MiddleRight;
-            this._targetText.resizeTextForBestFit = true;
-            this._targetText.resizeTextMinSize = 1;
-            this._targetText.resizeTextMaxSize = (int)(UIUtility.defaultFontSize * 0.75f);
-            this._targetText.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-5f, -2.5f));
 
             this._nothingText2 = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(this._controls, "Nothing Text 2"), "The IK system is not enabled on this character.");
             this._nothingText2.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -30f));
@@ -382,8 +403,6 @@ namespace HSPE
 
         private void ToggleAdvancedMode(bool b)
         {
-            if (this._manualBoneTarget)
-                this._manualBoneTarget.advancedMode = b;
             this._advancedModeToggle.isOn = this._manualBoneTarget != null && b;
         }
         private void GUILogic()
@@ -467,29 +486,23 @@ namespace HSPE
             {
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
-                if (Studio.Instance.CurrentChara is StudioFemale)
-                    this._targetText.text = ("Target: " + Studio.Instance.CurrentChara.GetStudioFemale().female.customInfo.name);
-                else if (Studio.Instance.CurrentChara is StudioMale)
-                    this._targetText.text = ("Target: " + Studio.Instance.CurrentChara.GetStudioMale().male.customInfo.name);
             }
-
-            if (this._manualBoneTarget != null)
-                this._manualBoneTarget.advancedMode = this._advancedModeToggle.isOn;
-            if (last != this._manualBoneTarget && last != null)
-                last.advancedMode = false;
-
         }
 
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
-            return this._horizontalPlaneMove || this._verticalMove || this._xRot || this._yRot || this._zRot;
+            return this._horizontalPlaneMove || this._verticalMove || this._xRot || this._yRot || this._zRot || this._movingAdvancedWindow;
         }
         #endregion
 
         #region Saves
         private void OnSceneLoad()
         {
+            foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
+                kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
+            foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
+                kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
             string scenePath = Path.GetFileNameWithoutExtension(Studio.Instance.SaveFileName) + ".sav";
             string dir = "Plugins\\HSPE\\StudioScenes";
             string path = dir + "\\" + scenePath;
@@ -516,6 +529,20 @@ namespace HSPE
 
         private void OnSceneImport()
         {
+            int i = 0;
+            foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
+            {
+                if (i >= this._femaleIndexOffset)
+                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
+                ++i;
+            }
+            i = 0;
+            foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
+            {
+                if (i >= this._maleIndexOffset)
+                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
+                ++i;
+            }
             string scenePath = Path.GetFileNameWithoutExtension(this._selectedScenePath) + ".sav";
             string dir = "Plugins\\HSPE\\StudioScenes";
             string path = dir + "\\" + scenePath;
@@ -598,13 +625,6 @@ namespace HSPE
 
         private void LoadVersion_1_0_0(BinaryReader binaryReader, int femaleOffset = 0, int maleOffset = 0)
         {
-            int idx = 0;
-            foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
-            {
-                if (idx >= femaleOffset)
-                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
-                ++idx;
-            }
             int femaleCount = binaryReader.ReadInt32();
             for (int i = 0; i < femaleCount; ++i)
             {
@@ -620,13 +640,6 @@ namespace HSPE
                     }
                     ++j;
                 }
-            }
-            idx = 0;
-            foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
-            {
-                if (idx >= maleOffset)
-                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
-                ++idx;
             }
             int maleCount = binaryReader.ReadInt32();
             for (int i = 0; i < maleCount; ++i)
@@ -669,9 +682,8 @@ namespace HSPE
                             {
                                 if (i == index)
                                 {
-                                    ManualBoneController bone = kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>();
-                                    bone.chara = kvp.Value;
-                                    bone.LoadXml(xmlReader, v);
+                                    kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(xmlReader, v);
+                                    break;
                                 }
                                 ++i;
                             }
@@ -684,9 +696,8 @@ namespace HSPE
                             {
                                 if (i == index)
                                 {
-                                    ManualBoneController bone = kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>();
-                                    bone.chara = kvp.Value;
-                                    bone.LoadXml(xmlReader, v);
+                                    kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(xmlReader, v);
+                                    break;
                                 }
                                 ++i;
                             }
@@ -699,7 +710,6 @@ namespace HSPE
 
         private bool IsDocumentXml(string path)
         {
-
             try
             {
                 using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read))
@@ -710,7 +720,7 @@ namespace HSPE
                     }
                 }
             }
-            catch (XmlException e)
+            catch (XmlException)
             {
                 return false;
             }

@@ -35,6 +35,7 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="ManualBoneController.cs" />
+    <Compile Include="MovableWindow.cs" />
     <Compile Include="PointerDownHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HSPE.cs" />
