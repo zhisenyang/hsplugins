@@ -1,12 +1,6 @@
-Ajouter un slider pour l'intensité du mouvement
-Séparer X et Z
-Fenêtres qui se bougent
 Copier la position sur l'autre membre
-Changer la couleur du texte pour que ça soit plus visible
-Compatibilité avec les talons hauts
-Fix le bug de la caméra qui bouge quand on clique sur la gui
-Améliorer le mode avancé
 
+(Optionnel) Améliorer le mode avancé
 (Optionnel) Trouver ce qui fait conflit avec OnPostSolve
 (Optionnel) Arriver à sauvegarder les données du mode avancé dans chaque pose
 
@@ -15,3 +9,9 @@ S'intégrer avec le système de base
 Fix bug des mains
 Changer la sauvegarde de binaire à XML
 Virer les contraintes au niveau des bend goals
+Fix le bug de la caméra qui bouge quand on clique sur la gui
+Ajouter un slider pour l'intensité du mouvement
+Fenêtres qui se bougent
+Changer la couleur du texte pour que ça soit plus visible
+Séparer X et Z
+Compatibilité avec les talons hauts

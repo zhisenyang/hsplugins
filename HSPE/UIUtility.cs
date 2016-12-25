@@ -19,7 +19,10 @@ namespace HSPE
         public static GraphicRaycaster.BlockingObjects graphicRaycasterBlockingObjects = GraphicRaycaster.BlockingObjects.None;
 
         public static Sprite backgroundSprite;
+        public static Sprite headerSprite;
         public static Sprite checkMark;
+        public static Sprite slideBackground;
+        public static Sprite handle;
         public static Color whiteColor = new Color(1.000f, 1.000f, 1.000f, 0.878f);
         public static Color beigeColor = new Color(1.000f, 0.793f, 0.572f, 0.757f);
         public static Color greenColor = new Color(0.278f, 1.000f, 0.435f, 1.000f);
@@ -36,6 +39,9 @@ namespace HSPE
             checkMark = GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").FindChild("Toggle").GetChild(0).GetChild(0).GetComponent<Image>().sprite;
             defaultFont = GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").FindChild("Toggle").GetComponentInChildren<Text>().font;
             defaultFontSize = GameObject.Find("CharaImoprtCanvas").transform.FindChild("BGPanel").FindChild("HideObj").FindChild("UIs").GetComponentInChildren<Text>().fontSize;
+            headerSprite = GameObject.Find("CharaImoprtCanvas").transform.FindChild("BGPanel").FindChild("NamePanel").GetComponentInChildren<Image>().sprite;
+            slideBackground = GameObject.Find("SystemCanvas").GetComponentInChildren<Scrollbar>().GetComponent<Image>().sprite;
+            handle = GameObject.Find("SystemCanvas").GetComponentInChildren<Scrollbar>().transform.GetChild(0).GetChild(0).GetComponent<Image>().sprite;
         }
 
         public static Canvas CreateNewUISystem(string name = "NewUISystem")
@@ -113,6 +119,7 @@ namespace HSPE
             t.font = defaultFont;
             t.fontSize = defaultFontSize;
             t.resizeTextMinSize = 1;
+            t.alignByGeometry = true;
             t.resizeTextMaxSize = defaultFontSize;
             t.alignment = TextAnchor.UpperLeft;
             return t;
@@ -142,16 +149,23 @@ namespace HSPE
             };
             RectTransform text = CreateNewUIObject(b.transform, "Text");
             Text textObj = AddTextToObject(text.gameObject, t);
-            textObj.color = Color.white;
             textObj.alignment = TextAnchor.MiddleCenter;
             textObj.resizeTextMinSize = 1;
             text.SetRect(Vector2.zero, Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
+            return b;
+        }
 
-            Outline o = text.gameObject.AddComponent<Outline>();
+        public static Outline AddOutlineToObject(Transform t)
+        {
+            return AddOutlineToObject(t.gameObject);
+        }
+
+        public static Outline AddOutlineToObject(GameObject go)
+        {
+            Outline o = go.AddComponent<Outline>();
             o.effectColor = purpleColor;
             o.effectDistance = new Vector2(0.75f, -0.75f);
-
-            return b;
+            return o;
         }
 
         public static Toggle AddToggleToObject(Transform t, string text = "Label")
@@ -164,7 +178,7 @@ namespace HSPE
             Toggle t = go.AddComponent<Toggle>();
 
             RectTransform bg = CreateNewUIObject(go.transform, "Background");
-            t.targetGraphic = AddImageToObject(bg.gameObject);
+            t.targetGraphic = AddImageToObject(bg.gameObject, headerSprite);
 
             RectTransform check = CreateNewUIObject(bg, "CheckMark");
             t.graphic = AddImageToObject(check.gameObject, checkMark);
@@ -190,6 +204,42 @@ namespace HSPE
             label.offsetMax = new Vector2(5f, 0f);
 
             return t;
+        }
+
+        public static Scrollbar AddScrollbarToObject(Transform t)
+        {
+            return AddScrollbarToObject(t.gameObject);
+        }
+
+        public static Scrollbar AddScrollbarToObject(GameObject go)
+        {
+            Scrollbar s = go.AddComponent<Scrollbar>();
+            s.direction = Scrollbar.Direction.LeftToRight;
+            s.size = 0f;
+            s.numberOfSteps = 25;
+            s.value = 0.5f;
+            s.colors = new ColorBlock()
+            {
+                colorMultiplier = 1f,
+                normalColor = beigeColor,
+                highlightedColor = greenColor,
+                pressedColor = yellowColor,
+                disabledColor = greyColor,
+                fadeDuration = s.colors.fadeDuration
+            };
+
+            Image background = AddImageToObject(go, slideBackground);
+            RectTransform rt = s.transform as RectTransform;
+            rt.sizeDelta = new Vector2(160f, 20f);
+
+            RectTransform slideArea = CreateNewUIObject(rt, "Slide Area");
+            slideArea.SetRect(Vector2.zero, Vector2.one, new Vector2(10f, 10f), new Vector2(-10f, -10f));
+
+            s.handleRect = CreateNewUIObject(slideArea, "Handle");
+            s.handleRect.SetRect(Vector2.zero, new Vector2(0.2f, 1f), new Vector2(-10f, -10f), new Vector2(10f, 10f));
+            s.targetGraphic = AddImageToObject(s.handleRect, handle);
+            s.targetGraphic.color = beigeColor;
+            return s;
         }
     }
 }

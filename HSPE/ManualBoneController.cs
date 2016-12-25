@@ -173,19 +173,82 @@ namespace HSPE
             return this.chara.ikCtrl.drivingRig.bendGoals[(int)type].transform.position;
         }
 
+        public void CopyLimbToTwin(FullBodyBipedChain limb)
+        {
+            Transform effectorSrc;
+            Transform bendGoalSrc;
+            Transform effectorDest;
+            Transform bendGoalDest;
+            Transform root;
+            switch (limb)
+            {
+                case FullBodyBipedChain.LeftArm:
+                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftHand]].target;
+                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
+                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightHand]].target;
+                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.RightArm].transform;
+                    root = this._body.solver.spineMapping.spineBones[this._body.solver.spineMapping.spineBones.Length - 2];
+                    break;
+                case FullBodyBipedChain.LeftLeg:
+                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftFoot]].target;
+                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
+                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightFoot]].target;
+                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.RightLeg].transform;
+                    root = this._body.solver.spineMapping.spineBones[0];
+                    break;
+                case FullBodyBipedChain.RightArm:
+                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightHand]].target;
+                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
+                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftHand]].target;
+                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.LeftArm].transform;
+                    root = this._body.solver.spineMapping.spineBones[this._body.solver.spineMapping.spineBones.Length - 2];
+                    break;
+                case FullBodyBipedChain.RightLeg:
+                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightFoot]].target;
+                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
+                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftFoot]].target;
+                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.LeftLeg].transform;
+                    root = this._body.solver.spineMapping.spineBones[0];
+                    break;
+                default:
+                    effectorSrc = null;
+                    bendGoalSrc = null;
+                    effectorDest = null;
+                    bendGoalDest = null;
+                    root = null;
+                    break;
+            }
+
+            Vector3 localPos = root.InverseTransformPoint(effectorSrc.position);
+            localPos.x *= -1f;
+            Vector3 effectorPosition = root.TransformPoint(localPos);
+
+            localPos = root.InverseTransformPoint(bendGoalSrc.position);
+            localPos.x *= -1f;
+            Vector3 bendGoalPosition = root.TransformPoint(localPos);
+
+            Quaternion rot = effectorSrc.localRotation;
+            rot.w *= -1f;
+            rot.x *= -1f;
+
+            this.StartCoroutine(this.CopyLibmToTwin_Routine(effectorDest, effectorPosition, rot, bendGoalDest, bendGoalPosition));
+        }
+
         public void AdvancedModeWindow(int id)
         {
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical();
             this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             GUILayout.Label("Character Tree");
+            foreach (Canvas C in FindObjectsOfType<Canvas>())
+                this.DisplayObjectTree(C.gameObject, 0);
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
-            //if (this._advancedTarget != null)
-            //    foreach (Component c in this._advancedTarget.GetComponents<Component>())
-            //        GUILayout.Label(c.GetType().FullName);
+            if (this._advancedTarget != null)
+                foreach (Component c in this._advancedTarget.GetComponents<Component>())
+                    GUILayout.Label(c.GetType().FullName);
             GUILayout.EndVertical();
-            GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(Screen.width * 0.08333f), GUILayout.MaxWidth(Screen.width * 0.165f));
+            GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(150f), GUILayout.MaxWidth(270f));
             {
                 GUILayout.BeginHorizontal(GUI.skin.box);
                 GUILayout.Label("Frame of reference: ");
@@ -300,9 +363,9 @@ namespace HSPE
                 if (this._advancedTarget != null)
                 {
                     GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Reset Local Position"))
+                    if (GUILayout.Button("Reset Local Pos."))
                         this._advancedTarget.localPosition = this._dirtyObjects[this._advancedTarget.gameObject].Key;
-                    if (GUILayout.Button("Reset Local Rotation"))
+                    if (GUILayout.Button("Reset Local Rot."))
                         this._advancedTarget.localRotation = this._dirtyObjects[this._advancedTarget.gameObject].Value;
                     if (GUILayout.Button("Reset Both"))
                     {
@@ -319,6 +382,26 @@ namespace HSPE
         #endregion
 
         #region Private Methods
+
+        private IEnumerator CopyLibmToTwin_Routine(Transform effector, Vector3 effectorTargetPos, Quaternion effectorTargetRot, Transform bendGoal, Vector3 bendGoalTargetPos)
+        {
+            float startTime = Time.unscaledTime - Time.unscaledDeltaTime;
+            Vector3 effectorStartPos = effector.position;
+            Vector3 bendGoalStartPos = bendGoal.position;
+            Quaternion effectorStartRot = effector.localRotation;
+            while (Time.unscaledTime - startTime < 0.1f)
+            {
+                float v = (Time.unscaledTime - startTime) * 10f;
+                effector.position = Vector3.Lerp(effectorStartPos, effectorTargetPos, v);
+                effector.localRotation = Quaternion.Lerp(effectorStartRot, effectorTargetRot, v);
+                bendGoal.position = Vector3.Lerp(bendGoalStartPos, bendGoalTargetPos, v);
+                yield return null;
+            }
+            effector.position = effectorTargetPos;
+            effector.localRotation = effectorTargetRot;
+            bendGoal.position = bendGoalTargetPos;
+        }
+
         private void CheckIkEnabled()
         {
             if (this._animator.enabled == this.isEnabled)
@@ -636,27 +719,38 @@ namespace HSPE
                     {
                         string name = xmlReader.GetAttribute("name");
                         GameObject obj = this.transform.Find(name).gameObject;
-                        Vector3 pos;
-                        Quaternion rot;
-                        pos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosX"));
-                        pos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosY"));
-                        pos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosZ"));
+                        if (xmlReader.GetAttribute("posX") != null && xmlReader.GetAttribute("posY") != null && xmlReader.GetAttribute("posZ") != null &&
+                            xmlReader.GetAttribute("rotW") != null && xmlReader.GetAttribute("rotX") != null && xmlReader.GetAttribute("rotY") != null && xmlReader.GetAttribute("rotZ") != null)
+                        {
+                            Vector3 pos;
+                            Quaternion rot;
+                            pos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("posX"));
+                            pos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("posY"));
+                            pos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("posZ"));
 
-                        rot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotW"));
-                        rot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotX"));
-                        rot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotY"));
-                        rot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotZ"));
-                        this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
+                            rot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("rotW"));
+                            rot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("rotX"));
+                            rot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("rotY"));
+                            rot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("rotZ"));
+                            if (xmlReader.GetAttribute("originalPosX") != null && xmlReader.GetAttribute("originalPosY") != null && xmlReader.GetAttribute("originalPosZ") != null &&
+                                xmlReader.GetAttribute("originalRotW") != null && xmlReader.GetAttribute("originalRotX") != null && xmlReader.GetAttribute("originalRotY") != null && xmlReader.GetAttribute("originalRotZ") != null)
+                            {
+                                Vector3 originalPos;
+                                Quaternion originalRot;
+                                originalPos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosX"));
+                                originalPos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosY"));
+                                originalPos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosZ"));
 
-                        pos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("posX"));
-                        pos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("posY"));
-                        pos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("posZ"));
-
-                        rot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("rotW"));
-                        rot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("rotX"));
-                        rot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("rotY"));
-                        rot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("rotZ"));
-                        this._advancedObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
+                                originalRot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotW"));
+                                originalRot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotX"));
+                                originalRot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotY"));
+                                originalRot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotZ"));
+                                this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(originalPos, originalRot));
+                            }
+                            else
+                                this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(obj.transform.localPosition, obj.transform.localRotation));
+                            this._advancedObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
+                        }
                         ++i;
                     }
                 }
