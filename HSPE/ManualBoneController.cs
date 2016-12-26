@@ -21,7 +21,7 @@ namespace HSPE
         private Transform _advancedTarget;
         private readonly Dictionary<FullBodyBipedEffector, int> _effectorToIndex = new Dictionary<FullBodyBipedEffector, int>(); 
         private readonly HashSet<GameObject> _openedGameObjects = new HashSet<GameObject>();
-        private bool _advancedCoordWorld = true;
+        private bool _advancedCoordWorld = false;
         private bool _advancedCoordPosition = false;
         private Vector2 _advancedScroll;
         private float _inc = 1f;
@@ -240,13 +240,13 @@ namespace HSPE
             GUILayout.BeginVertical();
             this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             GUILayout.Label("Character Tree");
-            foreach (Canvas C in FindObjectsOfType<Canvas>())
-                this.DisplayObjectTree(C.gameObject, 0);
+            //foreach (Canvas C in FindObjectsOfType<Canvas>())
+            //    this.DisplayObjectTree(C.gameObject, 0);
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
-            if (this._advancedTarget != null)
-                foreach (Component c in this._advancedTarget.GetComponents<Component>())
-                    GUILayout.Label(c.GetType().FullName);
+            //if (this._advancedTarget != null)
+            //    foreach (Component c in this._advancedTarget.GetComponents<Component>())
+            //        GUILayout.Label(c.GetType().FullName);
             GUILayout.EndVertical();
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(150f), GUILayout.MaxWidth(270f));
             {

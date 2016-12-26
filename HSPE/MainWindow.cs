@@ -1,23 +1,12 @@
-﻿// Decompiled with JetBrains decompiler
-// Type: ShortcutsHS.CharaCustomWindow
-// Assembly: ShortcutsHS, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
-// MVID: 62AE9985-56CF-46BD-982F-B15D5A0C4B01
-// Assembly location: C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\ShortcutsHS.dll
-
-using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Xml;
-using System.Xml.Linq;
 using Manager;
 using RootMotion.FinalIK;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace HSPE
@@ -290,7 +279,7 @@ namespace HSPE
             this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
 
             RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
-            buttons.SetRect(Vector2.zero, new Vector2(0.666f, 1f), new Vector2(0f, 25f), new Vector2(0f, -245f));
+            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 25f), new Vector2(0f, -245f));
 
             Button xMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "X Move Button").gameObject, "↑\nX\n↓");
             t = xMoveButton.GetComponentInChildren<Text>();
@@ -329,8 +318,8 @@ namespace HSPE
             buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
 
             Button rotXButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot X Button").gameObject, "←   →\nRot X");
-            t = rotXButton.GetComponentInChildren<Text>();
-            t.fontSize = (int)(t.fontSize * 1.5f);
+            //t = rotXButton.GetComponentInChildren<Text>();
+            //t.fontSize = (int)(t.fontSize * 1.5f);
             rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
             rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
             {
@@ -342,8 +331,8 @@ namespace HSPE
             this._rotationButtons[0] = rotXButton;
 
             Button rotYButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Y Button").gameObject, "←   →\nRot Y");
-            t = rotYButton.GetComponentInChildren<Text>();
-            t.fontSize = (int)(t.fontSize * 1.5f);
+            //t = rotYButton.GetComponentInChildren<Text>();
+            //t.fontSize = (int)(t.fontSize * 1.5f);
             rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
             rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
             {
@@ -355,8 +344,8 @@ namespace HSPE
             this._rotationButtons[1] = rotYButton;
 
             Button rotZButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Z Button").gameObject, "←   →\nRot Z");
-            t = rotZButton.GetComponentInChildren<Text>();
-            t.fontSize = (int)(t.fontSize * 1.5f);
+            //t = rotZButton.GetComponentInChildren<Text>();
+            //t.fontSize = (int)(t.fontSize * 1.5f);
             rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
             rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
             {
@@ -367,10 +356,23 @@ namespace HSPE
             buttonRT.SetRect(new Vector2(0.666f, 0f), new Vector2(1f, 0.333f), Vector2.zero, Vector2.zero);
             this._rotationButtons[2] = rotZButton;
 
-            RectTransform options = UIUtility.CreateNewUIObject(this._bones, "Options");
-            options.SetRect(new Vector2(0.666f, 0f), Vector2.one, Vector2.zero, new Vector2(0f, -245f));
+            Image experimental = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._bones, "Experimental Features"));
+            experimental.color = UIUtility.whiteColor;
+            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 25f), new Vector2(0f, -245f));
 
-            Button copyLeftArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(options, "Copy Right Arm Button"), "Copy r. arm");
+            Image experimentalHeader = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Header").gameObject, UIUtility.headerSprite);
+            experimentalHeader.color = UIUtility.purpleColor;
+            experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
+
+            Text headerText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(experimentalHeader.transform, "Header Text"), "Experimental Features");
+            headerText.alignment = TextAnchor.MiddleCenter;
+            headerText.resizeTextForBestFit = true;
+            headerText.fontStyle = FontStyle.Bold;
+            headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+            headerText.color = Color.white;
+            UIUtility.AddOutlineToObject(headerText.transform).effectColor = Color.black;
+
+            Button copyLeftArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Arm Button"), "Copy R. arm");
             copyLeftArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             copyLeftArmButton.onClick.AddListener(() =>
             {
@@ -378,9 +380,9 @@ namespace HSPE
                     this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
             });
             buttonRT = copyLeftArmButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -40f), Vector2.one);
+            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -69f), new Vector2(-1.25f, -29f));
 
-            Button copyRightArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(options, "Copy Left Arm Button"), "Copy l. arm");
+            Button copyRightArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left Arm Button"), "Copy L. arm");
             copyRightArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             copyRightArmButton.onClick.AddListener(() =>
             {
@@ -388,9 +390,9 @@ namespace HSPE
                     this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
             });
             buttonRT = copyRightArmButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(0f, -40f), Vector2.one);
+            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -69f), new Vector2(-2.5f, -29f));
 
-            Button copyLeftLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(options, "Copy Right Leg Button"), "Copy r. leg");
+            Button copyLeftLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Leg Button"), "Copy R. leg");
             copyLeftLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             copyLeftLegButton.onClick.AddListener(() =>
             {
@@ -398,9 +400,9 @@ namespace HSPE
                     this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
             });
             buttonRT = copyLeftLegButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -80f), new Vector2(0f, -40f));
+            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -109f), new Vector2(-1.25f, -69f));
 
-            Button copyRightLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(options, "Copy Left LegButton"), "Copy l. leg");
+            Button copyRightLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left LegButton"), "Copy L. leg");
             copyRightLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
             copyRightLegButton.onClick.AddListener(() =>
             {
@@ -408,9 +410,9 @@ namespace HSPE
                     this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
             });
             buttonRT = copyRightLegButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(0f, -80f), new Vector2(0f, -40f));
+            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -109f), new Vector2(-2.5f, -69f));
 
-            this._advancedModeToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(options, "Advanced Mode Toggle").gameObject, "Advanced mode");
+            this._advancedModeToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Advanced Mode Toggle").gameObject, "Advanced mode");
             this._advancedModeToggle.isOn = false;
             this._advancedModeToggle.onValueChanged.AddListener(this.ToggleAdvancedMode);
             Text toggleText = this._advancedModeToggle.GetComponentInChildren<Text>();
@@ -419,7 +421,7 @@ namespace HSPE
             RectTransform toggleRT = this._advancedModeToggle.transform as RectTransform;
             (toggleRT.GetChild(0) as RectTransform).SetRect(Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 2.5f), new Vector2(15f, -2.5f));
             toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(17.5f, toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin.y);
-            toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -100f), new Vector2(-2.5f, -80f));
+            toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -129f), new Vector2(-2.5f, -109f));
 
             RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Container");
             sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 20f));
@@ -581,11 +583,13 @@ namespace HSPE
 
             if (Input.GetMouseButtonDown(0))
             {
-                if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled && this._advancedModeToggle.isOn)
+                if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled && this._advancedModeToggle.isOn && this._advancedModeRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y)))
                 {
-                    this._cameraController.NoCtrlCondition = this.CameraControllerCondition;
-                    this._movingAdvancedWindow = this._advancedModeRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y));
+                    this.SetNoControlCondition();
+                    this._movingAdvancedWindow = true;
                 }
+                else
+                    this._movingAdvancedWindow = false;
             }
 
             if (Input.GetMouseButtonUp(0))

@@ -30,6 +30,7 @@ namespace HSPE
         public static Color greyColor = new Color(0.784f, 0.784f, 0.784f, 0.502f);
         public static Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
         public static Color blueColor = new Color(0.270f, 0.647f, 0.780f, 1.000f);
+        public static Color redColor = new Color(0.650f, 0.066f, 0.011f, 1.000f);
         public static Font defaultFont;
         public static int defaultFontSize;
         #endregion

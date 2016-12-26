@@ -1,5 +1,3 @@
-Copier la position sur l'autre membre
-
 (Optionnel) Améliorer le mode avancé
 (Optionnel) Trouver ce qui fait conflit avec OnPostSolve
 (Optionnel) Arriver à sauvegarder les données du mode avancé dans chaque pose
@@ -15,3 +13,4 @@ Fenêtres qui se bougent
 Changer la couleur du texte pour que ça soit plus visible
 Séparer X et Z
 Compatibilité avec les talons hauts
+Copier la position sur l'autre membre
