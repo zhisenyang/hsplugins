@@ -353,7 +353,7 @@ namespace HSPE
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Label("Character Tree");
             this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
-            this.DisplayObjectTree(this.transform.parent.gameObject, 0);
+            this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(350f));
