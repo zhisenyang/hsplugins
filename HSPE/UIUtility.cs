@@ -10,9 +10,7 @@ namespace HSPE
         public static RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
         public static bool canvasPixelPerfect = false;
 
-        public static CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        public static Vector2 canvasScalerReferenceResolution = new Vector2(1280f, 720f);
-        public static CanvasScaler.ScreenMatchMode canvasScreenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+        public static CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
         public static float canvasScalerReferencePixelsPerUnit = 100f;
 
         public static bool graphicRaycasterIgnoreReversedGraphics = true;
@@ -54,8 +52,6 @@ namespace HSPE
 
             CanvasScaler cs = go.GetComponent<CanvasScaler>();
             cs.uiScaleMode = canvasScalerUiScaleMode;
-            cs.referenceResolution = canvasScalerReferenceResolution;
-            cs.screenMatchMode = canvasScreenMatchMode;
             cs.referencePixelsPerUnit = canvasScalerReferencePixelsPerUnit;
 
             GraphicRaycaster gr = go.GetComponent<GraphicRaycaster>();

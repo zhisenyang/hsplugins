@@ -13,6 +13,77 @@ namespace HSPE
 {
     public class ManualBoneController : MonoBehaviour
     {
+        #region Private Static Variables
+        private static readonly Vector3 _armDamScale = new Vector3(0.82f, 1f, 1.1f);
+        #endregion
+
+        #region Private Types
+        private enum CoordType
+        {
+            Position,
+            Rotation,
+            Scale
+        }
+
+        private class TransformData
+        {
+            private Vector3 _position = Vector3.zero;
+            private Quaternion _rotation = Quaternion.identity;
+            private Vector3 _scale = Vector3.one;
+            private bool _hasPosition;
+            private bool _hasRotation;
+            private bool _hasScale;
+
+            public Vector3 position
+            {
+                get { return this._position; }
+                set
+                {
+                    this._position = value;
+                    this._hasPosition = true;
+                }
+            }
+
+            public Quaternion rotation
+            {
+                get { return this._rotation; }
+                set
+                {
+                    this._rotation = value;
+                    this._hasRotation = true;
+                }
+            }
+
+            public Vector3 scale
+            {
+                get { return this._scale; }
+                set
+                {
+                    this._scale = value;
+                    this._hasScale = true;
+                }
+            }
+            public bool hasPosition { get { return this._hasPosition; } }
+            public bool hasRotation { get { return this._hasRotation; } }
+            public bool hasScale { get { return this._hasScale; } }
+
+            public void ResetPosition()
+            {
+                this._hasPosition = false;
+            }
+
+            public void ResetRotation()
+            {
+                this._hasRotation = false;
+            }
+
+            public void ResetScale()
+            {
+                this._hasScale = false;
+            }
+        }
+        #endregion
+
         #region Private Variables
         private Animator _animator;
         private FullBodyBipedIK _body;
@@ -22,11 +93,10 @@ namespace HSPE
         private readonly Dictionary<FullBodyBipedEffector, int> _effectorToIndex = new Dictionary<FullBodyBipedEffector, int>(); 
         private readonly HashSet<GameObject> _openedGameObjects = new HashSet<GameObject>();
         private bool _advancedCoordWorld = false;
-        private bool _advancedCoordPosition = false;
+        private CoordType _advancedCoordType = CoordType.Rotation;
         private Vector2 _advancedScroll;
         private float _inc = 1f;
-        private readonly Dictionary<GameObject, KeyValuePair<Vector3, Quaternion>> _dirtyObjects = new Dictionary<GameObject, KeyValuePair<Vector3, Quaternion>>();
-        private readonly Dictionary<GameObject, KeyValuePair<Vector3, Quaternion>> _advancedObjects = new Dictionary<GameObject, KeyValuePair<Vector3, Quaternion>>();
+        private readonly Dictionary<GameObject, TransformData> _dirtyObjects = new Dictionary<GameObject, TransformData>();
         private bool _isFemale = false;
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
@@ -39,6 +109,20 @@ namespace HSPE
         private Transform _legUpR;
         private Transform _elbowDamL;
         private Transform _elbowDamR;
+        private Transform _armUpDamL;
+        private Transform _armUpDamR;
+        private Transform _armElbouraDamL;
+        private Transform _armElbouraDamR;
+        private Transform _armLow1L;
+        private Transform _armLow1R;
+        private Transform _armLow2L;
+        private Transform _armLow2R;
+        private Transform _armLow3L;
+        private Transform _armLow3R;
+        private Transform _siriDamL;
+        private Transform _siriDamR;
+        private Transform _kosi;
+        private Dictionary<Transform, string> _shortcuts = new Dictionary<Transform, string>(); 
         #endregion
 
         #region Public Accessors
@@ -83,6 +167,24 @@ namespace HSPE
                 this._legUpR = this.transform.FindDescendant("cf_J_LegUpDam_R");
                 this._elbowDamL = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_L");
                 this._elbowDamR = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_R");
+                this._armUpDamL = this.transform.FindDescendant("cf_J_ArmUp03_dam_L");
+                this._armUpDamR = this.transform.FindDescendant("cf_J_ArmUp03_dam_R");
+                this._armElbouraDamL = this.transform.FindDescendant("cf_J_ArmElboura_dam_L");
+                this._armElbouraDamR = this.transform.FindDescendant("cf_J_ArmElboura_dam_R");
+                this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_ArmLow01_s_L");
+                this._armLow1R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_ArmLow01_s_R");
+                this._armLow2L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_ArmLow02_dam_L");
+                this._armLow2R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_ArmLow02_dam_R");
+                this._armLow3L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_Hand_Wrist_dam_L");
+                this._armLow3R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_Hand_Wrist_dam_R");
+                this._siriDamL = this.transform.FindDescendant("cf_J_SiriDam_L");
+                this._siriDamR = this.transform.FindDescendant("cf_J_SiriDam_R");
+                this._kosi = this.transform.FindDescendant("cf_J_Kosi02_s");
+                this._shortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
+                this._shortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
+                this._shortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
+                this._shortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_R"), "R. Foot");
+                this._shortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
             }
             else
             {
@@ -92,6 +194,24 @@ namespace HSPE
                 this._legUpR = this.transform.FindDescendant("cm_J_LegUpDam_R");
                 this._elbowDamL = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_L");
                 this._elbowDamR = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_R");
+                this._armUpDamL = this.transform.FindDescendant("cm_J_ArmUp03_dam_L");
+                this._armUpDamR = this.transform.FindDescendant("cm_J_ArmUp03_dam_R");
+                this._armElbouraDamL = this.transform.FindDescendant("cm_J_ArmElboura_dam_L");
+                this._armElbouraDamR = this.transform.FindDescendant("cm_J_ArmElboura_dam_R");
+                this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_ArmLow01_s_L");
+                this._armLow1R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_ArmLow01_s_R");
+                this._armLow2L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_ArmLow02_dam_L");
+                this._armLow2R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_ArmLow02_dam_R");
+                this._armLow3L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_Hand_Wrist_dam_L");
+                this._armLow3R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_Hand_Wrist_dam_R");
+                this._siriDamL = this.transform.FindDescendant("cm_J_SiriDam_L");
+                this._siriDamR = this.transform.FindDescendant("cm_J_SiriDam_R");
+                this._kosi = this.transform.FindDescendant("cm_J_Kosi02_s");
+                this._shortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_L"), "L. Hand");
+                this._shortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_R"), "R. Hand");
+                this._shortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_L"), "L. Foot");
+                this._shortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_R"), "R. Foot");
+                this._shortcuts.Add(this.transform.FindDescendant("cm_J_FaceRoot"), "Face");
             }
 
             this._cachedSpineStiffness = this._body.solver.spineStiffness;
@@ -101,18 +221,10 @@ namespace HSPE
             this._body.solver.pullBodyVertical = 0f;
             this._body.solver.iterations = 1;
             this._body.fixTransforms = true;
-            this.StartCoroutine(this.AfterStart());
-        }
-
-        private IEnumerator AfterStart()
-        {
-            yield return null;
-            this.ApplyAdvancedObjects();
         }
 
         void Update()
         {
-            this.CheckIkEnabled();
         }
 
         void LateUpdate()
@@ -121,6 +233,7 @@ namespace HSPE
                 return;
             for (int i = 0; i < 4; ++i)
                 this.chara.ikCtrl.drivingRig.bendGoals[i].weight = 1f;
+            this._body.solver.Update();
         }
 
         void OnDestroy()
@@ -237,18 +350,13 @@ namespace HSPE
         public void AdvancedModeWindow(int id)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical();
-            this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Label("Character Tree");
-            //foreach (Canvas C in FindObjectsOfType<Canvas>())
-            //    this.DisplayObjectTree(C.gameObject, 0);
-            this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
+            this._advancedScroll = GUILayout.BeginScrollView(_advancedScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
+            this.DisplayObjectTree(this.transform.parent.gameObject, 0);
             GUILayout.EndScrollView();
-            //if (this._advancedTarget != null)
-            //    foreach (Component c in this._advancedTarget.GetComponents<Component>())
-            //        GUILayout.Label(c.GetType().FullName);
             GUILayout.EndVertical();
-            GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(150f), GUILayout.MaxWidth(270f));
+            GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(350f));
             {
                 GUILayout.BeginHorizontal(GUI.skin.box);
                 GUILayout.Label("Frame of reference: ");
@@ -256,97 +364,208 @@ namespace HSPE
                 this._advancedCoordWorld = !GUILayout.Toggle(!this._advancedCoordWorld, "Local");
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal(GUI.skin.box);
-                this._advancedCoordPosition = GUILayout.Toggle(this._advancedCoordPosition, "Position");
-                this._advancedCoordPosition = !GUILayout.Toggle(!this._advancedCoordPosition, "Rotation");
+                if (GUILayout.Toggle(this._advancedCoordType == CoordType.Position, "Position"))
+                    this._advancedCoordType = CoordType.Position;
+                if (GUILayout.Toggle(this._advancedCoordType == CoordType.Rotation, "Rotation"))
+                    this._advancedCoordType = CoordType.Rotation;
+                if (GUILayout.Toggle(this._advancedCoordType == CoordType.Scale, "Scale"))
+                    this._advancedCoordType = CoordType.Scale;
                 GUILayout.EndHorizontal();
-                if (!this._advancedCoordPosition)
+                switch (this._advancedCoordType)
                 {
-                    Quaternion rotation = Quaternion.identity;
-                    if (this._advancedTarget != null)
-                    {
-                        if (this._advancedCoordWorld)
-                            rotation = this._advancedTarget.rotation;
-                        else
-                            rotation = this._advancedTarget.localRotation;
-                    }
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("X (Pitch): " + rotation.eulerAngles.x.ToString("0.00"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(-this._inc, Vector3.right);
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(this._inc, Vector3.right);
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
+                    case CoordType.Position:
+                        Vector3 position = Vector3.zero;
+                        if (this._advancedTarget != null)
+                            position = this._advancedCoordWorld ? this._advancedTarget.position : this._advancedTarget.localPosition;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("X: " + position.x.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position -= this._inc * Vector3.right;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position += this._inc * Vector3.right;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
 
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Y (Yaw): " + rotation.eulerAngles.y.ToString("0.00"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(-this._inc, Vector3.up);
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(this._inc, Vector3.up);
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Y: " + position.y.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position -= this._inc * Vector3.up;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position += this._inc * Vector3.up;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
 
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Z (Roll): " + rotation.eulerAngles.z.ToString("0.00"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(-this._inc, Vector3.forward);
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        rotation *= Quaternion.AngleAxis(this._inc, Vector3.forward);
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
-                    if (this._advancedTarget != null)
-                    {
-                        if (this._advancedCoordWorld)
-                            this._advancedTarget.rotation = rotation;
-                        else
-                            this._advancedTarget.localRotation = rotation;
-                    }
-                }
-                else
-                {
-                    Vector3 position = Vector3.zero;
-                    if (this._advancedTarget != null)
-                        position = this._advancedCoordWorld ? this._advancedTarget.position : this._advancedTarget.localPosition;
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("X: " + position.x.ToString("0.0000"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        position -= this._inc * Vector3.right;
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        position += this._inc * Vector3.right;
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Z: " + position.z.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position -= this._inc * Vector3.forward;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            position += this._inc * Vector3.forward;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+                        if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
+                        {
+                            if (this._advancedCoordWorld)
+                                this._dirtyObjects[this._advancedTarget.gameObject].position = this._advancedTarget.TransformPoint(position);
+                            else
+                                this._dirtyObjects[this._advancedTarget.gameObject].position = position;
+                        }
+                        break;
+                    case CoordType.Rotation:
+                        Quaternion rotation = Quaternion.identity;
+                        if (this._advancedTarget != null)
+                            rotation = this._advancedCoordWorld ? this._advancedTarget.rotation : this._advancedTarget.localRotation;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("X (Pitch): " + rotation.eulerAngles.x.ToString("0.00"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(-this._inc, Vector3.right);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(this._inc, Vector3.right);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
 
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Y: " + position.y.ToString("0.0000"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        position -= this._inc * Vector3.up;
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        position += this._inc * Vector3.up;
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Y (Yaw): " + rotation.eulerAngles.y.ToString("0.00"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(-this._inc, Vector3.up);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(this._inc, Vector3.up);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
 
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("Z: " + position.z.ToString("0.0000"));
-                    GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
-                    if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")))
-                        position -= this._inc * Vector3.forward;
-                    if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")))
-                        position += this._inc * Vector3.forward;
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndHorizontal();
-                    if (this._advancedTarget != null)
-                    {
-                        if (this._advancedCoordWorld)
-                            this._advancedTarget.position = position;
-                        else
-                            this._advancedTarget.localPosition = position;
-                    }
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Z (Roll): " + rotation.eulerAngles.z.ToString("0.00"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(-this._inc, Vector3.forward);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            rotation *= Quaternion.AngleAxis(this._inc, Vector3.forward);
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+                        if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
+                        {
+                            if (this._advancedCoordWorld)
+                                this._dirtyObjects[this._advancedTarget.gameObject].rotation = rotation * Quaternion.Inverse(this._advancedTarget.parent.rotation);
+                            else
+                                this._dirtyObjects[this._advancedTarget.gameObject].rotation = rotation;
+                        }
+                        break;
+                    case CoordType.Scale:
+                        Vector3 scale = Vector3.one;
+                        if (this._advancedTarget != null)
+                            scale = this._advancedCoordWorld ? this._advancedTarget.lossyScale : this._advancedTarget.localScale;
+                        GUI.enabled = !this._advancedCoordWorld;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("X: " + scale.x.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale -= this._inc * Vector3.right;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale += this._inc * Vector3.right;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Y: " + scale.y.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale -= this._inc * Vector3.up;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale += this._inc * Vector3.up;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Z: " + scale.z.ToString("0.0000"));
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale -= this._inc * Vector3.forward;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale += this._inc * Vector3.forward;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("X/Y/Z");
+                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
+                        if (GUILayout.RepeatButton((-this._inc).ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale -= this._inc * Vector3.one;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        if (GUILayout.RepeatButton(this._inc.ToString("+0.###;-0.###")) && this._advancedTarget != null)
+                        {
+                            scale += this._inc * Vector3.one;
+                            this.SetObjectDirty(this._advancedTarget.gameObject);
+                        }
+                        GUILayout.EndHorizontal();
+                        GUILayout.EndHorizontal();
+                        GUI.enabled = true;
+                        if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
+                        {
+                            if (!this._advancedCoordWorld)
+                                this._dirtyObjects[this._advancedTarget.gameObject].scale = scale;
+                        }
+                        break;
                 }
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("0.001"))
@@ -360,20 +579,39 @@ namespace HSPE
                 if (GUILayout.Button("10"))
                     this._inc = 10f;
                 GUILayout.EndHorizontal();
+
                 if (this._advancedTarget != null)
                 {
                     GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Reset Local Pos."))
-                        this._advancedTarget.localPosition = this._dirtyObjects[this._advancedTarget.gameObject].Key;
-                    if (GUILayout.Button("Reset Local Rot."))
-                        this._advancedTarget.localRotation = this._dirtyObjects[this._advancedTarget.gameObject].Value;
-                    if (GUILayout.Button("Reset Both"))
+                    if (GUILayout.Button("Reset Pos.") && this.IsObjectDirty(this._advancedTarget.gameObject))
                     {
-                        this._advancedTarget.localPosition = this._dirtyObjects[this._advancedTarget.gameObject].Key;
-                        this._advancedTarget.localRotation = this._dirtyObjects[this._advancedTarget.gameObject].Value;
+                        this._dirtyObjects[this._advancedTarget.gameObject].ResetPosition();
+                        this.SetObjectNotDirtyIf(this._advancedTarget.gameObject);
+                    }
+                    if (GUILayout.Button("Reset Rot.") && this.IsObjectDirty(this._advancedTarget.gameObject))
+                    {
+                        this._dirtyObjects[this._advancedTarget.gameObject].ResetRotation();
+                        this.SetObjectNotDirtyIf(this._advancedTarget.gameObject);
+                    }
+                    if (GUILayout.Button("Reset Scale") && this.IsObjectDirty(this._advancedTarget.gameObject))
+                    {
+                        this._dirtyObjects[this._advancedTarget.gameObject].ResetScale();
+                        this.SetObjectNotDirtyIf(this._advancedTarget.gameObject);
                     }
                     GUILayout.EndHorizontal();
                 }
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUIStyle style = GUI.skin.GetStyle("Label");
+                TextAnchor bak = style.alignment;
+                style.alignment = TextAnchor.MiddleCenter;
+                GUILayout.Label("Shortcuts", style);
+                style.alignment = bak;
+                GUILayout.BeginHorizontal();
+                foreach (KeyValuePair<Transform, string> kvp in this._shortcuts)
+                    if (GUILayout.Button(kvp.Value))
+                        this.GoToObject(kvp.Key.gameObject);
+                GUILayout.EndHorizontal();
+                GUILayout.EndVertical();
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
@@ -402,10 +640,16 @@ namespace HSPE
             bendGoal.position = bendGoalTargetPos;
         }
 
-        private void CheckIkEnabled()
+        private void GoToObject(GameObject go)
         {
-            if (this._animator.enabled == this.isEnabled)
-               this._animator.enabled = !this.isEnabled;
+            this._advancedTarget = go.transform;
+            go = go.transform.parent.gameObject;
+            while (go.transform != this.transform.GetChild(0))
+            {
+                this._openedGameObjects.Add(go);
+                go = go.transform.parent.gameObject;
+            }
+            this._openedGameObjects.Add(go);
         }
 
         private void DisplayObjectTree(GameObject go, int indent)
@@ -430,16 +674,10 @@ namespace HSPE
             Color c = GUI.color;
             if (this._dirtyObjects.ContainsKey(go))
                 GUI.color = Color.magenta;
-            if (_advancedTarget == go.transform)
+            if (this._advancedTarget == go.transform)
                 GUI.color = Color.cyan;
             if (GUILayout.Button(go.name + (this.IsObjectDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
-            {
-                if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject) == false)
-                    this._dirtyObjects.Remove(this._advancedTarget.gameObject);
-                _advancedTarget = go.transform;
-                if (this._dirtyObjects.ContainsKey(go) == false)
-                    this._dirtyObjects.Add(go, new KeyValuePair<Vector3, Quaternion>(go.transform.localPosition, go.transform.localRotation));
-            }
+                this._advancedTarget = go.transform;
             GUI.color = c;
             GUILayout.EndHorizontal();
             if (this._openedGameObjects.Contains(go))
@@ -447,14 +685,25 @@ namespace HSPE
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
 
+        private void SetObjectDirty(GameObject go)
+        {
+            if (!this.IsObjectDirty(go))
+                this._dirtyObjects.Add(go, new TransformData());
+        }
+
+        private void SetObjectNotDirtyIf(GameObject go)
+        {
+            if (this.IsObjectDirty(go))
+            {
+                TransformData data = this._dirtyObjects[go];
+                if (data.hasPosition == false && data.hasRotation == false && data.hasScale == false)
+                    this._dirtyObjects.Remove(go);
+            }
+        }
+
         private bool IsObjectDirty(GameObject go)
         {
-            if (this._dirtyObjects.ContainsKey(go))
-            {
-                KeyValuePair<Vector3, Quaternion> tr = this._dirtyObjects[go];
-                return (go.transform.localPosition != tr.Key || go.transform.localRotation != tr.Value);
-            }
-            return false;
+            return (this._dirtyObjects.ContainsKey(go));
         }
 
 
@@ -462,79 +711,61 @@ namespace HSPE
         {
             if (!this.isEnabled)
                 return;
-            this.StartCoroutine(this.AfterOnPostSolve());
-        }
-
-        private IEnumerator AfterOnPostSolve()
-        {
-            yield return new WaitForEndOfFrame();
             this._legKneeDamL.rotation = Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.leftLegMapping.bone2.rotation, 0.5f);
             this._legKneeDamR.rotation = Quaternion.Lerp(this._body.solver.rightLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone2.rotation, 0.5f);
             this._legKneeBackL.rotation = this._body.solver.leftLegMapping.bone2.rotation;
             this._legKneeBackR.rotation = this._body.solver.rightLegMapping.bone2.rotation;
-            this._legUpL.rotation = Quaternion.Lerp(this._legUpL.parent.rotation, this._body.solver.leftThighEffector.bone.rotation, 0.85f);
-            this._legUpR.rotation = Quaternion.Lerp(this._legUpR.parent.rotation, this._body.solver.rightThighEffector.bone.rotation, 0.85f);
+            this._legUpL.rotation = this._body.solver.leftLegMapping.bone1.rotation;
+            this._legUpL.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._legUpL.parent.rotation, this._body.solver.leftLegMapping.bone1.rotation) / 6f, Vector3.right);
+            this._legUpR.rotation = this._body.solver.rightLegMapping.bone1.rotation;
+            this._legUpR.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._legUpR.parent.rotation, this._body.solver.rightLegMapping.bone1.rotation) / 6f, Vector3.right);
             this._elbowDamL.rotation = Quaternion.Lerp(this._elbowDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.65f);
             this._elbowDamR.rotation = Quaternion.Lerp(this._elbowDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);
-        }
+            this._armElbouraDamL.rotation = Quaternion.Lerp(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.5f);
+            this._armElbouraDamR.rotation = Quaternion.Lerp(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.5f);
+            this._armUpDamL.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation) / 90f);
+            this._armUpDamR.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation) / 90f);
+            float handAngle = Extensions.DirectionalAngle(Vector3.forward, this._body.solver.leftArmMapping.bone2.InverseTransformDirection(this._body.solver.leftArmMapping.bone3.forward), Vector3.right);
+            this._armLow1L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.25f), Vector3.right);
+            this._armLow2L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.5f), Vector3.right);
+            this._armLow3L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.75f), Vector3.right);
+            handAngle = Extensions.DirectionalAngle(Vector3.forward, this._body.solver.rightArmMapping.bone2.InverseTransformDirection(this._body.solver.rightArmMapping.bone3.forward), Vector3.right);
+            this._armLow1R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.25f), Vector3.right);
+            this._armLow2R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.5f), Vector3.right);
+            this._armLow3R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.75f), Vector3.right);
+            this._siriDamL.rotation = this._body.solver.leftLegMapping.bone1.rotation;
+            this._siriDamL.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._siriDamL.parent.rotation, this._body.solver.leftLegMapping.bone1.rotation) / 2f, Vector3.right);
+            this._siriDamR.rotation = this._body.solver.rightLegMapping.bone1.rotation;
+            this._siriDamR.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._siriDamR.parent.rotation, this._body.solver.rightLegMapping.bone1.rotation) / 2f, Vector3.right);
+            this._kosi.rotation = Quaternion.Lerp(this._kosi.parent.rotation, Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone1.rotation, 0.5f), 0.25f);
 
-        private void ApplyAdvancedObjects()
-        {
-            foreach (KeyValuePair<GameObject, KeyValuePair<Vector3, Quaternion>> kvp in this._advancedObjects)
+            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyObjects)
             {
-                kvp.Key.transform.localPosition = kvp.Value.Key;
-                kvp.Key.transform.localRotation = kvp.Value.Value;
+                if (kvp.Value.hasPosition)
+                    kvp.Key.transform.localPosition = kvp.Value.position;
+                if (kvp.Value.hasRotation)
+                    kvp.Key.transform.localRotation = kvp.Value.rotation;
+                if (kvp.Value.hasScale)
+                    kvp.Key.transform.localScale = kvp.Value.scale;
             }
-            this._advancedObjects.Clear();
         }
 
         private void DrawGizmos()
         {
             if (!this.draw || !this.isEnabled)
                 return;
-            if (!(this._advancedTarget is RectTransform))
-            {
-                GL.PushMatrix();
-                this._mat.SetPass(0);
-                GL.LoadProjectionMatrix(Studio.Instance.MainCamera.projectionMatrix);
-                GL.MultMatrix(Studio.Instance.MainCamera.transform.worldToLocalMatrix);
-                GL.Begin(GL.LINES);
-                if (this._advancedTarget)
-                    this.GLDrawCube(this._advancedTarget.position, this._advancedTarget.rotation, 0.025f, true);
-                GL.End();
-                GL.PopMatrix();
-            }
-            else
-            {
-                RectTransform rt = this._advancedTarget as RectTransform;
-                GL.PushMatrix();
-                this._mat.SetPass(0);
-                GL.LoadPixelMatrix();
-                GL.Begin(GL.LINES);
-                Vector2 size = Vector2.Scale(rt.rect.size, rt.lossyScale);
-                float x = rt.position.x + rt.anchoredPosition.x;
-                float y = Screen.height - rt.position.y - rt.anchoredPosition.y;
-                Rect r = new Rect(x, y, size.x, size.y);
-                //r.position += new Vector2(Screen.width / 2f, Screen.height / 2f);
-                GL.Vertex(r.min);
-                GL.Vertex(new Vector2(r.max.x, r.min.y));
-
-                GL.Vertex(new Vector2(r.max.x, r.min.y));
-                GL.Vertex(r.max);
-
-                GL.Vertex(r.max);
-                GL.Vertex(new Vector2(r.min.x, r.max.y));
-
-                GL.Vertex(new Vector2(r.min.x, r.max.y));
-                GL.Vertex(r.min);
-
-                GL.End();
-                GL.PopMatrix();
-                
-            }
+            GL.PushMatrix();
+            this._mat.SetPass(0);
+            GL.LoadProjectionMatrix(Studio.Instance.MainCamera.projectionMatrix);
+            GL.MultMatrix(Studio.Instance.MainCamera.transform.worldToLocalMatrix);
+            GL.Begin(GL.LINES);
+            if (this._advancedTarget)
+                this.GLDrawCube(this._advancedTarget.position, this._advancedTarget.rotation, 0.025f, true, true, true);
+            GL.End();
+            GL.PopMatrix();
         }
 
-        private void GLDrawCube(Vector3 position, Quaternion rotation, float size, bool up = false)
+        private void GLDrawCube(Vector3 position, Quaternion rotation, float size, bool up = false, bool forward = false, bool right = false)
         {
             Vector3 topLeftForward = position + (rotation * ((Vector3.up + Vector3.left + Vector3.forward) * size)),
                     topRightForward = position + (rotation * ((Vector3.up + Vector3.right + Vector3.forward) * size)),
@@ -581,11 +812,18 @@ namespace HSPE
             GL.Vertex(bottomLeftForward);
             if (up)
             {
-                GL.Vertex(topRightForward);
-                GL.Vertex(topLeftBack);
-
-                GL.Vertex(topLeftForward);
-                GL.Vertex(topRightBack);
+                GL.Vertex(position);
+                GL.Vertex(position + (rotation * (Vector3.up * size * 2)));
+            }
+            if (right)
+            {
+                GL.Vertex(position);
+                GL.Vertex(position + (rotation * (Vector3.right * size * 2)));
+            }
+            if (forward)
+            {
+                GL.Vertex(position);
+                GL.Vertex(position + (rotation * (Vector3.forward * size * 2)));
             }
         }
         #endregion
@@ -604,7 +842,7 @@ namespace HSPE
         {
             xmlWriter.WriteStartElement("advancedObjects");
             xmlWriter.WriteAttributeString("count", this._dirtyObjects.Count.ToString());
-            foreach (KeyValuePair<GameObject, KeyValuePair<Vector3, Quaternion>> kvp in this._dirtyObjects)
+            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyObjects)
             {
                 Transform t = kvp.Key.transform.parent;
                 string n = kvp.Key.transform.name;
@@ -616,24 +854,27 @@ namespace HSPE
                 xmlWriter.WriteStartElement("object");
                 xmlWriter.WriteAttributeString("name", n);
 
-                xmlWriter.WriteAttributeString("originalPosX", XmlConvert.ToString(kvp.Value.Key.x));
-                xmlWriter.WriteAttributeString("originalPosY", XmlConvert.ToString(kvp.Value.Key.y));
-                xmlWriter.WriteAttributeString("originalPosZ", XmlConvert.ToString(kvp.Value.Key.z));
+                if (kvp.Value.hasPosition)
+                {
+                    xmlWriter.WriteAttributeString("posX", XmlConvert.ToString(kvp.Value.position.x));
+                    xmlWriter.WriteAttributeString("posY", XmlConvert.ToString(kvp.Value.position.y));
+                    xmlWriter.WriteAttributeString("posZ", XmlConvert.ToString(kvp.Value.position.z));
+                }
 
-                xmlWriter.WriteAttributeString("originalRotW", XmlConvert.ToString(kvp.Value.Value.w));
-                xmlWriter.WriteAttributeString("originalRotX", XmlConvert.ToString(kvp.Value.Value.x));
-                xmlWriter.WriteAttributeString("originalRotY", XmlConvert.ToString(kvp.Value.Value.y));
-                xmlWriter.WriteAttributeString("originalRotZ", XmlConvert.ToString(kvp.Value.Value.z));
+                if (kvp.Value.hasRotation)
+                {
+                    xmlWriter.WriteAttributeString("rotW", XmlConvert.ToString(kvp.Value.rotation.w));
+                    xmlWriter.WriteAttributeString("rotX", XmlConvert.ToString(kvp.Value.rotation.x));
+                    xmlWriter.WriteAttributeString("rotY", XmlConvert.ToString(kvp.Value.rotation.y));
+                    xmlWriter.WriteAttributeString("rotZ", XmlConvert.ToString(kvp.Value.rotation.z));
+                }
 
-                xmlWriter.WriteAttributeString("posX", XmlConvert.ToString(kvp.Key.transform.localPosition.x));
-                xmlWriter.WriteAttributeString("posY", XmlConvert.ToString(kvp.Key.transform.localPosition.y));
-                xmlWriter.WriteAttributeString("posZ", XmlConvert.ToString(kvp.Key.transform.localPosition.z));
-
-                xmlWriter.WriteAttributeString("rotW", XmlConvert.ToString(kvp.Key.transform.localRotation.w));
-                xmlWriter.WriteAttributeString("rotX", XmlConvert.ToString(kvp.Key.transform.localRotation.x));
-                xmlWriter.WriteAttributeString("rotY", XmlConvert.ToString(kvp.Key.transform.localRotation.y));
-                xmlWriter.WriteAttributeString("rotZ", XmlConvert.ToString(kvp.Key.transform.localRotation.z));
-
+                if (kvp.Value.hasScale)
+                {
+                    xmlWriter.WriteAttributeString("scaleX", XmlConvert.ToString(kvp.Value.scale.x));
+                    xmlWriter.WriteAttributeString("scaleY", XmlConvert.ToString(kvp.Value.scale.y));
+                    xmlWriter.WriteAttributeString("scaleZ", XmlConvert.ToString(kvp.Value.scale.z));
+                }
                 xmlWriter.WriteEndElement();
             }
             xmlWriter.WriteEndElement();
@@ -678,6 +919,15 @@ namespace HSPE
                 GameObject obj = this.transform.FindDescendant(name).gameObject;
                 Vector3 pos;
                 Quaternion rot;
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+
                 pos.x = binaryReader.ReadSingle();
                 pos.y = binaryReader.ReadSingle();
                 pos.z = binaryReader.ReadSingle();
@@ -686,17 +936,7 @@ namespace HSPE
                 rot.x = binaryReader.ReadSingle();
                 rot.y = binaryReader.ReadSingle();
                 rot.z = binaryReader.ReadSingle();
-                this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
-
-                pos.x = binaryReader.ReadSingle();
-                pos.y = binaryReader.ReadSingle();
-                pos.z = binaryReader.ReadSingle();
-
-                rot.w = binaryReader.ReadSingle();
-                rot.x = binaryReader.ReadSingle();
-                rot.y = binaryReader.ReadSingle();
-                rot.z = binaryReader.ReadSingle();
-                this._advancedObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
+                this._dirtyObjects.Add(obj, new TransformData() { position = pos, rotation = rot });
             }
         }
 
@@ -719,38 +959,34 @@ namespace HSPE
                     {
                         string name = xmlReader.GetAttribute("name");
                         GameObject obj = this.transform.Find(name).gameObject;
-                        if (xmlReader.GetAttribute("posX") != null && xmlReader.GetAttribute("posY") != null && xmlReader.GetAttribute("posZ") != null &&
-                            xmlReader.GetAttribute("rotW") != null && xmlReader.GetAttribute("rotX") != null && xmlReader.GetAttribute("rotY") != null && xmlReader.GetAttribute("rotZ") != null)
+                        TransformData data = new TransformData();
+                        if (xmlReader.GetAttribute("posX") != null && xmlReader.GetAttribute("posY") != null && xmlReader.GetAttribute("posZ") != null)
                         {
                             Vector3 pos;
-                            Quaternion rot;
                             pos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("posX"));
                             pos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("posY"));
                             pos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("posZ"));
-
+                            data.position = pos;
+                        }
+                        if (xmlReader.GetAttribute("rotW") != null && xmlReader.GetAttribute("rotX") != null && xmlReader.GetAttribute("rotY") != null && xmlReader.GetAttribute("rotZ") != null)
+                        {
+                            Quaternion rot;
                             rot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("rotW"));
                             rot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("rotX"));
                             rot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("rotY"));
                             rot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("rotZ"));
-                            if (xmlReader.GetAttribute("originalPosX") != null && xmlReader.GetAttribute("originalPosY") != null && xmlReader.GetAttribute("originalPosZ") != null &&
-                                xmlReader.GetAttribute("originalRotW") != null && xmlReader.GetAttribute("originalRotX") != null && xmlReader.GetAttribute("originalRotY") != null && xmlReader.GetAttribute("originalRotZ") != null)
-                            {
-                                Vector3 originalPos;
-                                Quaternion originalRot;
-                                originalPos.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosX"));
-                                originalPos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosY"));
-                                originalPos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalPosZ"));
-
-                                originalRot.w = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotW"));
-                                originalRot.x = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotX"));
-                                originalRot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotY"));
-                                originalRot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("originalRotZ"));
-                                this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(originalPos, originalRot));
-                            }
-                            else
-                                this._dirtyObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(obj.transform.localPosition, obj.transform.localRotation));
-                            this._advancedObjects.Add(obj, new KeyValuePair<Vector3, Quaternion>(pos, rot));
+                            data.rotation = rot;
                         }
+                        if (xmlReader.GetAttribute("scaleX") != null && xmlReader.GetAttribute("scaleY") != null && xmlReader.GetAttribute("scaleZ") != null)
+                        {
+                            Vector3 scale;
+                            scale.x = XmlConvert.ToSingle(xmlReader.GetAttribute("scaleX"));
+                            scale.y = XmlConvert.ToSingle(xmlReader.GetAttribute("scaleY"));
+                            scale.z = XmlConvert.ToSingle(xmlReader.GetAttribute("scaleZ"));
+                            data.scale = scale;
+                        }
+                        if (data.hasPosition || data.hasRotation || data.hasScale)
+                            this._dirtyObjects.Add(obj, data);
                         ++i;
                     }
                 }

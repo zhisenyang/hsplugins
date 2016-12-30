@@ -22,4 +22,18 @@ public static class Extensions
         self.offsetMin = offsetMin;
         self.offsetMax = offsetMax;
     }
+
+    public static float DirectionalAngle(Vector3 from, Vector3 to, Vector3 up)
+    {
+        Vector3 f = Vector3.ProjectOnPlane(from, up);
+        Vector3 t = Vector3.ProjectOnPlane(to, up);
+
+        Quaternion toZ = Quaternion.FromToRotation(up, Vector3.up);
+        f = toZ * f;
+        t = toZ * t;
+
+        Quaternion fromTo = Quaternion.FromToRotation(f, t);
+
+        return fromTo.eulerAngles.y;
+    }
 }

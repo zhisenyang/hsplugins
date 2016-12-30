@@ -80,7 +80,7 @@ namespace HSPE
                 int i = 0;
                 foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
                 {
-                    if (i >= this._femaleIndexOffset)
+                    if (i >= this._femaleIndexOffset && kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
                         kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
                     ++i;
                 }
@@ -91,7 +91,7 @@ namespace HSPE
                 int i = 0;
                 foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
                 {
-                    if (i >= this._maleIndexOffset)
+                    if (i >= this._maleIndexOffset && kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
                         kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
                     ++i;
                 }
@@ -637,9 +637,11 @@ namespace HSPE
         private void OnSceneLoad()
         {
             foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
-                kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
+                if (kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
+                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
             foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
-                kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
+                if (kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
+                    kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
             string scenePath = Path.GetFileNameWithoutExtension(Studio.Instance.SaveFileName) + ".sav";
             string dir = "Plugins\\HSPE\\StudioScenes";
             string path = dir + "\\" + scenePath;
@@ -669,14 +671,14 @@ namespace HSPE
             int i = 0;
             foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
             {
-                if (i >= this._femaleIndexOffset)
+                if (i >= this._femaleIndexOffset && kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
                     kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
                 ++i;
             }
             i = 0;
             foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
             {
-                if (i >= this._maleIndexOffset)
+                if (i >= this._maleIndexOffset && kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
                     kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
                 ++i;
             }
