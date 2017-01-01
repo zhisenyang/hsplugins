@@ -7,28 +7,28 @@ namespace HSPE
     public class UIUtility : MonoBehaviour
     {
         #region Public Static Variables
-        public static RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
-        public static bool canvasPixelPerfect = false;
+        public const RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
+        public const bool canvasPixelPerfect = false;
 
-        public static CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-        public static float canvasScalerReferencePixelsPerUnit = 100f;
+        public const CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        public const float canvasScalerReferencePixelsPerUnit = 100f;
 
-        public static bool graphicRaycasterIgnoreReversedGraphics = true;
-        public static GraphicRaycaster.BlockingObjects graphicRaycasterBlockingObjects = GraphicRaycaster.BlockingObjects.None;
+        public const bool graphicRaycasterIgnoreReversedGraphics = true;
+        public const GraphicRaycaster.BlockingObjects graphicRaycasterBlockingObjects = GraphicRaycaster.BlockingObjects.None;
 
         public static Sprite backgroundSprite;
         public static Sprite headerSprite;
         public static Sprite checkMark;
         public static Sprite slideBackground;
         public static Sprite handle;
-        public static Color whiteColor = new Color(1.000f, 1.000f, 1.000f, 0.878f);
-        public static Color beigeColor = new Color(1.000f, 0.793f, 0.572f, 0.757f);
-        public static Color greenColor = new Color(0.278f, 1.000f, 0.435f, 1.000f);
-        public static Color yellowColor = new Color(0.993f, 1.000f, 0.463f, 1.000f);
-        public static Color greyColor = new Color(0.784f, 0.784f, 0.784f, 0.502f);
-        public static Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
-        public static Color blueColor = new Color(0.270f, 0.647f, 0.780f, 1.000f);
-        public static Color redColor = new Color(0.650f, 0.066f, 0.011f, 1.000f);
+        public static readonly Color whiteColor = new Color(1.000f, 1.000f, 1.000f, 0.878f);
+        public static readonly Color beigeColor = new Color(1.000f, 0.793f, 0.572f, 0.757f);
+        public static readonly Color greenColor = new Color(0.278f, 1.000f, 0.435f, 1.000f);
+        public static readonly Color yellowColor = new Color(0.993f, 1.000f, 0.463f, 1.000f);
+        public static readonly Color greyColor = new Color(0.784f, 0.784f, 0.784f, 0.502f);
+        public static readonly Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
+        public static readonly Color blueColor = new Color(0.270f, 0.647f, 0.780f, 1.000f);
+        public static readonly Color redColor = new Color(0.650f, 0.066f, 0.011f, 1.000f);
         public static Font defaultFont;
         public static int defaultFontSize;
         #endregion

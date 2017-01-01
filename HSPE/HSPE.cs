@@ -106,6 +106,7 @@ namespace HSPE
 
         public void OnApplicationQuit()
         {
+            
         }
 
         public void OnApplicationStart()

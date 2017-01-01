@@ -33,6 +33,12 @@ namespace HSPE
             private bool _hasPosition;
             private bool _hasRotation;
             private bool _hasScale;
+            private Vector3 _originalPosition = Vector3.zero;
+            private Quaternion _originalRotation = Quaternion.identity;
+            private Vector3 _originalScale = Vector3.one;
+            private bool _hasOriginalPosition;
+            private bool _hasOriginalRotation;
+            private bool _hasOriginalScale;
 
             public Vector3 position
             {
@@ -63,9 +69,42 @@ namespace HSPE
                     this._hasScale = true;
                 }
             }
+            public Vector3 originalPosition
+            {
+                get { return this._originalPosition; }
+                set
+                {
+                    this._originalPosition = value;
+                    this._hasOriginalPosition = true;
+                }
+            }
+
+            public Quaternion originalRotation
+            {
+                get { return this._originalRotation; }
+                set
+                {
+                    this._originalRotation = value;
+                    this._hasOriginalRotation = true;
+                }
+            }
+
+            public Vector3 originalScale
+            {
+                get { return this._originalScale; }
+                set
+                {
+                    this._originalScale = value;
+                    this._hasOriginalScale = true;
+                }
+            }
+
             public bool hasPosition { get { return this._hasPosition; } }
             public bool hasRotation { get { return this._hasRotation; } }
             public bool hasScale { get { return this._hasScale; } }
+            public bool hasOriginalPosition { get { return this._hasOriginalPosition; } }
+            public bool hasOriginalRotation { get { return this._hasOriginalRotation; } }
+            public bool hasOriginalScale { get { return this._hasOriginalScale; } }
 
             public void ResetPosition()
             {
@@ -78,6 +117,20 @@ namespace HSPE
             }
 
             public void ResetScale()
+            {
+                this._hasScale = false;
+            }
+            public void ResetOriginalPosition()
+            {
+                this._hasOriginalPosition = false;
+            }
+
+            public void ResetOriginalRotation()
+            {
+                this._hasOriginalRotation = false;
+            }
+
+            public void ResetOriginalScale()
             {
                 this._hasScale = false;
             }
@@ -426,10 +479,10 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
                         {
-                            if (this._advancedCoordWorld)
-                                this._dirtyObjects[this._advancedTarget.gameObject].position = this._advancedTarget.TransformPoint(position);
-                            else
-                                this._dirtyObjects[this._advancedTarget.gameObject].position = position;
+                            TransformData td = this._dirtyObjects[this._advancedTarget.gameObject];
+                            td.position = this._advancedCoordWorld ? this._advancedTarget.TransformPoint(position) : position;
+                            if (!td.hasOriginalPosition)
+                                td.originalPosition = this._advancedTarget.localPosition;
                         }
                         break;
                     case CoordType.Rotation:
@@ -467,7 +520,6 @@ namespace HSPE
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
-
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z (Roll): " + rotation.eulerAngles.z.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(200f));
@@ -485,10 +537,10 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
                         {
-                            if (this._advancedCoordWorld)
-                                this._dirtyObjects[this._advancedTarget.gameObject].rotation = rotation * Quaternion.Inverse(this._advancedTarget.parent.rotation);
-                            else
-                                this._dirtyObjects[this._advancedTarget.gameObject].rotation = rotation;
+                            TransformData td = this._dirtyObjects[this._advancedTarget.gameObject];
+                            td.rotation = this._advancedCoordWorld ? rotation * Quaternion.Inverse(this._advancedTarget.parent.rotation) : rotation;
+                            if (!td.hasOriginalRotation)
+                                td.originalRotation = this._advancedTarget.localRotation;
                         }
                         break;
                     case CoordType.Scale:
@@ -563,7 +615,12 @@ namespace HSPE
                         if (this._advancedTarget != null && this.IsObjectDirty(this._advancedTarget.gameObject))
                         {
                             if (!this._advancedCoordWorld)
-                                this._dirtyObjects[this._advancedTarget.gameObject].scale = scale;
+                            {
+                                TransformData td = this._dirtyObjects[this._advancedTarget.gameObject];
+                                td.scale = scale;
+                                if (!td.hasOriginalScale)
+                                    td.originalScale = this._advancedTarget.localScale;
+                            }
                         }
                         break;
                 }
@@ -688,7 +745,9 @@ namespace HSPE
         private void SetObjectDirty(GameObject go)
         {
             if (!this.IsObjectDirty(go))
+            {
                 this._dirtyObjects.Add(go, new TransformData());
+            }
         }
 
         private void SetObjectNotDirtyIf(GameObject go)
@@ -697,7 +756,15 @@ namespace HSPE
             {
                 TransformData data = this._dirtyObjects[go];
                 if (data.hasPosition == false && data.hasRotation == false && data.hasScale == false)
+                {
                     this._dirtyObjects.Remove(go);
+                    if (data.hasOriginalPosition)
+                        go.transform.localPosition = data.originalPosition;
+                    if (data.hasOriginalRotation)
+                        go.transform.localRotation = data.originalRotation;
+                    if (data.hasOriginalScale)
+                        go.transform.localScale = data.originalScale;
+                }
             }
         }
 
@@ -936,7 +1003,7 @@ namespace HSPE
                 rot.x = binaryReader.ReadSingle();
                 rot.y = binaryReader.ReadSingle();
                 rot.z = binaryReader.ReadSingle();
-                this._dirtyObjects.Add(obj, new TransformData() { position = pos, rotation = rot });
+                this._dirtyObjects.Add(obj, new TransformData() { position = pos, rotation = rot, originalPosition = obj.transform.localPosition, originalRotation = obj.transform.localRotation});
             }
         }
 
@@ -967,6 +1034,7 @@ namespace HSPE
                             pos.y = XmlConvert.ToSingle(xmlReader.GetAttribute("posY"));
                             pos.z = XmlConvert.ToSingle(xmlReader.GetAttribute("posZ"));
                             data.position = pos;
+                            data.originalPosition = obj.transform.localPosition;
                         }
                         if (xmlReader.GetAttribute("rotW") != null && xmlReader.GetAttribute("rotX") != null && xmlReader.GetAttribute("rotY") != null && xmlReader.GetAttribute("rotZ") != null)
                         {
@@ -976,6 +1044,7 @@ namespace HSPE
                             rot.y = XmlConvert.ToSingle(xmlReader.GetAttribute("rotY"));
                             rot.z = XmlConvert.ToSingle(xmlReader.GetAttribute("rotZ"));
                             data.rotation = rot;
+                            data.originalRotation = obj.transform.localRotation;
                         }
                         if (xmlReader.GetAttribute("scaleX") != null && xmlReader.GetAttribute("scaleY") != null && xmlReader.GetAttribute("scaleZ") != null)
                         {
@@ -984,6 +1053,7 @@ namespace HSPE
                             scale.y = XmlConvert.ToSingle(xmlReader.GetAttribute("scaleY"));
                             scale.z = XmlConvert.ToSingle(xmlReader.GetAttribute("scaleZ"));
                             data.scale = scale;
+                            data.originalScale = obj.transform.localScale;
                         }
                         if (data.hasPosition || data.hasRotation || data.hasScale)
                             this._dirtyObjects.Add(obj, data);

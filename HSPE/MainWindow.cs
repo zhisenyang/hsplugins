@@ -13,6 +13,12 @@ namespace HSPE
 {
     public class MainWindow : MonoBehaviour
     {
+        #region Private Constants
+        private const string _config = "config.xml";
+        private const string _pluginDir = "Plugins\\HSPE\\";
+        private const string _studioSavesDir = "StudioScenes\\";
+        #endregion
+
         #region Private Variables
         private CameraControl _cameraController;
         private ManualBoneController _manualBoneTarget;
@@ -47,9 +53,11 @@ namespace HSPE
         private readonly Button[] _effectorsButtons = new Button[9];
         private readonly Button[] _bendGoalsButtons = new Button[4];
         private readonly Button[] _rotationButtons = new Button[3];
+        private float _uiScale = 1f;
         #endregion
 
         #region Unity Methods
+
         protected virtual void Awake()
         {
             if (GameObject.Find("LoadCanvas"))
@@ -62,6 +70,33 @@ namespace HSPE
             }
             if (GameObject.Find("SystemCanvas"))
                 GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").FindChild("SaveButton").GetComponent<Button>().onClick.AddListener(this.OnSceneSave);
+
+            string path = _pluginDir + _config;
+            if (File.Exists(path) == false)
+                return;
+            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            {
+                using (XmlReader xmlReader = XmlReader.Create(fileStream))
+                {
+                    while (xmlReader.Read())
+                    {
+                        if (xmlReader.NodeType == XmlNodeType.Element)
+                        {
+                            switch (xmlReader.Name)
+                            {
+                                case "uiScale":
+                                    UnityEngine.Debug.Log("test");
+                                    if (xmlReader.GetAttribute("value") != null)
+                                    {
+                                        UnityEngine.Debug.Log("test2");
+                                        this._uiScale = Mathf.Clamp(XmlConvert.ToSingle(xmlReader.GetAttribute("value")), 0.5f, 2f);
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         protected virtual void Start()
@@ -112,6 +147,7 @@ namespace HSPE
 
         protected virtual void OnGUI()
         {
+            GUIUtility.ScaleAroundPivot(Vector2.one * this._uiScale, new Vector2(Screen.width, Screen.height));
             if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled)
             {
                 if (this._advancedModeToggle.isOn)
@@ -122,339 +158,430 @@ namespace HSPE
                 else
                     this._manualBoneTarget.draw = false;
             }
+            GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
+        }
+        protected virtual void OnDestroy()
+        {
+            if (Directory.Exists(_pluginDir) == false)
+                Directory.CreateDirectory(_pluginDir);
+            string path = _pluginDir + _config;
+            using (FileStream fileStream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            {
+                using (XmlTextWriter xmlWriter = new XmlTextWriter(fileStream, Encoding.UTF8))
+                {
+                    xmlWriter.Formatting = Formatting.Indented;
+                    xmlWriter.WriteStartElement("root");
+                    xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
+
+                    xmlWriter.WriteStartElement("uiScale");
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._uiScale));
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteEndElement();
+                }
+            }
         }
         #endregion
 
         #region GUI
+
         private void SpawnGUI()
         {
             this._ui = UIUtility.CreateNewUISystem();
-
-            Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
-            bg.raycastTarget = false;
-            bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(387f, 543f));
-
-            Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.rectTransform, "Top Container").gameObject, UIUtility.headerSprite);
-            topContainer.color = UIUtility.beigeColor;
-            topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
-            topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
-
-            Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "HSPE");
-            titleText.alignment = TextAnchor.MiddleCenter;
-            titleText.resizeTextForBestFit = true;
-            titleText.fontStyle = FontStyle.Bold;
-            titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
-            titleText.color = Color.white;
-            UIUtility.AddOutlineToObject(titleText.gameObject);
-
-
-            this._nothingText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(bg.transform, "Nothing Text").gameObject, "There is no character selected. Please select a character to begin pose edition.");
-            this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
-            this._nothingText.gameObject.SetActive(false);
-
-            this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
-            this._controls.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
-
-            this._nothingText2 = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(this._controls, "Nothing Text 2"), "The IK system is not enabled on this character.");
-            this._nothingText2.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
-
-            this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
-            this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
-
-            Button rightShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Shoulder Button").gameObject, "R. Shoulder");
-            rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
-            Text t = rightShoulder.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            RectTransform buttonRT = rightShoulder.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -35f), Vector2.zero);
-            this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
-
-            Button leftShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Shoulder Button").gameObject, "L. Shoulder");
-            leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
-            t = leftShoulder.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftShoulder.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -35f), Vector2.zero);
-            this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
-
-            Button rightArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Arm Bend Goal Button").gameObject, "R. Elbow Dir.");
-            rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
-            t = rightArmBendGoal.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = rightArmBendGoal.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
-            this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
-
-            Button leftArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Arm Bend Goal Button").gameObject, "L. Elbow Dir.");
-            leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
-            t = leftArmBendGoal.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftArmBendGoal.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
-            this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
-
-            Button rightHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Hand Button").gameObject, "R. Hand");
-            rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
-            t = rightHand.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = rightHand.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -105f), new Vector2(0f, -70f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
-
-            Button leftHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Hand Button").gameObject, "L. Hand");
-            leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
-            t = leftHand.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftHand.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -105f), new Vector2(0f, -70f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
-
-            Button body = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Body Button").gameObject, "Body");
-            body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
-            t = body.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = body.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.375f, 1f), new Vector2(0.625f, 1f), new Vector2(0f, -140f), new Vector2(0f, -105f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
-
-            Button rightThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Thigh Button").gameObject, "R. Thigh");
-            rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
-            t = rightThigh.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = rightThigh.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
-
-            Button leftThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Thigh Button").gameObject, "L. Thigh");
-            leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
-            t = leftThigh.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftThigh.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
-
-            Button rightLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Leg Bend Goal Button").gameObject, "R. Knee Dir.");
-            rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
-            t = rightLegBendGoal.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = rightLegBendGoal.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
-            this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
-
-            Button leftLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Leg Bend Goal Button").gameObject, "L. Knee Dir.");
-            leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
-            t = leftLegBendGoal.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftLegBendGoal.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
-            this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
-
-            Button rightFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Foot Button").gameObject, "R. Foot");
-            rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
-            t = rightFoot.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = rightFoot.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -245f), new Vector2(0f, -210f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
-
-            Button leftFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Foot Button").gameObject, "L. Foot");
-            leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
-            t = leftFoot.GetComponentInChildren<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMaxSize = 100;
-            buttonRT = leftFoot.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -245f), new Vector2(0f, -210f));
-            this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
-
-            RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
-            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 25f), new Vector2(0f, -245f));
-
-            Button xMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "X Move Button").gameObject, "↑\nX\n↓");
-            t = xMoveButton.GetComponentInChildren<Text>();
-            t.fontSize = t.fontSize * 2;
-            xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+            this._ui.scaleFactor = this._uiScale;
             {
-                this._xMove = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = xMoveButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
+                Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
+                bg.raycastTarget = false;
+                bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(387f, 543f));
 
-            Button yMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Y Move Button").gameObject, "↑\nY\n↓");
-            t = yMoveButton.GetComponentInChildren<Text>();
-            t.fontSize = t.fontSize * 2;
-            yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this._yMove = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = yMoveButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
+                {
+                    Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.rectTransform, "Top Container").gameObject, UIUtility.headerSprite);
+                    topContainer.color = UIUtility.beigeColor;
+                    topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
+                    topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
 
-            Button zMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Z Move Button").gameObject, "↑\nZ\n↓");
-            t = zMoveButton.GetComponentInChildren<Text>();
-            t.fontSize = t.fontSize * 2;
-            zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this._zMove = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = zMoveButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
+                    Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "HSPE");
+                    titleText.alignment = TextAnchor.MiddleCenter;
+                    titleText.resizeTextForBestFit = true;
+                    titleText.fontStyle = FontStyle.Bold;
+                    titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+                    titleText.color = Color.white;
+                    UIUtility.AddOutlineToObject(titleText.gameObject);
+                }
 
-            Button rotXButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot X Button").gameObject, "←   →\nRot X");
-            //t = rotXButton.GetComponentInChildren<Text>();
-            //t.fontSize = (int)(t.fontSize * 1.5f);
-            rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this._xRot = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = rotXButton.transform as RectTransform;
-            buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
-            this._rotationButtons[0] = rotXButton;
+                this._nothingText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(bg.transform, "Nothing Text").gameObject, "There is no character selected. Please select a character to begin pose edition.");
+                this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
+                this._nothingText.gameObject.SetActive(false);
 
-            Button rotYButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Y Button").gameObject, "←   →\nRot Y");
-            //t = rotYButton.GetComponentInChildren<Text>();
-            //t.fontSize = (int)(t.fontSize * 1.5f);
-            rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this._yRot = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = rotYButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
-            this._rotationButtons[1] = rotYButton;
+                {
+                    this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
+                    this._controls.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
 
-            Button rotZButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Z Button").gameObject, "←   →\nRot Z");
-            //t = rotZButton.GetComponentInChildren<Text>();
-            //t.fontSize = (int)(t.fontSize * 1.5f);
-            rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this._zRot = true;
-                this.SetNoControlCondition();
-            };
-            buttonRT = rotZButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.666f, 0f), new Vector2(1f, 0.333f), Vector2.zero, Vector2.zero);
-            this._rotationButtons[2] = rotZButton;
+                    this._nothingText2 = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(this._controls, "Nothing Text 2"), "The IK system is not enabled on this character.");
+                    this._nothingText2.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
 
-            Image experimental = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._bones, "Experimental Features"));
-            experimental.color = UIUtility.whiteColor;
-            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 25f), new Vector2(0f, -245f));
+                    {
+                        this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
+                        this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
 
-            Image experimentalHeader = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Header").gameObject, UIUtility.headerSprite);
-            experimentalHeader.color = UIUtility.purpleColor;
-            experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
+                        Button rightShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Shoulder Button").gameObject, "R. Shoulder");
+                        rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
+                        Text t = rightShoulder.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        RectTransform buttonRT = rightShoulder.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -35f), Vector2.zero);
+                        this._effectorsButtons[(int) FullBodyBipedEffector.RightShoulder] = rightShoulder;
 
-            Text headerText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(experimentalHeader.transform, "Header Text"), "Experimental Features");
-            headerText.alignment = TextAnchor.MiddleCenter;
-            headerText.resizeTextForBestFit = true;
-            headerText.fontStyle = FontStyle.Bold;
-            headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
-            headerText.color = Color.white;
-            UIUtility.AddOutlineToObject(headerText.transform).effectColor = Color.black;
+                        Button leftShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Shoulder Button").gameObject, "L. Shoulder");
+                        leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
+                        t = leftShoulder.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftShoulder.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -35f), Vector2.zero);
+                        this._effectorsButtons[(int) FullBodyBipedEffector.LeftShoulder] = leftShoulder;
 
-            Button copyLeftArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Arm Button"), "Copy R. arm");
-            copyLeftArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
-            copyLeftArmButton.onClick.AddListener(() =>
-            {
-                if (this._manualBoneTarget != null)
-                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
-            });
-            buttonRT = copyLeftArmButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -69f), new Vector2(-1.25f, -29f));
+                        Button rightArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Arm Bend Goal Button").gameObject, "R. Elbow Dir.");
+                        rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
+                        t = rightArmBendGoal.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = rightArmBendGoal.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
+                        this._bendGoalsButtons[(int) FullBodyBipedChain.RightArm] = rightArmBendGoal;
 
-            Button copyRightArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left Arm Button"), "Copy L. arm");
-            copyRightArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
-            copyRightArmButton.onClick.AddListener(() =>
-            {
-                if (this._manualBoneTarget != null)
-                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
-            });
-            buttonRT = copyRightArmButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -69f), new Vector2(-2.5f, -29f));
+                        Button leftArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Arm Bend Goal Button").gameObject, "L. Elbow Dir.");
+                        leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
+                        t = leftArmBendGoal.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftArmBendGoal.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
+                        this._bendGoalsButtons[(int) FullBodyBipedChain.LeftArm] = leftArmBendGoal;
 
-            Button copyLeftLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Leg Button"), "Copy R. leg");
-            copyLeftLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
-            copyLeftLegButton.onClick.AddListener(() =>
-            {
-                if (this._manualBoneTarget != null)
-                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
-            });
-            buttonRT = copyLeftLegButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -109f), new Vector2(-1.25f, -69f));
+                        Button rightHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Hand Button").gameObject, "R. Hand");
+                        rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
+                        t = rightHand.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = rightHand.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -105f), new Vector2(0f, -70f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.RightHand] = rightHand;
 
-            Button copyRightLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left LegButton"), "Copy L. leg");
-            copyRightLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
-            copyRightLegButton.onClick.AddListener(() =>
-            {
-                if (this._manualBoneTarget != null)
-                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
-            });
-            buttonRT = copyRightLegButton.transform as RectTransform;
-            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -109f), new Vector2(-2.5f, -69f));
+                        Button leftHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Hand Button").gameObject, "L. Hand");
+                        leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
+                        t = leftHand.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftHand.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -105f), new Vector2(0f, -70f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.LeftHand] = leftHand;
 
-            this._advancedModeToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Advanced Mode Toggle").gameObject, "Advanced mode");
-            this._advancedModeToggle.isOn = false;
-            this._advancedModeToggle.onValueChanged.AddListener(this.ToggleAdvancedMode);
-            Text toggleText = this._advancedModeToggle.GetComponentInChildren<Text>();
-            toggleText.resizeTextForBestFit = true;
-            toggleText.resizeTextMinSize = 1;
-            RectTransform toggleRT = this._advancedModeToggle.transform as RectTransform;
-            (toggleRT.GetChild(0) as RectTransform).SetRect(Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 2.5f), new Vector2(15f, -2.5f));
-            toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(17.5f, toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin.y);
-            toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -129f), new Vector2(-2.5f, -109f));
+                        Button body = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Body Button").gameObject, "Body");
+                        body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
+                        t = body.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = body.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.375f, 1f), new Vector2(0.625f, 1f), new Vector2(0f, -140f), new Vector2(0f, -105f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.Body] = body;
 
-            RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Container");
-            sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 20f));
+                        Button rightThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Thigh Button").gameObject, "R. Thigh");
+                        rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
+                        t = rightThigh.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = rightThigh.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.RightThigh] = rightThigh;
 
-            Text movIntensityTxt = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Text"), "Mvt. Intensity");
-            movIntensityTxt.alignment = TextAnchor.MiddleLeft;
-            movIntensityTxt.resizeTextForBestFit = true;
-            movIntensityTxt.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
+                        Button leftThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Thigh Button").gameObject, "L. Thigh");
+                        leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
+                        t = leftThigh.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftThigh.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.LeftThigh] = leftThigh;
 
-            this._movementIntensity = UIUtility.AddScrollbarToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Slider"));
-            this._movementIntensity.onValueChanged.AddListener(value =>
-            {
-                value *= 10;
-                value -= 5;
-                value /= 2.5f;
-                this._intensityValue = value < 0 ? 1f / Mathf.Pow(10, -value) : Mathf.Pow(10, value);
-                this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
-            });
-            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
-            {
-                this.SetNoControlCondition();
-                this._sliderMoving = true;
-            };
-            RectTransform rt = this._movementIntensity.transform as RectTransform;
-            RectTransform handle = (rt.GetChild(0).GetChild(0) as RectTransform);
-            handle.sizeDelta = new Vector2(14f, handle.sizeDelta.y);
-            rt.SetRect(new Vector2(0.333f, 0f), new Vector2(0.9f, 1f), new Vector2(0f, 3f), new Vector2(0f, -3f));
+                        Button rightLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Leg Bend Goal Button").gameObject, "R. Knee Dir.");
+                        rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
+                        t = rightLegBendGoal.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = rightLegBendGoal.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
+                        this._bendGoalsButtons[(int) FullBodyBipedChain.RightLeg] = rightLegBendGoal;
 
-            this._intensityValueText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Value"), "x1");
-            this._intensityValueText.alignment = TextAnchor.MiddleCenter;
-            this._intensityValueText.resizeTextForBestFit = true;
-            this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+                        Button leftLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Leg Bend Goal Button").gameObject, "L. Knee Dir.");
+                        leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
+                        t = leftLegBendGoal.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftLegBendGoal.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
+                        this._bendGoalsButtons[(int) FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
 
+                        Button rightFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Foot Button").gameObject, "R. Foot");
+                        rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
+                        t = rightFoot.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = rightFoot.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -245f), new Vector2(0f, -210f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.RightFoot] = rightFoot;
+
+                        Button leftFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Foot Button").gameObject, "L. Foot");
+                        leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
+                        t = leftFoot.GetComponentInChildren<Text>();
+                        t.resizeTextForBestFit = true;
+                        t.resizeTextMaxSize = 100;
+                        buttonRT = leftFoot.transform as RectTransform;
+                        buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -245f), new Vector2(0f, -210f));
+                        this._effectorsButtons[(int) FullBodyBipedEffector.LeftFoot] = leftFoot;
+
+                        {
+                            RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
+                            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 45f), new Vector2(0f, -245f));
+
+                            Button xMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "X Move Button").gameObject, "↑\nX\n↓");
+                            ColorBlock cb = xMoveButton.colors;
+                            cb.normalColor = Color.red;
+                            cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
+                            xMoveButton.colors = cb;
+                            t = xMoveButton.GetComponentInChildren<Text>();
+                            t.fontSize = t.fontSize * 2;
+                            xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._xMove = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = xMoveButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
+
+                            Button yMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Y Move Button").gameObject, "↑\nY\n↓");
+                            cb = yMoveButton.colors;
+                            cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
+                            cb.normalColor = Color.green;
+                            yMoveButton.colors = cb;
+                            t = yMoveButton.GetComponentInChildren<Text>();
+                            t.fontSize = t.fontSize * 2;
+                            yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._yMove = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = yMoveButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
+
+                            Button zMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Z Move Button").gameObject, "↑\nZ\n↓");
+                            cb = zMoveButton.colors;
+                            cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
+                            cb.normalColor = Color.blue;
+                            zMoveButton.colors = cb;
+                            t = zMoveButton.GetComponentInChildren<Text>();
+                            t.fontSize = t.fontSize * 2;
+                            zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._zMove = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = zMoveButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
+
+                            Button rotXButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot X Button").gameObject, "←   →\nRot X");
+                            cb = rotXButton.colors;
+                            cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
+                            cb.normalColor = Color.red;
+                            rotXButton.colors = cb;
+                            //t = rotXButton.GetComponentInChildren<Text>();
+                            //t.fontSize = (int)(t.fontSize * 1.5f);
+                            rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._xRot = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = rotXButton.transform as RectTransform;
+                            buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
+                            this._rotationButtons[0] = rotXButton;
+
+                            Button rotYButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Y Button").gameObject, "←   →\nRot Y");
+                            cb = rotYButton.colors;
+                            cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
+                            cb.normalColor = Color.green;
+                            rotYButton.colors = cb;
+                            //t = rotYButton.GetComponentInChildren<Text>();
+                            //t.fontSize = (int)(t.fontSize * 1.5f);
+                            rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._yRot = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = rotYButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
+                            this._rotationButtons[1] = rotYButton;
+
+                            Button rotZButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Z Button").gameObject, "←   →\nRot Z");
+                            cb = rotZButton.colors;
+                            cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
+                            cb.normalColor = Color.blue;
+                            rotZButton.colors = cb;
+                            //t = rotZButton.GetComponentInChildren<Text>();
+                            //t.fontSize = (int)(t.fontSize * 1.5f);
+                            rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+                            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this._zRot = true;
+                                this.SetNoControlCondition();
+                            };
+                            buttonRT = rotZButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.666f, 0f), new Vector2(1f, 0.333f), Vector2.zero, Vector2.zero);
+                            this._rotationButtons[2] = rotZButton;
+                        }
+
+                        {
+                            Image experimental = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._bones, "Experimental Features"));
+                            experimental.color = UIUtility.whiteColor;
+                            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 45f), new Vector2(0f, -245f));
+
+                            Image experimentalHeader = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Header").gameObject, UIUtility.headerSprite);
+                            experimentalHeader.color = UIUtility.purpleColor;
+                            experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
+
+                            Text headerText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(experimentalHeader.transform, "Header Text"), "Experimental Features");
+                            headerText.alignment = TextAnchor.MiddleCenter;
+                            headerText.resizeTextForBestFit = true;
+                            headerText.fontStyle = FontStyle.Bold;
+                            headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+                            headerText.color = Color.white;
+                            UIUtility.AddOutlineToObject(headerText.transform).effectColor = Color.black;
+
+                            Button copyLeftArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Arm Button"), "Copy R. arm");
+                            copyLeftArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                            copyLeftArmButton.onClick.AddListener(() =>
+                            {
+                                if (this._manualBoneTarget != null)
+                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
+                            });
+                            buttonRT = copyLeftArmButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -69f), new Vector2(-1.25f, -29f));
+
+                            Button copyRightArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left Arm Button"), "Copy L. arm");
+                            copyRightArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                            copyRightArmButton.onClick.AddListener(() =>
+                            {
+                                if (this._manualBoneTarget != null)
+                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
+                            });
+                            buttonRT = copyRightArmButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -69f), new Vector2(-2.5f, -29f));
+
+                            Button copyLeftLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Right Leg Button"), "Copy R. leg");
+                            copyLeftLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                            copyLeftLegButton.onClick.AddListener(() =>
+                            {
+                                if (this._manualBoneTarget != null)
+                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
+                            });
+                            buttonRT = copyLeftLegButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(2.5f, -109f), new Vector2(-1.25f, -69f));
+
+                            Button copyRightLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Copy Left LegButton"), "Copy L. leg");
+                            copyRightLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                            copyRightLegButton.onClick.AddListener(() =>
+                            {
+                                if (this._manualBoneTarget != null)
+                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
+                            });
+                            buttonRT = copyRightLegButton.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -109f), new Vector2(-2.5f, -69f));
+
+                            this._advancedModeToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Advanced Mode Toggle").gameObject, "Advanced mode");
+                            this._advancedModeToggle.isOn = false;
+                            this._advancedModeToggle.onValueChanged.AddListener(this.ToggleAdvancedMode);
+                            Text toggleText = this._advancedModeToggle.GetComponentInChildren<Text>();
+                            toggleText.resizeTextForBestFit = true;
+                            toggleText.resizeTextMinSize = 1;
+                            RectTransform toggleRT = this._advancedModeToggle.transform as RectTransform;
+                            (toggleRT.GetChild(0) as RectTransform).SetRect(Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 2.5f), new Vector2(15f, -2.5f));
+                            toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(17.5f, toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin.y);
+                            toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -129f), new Vector2(-2.5f, -109f));
+                        }
+                        {
+                            RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Container");
+                            sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
+
+                            Text movIntensityTxt = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Text"), "Mvt. Intensity");
+                            movIntensityTxt.alignment = TextAnchor.MiddleLeft;
+                            movIntensityTxt.resizeTextForBestFit = true;
+                            movIntensityTxt.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
+
+                            this._movementIntensity = UIUtility.AddScrollbarToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Slider"));
+                            this._movementIntensity.onValueChanged.AddListener(value =>
+                            {
+                                value *= 10;
+                                value -= 5;
+                                value /= 2.5f;
+                                this._intensityValue = value < 0 ? 1f / Mathf.Pow(10, -value) : Mathf.Pow(10, value);
+                                this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
+                            });
+                            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            {
+                                this.SetNoControlCondition();
+                                this._sliderMoving = true;
+                            };
+                            RectTransform rt = this._movementIntensity.transform as RectTransform;
+                            RectTransform handle = (rt.GetChild(0).GetChild(0) as RectTransform);
+                            handle.sizeDelta = new Vector2(14f, handle.sizeDelta.y);
+                            rt.SetRect(new Vector2(0.333f, 0f), new Vector2(0.9f, 1f), new Vector2(0f, 3f), new Vector2(0f, -3f));
+
+                            this._intensityValueText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Value"), "x1");
+                            this._intensityValueText.alignment = TextAnchor.MiddleCenter;
+                            this._intensityValueText.resizeTextForBestFit = true;
+                            this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+                        }
+                        {
+                            RectTransform scaleContainer = UIUtility.CreateNewUIObject(this._bones, "Scale Container");
+                            scaleContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 20f));
+
+                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(scaleContainer, "Label"), "UI Scale");
+                            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.75f, 1f), Vector2.zero, Vector2.zero);
+                            label.alignment = TextAnchor.MiddleLeft;
+                            label.resizeTextForBestFit = true;
+
+                            Button minusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(scaleContainer, "Minus Button"), "-");
+                            (minusButton.transform as RectTransform).SetRect(new Vector2(0.75f, 0f), new Vector2(0.875f, 1f), Vector2.zero, Vector2.zero);
+                            minusButton.onClick.AddListener(() =>
+                            {
+                                this._uiScale = Mathf.Clamp(this._uiScale - 0.1f, 0.5f, 2f);
+                                this._ui.scaleFactor = this._uiScale;
+                            });
+                            t = minusButton.GetComponentInChildren<Text>();
+                            t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+                            t.resizeTextForBestFit = true;
+                            t.fontStyle = FontStyle.Bold;
+
+                            Button plusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(scaleContainer, "Plus Button"), "+");
+                            (plusButton.transform as RectTransform).SetRect(new Vector2(0.875f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+                            plusButton.onClick.AddListener(() =>
+                            {
+                                this._uiScale = Mathf.Clamp(this._uiScale + 0.1f, 0.5f, 2f);
+                                this._ui.scaleFactor = this._uiScale;
+                            });
+                            t = plusButton.GetComponentInChildren<Text>();
+                            t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+                            t.resizeTextForBestFit = true;
+                            t.fontStyle = FontStyle.Bold;
+                        }
+                    }
+                }
+            }
             this._ui.gameObject.SetActive(false);
 
             this.SetBoneTarget(FullBodyBipedEffector.Body);
@@ -643,8 +770,8 @@ namespace HSPE
                 if (kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>() == null)
                     kvp.Value.anmMng.animator.gameObject.AddComponent<ManualBoneController>().chara = kvp.Value;
             string scenePath = Path.GetFileNameWithoutExtension(Studio.Instance.SaveFileName) + ".sav";
-            string dir = "Plugins\\HSPE\\StudioScenes";
-            string path = dir + "\\" + scenePath;
+            string dir = _pluginDir + _studioSavesDir;
+            string path = dir + scenePath;
             if (File.Exists(path) == false)
                 return;
             using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
@@ -683,8 +810,8 @@ namespace HSPE
                 ++i;
             }
             string scenePath = Path.GetFileNameWithoutExtension(this._selectedScenePath) + ".sav";
-            string dir = "Plugins\\HSPE\\StudioScenes";
-            string path = dir + "\\" + scenePath;
+            string dir = _pluginDir + _studioSavesDir;
+            string path = dir + scenePath;
             if (File.Exists(path) == false)
                 return;
             using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
@@ -713,7 +840,7 @@ namespace HSPE
 
         private void OnSceneDelete()
         {
-            string completePath = "Plugins\\HSPE\\StudioScenes\\" + Path.GetFileNameWithoutExtension(this._selectedScenePath) + ".sav";
+            string completePath = _pluginDir + _studioSavesDir + Path.GetFileNameWithoutExtension(this._selectedScenePath) + ".sav";
             if (File.Exists(completePath))
                 File.Delete(completePath);
         }
@@ -721,11 +848,11 @@ namespace HSPE
         private void OnSceneSave()
         {
             string saveFileName = Path.GetFileNameWithoutExtension(Studio.Instance.SaveFileName) + ".sav";
-            string dir = "Plugins\\HSPE\\StudioScenes";
+            string dir = _pluginDir + _studioSavesDir;
             if (Directory.Exists(dir) == false)
                 Directory.CreateDirectory(dir);
             int written = 0;
-            string path = dir + "\\" + saveFileName;
+            string path = dir + saveFileName;
             using (FileStream fileStream = new FileStream(path, FileMode.Create, FileAccess.Write))
             {
                 using (XmlTextWriter xmlWriter = new XmlTextWriter(fileStream, Encoding.UTF8))
