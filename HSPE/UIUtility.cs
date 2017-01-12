@@ -31,6 +31,7 @@ namespace HSPE
         public static readonly Color redColor = new Color(0.650f, 0.066f, 0.011f, 1.000f);
         public static Font defaultFont;
         public static int defaultFontSize;
+        public static float uiScale = 1f;
         #endregion
         void Start()
         {
@@ -49,6 +50,7 @@ namespace HSPE
             Canvas c = go.GetComponent<Canvas>();
             c.renderMode = canvasRenderMode;
             c.pixelPerfect = canvasPixelPerfect;
+            c.scaleFactor = uiScale;
 
             CanvasScaler cs = go.GetComponent<CanvasScaler>();
             cs.uiScaleMode = canvasScalerUiScaleMode;
@@ -213,7 +215,7 @@ namespace HSPE
             Scrollbar s = go.AddComponent<Scrollbar>();
             s.direction = Scrollbar.Direction.LeftToRight;
             s.size = 0f;
-            s.numberOfSteps = 25;
+            s.numberOfSteps = 15;
             s.value = 0.5f;
             s.colors = new ColorBlock()
             {

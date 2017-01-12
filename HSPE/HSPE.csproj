@@ -32,6 +32,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CameraGL.cs" />
+    <Compile Include="EditableValue.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="ManualBoneController.cs" />

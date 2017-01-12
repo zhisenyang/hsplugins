@@ -1,9 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 using Manager;
+using RootMotion.Demos;
 using RootMotion.FinalIK;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -22,38 +25,36 @@ namespace HSPE
         #region Private Variables
         private CameraControl _cameraController;
         private ManualBoneController _manualBoneTarget;
-        private FullBodyBipedEffector _boneTarget;
-        private FullBodyBipedChain _bendGoalTarget;
-        private bool _isTargetBendGoal;
+        private readonly List<FullBodyBipedEffector> _boneTargets = new List<FullBodyBipedEffector>();
+        private readonly List<Vector3> _lastBonesPositions = new List<Vector3>();
+        private readonly List<Quaternion> _lastBonesRotations = new List<Quaternion>();
+        private readonly List<FullBodyBipedChain> _bendGoalTargets = new List<FullBodyBipedChain>();
+        private readonly List<Vector3> _lastBendGoalsPositions = new List<Vector3>();
         private string _selectedScenePath = "";
         private int _femaleIndexOffset;
         private int _maleIndexOffset;
         private Vector2 _delta;
-        private Vector3 _lastPosition;
-        private Quaternion _lastRotation;
         private bool _xMove;
         private bool _yMove;
         private bool _zMove;
         private bool _xRot;
         private bool _yRot;
         private bool _zRot;
-        private bool _sliderMoving = false;
+        private bool _blockCamera = false;
         private bool _isVisible = false;
-        private Rect _advancedModeRect = new Rect(Screen.width - 600, Screen.height - 300, 600, 300);
+        private Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 330, 650, 330);
         private Canvas _ui;
         private Text _nothingText;
-        private Text _nothingText2;
         private RectTransform _controls;
         private RectTransform _bones;
         private Toggle _advancedModeToggle;
         private Scrollbar _movementIntensity;
         private Text _intensityValueText;
         private float _intensityValue = 1f;
-        private bool _movingAdvancedWindow = false;
         private readonly Button[] _effectorsButtons = new Button[9];
         private readonly Button[] _bendGoalsButtons = new Button[4];
         private readonly Button[] _rotationButtons = new Button[3];
-        private float _uiScale = 1f;
+        private Toggle _forceBendGoalsToggle;
         #endregion
 
         #region Unity Methods
@@ -85,12 +86,8 @@ namespace HSPE
                             switch (xmlReader.Name)
                             {
                                 case "uiScale":
-                                    UnityEngine.Debug.Log("test");
                                     if (xmlReader.GetAttribute("value") != null)
-                                    {
-                                        UnityEngine.Debug.Log("test2");
-                                        this._uiScale = Mathf.Clamp(XmlConvert.ToSingle(xmlReader.GetAttribute("value")), 0.5f, 2f);
-                                    }
+                                        UIUtility.uiScale = Mathf.Clamp(XmlConvert.ToSingle(xmlReader.GetAttribute("value")), 0.5f, 2f);
                                     break;
                             }
                         }
@@ -147,11 +144,13 @@ namespace HSPE
 
         protected virtual void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * this._uiScale, new Vector2(Screen.width, Screen.height));
-            if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled)
+            GUIUtility.ScaleAroundPivot(Vector2.one * UIUtility.uiScale, new Vector2(Screen.width, Screen.height));
+            if (this._manualBoneTarget != null)
             {
                 if (this._advancedModeToggle.isOn)
                 {
+                    for (int i = 0; i < 3; ++i)
+                        GUI.Box(this._advancedModeRect, "");
                     this._manualBoneTarget.draw = true;
                     this._advancedModeRect = GUILayout.Window(50, this._advancedModeRect, this._manualBoneTarget.AdvancedModeWindow, "Advanced mode");
                 }
@@ -174,7 +173,7 @@ namespace HSPE
                     xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
 
                     xmlWriter.WriteStartElement("uiScale");
-                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._uiScale));
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(UIUtility.uiScale));
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteEndElement();
@@ -188,7 +187,6 @@ namespace HSPE
         private void SpawnGUI()
         {
             this._ui = UIUtility.CreateNewUISystem();
-            this._ui.scaleFactor = this._uiScale;
             {
                 Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
                 bg.raycastTarget = false;
@@ -216,9 +214,6 @@ namespace HSPE
                 {
                     this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
                     this._controls.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
-
-                    this._nothingText2 = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(this._controls, "Nothing Text 2"), "The IK system is not enabled on this character.");
-                    this._nothingText2.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
 
                     {
                         this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
@@ -353,10 +348,13 @@ namespace HSPE
                             t = xMoveButton.GetComponentInChildren<Text>();
                             t.fontSize = t.fontSize * 2;
                             xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._xMove = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._xMove = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = xMoveButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
@@ -369,10 +367,13 @@ namespace HSPE
                             t = yMoveButton.GetComponentInChildren<Text>();
                             t.fontSize = t.fontSize * 2;
                             yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._yMove = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._yMove = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = yMoveButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
@@ -385,10 +386,13 @@ namespace HSPE
                             t = zMoveButton.GetComponentInChildren<Text>();
                             t.fontSize = t.fontSize * 2;
                             zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._zMove = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._zMove = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = zMoveButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
@@ -401,10 +405,13 @@ namespace HSPE
                             //t = rotXButton.GetComponentInChildren<Text>();
                             //t.fontSize = (int)(t.fontSize * 1.5f);
                             rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._xRot = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._xRot = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = rotXButton.transform as RectTransform;
                             buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
@@ -418,10 +425,13 @@ namespace HSPE
                             //t = rotYButton.GetComponentInChildren<Text>();
                             //t.fontSize = (int)(t.fontSize * 1.5f);
                             rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._yRot = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._yRot = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = rotYButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
@@ -435,10 +445,13 @@ namespace HSPE
                             //t = rotZButton.GetComponentInChildren<Text>();
                             //t.fontSize = (int)(t.fontSize * 1.5f);
                             rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
-                                this._zRot = true;
-                                this.SetNoControlCondition();
+                                if (eventData.button == PointerEventData.InputButton.Left)
+                                {
+                                    this._zRot = true;
+                                    this.SetNoControlCondition();
+                                }
                             };
                             buttonRT = rotZButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.666f, 0f), new Vector2(1f, 0.333f), Vector2.zero, Vector2.zero);
@@ -512,6 +525,17 @@ namespace HSPE
                             (toggleRT.GetChild(0) as RectTransform).SetRect(Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 2.5f), new Vector2(15f, -2.5f));
                             toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(17.5f, toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin.y);
                             toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -129f), new Vector2(-2.5f, -109f));
+
+                            this._forceBendGoalsToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Force Bend Goals Toggle"), "Force bend goals weight");
+                            this._forceBendGoalsToggle.isOn = true;
+                            this._forceBendGoalsToggle.onValueChanged.AddListener(this.ToggleBendGoals);
+                            toggleText = _forceBendGoalsToggle.GetComponentInChildren<Text>();
+                            toggleText.resizeTextForBestFit = true;
+                            toggleText.resizeTextMinSize = 1;
+                            toggleRT = this._forceBendGoalsToggle.transform as RectTransform;
+                            (toggleRT.GetChild(0) as RectTransform).SetRect(Vector2.zero, new Vector2(0f, 1f), new Vector2(0f, 2.5f), new Vector2(15f, -2.5f));
+                            toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin = new Vector2(17.5f, toggleRT.GetComponentInChildren<Text>().rectTransform.offsetMin.y);
+                            toggleRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -149f), new Vector2(-2.5f, -129f));
                         }
                         {
                             RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Container");
@@ -525,16 +549,15 @@ namespace HSPE
                             this._movementIntensity = UIUtility.AddScrollbarToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Slider"));
                             this._movementIntensity.onValueChanged.AddListener(value =>
                             {
-                                value *= 10;
-                                value -= 5;
-                                value /= 2.5f;
-                                this._intensityValue = value < 0 ? 1f / Mathf.Pow(10, -value) : Mathf.Pow(10, value);
+                                value *= 14;
+                                value -= 7;
+                                this._intensityValue = Mathf.Pow(2, value);
                                 this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
                             });
-                            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += () =>
+                            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
                             {
                                 this.SetNoControlCondition();
-                                this._sliderMoving = true;
+                                this._blockCamera = true;
                             };
                             RectTransform rt = this._movementIntensity.transform as RectTransform;
                             RectTransform handle = (rt.GetChild(0).GetChild(0) as RectTransform);
@@ -559,8 +582,8 @@ namespace HSPE
                             (minusButton.transform as RectTransform).SetRect(new Vector2(0.75f, 0f), new Vector2(0.875f, 1f), Vector2.zero, Vector2.zero);
                             minusButton.onClick.AddListener(() =>
                             {
-                                this._uiScale = Mathf.Clamp(this._uiScale - 0.1f, 0.5f, 2f);
-                                this._ui.scaleFactor = this._uiScale;
+                                UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale - 0.1f, 0.5f, 2f);
+                                this._ui.scaleFactor = UIUtility.uiScale;
                             });
                             t = minusButton.GetComponentInChildren<Text>();
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -571,8 +594,8 @@ namespace HSPE
                             (plusButton.transform as RectTransform).SetRect(new Vector2(0.875f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             plusButton.onClick.AddListener(() =>
                             {
-                                this._uiScale = Mathf.Clamp(this._uiScale + 0.1f, 0.5f, 2f);
-                                this._ui.scaleFactor = this._uiScale;
+                                UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale + 0.1f, 0.5f, 2f);
+                                this._ui.scaleFactor = UIUtility.uiScale;
                             });
                             t = plusButton.GetComponentInChildren<Text>();
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
@@ -585,66 +608,97 @@ namespace HSPE
             this._ui.gameObject.SetActive(false);
 
             this.SetBoneTarget(FullBodyBipedEffector.Body);
+            this.OnTargetChange(null);
         }
 
         private void SetBoneTarget(FullBodyBipedEffector bone)
         {
-            this.ResetBoneButton();
-            this._boneTarget = bone;
-            this._isTargetBendGoal = false;
-            Button b = this._effectorsButtons[(int)this._boneTarget];
-            ColorBlock cb = b.colors;
-            cb.normalColor = UIUtility.blueColor;
-            b.colors = cb;
-            switch (bone)
+            this.ResetBoneButtons();
+            if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl))
             {
-                case FullBodyBipedEffector.LeftFoot:
-                case FullBodyBipedEffector.LeftHand:
-                case FullBodyBipedEffector.RightFoot:
-                case FullBodyBipedEffector.RightHand:
-                    foreach (Button bu in this._rotationButtons)
-                        bu.interactable = true;
-                    break;
-                case FullBodyBipedEffector.Body:
-                case FullBodyBipedEffector.LeftShoulder:
-                case FullBodyBipedEffector.LeftThigh:
-                case FullBodyBipedEffector.RightShoulder:
-                case FullBodyBipedEffector.RightThigh:
-                    foreach (Button bu in this._rotationButtons)
-                        bu.interactable = false;
-                    break;
+                this._boneTargets.Clear();
+                this._bendGoalTargets.Clear();
+                this._boneTargets.Add(bone);
             }
+            else
+            {
+                if (this._boneTargets.Contains(bone))
+                    this._boneTargets.Remove(bone);
+                else
+                    this._boneTargets.Add(bone);
+            }
+            this._lastBonesPositions.Resize(this._boneTargets.Count);
+            this._lastBonesRotations.Resize(this._boneTargets.Count);
+            this.SelectBoneButtons();
+            if (this._bendGoalTargets.Count != 0 ||
+                this._boneTargets.Contains(FullBodyBipedEffector.Body) ||
+                this._boneTargets.Contains(FullBodyBipedEffector.LeftShoulder) ||
+                this._boneTargets.Contains(FullBodyBipedEffector.LeftThigh) ||
+                this._boneTargets.Contains(FullBodyBipedEffector.RightShoulder) ||
+                this._boneTargets.Contains(FullBodyBipedEffector.RightThigh))
+                foreach (Button bu in this._rotationButtons)
+                    bu.interactable = false;
+            else
+                foreach (Button bu in this._rotationButtons)
+                    bu.interactable = true;
             EventSystem.current.SetSelectedGameObject(null);
         }
 
         private void SetBendGoalTarget(FullBodyBipedChain bendGoal)
         {
-            this.ResetBoneButton();
-            this._bendGoalTarget = bendGoal;
-            this._isTargetBendGoal = true;
-            Button b = this._bendGoalsButtons[(int)this._bendGoalTarget];
-            ColorBlock cb = b.colors;
-            cb.normalColor = UIUtility.blueColor;
-            b.colors = cb;
+            this.ResetBoneButtons();
+            if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl))
+            {
+                this._boneTargets.Clear();
+                this._bendGoalTargets.Clear();
+                this._bendGoalTargets.Add(bendGoal);
+            }
+            else
+            {
+                if (this._bendGoalTargets.Contains(bendGoal))
+                    this._bendGoalTargets.Remove(bendGoal);
+                else
+                    this._bendGoalTargets.Add(bendGoal);
+            }
+            this._lastBendGoalsPositions.Resize(this._bendGoalTargets.Count);
+            this.SelectBoneButtons();
             foreach (Button bu in this._rotationButtons)
                 bu.interactable = false;
             EventSystem.current.SetSelectedGameObject(null);
         }
 
-        private void ResetBoneButton()
+        private void ResetBoneButtons()
         {
-            if (this._isTargetBendGoal)
+            foreach (FullBodyBipedChain bendGoal in this._bendGoalTargets)
             {
-                Button b = this._bendGoalsButtons[(int)this._bendGoalTarget];
+                Button b = this._bendGoalsButtons[(int) bendGoal];
                 ColorBlock cb = b.colors;
                 cb.normalColor = UIUtility.beigeColor;
                 b.colors = cb;
             }
-            else
+            foreach (FullBodyBipedEffector effector in this._boneTargets)
             {
-                Button b = this._effectorsButtons[(int) this._boneTarget];
+                Button b = this._effectorsButtons[(int) effector];
                 ColorBlock cb = b.colors;
                 cb.normalColor = UIUtility.beigeColor;
+                b.colors = cb;
+            }
+        }
+
+        private void SelectBoneButtons()
+        {
+            foreach (FullBodyBipedChain bendGoal in this._bendGoalTargets)
+            {
+                Button b = this._bendGoalsButtons[(int)bendGoal];
+                ColorBlock cb = b.colors;
+                cb.normalColor = UIUtility.blueColor;
+                b.colors = cb;
+            }
+            foreach (FullBodyBipedEffector effector in this._boneTargets)
+            {
+                Button b = this._effectorsButtons[(int)effector];
+                ColorBlock cb = b.colors;
+                cb.normalColor = UIUtility.blueColor;
                 b.colors = cb;
             }
         }
@@ -653,6 +707,14 @@ namespace HSPE
         {
             this._advancedModeToggle.isOn = this._manualBoneTarget != null && b;
         }
+
+        private void ToggleBendGoals(bool b)
+        {
+            if (this._manualBoneTarget != null)
+                this._manualBoneTarget.forceBendGoalsWeight = b;
+            this._forceBendGoalsToggle.isOn = this._manualBoneTarget == null || b;
+        }
+
         private void GUILogic()
         {
             if (Input.GetKeyDown(KeyCode.H))
@@ -660,63 +722,73 @@ namespace HSPE
                 this._isVisible = !this._isVisible;
                 this._ui.gameObject.SetActive(this._isVisible);
             }
-            bool characterHasIk = Studio.Instance.CurrentChara != null && Studio.Instance.CurrentChara.GetStudioItem() == null && Studio.Instance.CurrentChara.ikCtrl.ikEnable;
-            this._bones.gameObject.SetActive(characterHasIk);
-            this._nothingText2.gameObject.SetActive(!characterHasIk);
-
+            //bool characterHasIk = Studio.Instance.CurrentChara != null && Studio.Instance.CurrentChara.GetStudioItem() == null && Studio.Instance.CurrentChara.ikCtrl.ikEnable;
+            //this._bones.gameObject.SetActive(characterHasIk);
+            //this._nothingText2.gameObject.SetActive(!characterHasIk);
             if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
             {
-                _delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / 10f;
+                _delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
                 if (this._manualBoneTarget)
                 {
-                    Vector3 newPosition = this._lastPosition;
-                    Quaternion newRotation = this._lastRotation;
-
-                    if (this._xMove)
-                        newPosition.x += _delta.y * this._intensityValue;
-                    if (this._yMove)
-                        newPosition.y += _delta.y * this._intensityValue;
-                    if (this._zMove)
-                        newPosition.z += _delta.y * this._intensityValue;
-                    if (this._xRot)
-                        newRotation *= Quaternion.AngleAxis(_delta.x * 5f * this._intensityValue, Vector3.right);
-                    if (this._yRot)
-                        newRotation *= Quaternion.AngleAxis(_delta.x * 5f * this._intensityValue, Vector3.up);
-                    if (this._zRot)
-                        newRotation *= Quaternion.AngleAxis(_delta.x * 5f * this._intensityValue, Vector3.forward);
-                    if (!this._isTargetBendGoal)
+                    for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
-                        this._manualBoneTarget.SetBoneTargetPosition(this._boneTarget, newPosition);
-                        this._manualBoneTarget.SetBoneTargetRotation(this._boneTarget, newRotation);
+                        Vector3 newPosition = this._lastBonesPositions[i];
+                        Quaternion newRotation = this._lastBonesRotations[i];
+                        if (this._xMove)
+                            newPosition.x += _delta.y * this._intensityValue;
+                        if (this._yMove)
+                            newPosition.y += _delta.y * this._intensityValue;
+                        if (this._zMove)
+                            newPosition.z += _delta.y * this._intensityValue;
+                        if (this._xRot)
+                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.right);
+                        if (this._yRot)
+                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.up);
+                        if (this._zRot)
+                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.forward);
+                        this._manualBoneTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition);
+                        this._manualBoneTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
                     }
-                    else
-                        this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTarget, newPosition);
+                    for (int i = 0; i < this._bendGoalTargets.Count; ++i)
+                    {
+                        Vector3 newPosition = this._lastBendGoalsPositions[i];
+                        if (this._xMove)
+                            newPosition.x += _delta.y * this._intensityValue;
+                        if (this._yMove)
+                            newPosition.y += _delta.y * this._intensityValue;
+                        if (this._zMove)
+                            newPosition.z += _delta.y * this._intensityValue;
+                        this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition);
+                    }
                 }
             }
             else
             {
                 _delta = Vector2.zero;
-                if (this._manualBoneTarget)
+                if (this._manualBoneTarget != null)
                 {
-                    if (!this._isTargetBendGoal)
+                    for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
-                        this._lastPosition = this._manualBoneTarget.GetBoneTargetPosition(this._boneTarget);
-                        this._lastRotation = this._manualBoneTarget.GetBoneTargetRotation(this._boneTarget);
+                        this._lastBonesPositions[i] = this._manualBoneTarget.GetBoneTargetPosition(this._boneTargets[i]);
+                        this._lastBonesRotations[i] = this._manualBoneTarget.GetBoneTargetRotation(this._boneTargets[i]);
                     }
-                    else
-                        this._lastPosition = this._manualBoneTarget.GetBendGoalPosition(this._bendGoalTarget);
+                    for (int i = 0; i < this._bendGoalTargets.Count; ++i)
+                        this._lastBendGoalsPositions[i] = this._manualBoneTarget.GetBendGoalPosition(this._bendGoalTargets[i]);
                 }
             }
 
             if (Input.GetMouseButtonDown(0))
             {
-                if (this._manualBoneTarget != null && this._manualBoneTarget.isEnabled && this._advancedModeToggle.isOn && this._advancedModeRect.Contains(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y)))
+                if (this._manualBoneTarget != null && this._advancedModeToggle.isOn)
                 {
-                    this.SetNoControlCondition();
-                    this._movingAdvancedWindow = true;
+                    Vector2 mousePos = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
+                    if (this._advancedModeRect.Contains(mousePos) || (this._manualBoneTarget.colliderEditEnabled && this._manualBoneTarget.colliderEditRect.Contains(mousePos)))
+                    {
+                        this.SetNoControlCondition();
+                        this._blockCamera = true;
+                    }
+                    
                 }
-                else
-                    this._movingAdvancedWindow = false;
             }
 
             if (Input.GetMouseButtonUp(0))
@@ -727,8 +799,7 @@ namespace HSPE
                 this._xRot = false;
                 this._yRot = false;
                 this._zRot = false;
-                this._movingAdvancedWindow = false;
-                this._sliderMoving = false;
+                this._blockCamera = false;
             }
         }
 
@@ -750,13 +821,14 @@ namespace HSPE
             {
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
+                this._forceBendGoalsToggle.isOn = this._manualBoneTarget.forceBendGoalsWeight;
             }
         }
 
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
-            return this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._movingAdvancedWindow || this._sliderMoving;
+            return this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._blockCamera;
         }
         #endregion
 
@@ -774,23 +846,7 @@ namespace HSPE
             string path = dir + scenePath;
             if (File.Exists(path) == false)
                 return;
-            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
-            {
-                if (!this.IsDocumentXml(path))
-                {
-                    using (BinaryReader binaryReader = new BinaryReader(fileStream))
-                    {
-                        this.LoadVersion_1_0_0(binaryReader);
-                    }
-                }
-                else
-                {
-                    using (XmlReader xmlReader = XmlReader.Create(fileStream))
-                    {
-                        this.LoadDefaultVersion(xmlReader);
-                    }
-                }
-            }
+            this.StartCoroutine(this.SceneLoadRoutine(path));
         }
 
         private void OnSceneImport()
@@ -814,23 +870,30 @@ namespace HSPE
             string path = dir + scenePath;
             if (File.Exists(path) == false)
                 return;
-            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            this.StartCoroutine(this.SceneLoadRoutine(path, this._femaleIndexOffset, this._maleIndexOffset));
+        }
+
+        private IEnumerator SceneLoadRoutine(string path, int femaleIndexOffset = 0, int maleIndexOffset = 0)
+        {
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
+            if (!this.IsDocumentXml(path))
             {
-                if (!this.IsDocumentXml(path))
+                using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
                 {
                     using (BinaryReader binaryReader = new BinaryReader(fileStream))
                     {
-                        this.LoadVersion_1_0_0(binaryReader, this._femaleIndexOffset, this._maleIndexOffset);
-                    }
-                }
-                else
-                {
-                    using (XmlReader xmlReader = XmlReader.Create(fileStream))
-                    {
-                        this.LoadDefaultVersion(xmlReader, this._femaleIndexOffset, this._maleIndexOffset);
+                        this.LoadVersion_1_0_0(binaryReader, femaleIndexOffset, maleIndexOffset);
                     }
                 }
             }
+            else
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.Load(path);
+                this.LoadDefaultVersion(doc, femaleIndexOffset, maleIndexOffset);
+            }
+            this.OnTargetChange(null);
         }
 
         private void OnSceneMayDelete()
@@ -925,51 +988,46 @@ namespace HSPE
             }
         }
 
-        private void LoadDefaultVersion(XmlReader xmlReader, int femaleOffset = 0, int maleOffset = 0)
+        private void LoadDefaultVersion(XmlDocument xmlDoc, int femaleOffset = 0, int maleOffset = 0)
         {
-            bool shouldContinue = xmlReader.Read();
-            if (xmlReader.NodeType != XmlNodeType.Element || xmlReader.Name != "root")
+            if (xmlDoc.DocumentElement == null || xmlDoc.DocumentElement.Name != "root")
                 return;
-            HSPE.VersionNumber v = new HSPE.VersionNumber(xmlReader.GetAttribute("version"));
-            if (!shouldContinue)
-                return;
-            while (xmlReader.Read())
+            HSPE.VersionNumber v = new HSPE.VersionNumber(xmlDoc.DocumentElement.GetAttribute("version"));
+
+            foreach (XmlNode node in xmlDoc.DocumentElement.ChildNodes)
             {
-                if (xmlReader.NodeType == XmlNodeType.Element)
+                int index = 0;
+                switch (node.Name)
                 {
-                    int index = 0;
-                    switch (xmlReader.Name)
-                    {
-                        case "femaleCharacterInfo":
-                            //string name = xmlReader.GetAttribute("name");
-                            index = femaleOffset + XmlConvert.ToInt32(xmlReader.GetAttribute("index"));
-                            int i = 0;
-                            foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
+                    case "femaleCharacterInfo":
+                        //string name = xmlDoc.GetAttribute("name");
+                        index = femaleOffset + XmlConvert.ToInt32(node.Attributes["index"].Value);
+                        int i = 0;
+                        foreach (KeyValuePair<uint, StudioFemale> kvp in Studio.Instance.FemaleList)
+                        {
+                            if (i == index)
                             {
-                                if (i == index)
-                                {
-                                    kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(xmlReader, v);
-                                    break;
-                                }
-                                ++i;
+                                kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(node, v);
+                                break;
                             }
-                            break;
-                        case "maleCharacterInfo":
-                            //string name = xmlReader.GetAttribute("name");
-                            index = maleOffset + XmlConvert.ToInt32(xmlReader.GetAttribute("index"));
-                            i = 0;
-                            foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
+                            ++i;
+                        }
+                        break;
+                    case "maleCharacterInfo":
+                        //string name = xmlReader.GetAttribute("name");
+                        index = maleOffset + XmlConvert.ToInt32(node.Attributes["index"].Value);
+                        i = 0;
+                        foreach (KeyValuePair<uint, StudioMale> kvp in Studio.Instance.MaleList)
+                        {
+                            if (i == index)
                             {
-                                if (i == index)
-                                {
-                                    kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(xmlReader, v);
-                                    break;
-                                }
-                                ++i;
+                                kvp.Value.anmMng.animator.gameObject.GetComponent<ManualBoneController>().LoadXml(node, v);
+                                break;
                             }
-                            break;
-                            
-                    }
+                            ++i;
+                        }
+                        break;
+
                 }
             }
         }

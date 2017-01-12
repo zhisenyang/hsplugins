@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using System.Xml;
+using JetBrains.Annotations;
+using UnityEngine;
 
 public static class Extensions
 {
@@ -35,5 +38,25 @@ public static class Extensions
         Quaternion fromTo = Quaternion.FromToRotation(f, t);
 
         return fromTo.eulerAngles.y;
+    }
+
+    [CanBeNull]
+    public static XmlNode FindChildNode([NotNull] this XmlNode self, string name)
+    {
+        foreach (XmlNode chilNode in self.ChildNodes)
+            if (chilNode.Name.Equals(name))
+                return chilNode;
+        return null;
+    }
+
+    public static void Resize<T>(this List<T> self, int newSize)
+    {
+        int diff = self.Count - newSize;
+        if (diff < 0)
+            while (self.Count != newSize)
+                self.Add(default(T));
+        else if (diff > 0)
+            while (self.Count != newSize)
+                self.RemoveRange(newSize, diff);
     }
 }

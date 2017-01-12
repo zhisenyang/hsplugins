@@ -96,7 +96,7 @@ namespace HSPE
 
         public static int level;
 
-        private static VersionNumber _versionNumber = new VersionNumber("1.1.1");
+        private static VersionNumber _versionNumber = new VersionNumber("1.2.0");
 
         public static VersionNumber VersionNum { get { return _versionNumber; } }
 
