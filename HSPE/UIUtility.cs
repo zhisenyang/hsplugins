@@ -124,12 +124,12 @@ namespace HSPE
             return t;
         }
 
-        public static Button AddButtonToObject(Transform t, string s = "Button")
+        public static Button AddButtonToObject(Transform t, string s = "Button", bool margin = true)
         {
-            return AddButtonToObject(t.gameObject, s);
+            return AddButtonToObject(t.gameObject, s, margin);
         }
 
-        public static Button AddButtonToObject(GameObject go, string t = "Button")
+        public static Button AddButtonToObject(GameObject go, string t = "Button", bool margin = true)
         {
             Button b = go.AddComponent<Button>();
             RectTransform bRT = b.transform as RectTransform;
@@ -150,7 +150,10 @@ namespace HSPE
             Text textObj = AddTextToObject(text.gameObject, t);
             textObj.alignment = TextAnchor.MiddleCenter;
             textObj.resizeTextMinSize = 1;
-            text.SetRect(Vector2.zero, Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
+            if (margin)
+                text.SetRect(Vector2.zero, Vector2.one, new Vector2(2.5f, 2.5f), new Vector2(-2.5f, -2.5f));
+            else
+                text.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             return b;
         }
 

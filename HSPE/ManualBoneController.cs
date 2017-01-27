@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Xml;
 using Manager;
@@ -29,6 +28,7 @@ namespace HSPE
         {
             BonesPosition = 0,
             BoobsEditor,
+            DynamicBonesEditor,
             Count
         }
 
@@ -57,6 +57,14 @@ namespace HSPE
             public EditableValue<DynamicBoneCollider.Bound> originalBound;
         }
 
+        private class DynamicBoneData
+        {
+            public EditableValue<float> originalWeight;
+            public EditableValue<Vector3> originalGravity;
+            public EditableValue<Vector3> originalForce;
+            public EditableValue<DynamicBone.FreezeAxis> originalFreezeAxis;
+        }
+
         private delegate void TabDelegate();
         #endregion
 
@@ -75,7 +83,8 @@ namespace HSPE
         private DynamicBone_Ver02 _leftBoob;
         private readonly Dictionary<FullBodyBipedEffector, int> _effectorToIndex = new Dictionary<FullBodyBipedEffector, int>(); 
         private readonly HashSet<GameObject> _openedBones = new HashSet<GameObject>();
-        private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>(); 
+        private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
+        private DynamicBone[] _dynamicBones = new DynamicBone[0];
         private CoordType _boneEditionCoordType = CoordType.Rotation;
         private Vector2 _boneEditionScroll;
         private float _inc = 1f;
@@ -83,6 +92,7 @@ namespace HSPE
         private readonly Dictionary<GameObject, TransformData> _dirtyBones = new Dictionary<GameObject, TransformData>();
         private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyBoobs = new Dictionary<DynamicBone_Ver02, BoobData>(2);
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
+        private readonly Dictionary<DynamicBone, DynamicBoneData> _dirtyDynamicBones = new Dictionary<DynamicBone, DynamicBoneData>();
         private bool _isFemale = false;
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
@@ -95,8 +105,12 @@ namespace HSPE
         private Transform _legUpR;
         private Transform _elbowDamL;
         private Transform _elbowDamR;
-        private Transform _armUpDamL;
-        private Transform _armUpDamR;
+        private Transform _armUpDamL1;
+        private Transform _armUpDamR1;
+        private Transform _armUpDamL2;
+        private Transform _armUpDamR2;
+        private Transform _armUpDamL3;
+        private Transform _armUpDamR3;
         private Transform _armElbouraDamL;
         private Transform _armElbouraDamR;
         private Transform _armLow1L;
@@ -114,8 +128,12 @@ namespace HSPE
         private float _repeatTimer = 0f;
         private bool _repeatCalled = false;
         private float _repeatBeforeDuration = 0.5f;
-        private Rect _colliderEditRect = new Rect(Screen.width - 650, Screen.height - 650, 450, 300);
-
+        private Rect _colliderEditRect = new Rect(Screen.width - 650, Screen.height - 690, 450, 300);
+        private Vector2 _dynamicBonesScroll;
+        private DynamicBone _dynamicBoneTarget;
+        private bool _removeShortcutMode;
+        private readonly Quaternion _shounderBaseRotL = Quaternion.AngleAxis(90, Vector3.up) * Quaternion.AngleAxis(70, Vector3.right);
+        private readonly Quaternion _shounderBaseRotR = Quaternion.AngleAxis(90, Vector3.up) * Quaternion.AngleAxis(70, Vector3.right);
         #endregion
 
         #region Public Accessors
@@ -133,6 +151,7 @@ namespace HSPE
             this._isFemale = this.GetComponentInParent<CharInfo>() is CharFemale;
             this._tabFunctions.Add(SelectedTab.BonesPosition, this.BonesPosition);
             this._tabFunctions.Add(SelectedTab.BoobsEditor, this.BoobsEditor);
+            this._tabFunctions.Add(SelectedTab.DynamicBonesEditor, this.DynamicBonesEditor);
             this._effectorToIndex.Add(FullBodyBipedEffector.Body, 0);
             this._effectorToIndex.Add(FullBodyBipedEffector.LeftThigh, 1);
             this._effectorToIndex.Add(FullBodyBipedEffector.RightThigh, 2);
@@ -161,6 +180,7 @@ namespace HSPE
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>())
                 this._colliderObjects.Add(c.transform);
             this.forceBendGoalsWeight = true;
+            this._dynamicBones = this.transform.parent.GetComponentsInChildren<DynamicBone>();
         }
 
         void Start()
@@ -177,8 +197,12 @@ namespace HSPE
                 this._legUpR = this.transform.FindDescendant("cf_J_LegUpDam_R");
                 this._elbowDamL = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_L");
                 this._elbowDamR = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_R");
-                this._armUpDamL = this.transform.FindDescendant("cf_J_ArmUp03_dam_L");
-                this._armUpDamR = this.transform.FindDescendant("cf_J_ArmUp03_dam_R");
+                this._armUpDamL1 = this.transform.FindDescendant("cf_J_ArmUp01_dam_L");
+                this._armUpDamR1 = this.transform.FindDescendant("cf_J_ArmUp01_dam_R");
+                this._armUpDamL2 = this.transform.FindDescendant("cf_J_ArmUp02_dam_L");
+                this._armUpDamR2 = this.transform.FindDescendant("cf_J_ArmUp02_dam_R");
+                this._armUpDamL3 = this.transform.FindDescendant("cf_J_ArmUp03_dam_L");
+                this._armUpDamR3 = this.transform.FindDescendant("cf_J_ArmUp03_dam_R");
                 this._armElbouraDamL = this.transform.FindDescendant("cf_J_ArmElboura_dam_L");
                 this._armElbouraDamR = this.transform.FindDescendant("cf_J_ArmElboura_dam_R");
                 this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_ArmLow01_s_L");
@@ -206,8 +230,12 @@ namespace HSPE
                 this._legUpR = this.transform.FindDescendant("cm_J_LegUpDam_R");
                 this._elbowDamL = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_L");
                 this._elbowDamR = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_R");
-                this._armUpDamL = this.transform.FindDescendant("cm_J_ArmUp03_dam_L");
-                this._armUpDamR = this.transform.FindDescendant("cm_J_ArmUp03_dam_R");
+                this._armUpDamL1 = this.transform.FindDescendant("cm_J_ArmUp01_dam_L");
+                this._armUpDamR1 = this.transform.FindDescendant("cm_J_ArmUp01_dam_R");
+                this._armUpDamL2 = this.transform.FindDescendant("cm_J_ArmUp02_dam_L");
+                this._armUpDamR2 = this.transform.FindDescendant("cm_J_ArmUp02_dam_R");
+                this._armUpDamL3 = this.transform.FindDescendant("cm_J_ArmUp03_dam_L");
+                this._armUpDamR3 = this.transform.FindDescendant("cm_J_ArmUp03_dam_R");
                 this._armElbouraDamL = this.transform.FindDescendant("cm_J_ArmElboura_dam_L");
                 this._armElbouraDamR = this.transform.FindDescendant("cm_J_ArmElboura_dam_R");
                 this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_ArmLow01_s_L");
@@ -242,6 +270,25 @@ namespace HSPE
             else
                 this._repeatTimer = 0f;
             this._repeatCalled = false;
+            DynamicBone[] dynamicBones = this.transform.parent.GetComponentsInChildren<DynamicBone>();
+            bool shouldCleanList = false;
+            foreach (DynamicBone db in this._dynamicBones)
+                if (dynamicBones.Contains(db) == false)
+                {
+                    shouldCleanList = true;
+                    break;
+                }
+            if (shouldCleanList)
+            {
+                List<DynamicBone> toDelete = new List<DynamicBone>();
+                foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in this._dirtyDynamicBones)
+                    if (dynamicBones.Contains(kvp.Key) == false)
+                        toDelete.Add(kvp.Key);
+                foreach (DynamicBone db in toDelete)
+                    this._dirtyDynamicBones.Remove(db);
+                this._dynamicBoneTarget = null;
+            }
+            this._dynamicBones = dynamicBones;
         }
 
         void LateUpdate()
@@ -809,6 +856,55 @@ namespace HSPE
                     if (GUILayout.Button(kvp.Value))
                         this.GoToObject(kvp.Key.gameObject);
                 GUILayout.EndHorizontal();
+                Dictionary<string, string> customShortcuts = this._isFemale ? MainWindow.self.femaleShortcuts : MainWindow.self.maleShortcuts;
+                int i = 0;
+                string toRemove = null;
+                foreach (KeyValuePair<string, string> kvp in customShortcuts)
+                {
+                    if (i % 3 == 0)
+                        GUILayout.BeginHorizontal();
+                    if (GUILayout.Button(kvp.Value))
+                    {
+                        if (this._removeShortcutMode)
+                        {
+                            toRemove = kvp.Key;
+                            this._removeShortcutMode = false;
+                        }
+                        else
+                            this.GoToObject(kvp.Key);                        
+                    }
+                    if ((i + 1) % 3 == 0)
+                        GUILayout.EndHorizontal();
+                    ++i;
+                }
+                if (toRemove != null)
+                    customShortcuts.Remove(toRemove);
+                if (i != 12)
+                {
+                    if (i % 3 == 0)
+                        GUILayout.BeginHorizontal();
+                    if (GUILayout.Button("+ Add Shortcut", GUILayout.ExpandWidth(false)) && this._boneTarget != null)
+                    {
+                        string path = this._boneTarget.GetPathFrom(this.transform);
+                        if (customShortcuts.ContainsKey(path) == false)
+                            customShortcuts.Add(path, this._boneTarget.name);
+                        this._removeShortcutMode = false;
+                    }
+                    if ((i + 1) % 3 == 0)
+                        GUILayout.EndHorizontal();
+                    ++i;
+                }
+                if (i % 3 != 0)
+                    GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                Color color = GUI.color;
+                if (this._removeShortcutMode)
+                    GUI.color = Color.red;
+                if (GUILayout.Button(this._removeShortcutMode ? "Click on a shortcut" : "Remove Shortcut"))
+                    this._removeShortcutMode = !this._removeShortcutMode;
+                GUI.color = color;
+                GUILayout.EndHorizontal();
                 GUILayout.EndVertical();
             }
             GUILayout.EndVertical();
@@ -833,6 +929,118 @@ namespace HSPE
             GUILayout.BeginVertical(GUI.skin.box);
             GUILayout.Label("Left boob" + (this.IsBoobDirty(this._leftBoob) ? "*" : ""));
             this.DisplaySingleBoob(this._leftBoob);
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+        }
+
+        private void DynamicBonesEditor()
+        {
+            GUILayout.BeginHorizontal();
+            this._dynamicBonesScroll = GUILayout.BeginScrollView(this._dynamicBonesScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
+            foreach (DynamicBone db in this._dynamicBones)
+            {
+                Color c = GUI.color;
+                if (this.IsDynamicBoneDirty(db))
+                    GUI.color = Color.magenta;
+                if (ReferenceEquals(db, this._dynamicBoneTarget))
+                    GUI.color = Color.cyan;
+                if (GUILayout.Button(db.m_Root.name + (this.IsDynamicBoneDirty(db) ? "*" : "")))
+                    this._dynamicBoneTarget = db;
+                GUI.color = c;
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.BeginVertical(GUI.skin.box, GUILayout.ExpandWidth(true));
+            GUILayout.BeginHorizontal();
+            float w = 0f;
+            if (this._dynamicBoneTarget != null)
+                w = this._dynamicBoneTarget.GetWeight();
+            GUILayout.Label("Weight\t", GUILayout.ExpandWidth(false));
+            w = GUILayout.HorizontalSlider(w, 0f, 1f);
+            if (this._dynamicBoneTarget != null)
+            {
+                if (!Mathf.Approximately(this._dynamicBoneTarget.GetWeight(), w))
+                {
+                    this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                    if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalWeight.hasValue == false)
+                        this._dirtyDynamicBones[this._dynamicBoneTarget].originalWeight = this._dynamicBoneTarget.GetWeight();
+                }
+                this._dynamicBoneTarget.SetWeight(w);
+            }
+            GUILayout.Label(w.ToString("0.000"), GUILayout.ExpandWidth(false));
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginVertical();
+            GUILayout.Label("Gravity");
+            Vector3 g = Vector3.zero;
+            if (this._dynamicBoneTarget != null)
+                g = this._dynamicBoneTarget.m_Gravity;
+            g = this.Vector3Editor(g, Color.red);
+            if (this._dynamicBoneTarget != null)
+            {
+                if (this._dynamicBoneTarget.m_Gravity != g)
+                {
+                    this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                    if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalGravity.hasValue == false)
+                        this._dirtyDynamicBones[this._dynamicBoneTarget].originalGravity = this._dynamicBoneTarget.m_Gravity;
+                }
+                this._dynamicBoneTarget.m_Gravity = g;                
+            }
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            GUILayout.Label("Force");
+            Vector3 f = Vector3.zero;
+            if (this._dynamicBoneTarget != null)
+                f = this._dynamicBoneTarget.m_Force;
+            f = this.Vector3Editor(f, Color.blue);
+            if (this._dynamicBoneTarget != null)
+            {
+                if (this._dynamicBoneTarget.m_Force != f)
+                {
+                    this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                    if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalForce.hasValue == false)
+                        this._dirtyDynamicBones[this._dynamicBoneTarget].originalForce = this._dynamicBoneTarget.m_Force;
+                }
+                this._dynamicBoneTarget.m_Force = f;
+            }
+            GUILayout.EndVertical();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("FreezeAxis\t", GUILayout.ExpandWidth(false));
+            DynamicBone.FreezeAxis fa = DynamicBone.FreezeAxis.None;
+            if (this._dynamicBoneTarget != null)
+                fa = this._dynamicBoneTarget.m_FreezeAxis;
+            if (GUILayout.Toggle(fa == DynamicBone.FreezeAxis.None, "None"))
+                fa = DynamicBone.FreezeAxis.None;
+            if (GUILayout.Toggle(fa == DynamicBone.FreezeAxis.X, "X"))
+                fa = DynamicBone.FreezeAxis.X;
+            if (GUILayout.Toggle(fa == DynamicBone.FreezeAxis.Y, "Y"))
+                fa = DynamicBone.FreezeAxis.Y;
+            if (GUILayout.Toggle(fa == DynamicBone.FreezeAxis.Z, "Z"))
+                fa = DynamicBone.FreezeAxis.Z;
+            if (this._dynamicBoneTarget != null)
+            {
+                if (this._dynamicBoneTarget.m_FreezeAxis != fa)
+                {
+                    this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                    if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalFreezeAxis.hasValue == false)
+                        this._dirtyDynamicBones[this._dynamicBoneTarget].originalFreezeAxis = this._dynamicBoneTarget.m_FreezeAxis;
+                }
+                this._dynamicBoneTarget.m_FreezeAxis = fa;                
+            }
+            GUILayout.EndHorizontal();
+
+            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dynamicBoneTarget != null)
+                this.SetDynamicBoneNotDirty(this._dynamicBoneTarget);
+
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical();
+            GUILayout.FlexibleSpace();
+            this.IncEditor();
+            GUILayout.FlexibleSpace();
             GUILayout.EndVertical();
 
             GUILayout.EndHorizontal();
@@ -901,7 +1109,7 @@ namespace HSPE
                 }
             }
             else
-                GUILayout.Space(21f);
+                GUILayout.Space(20f);
             if (GUILayout.Button(go.name + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
             {
                 this._boneTarget = go.transform;
@@ -1017,8 +1225,16 @@ namespace HSPE
             bendGoal.position = bendGoalTargetPos;
         }
 
+        private void GoToObject(string path)
+        {
+            this.GoToObject(this.transform.FindChild(path).gameObject);
+        }
+
         private void GoToObject(GameObject go)
         {
+            if (ReferenceEquals(go, this.transform.GetChild(0).gameObject))
+                return;
+            GameObject goBak = go;
             this._boneTarget = go.transform;
             go = go.transform.parent.gameObject;
             while (go.transform != this.transform.GetChild(0))
@@ -1027,6 +1243,21 @@ namespace HSPE
                 go = go.transform.parent.gameObject;
             }
             this._openedBones.Add(go);
+            Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
+            this.GetScrollPosition(this.transform.GetChild(0).gameObject, goBak, 0, ref scroll);
+            this._boneEditionScroll = scroll;
+        }
+
+        private bool GetScrollPosition(GameObject root, GameObject go, int indent, ref Vector2 scrollPosition)
+        {
+            scrollPosition = new Vector2(indent * 20f, scrollPosition.y + GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4);
+            if (ReferenceEquals(root, go))
+                return true;
+            if (this._openedBones.Contains(root))
+                for (int i = 0; i < root.transform.childCount; ++i)
+                    if (this.GetScrollPosition(root.transform.GetChild(i).gameObject, go, indent + 1, ref scrollPosition))
+                        return true;
+            return false;
         }
 
         private void SetBoneDirty(GameObject go)
@@ -1142,6 +1373,46 @@ namespace HSPE
             return this._dirtyColliders.ContainsKey(collider);
         }
 
+        private void SetDynamicBoneNotDirty(DynamicBone bone)
+        {
+            if (this.IsDynamicBoneDirty(bone))
+            {
+                DynamicBoneData data = this._dirtyDynamicBones[bone];
+                if (data.originalWeight.hasValue)
+                {
+                    bone.SetWeight(data.originalWeight);
+                    data.originalWeight.Reset();
+                }
+                if (data.originalGravity.hasValue)
+                {
+                    bone.m_Gravity = data.originalGravity;
+                    data.originalGravity.Reset();
+                }
+                if (data.originalForce.hasValue)
+                {
+                    bone.m_Force = data.originalForce;
+                    data.originalForce.Reset();
+                }
+                if (data.originalFreezeAxis.hasValue)
+                {
+                    bone.m_FreezeAxis = data.originalFreezeAxis;
+                    data.originalFreezeAxis.Reset();
+                }
+                this._dirtyDynamicBones.Remove(bone);
+            }
+        }
+
+        private void SetDynamicBoneDirty(DynamicBone bone)
+        {
+            if (this.IsDynamicBoneDirty(bone) == false)
+                this._dirtyDynamicBones.Add(bone, new DynamicBoneData());
+        }
+
+        private bool IsDynamicBoneDirty(DynamicBone bone)
+        {
+            return this._dirtyDynamicBones.ContainsKey(bone);
+        }
+
         private void OnPostSolve()
         {
             if (this.isEnabled)
@@ -1158,8 +1429,16 @@ namespace HSPE
                 this._elbowDamR.rotation = Quaternion.Lerp(this._elbowDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);
                 this._armElbouraDamL.rotation = Quaternion.Lerp(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.5f);
                 this._armElbouraDamR.rotation = Quaternion.Lerp(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.5f);
-                this._armUpDamL.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation) / 90f);
-                this._armUpDamR.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation) / 90f);
+                //float shoulderAngle = Extensions.NormalizeAngle(Extensions.DirectionalAngle(this._shounderBaseRotL * Vector3.forward, this._body.solver.leftArmMapping.bone1.localRotation * Vector3.forward, Vector3.right));
+                //this._armUpDamL1.localRotation = Quaternion.AngleAxis(shoulderAngle / 5f, Vector3.right);
+                //this._armUpDamL2.localRotation = Quaternion.AngleAxis(shoulderAngle / 8f, Vector3.right);
+                //this._armUpDamL3.localRotation = Quaternion.AngleAxis(shoulderAngle / 10f, Vector3.right);
+                //shoulderAngle = Extensions.NormalizeAngle(Extensions.DirectionalAngle(this._shounderBaseRotR * Vector3.forward, this._body.solver.rightArmMapping.bone1.localRotation * Vector3.forward, Vector3.right));
+                //this._armUpDamR1.localRotation = Quaternion.AngleAxis(shoulderAngle / 5f, Vector3.right);
+                //this._armUpDamR2.localRotation = Quaternion.AngleAxis(shoulderAngle / 8f, Vector3.right);
+                //this._armUpDamR3.localRotation = Quaternion.AngleAxis(shoulderAngle / 10f, Vector3.right);
+                this._armUpDamL3.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation) / 90f);
+                this._armUpDamR3.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation) / 90f);
                 float handAngle = Extensions.DirectionalAngle(Vector3.forward, this._body.solver.leftArmMapping.bone2.InverseTransformDirection(this._body.solver.leftArmMapping.bone3.forward), Vector3.right);
                 this._armLow1L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.25f), Vector3.right);
                 this._armLow2L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.5f), Vector3.right);
@@ -1316,6 +1595,37 @@ namespace HSPE
                         this.DrawVector(origin, final);
                         GL.End();
 
+                    }
+                    break;
+                case SelectedTab.DynamicBonesEditor:
+                    if (this._dynamicBoneTarget != null)
+                    {
+                        Transform end = this._dynamicBoneTarget.m_Root;
+                        while (end.childCount != 0)
+                            end = end.GetChild(0);
+                        float scale = 10f;
+                        Vector3 origin = end.position;
+                        
+                        Vector3 final = origin + (this._dynamicBoneTarget.m_Gravity) * scale;
+                        GL.Begin(GL.LINES);
+                        this._xMat.SetPass(0);
+                        this.DrawVector(origin, final);
+                        GL.End();
+
+                        origin = final;
+                        final += this._dynamicBoneTarget.m_Force * scale;
+
+                        GL.Begin(GL.LINES);
+                        this._zMat.SetPass(0);
+                        this.DrawVector(origin, final);
+                        GL.End();
+
+                        origin = end.position;
+
+                        GL.Begin(GL.LINES);
+                        this._colliderMat.SetPass(0);
+                        this.DrawVector(origin, final);
+                        GL.End();
                     }
                     break;
             }
@@ -1562,6 +1872,35 @@ namespace HSPE
                 xmlWriter.WriteEndElement();
                 ++written;
             }
+            if (this._dirtyDynamicBones.Count != 0)
+            {
+                xmlWriter.WriteStartElement("dynamicBones");
+                foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in this._dirtyDynamicBones)
+                {
+                    xmlWriter.WriteStartElement("dynamicBone");
+                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root.name);
+
+                    if (kvp.Value.originalWeight.hasValue)
+                        xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(kvp.Key.GetWeight()));
+                    if (kvp.Value.originalGravity.hasValue)
+                    {
+                        xmlWriter.WriteAttributeString("gravityX", XmlConvert.ToString(kvp.Key.m_Gravity.x));
+                        xmlWriter.WriteAttributeString("gravityY", XmlConvert.ToString(kvp.Key.m_Gravity.y));
+                        xmlWriter.WriteAttributeString("gravityZ", XmlConvert.ToString(kvp.Key.m_Gravity.z));
+                    }
+                    if (kvp.Value.originalForce.hasValue)
+                    {
+                        xmlWriter.WriteAttributeString("forceX", XmlConvert.ToString(kvp.Key.m_Force.x));
+                        xmlWriter.WriteAttributeString("forceY", XmlConvert.ToString(kvp.Key.m_Force.y));
+                        xmlWriter.WriteAttributeString("forceZ", XmlConvert.ToString(kvp.Key.m_Force.z));
+                    }
+                    if (kvp.Value.originalFreezeAxis.hasValue)
+                        xmlWriter.WriteAttributeString("freezeAxis", XmlConvert.ToString((int)kvp.Key.m_FreezeAxis));
+                    xmlWriter.WriteEndElement();
+                    ++written;
+                }
+                xmlWriter.WriteEndElement();
+            }
             return written;
         }
 
@@ -1634,7 +1973,7 @@ namespace HSPE
                     if (node.Name == "object")
                     {
                         string name = node.Attributes["name"].Value;
-                        GameObject obj = this.transform.Find(name).gameObject;
+                        GameObject obj = this.transform.FindChild(name).gameObject;
                         TransformData data = new TransformData();
                         if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
                         {
@@ -1760,6 +2099,52 @@ namespace HSPE
             XmlNode forceBendGoalsNode = xmlNode.FindChildNode("forceBendGoalsWeight");
             if (forceBendGoalsNode != null && forceBendGoalsNode.Attributes["value"] != null)
                 this.forceBendGoalsWeight = XmlConvert.ToBoolean(forceBendGoalsNode.Attributes["value"].Value);
+            XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
+            if (dynamicBonesNode != null)
+            {
+                foreach (XmlNode node in dynamicBonesNode.ChildNodes)
+                {
+                    string root = node.Attributes["root"].Value;
+                    DynamicBone db = null;
+                    foreach (DynamicBone bone in this._dynamicBones)
+                        if (bone.m_Root.name.Equals(root))
+                            db = bone;
+                    DynamicBoneData data = new DynamicBoneData();
+
+                    if (node.Attributes["weight"] != null)
+                    {
+                        float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
+                        data.originalWeight = db.GetWeight();
+                        db.SetWeight(weight);
+                    }
+                    if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
+                    {
+                        Vector3 gravity;
+                        gravity.x = XmlConvert.ToSingle(node.Attributes["gravityX"].Value);
+                        gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
+                        gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
+                        data.originalGravity = db.m_Gravity;
+                        db.m_Gravity = gravity;
+                    }
+                    if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
+                    {
+                        Vector3 force;
+                        force.x = XmlConvert.ToSingle(node.Attributes["forceX"].Value);
+                        force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
+                        force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
+                        data.originalForce = db.m_Force;
+                        db.m_Force = force;
+                    }
+                    if (node.Attributes["freezeAxis"] != null)
+                    {
+                        DynamicBone.FreezeAxis axis = (DynamicBone.FreezeAxis)XmlConvert.ToInt32(node.Attributes["freezeAxis"].Value);
+                        data.originalFreezeAxis = db.m_FreezeAxis;
+                        db.m_FreezeAxis = axis;
+                    }
+                    if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue)
+                        this._dirtyDynamicBones.Add(db, data);
+                }
+            }
         }
         #endregion
     }

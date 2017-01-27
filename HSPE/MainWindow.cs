@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
@@ -16,6 +17,10 @@ namespace HSPE
 {
     public class MainWindow : MonoBehaviour
     {
+        #region Public Static Variables
+        public static MainWindow self { get; private set; }
+        #endregion
+
         #region Private Constants
         private const string _config = "config.xml";
         private const string _pluginDir = "Plugins\\HSPE\\";
@@ -42,7 +47,14 @@ namespace HSPE
         private bool _zRot;
         private bool _blockCamera = false;
         private bool _isVisible = false;
-        private Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 330, 650, 330);
+        private Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
+        private Rect[] _advancedModeRects = new Rect[]
+        {
+            new Rect(Screen.width - 650, Screen.height - 370, 650, 370),
+            new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
+            new Rect(Screen.width - 950, Screen.height - 410, 950, 410)
+        };
+        private int _advancedModeWindowSize = 0;
         private Canvas _ui;
         private Text _nothingText;
         private RectTransform _controls;
@@ -50,6 +62,7 @@ namespace HSPE
         private Toggle _advancedModeToggle;
         private Scrollbar _movementIntensity;
         private Text _intensityValueText;
+        private RectTransform _optionsWindow;
         private float _intensityValue = 1f;
         private readonly Button[] _effectorsButtons = new Button[9];
         private readonly Button[] _bendGoalsButtons = new Button[4];
@@ -57,10 +70,16 @@ namespace HSPE
         private Toggle _forceBendGoalsToggle;
         #endregion
 
+        #region Public Accessors
+        public Dictionary<string, string> femaleShortcuts { get; private set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> maleShortcuts { get; private set; } = new Dictionary<string, string> ();
+        #endregion
+
         #region Unity Methods
 
         protected virtual void Awake()
         {
+            self = this;
             if (GameObject.Find("LoadCanvas"))
             {
                 GameObject.Find("LoadCanvas").transform.FindChild("LoadBGPanel").FindChild("LoadSelectPanel").FindChild("BGImage").FindChild("LoadButton").GetComponent<Button>().onClick.AddListener(this.OnSceneLoad);
@@ -75,23 +94,31 @@ namespace HSPE
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
                 return;
-            using (FileStream fileStream = new FileStream(path, FileMode.Open, FileAccess.Read))
+            XmlDocument doc = new XmlDocument();
+            doc.Load(path);
+
+            foreach (XmlNode node in doc.DocumentElement.ChildNodes)
             {
-                using (XmlReader xmlReader = XmlReader.Create(fileStream))
+                switch (node.Name)
                 {
-                    while (xmlReader.Read())
-                    {
-                        if (xmlReader.NodeType == XmlNodeType.Element)
-                        {
-                            switch (xmlReader.Name)
-                            {
-                                case "uiScale":
-                                    if (xmlReader.GetAttribute("value") != null)
-                                        UIUtility.uiScale = Mathf.Clamp(XmlConvert.ToSingle(xmlReader.GetAttribute("value")), 0.5f, 2f);
-                                    break;
-                            }
-                        }
-                    }
+                    case "uiScale":
+                        if (node.Attributes["value"] != null)
+                            UIUtility.uiScale = Mathf.Clamp(XmlConvert.ToSingle(node.Attributes["value"].Value), 0.5f, 2f);
+                        break;
+                    case "advancedModeWindowSize":
+                        if (node.Attributes["value"] != null)
+                            this._advancedModeWindowSize = Mathf.Clamp(XmlConvert.ToInt32(node.Attributes["value"].Value), 0, this._advancedModeRects.Length);
+                        break;
+                    case "femaleShortcuts":
+                        foreach (XmlNode shortcut in node.ChildNodes)
+                            if (shortcut.Attributes["path"] != null)
+                                this.femaleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                        break;
+                    case "maleShortcuts":
+                        foreach (XmlNode shortcut in node.ChildNodes)
+                            if (shortcut.Attributes["path"] != null)
+                                this.maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                        break;
                 }
             }
         }
@@ -174,6 +201,28 @@ namespace HSPE
 
                     xmlWriter.WriteStartElement("uiScale");
                     xmlWriter.WriteAttributeString("value", XmlConvert.ToString(UIUtility.uiScale));
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("advancedModeWindowSize");
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._advancedModeWindowSize));
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("femaleShortcuts");
+                    foreach (KeyValuePair<string, string> kvp in this.femaleShortcuts)
+                    {
+                        xmlWriter.WriteStartElement("shortcut");
+                        xmlWriter.WriteAttributeString("path", kvp.Key);
+                        xmlWriter.WriteEndElement();
+                    }
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("maleShortcuts");
+                    foreach (KeyValuePair<string, string> kvp in this.maleShortcuts)
+                    {
+                        xmlWriter.WriteStartElement("shortcut");
+                        xmlWriter.WriteAttributeString("path", kvp.Key);
+                        xmlWriter.WriteEndElement();
+                    }
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteEndElement();
@@ -569,11 +618,54 @@ namespace HSPE
                             this._intensityValueText.resizeTextForBestFit = true;
                             this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                         }
-                        {
-                            RectTransform scaleContainer = UIUtility.CreateNewUIObject(this._bones, "Scale Container");
-                            scaleContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), Vector2.zero, new Vector2(0f, 20f));
+                    }
+                }
 
-                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(scaleContainer, "Label"), "UI Scale");
+                {
+                    Button optionsButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(bg.transform, "Options Button"), "Options", false);
+                    RectTransform rt = optionsButton.transform as RectTransform;
+                    rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(5f, 5f), new Vector2(-5f, 25f));
+                    optionsButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                    optionsButton.onClick.AddListener(() =>
+                    {
+                        this._optionsWindow.gameObject.SetActive(!this._optionsWindow.gameObject.activeSelf);
+                    });
+                }
+
+            }
+            this._ui.gameObject.SetActive(false);
+
+            this.SetBoneTarget(FullBodyBipedEffector.Body);
+            this.OnTargetChange(null);
+
+            this._optionsWindow = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "Options Window")).rectTransform;
+            this._optionsWindow.SetRect(Vector2.zero, Vector2.zero, new Vector2(390f, 3f), new Vector2(620f, 243f));
+            {
+
+                {
+                    Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._optionsWindow, "Top Container").gameObject, UIUtility.headerSprite);
+                    topContainer.color = UIUtility.beigeColor;
+                    topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
+                    topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
+
+                    Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "Options");
+                    titleText.alignment = TextAnchor.MiddleCenter;
+                    titleText.resizeTextForBestFit = true;
+                    titleText.fontStyle = FontStyle.Bold;
+                    titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
+                    titleText.color = Color.white;
+                    UIUtility.AddOutlineToObject(titleText.gameObject);
+                }
+
+                {
+                    RectTransform options = UIUtility.CreateNewUIObject(this._optionsWindow, "Options");
+                    options.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -31f));
+                    {
+                        {
+                            RectTransform scaleContainer = UIUtility.CreateNewUIObject(options, "Scale Container");
+                            scaleContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -20f), Vector2.zero);
+
+                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(scaleContainer, "Label"), "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")");
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.75f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
                             label.resizeTextForBestFit = true;
@@ -584,8 +676,9 @@ namespace HSPE
                             {
                                 UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale - 0.1f, 0.5f, 2f);
                                 this._ui.scaleFactor = UIUtility.uiScale;
+                                label.text = "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")";
                             });
-                            t = minusButton.GetComponentInChildren<Text>();
+                            Text t = minusButton.GetComponentInChildren<Text>();
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
                             t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
@@ -596,19 +689,68 @@ namespace HSPE
                             {
                                 UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale + 0.1f, 0.5f, 2f);
                                 this._ui.scaleFactor = UIUtility.uiScale;
+                                label.text = "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")";
                             });
                             t = plusButton.GetComponentInChildren<Text>();
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
                             t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
                         }
+
+                        {
+                            RectTransform advWindowSizeContainer = UIUtility.CreateNewUIObject(options, "Advanced Mode Window Size Container");
+                            advWindowSizeContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -60f), new Vector2(0f, -20f));
+
+
+                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Label"), "Adv. mode win. size");
+                            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
+                            label.alignment = TextAnchor.MiddleLeft;
+                            label.resizeTextForBestFit = true;
+
+                            Button normalButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Normal Button"), "Normal");
+                            (normalButton.transform as RectTransform).SetRect(new Vector2(0.333f, 0f), new Vector2(0.555f, 1f), Vector2.zero, Vector2.zero);
+                            normalButton.onClick.AddListener(() =>
+                            {
+                                this._advancedModeWindowSize = 0;
+                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                                this._advancedModeRect.width = r.width;
+                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                                this._advancedModeRect.height = r.height;
+                            });
+                            normalButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+
+                            Button plusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Large Button"), "Large");
+                            (plusButton.transform as RectTransform).SetRect(new Vector2(0.555f, 0f), new Vector2(0.777f, 1f), Vector2.zero, Vector2.zero);
+                            plusButton.onClick.AddListener(() =>
+                            {
+                                this._advancedModeWindowSize = 1;
+                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                                this._advancedModeRect.width = r.width;
+                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                                this._advancedModeRect.height = r.height;
+                            });
+                            plusButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+
+                            Button veryLargeButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Very Large Button"), "Very large");
+                            (veryLargeButton.transform as RectTransform).SetRect(new Vector2(0.777f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+                            veryLargeButton.onClick.AddListener(() =>
+                            {
+                                this._advancedModeWindowSize = 2;
+                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                                this._advancedModeRect.width = r.width;
+                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                                this._advancedModeRect.height = r.height;
+                            });
+                            veryLargeButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
+                            this._advancedModeRect = this._advancedModeRects[this._advancedModeWindowSize];
+                        }
                     }
                 }
             }
-            this._ui.gameObject.SetActive(false);
-
-            this.SetBoneTarget(FullBodyBipedEffector.Body);
-            this.OnTargetChange(null);
+            this._optionsWindow.gameObject.SetActive(false);
         }
 
         private void SetBoneTarget(FullBodyBipedEffector bone)

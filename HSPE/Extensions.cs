@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Xml;
 using JetBrains.Annotations;
 using UnityEngine;
@@ -40,6 +41,21 @@ public static class Extensions
         return fromTo.eulerAngles.y;
     }
 
+    public static float DirectionalAngleSigned(Vector3 from, Vector3 to, Vector3 up)
+    {
+        Vector3 f = Vector3.ProjectOnPlane(from, up);
+        Vector3 t = Vector3.ProjectOnPlane(to, up);
+        return Quaternion.Angle(Quaternion.LookRotation(f, up), Quaternion.LookRotation(t, up));
+    }
+
+    public static float NormalizeAngle(float angle)
+    {
+        angle = (angle + 360) % 360;
+        if (angle > 180)
+            angle -= 360;
+        return angle;
+    }
+
     [CanBeNull]
     public static XmlNode FindChildNode([NotNull] this XmlNode self, string name)
     {
@@ -58,5 +74,18 @@ public static class Extensions
         else if (diff > 0)
             while (self.Count != newSize)
                 self.RemoveRange(newSize, diff);
+    }
+
+    public static string GetPathFrom(this Transform self, Transform root)
+    {
+        Transform self2 = self;
+        string path = self2.name;
+        self2 = self2.parent;
+        while (self2 != root)
+        {
+            path = self2.name + "/" + path;
+            self2 = self2.parent;
+        }
+        return path;
     }
 }
