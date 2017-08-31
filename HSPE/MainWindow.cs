@@ -71,8 +71,8 @@ namespace HSPE
         #endregion
 
         #region Public Accessors
-        public Dictionary<string, string> femaleShortcuts { get; private set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> maleShortcuts { get; private set; } = new Dictionary<string, string> ();
+        public Dictionary<string, string> femaleShortcuts { get; } = new Dictionary<string, string>();
+        public Dictionary<string, string> maleShortcuts { get; } = new Dictionary<string, string> ();
         #endregion
 
         #region Unity Methods
@@ -578,7 +578,7 @@ namespace HSPE
                             this._forceBendGoalsToggle = UIUtility.AddToggleToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Force Bend Goals Toggle"), "Force bend goals weight");
                             this._forceBendGoalsToggle.isOn = true;
                             this._forceBendGoalsToggle.onValueChanged.AddListener(this.ToggleBendGoals);
-                            toggleText = _forceBendGoalsToggle.GetComponentInChildren<Text>();
+                            toggleText = this._forceBendGoalsToggle.GetComponentInChildren<Text>();
                             toggleText.resizeTextForBestFit = true;
                             toggleText.resizeTextMinSize = 1;
                             toggleRT = this._forceBendGoalsToggle.transform as RectTransform;
@@ -869,7 +869,7 @@ namespace HSPE
             //this._nothingText2.gameObject.SetActive(!characterHasIk);
             if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
             {
-                _delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
+                this._delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
                 if (this._manualBoneTarget)
                 {
                     for (int i = 0; i < this._boneTargets.Count; ++i)
@@ -877,17 +877,17 @@ namespace HSPE
                         Vector3 newPosition = this._lastBonesPositions[i];
                         Quaternion newRotation = this._lastBonesRotations[i];
                         if (this._xMove)
-                            newPosition.x += _delta.y * this._intensityValue;
+                            newPosition.x += this._delta.y * this._intensityValue;
                         if (this._yMove)
-                            newPosition.y += _delta.y * this._intensityValue;
+                            newPosition.y += this._delta.y * this._intensityValue;
                         if (this._zMove)
-                            newPosition.z += _delta.y * this._intensityValue;
+                            newPosition.z += this._delta.y * this._intensityValue;
                         if (this._xRot)
-                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.right);
+                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.right);
                         if (this._yRot)
-                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.up);
+                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.up);
                         if (this._zRot)
-                            newRotation *= Quaternion.AngleAxis(_delta.x * 20f * this._intensityValue, Vector3.forward);
+                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.forward);
                         this._manualBoneTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition);
                         this._manualBoneTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
                     }
@@ -895,18 +895,18 @@ namespace HSPE
                     {
                         Vector3 newPosition = this._lastBendGoalsPositions[i];
                         if (this._xMove)
-                            newPosition.x += _delta.y * this._intensityValue;
+                            newPosition.x += this._delta.y * this._intensityValue;
                         if (this._yMove)
-                            newPosition.y += _delta.y * this._intensityValue;
+                            newPosition.y += this._delta.y * this._intensityValue;
                         if (this._zMove)
-                            newPosition.z += _delta.y * this._intensityValue;
+                            newPosition.z += this._delta.y * this._intensityValue;
                         this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition);
                     }
                 }
             }
             else
             {
-                _delta = Vector2.zero;
+                this._delta = Vector2.zero;
                 if (this._manualBoneTarget != null)
                 {
                     for (int i = 0; i < this._boneTargets.Count; ++i)
@@ -947,7 +947,7 @@ namespace HSPE
 
         private void SetNoControlCondition()
         {
-            this._cameraController.NoCtrlCondition = CameraControllerCondition;
+            this._cameraController.NoCtrlCondition = this.CameraControllerCondition;
         }
         #endregion
 

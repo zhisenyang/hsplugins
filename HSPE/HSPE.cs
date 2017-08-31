@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace HSPE
 {
-    public class HSPE : IPlugin
+    public class HSPE : IEnhancedPlugin
     {
         public struct VersionNumber
         {
@@ -96,7 +96,7 @@ namespace HSPE
 
         public static int level;
 
-        private static VersionNumber _versionNumber = new VersionNumber("1.3.0");
+        private static VersionNumber _versionNumber = new VersionNumber("1.3.1");
 
         public static VersionNumber VersionNum { get { return _versionNumber; } }
 
@@ -104,9 +104,11 @@ namespace HSPE
 
         public string Version { get { return _versionNumber.ToString(); } }
 
+        public string[] Filter { get { return new[] { "HoneyStudio_32", "HoneyStudio_64" }; } }
+
         public void OnApplicationQuit()
         {
-            
+
         }
 
         public void OnApplicationStart()

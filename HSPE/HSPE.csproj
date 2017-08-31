@@ -44,41 +44,39 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-UnityScript">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-UnityScript.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\Assembly-UnityScript.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="IllusionPlugin, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\IllusionPlugin.dll</HintPath>
+    <Reference Include="IllusionPlugin">
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\IllusionPlugin.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Xml" />
-    <Reference Include="System.Xml.Linq" />
     <Reference Include="UnityEngine">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UI.Translation">
-      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
+      <HintPath>D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HoneyStudio_32_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy /Y "$(TargetDir)\HSPE.dll" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
+    <PostBuildEvent>copy /Y "$(TargetDir)\HSPE.dll" "D:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

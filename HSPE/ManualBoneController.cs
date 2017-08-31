@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Xml;
 using Manager;
 using RootMotion.FinalIK;
@@ -173,14 +172,16 @@ namespace HSPE
             this._cam = Camera.current.GetComponent<CameraGL>();
             if (this._cam == null)
                 this._cam = Camera.current.gameObject.AddComponent<CameraGL>();
-            this._cam.onPostRender += DrawGizmos;
+            this._cam.onPostRender += this.DrawGizmos;
             this._body = this.GetComponent<FullBodyBipedIK>();
-            this._body.solver.OnPostSolve = OnPostSolve;
+            this._body.solver.OnPostSolve = this.OnPostSolve;
             this._animator = this.GetComponent<Animator>();
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>())
                 this._colliderObjects.Add(c.transform);
             this.forceBendGoalsWeight = true;
             this._dynamicBones = this.transform.parent.GetComponentsInChildren<DynamicBone>();
+            if (this._dynamicBones != null)
+                UnityEngine.Debug.Log(this._dynamicBones.Length);
         }
 
         void Start()
@@ -303,7 +304,7 @@ namespace HSPE
 
         void OnDestroy()
         {
-            this._cam.onPostRender -= DrawGizmos;
+            this._cam.onPostRender -= this.DrawGizmos;
             this._animator.enabled = true;
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
@@ -566,7 +567,7 @@ namespace HSPE
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Label("Character Tree", GUI.skin.box);
-            this._boneEditionScroll = GUILayout.BeginScrollView(_boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
+            this._boneEditionScroll = GUILayout.BeginScrollView(this._boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             //foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
             //    if (t.parent == null)
             //        this.DisplayObjectTree(t.gameObject, 0);
@@ -940,6 +941,8 @@ namespace HSPE
             this._dynamicBonesScroll = GUILayout.BeginScrollView(this._dynamicBonesScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
             foreach (DynamicBone db in this._dynamicBones)
             {
+                if (db.m_Root == null)
+                    continue;
                 Color c = GUI.color;
                 if (this.IsDynamicBoneDirty(db))
                     GUI.color = Color.magenta;
@@ -985,7 +988,7 @@ namespace HSPE
                     if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalGravity.hasValue == false)
                         this._dirtyDynamicBones[this._dynamicBoneTarget].originalGravity = this._dynamicBoneTarget.m_Gravity;
                 }
-                this._dynamicBoneTarget.m_Gravity = g;                
+                this._dynamicBoneTarget.m_Gravity = g;
             }
             GUILayout.EndVertical();
 
@@ -1028,10 +1031,10 @@ namespace HSPE
                     if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalFreezeAxis.hasValue == false)
                         this._dirtyDynamicBones[this._dynamicBoneTarget].originalFreezeAxis = this._dynamicBoneTarget.m_FreezeAxis;
                 }
-                this._dynamicBoneTarget.m_FreezeAxis = fa;                
+                this._dynamicBoneTarget.m_FreezeAxis = fa;
             }
             GUILayout.EndHorizontal();
-
+ 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dynamicBoneTarget != null)
                 this.SetDynamicBoneNotDirty(this._dynamicBoneTarget);
 
@@ -1600,7 +1603,7 @@ namespace HSPE
                 case SelectedTab.DynamicBonesEditor:
                     if (this._dynamicBoneTarget != null)
                     {
-                        Transform end = this._dynamicBoneTarget.m_Root;
+                        Transform end = this._dynamicBoneTarget.m_Root ?? this._dynamicBoneTarget.transform;
                         while (end.childCount != 0)
                             end = end.GetChild(0);
                         float scale = 10f;
@@ -1629,6 +1632,7 @@ namespace HSPE
                     }
                     break;
             }
+            this._xMat.SetPass(0);
             GL.PopMatrix();
         }
 
@@ -1878,7 +1882,7 @@ namespace HSPE
                 foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in this._dirtyDynamicBones)
                 {
                     xmlWriter.WriteStartElement("dynamicBone");
-                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root.name);
+                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.name : kvp.Key.name);
 
                     if (kvp.Value.originalWeight.hasValue)
                         xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(kvp.Key.GetWeight()));
