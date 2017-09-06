@@ -1,17 +1,30 @@
-﻿using UnityEngine;
+﻿using System;
+using JetBrains.Annotations;
+using UnityEngine;
 
 namespace HSPE
 {
     public class CameraGL : MonoBehaviour
     {
-        public delegate void OnPostRenderDelegate();
+        public event Action onPostRender;
+        public event Action onPreCull; 
+        public Camera camera { get; private set; }
 
-        public event OnPostRenderDelegate onPostRender;
+        void Awake()
+        {
+            this.camera = this.GetComponent<Camera>();
+        }
 
         void OnPostRender()
         {
             if (this.onPostRender != null)
                 this.onPostRender();
+        }
+
+        void OnPreCull()
+        {
+            if (this.onPreCull != null)
+                this.onPreCull();
         }
     }
 }

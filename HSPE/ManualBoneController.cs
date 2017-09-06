@@ -1,9 +1,10 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Permissions;
 using System.Xml;
-using Manager;
 using RootMotion.FinalIK;
 using UnityEngine;
 
@@ -11,10 +12,6 @@ namespace HSPE
 {
     public class ManualBoneController : MonoBehaviour
     {
-        #region Private Static Variables
-        private static readonly Vector3 _armDamScale = new Vector3(0.82f, 1f, 1.1f);
-        #endregion
-
         #region Private Types
         private enum CoordType
         {
@@ -39,12 +36,32 @@ namespace HSPE
             public EditableValue<Vector3> originalPosition;
             public EditableValue<Quaternion> originalRotation;
             public EditableValue<Vector3> originalScale;
+
+            public TransformData() { }
+
+            public TransformData(TransformData other)
+            {
+                this.position = other.position;
+                this.rotation = other.rotation;
+                this.scale = other.scale;
+                this.originalPosition = other.originalPosition;
+                this.originalRotation = other.originalRotation;
+                this.originalScale = other.originalScale;
+            }
         }
 
         private class BoobData
         {
             public EditableValue<Vector3> originalGravity;
             public EditableValue<Vector3> originalForce;
+
+            public BoobData() { }
+
+            public BoobData(BoobData other)
+            {
+                this.originalGravity = other.originalGravity;
+                this.originalForce = other.originalForce;
+            }
         }
 
         private class ColliderData
@@ -54,6 +71,17 @@ namespace HSPE
             public EditableValue<float> originalHeight;
             public EditableValue<DynamicBoneCollider.Direction> originalDirection;
             public EditableValue<DynamicBoneCollider.Bound> originalBound;
+
+            public ColliderData() { }
+
+            public ColliderData(ColliderData other)
+            {
+                this.originalCenter = other.originalCenter;
+                this.originalRadius = other.originalRadius;
+                this.originalHeight = other.originalHeight;
+                this.originalDirection = other.originalDirection;
+                this.originalBound = other.originalBound;
+            }
         }
 
         private class DynamicBoneData
@@ -62,13 +90,34 @@ namespace HSPE
             public EditableValue<Vector3> originalGravity;
             public EditableValue<Vector3> originalForce;
             public EditableValue<DynamicBone.FreezeAxis> originalFreezeAxis;
+            public EditableValue<bool> originalEnabled;
+
+            public DynamicBoneData() { }
+
+            public DynamicBoneData(DynamicBoneData other)
+            {
+                this.originalWeight = other.originalWeight;
+                this.originalGravity = other.originalGravity;
+                this.originalForce = other.originalForce;
+                this.originalFreezeAxis = other.originalFreezeAxis;
+                this.originalEnabled = other.originalEnabled;
+            }
         }
 
         private delegate void TabDelegate();
         #endregion
 
+        #region Public Types
+        public enum DragType
+        {
+            None,
+            Position,
+            Rotation,
+            Both
+        }
+        #endregion
+
         #region Private Variables
-        private Animator _animator;
         private FullBodyBipedIK _body;
         private CameraGL _cam;
         private Material _mat;
@@ -80,46 +129,25 @@ namespace HSPE
         private DynamicBoneCollider _colliderTarget;
         private DynamicBone_Ver02 _rightBoob;
         private DynamicBone_Ver02 _leftBoob;
-        private readonly Dictionary<FullBodyBipedEffector, int> _effectorToIndex = new Dictionary<FullBodyBipedEffector, int>(); 
+        private readonly Dictionary<FullBodyBipedEffector, int> _effectorToIndex = new Dictionary<FullBodyBipedEffector, int>();
+        private readonly Dictionary<FullBodyBipedChain, int> _chainToIndex = new Dictionary<FullBodyBipedChain, int>();
         private readonly HashSet<GameObject> _openedBones = new HashSet<GameObject>();
+        private readonly HashSet<GameObject> _ignoredObjects = new HashSet<GameObject>();
         private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
         private DynamicBone[] _dynamicBones = new DynamicBone[0];
         private CoordType _boneEditionCoordType = CoordType.Rotation;
         private Vector2 _boneEditionScroll;
         private float _inc = 1f;
         private int _incIndex = 0;
-        private readonly Dictionary<GameObject, TransformData> _dirtyBones = new Dictionary<GameObject, TransformData>();
+        private Dictionary<GameObject, TransformData> _dirtyBones = new Dictionary<GameObject, TransformData>();
         private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyBoobs = new Dictionary<DynamicBone_Ver02, BoobData>(2);
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
         private readonly Dictionary<DynamicBone, DynamicBoneData> _dirtyDynamicBones = new Dictionary<DynamicBone, DynamicBoneData>();
+
         private bool _isFemale = false;
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
         private int _cachedSolverIterations;
-        private Transform _legKneeDamL;
-        private Transform _legKneeDamR;
-        private Transform _legKneeBackL;
-        private Transform _legKneeBackR;
-        private Transform _legUpL;
-        private Transform _legUpR;
-        private Transform _elbowDamL;
-        private Transform _elbowDamR;
-        private Transform _armUpDamL1;
-        private Transform _armUpDamR1;
-        private Transform _armUpDamL2;
-        private Transform _armUpDamR2;
-        private Transform _armUpDamL3;
-        private Transform _armUpDamR3;
-        private Transform _armElbouraDamL;
-        private Transform _armElbouraDamR;
-        private Transform _armLow1L;
-        private Transform _armLow1R;
-        private Transform _armLow2L;
-        private Transform _armLow2R;
-        private Transform _armLow3L;
-        private Transform _armLow3R;
-        private Transform _siriDamL;
-        private Transform _siriDamR;
         private Transform _kosi;
         private readonly Dictionary<Transform, string> _boneEditionShortcuts = new Dictionary<Transform, string>();
         private SelectedTab _selectedTab = SelectedTab.BonesPosition;
@@ -131,122 +159,76 @@ namespace HSPE
         private Vector2 _dynamicBonesScroll;
         private DynamicBone _dynamicBoneTarget;
         private bool _removeShortcutMode;
-        private readonly Quaternion _shounderBaseRotL = Quaternion.AngleAxis(90, Vector3.up) * Quaternion.AngleAxis(70, Vector3.right);
-        private readonly Quaternion _shounderBaseRotR = Quaternion.AngleAxis(90, Vector3.up) * Quaternion.AngleAxis(70, Vector3.right);
+        private bool _lastAdvModeEnabled;
+        private readonly Dictionary<int, Vector3> _oldPosValues = new Dictionary<int, Vector3>();
+        private readonly Dictionary<int, Vector3> _oldRotValues = new Dictionary<int, Vector3>();
         #endregion
 
         #region Public Accessors
-        public StudioChara chara { get; set; }
-        public bool isEnabled { get { return this.chara.ikCtrl.ikEnable; } }
-        public bool draw { get; set; }
-        public bool forceBendGoalsWeight { get; set; }
+        public Studio.OCIChar chara { get; set; }
+        public bool isIKEnabled { get { return this.chara.oiCharInfo.enableIK; } }
+        public bool isAdvancedModeEnabled { get { return !this.chara.oiCharInfo.enableFK; } }
+        public bool drawAdvancedMode { get; set; }
         public Rect colliderEditRect { get { return this._colliderEditRect; } }
         public bool colliderEditEnabled { get { return this._colliderTarget != null; } }
+        public DragType currentDragType { get; private set; }
         #endregion
 
         #region Unity Methods
         void Awake()
         {
-            this._isFemale = this.GetComponentInParent<CharInfo>() is CharFemale;
             this._tabFunctions.Add(SelectedTab.BonesPosition, this.BonesPosition);
             this._tabFunctions.Add(SelectedTab.BoobsEditor, this.BoobsEditor);
             this._tabFunctions.Add(SelectedTab.DynamicBonesEditor, this.DynamicBonesEditor);
             this._effectorToIndex.Add(FullBodyBipedEffector.Body, 0);
-            this._effectorToIndex.Add(FullBodyBipedEffector.LeftThigh, 1);
-            this._effectorToIndex.Add(FullBodyBipedEffector.RightThigh, 2);
+            this._effectorToIndex.Add(FullBodyBipedEffector.LeftShoulder, 1);
+            this._chainToIndex.Add(FullBodyBipedChain.LeftArm, 2);
             this._effectorToIndex.Add(FullBodyBipedEffector.LeftHand, 3);
-            this._effectorToIndex.Add(FullBodyBipedEffector.RightHand, 4);
-            this._effectorToIndex.Add(FullBodyBipedEffector.LeftFoot, 5);
-            this._effectorToIndex.Add(FullBodyBipedEffector.RightFoot, 6);
-            this._effectorToIndex.Add(FullBodyBipedEffector.LeftShoulder, 7);
-            this._effectorToIndex.Add(FullBodyBipedEffector.RightShoulder, 8);
-            this._mat = new Material(Shader.Find("Unlit/Transparent"));
-            this._xMat = new Material(Shader.Find("Custom/SpriteDefaultZAlways"));
-            this._xMat.color = Color.red;
-            this._yMat = new Material(Shader.Find("Custom/SpriteDefaultZAlways"));
-            this._yMat.color = Color.green;
-            this._zMat = new Material(Shader.Find("Custom/SpriteDefaultZAlways"));
-            this._zMat.color = Color.blue;
-            this._colliderMat = new Material(Shader.Find("Custom/SpriteDefaultZAlways"));
-            this._colliderMat.color = Color.Lerp(Color.green, Color.white, 0.5f);
-            this._cam = Camera.current.GetComponent<CameraGL>();
+            this._effectorToIndex.Add(FullBodyBipedEffector.RightShoulder, 4);
+            this._chainToIndex.Add(FullBodyBipedChain.RightArm, 5);
+            this._effectorToIndex.Add(FullBodyBipedEffector.RightHand, 6);
+            this._effectorToIndex.Add(FullBodyBipedEffector.LeftThigh, 7);
+            this._chainToIndex.Add(FullBodyBipedChain.LeftLeg, 8);
+            this._effectorToIndex.Add(FullBodyBipedEffector.LeftFoot, 9);
+            this._effectorToIndex.Add(FullBodyBipedEffector.RightThigh, 10);
+            this._chainToIndex.Add(FullBodyBipedChain.RightLeg, 11);
+            this._effectorToIndex.Add(FullBodyBipedEffector.RightFoot, 12);
+
+            this._mat = new Material(Shader.Find("Unlit/Color")) { color = Color.white };
+            this._xMat = new Material(Shader.Find("Unlit/Color")) { color = Color.red };
+            this._yMat = new Material(Shader.Find("Unlit/Color")) { color = Color.green };
+            this._zMat = new Material(Shader.Find("Unlit/Color")) { color = Color.blue };
+            this._colliderMat = new Material(Shader.Find("Unlit/Color")) { color = Color.Lerp(Color.green, Color.white, 0.5f) };
+            this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.GetComponent<CameraGL>();
             if (this._cam == null)
-                this._cam = Camera.current.gameObject.AddComponent<CameraGL>();
+                this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraGL>();
             this._cam.onPostRender += this.DrawGizmos;
-            this._body = this.GetComponent<FullBodyBipedIK>();
-            this._body.solver.OnPostSolve = this.OnPostSolve;
-            this._animator = this.GetComponent<Animator>();
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>())
                 this._colliderObjects.Add(c.transform);
-            this.forceBendGoalsWeight = true;
-            this._dynamicBones = this.transform.parent.GetComponentsInChildren<DynamicBone>();
-            if (this._dynamicBones != null)
-                UnityEngine.Debug.Log(this._dynamicBones.Length);
+            this._dynamicBones = this.GetComponentsInChildren<DynamicBone>();
+            MainWindow.self.onParentage += this.OnParentage;
         }
 
         void Start()
         {
-            this._isFemale = this.chara is StudioFemale;
+            this._isFemale = this.chara.charInfo.Sex == 1;
+            this._body = this.chara.animeIKCtrl.IK;
+            this._body.solver.OnPostSolve = this.OnPostSolve;
+            this._lastAdvModeEnabled = this.isAdvancedModeEnabled;
 
-            this._legKneeDamL = this._body.solver.leftLegMapping.bone1.GetChild(0);
-            this._legKneeDamR = this._body.solver.rightLegMapping.bone1.GetChild(0);
             if (this._isFemale)
             {
-                this._legKneeBackL = this._body.solver.leftLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_L");
-                this._legKneeBackR = this._body.solver.rightLegMapping.bone1.FindDescendant("cf_J_LegKnee_back_R");
-                this._legUpL = this.transform.FindDescendant("cf_J_LegUpDam_L");
-                this._legUpR = this.transform.FindDescendant("cf_J_LegUpDam_R");
-                this._elbowDamL = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_L");
-                this._elbowDamR = this.transform.FindDescendant("cf_J_ArmElbo_dam_01_R");
-                this._armUpDamL1 = this.transform.FindDescendant("cf_J_ArmUp01_dam_L");
-                this._armUpDamR1 = this.transform.FindDescendant("cf_J_ArmUp01_dam_R");
-                this._armUpDamL2 = this.transform.FindDescendant("cf_J_ArmUp02_dam_L");
-                this._armUpDamR2 = this.transform.FindDescendant("cf_J_ArmUp02_dam_R");
-                this._armUpDamL3 = this.transform.FindDescendant("cf_J_ArmUp03_dam_L");
-                this._armUpDamR3 = this.transform.FindDescendant("cf_J_ArmUp03_dam_R");
-                this._armElbouraDamL = this.transform.FindDescendant("cf_J_ArmElboura_dam_L");
-                this._armElbouraDamR = this.transform.FindDescendant("cf_J_ArmElboura_dam_R");
-                this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_ArmLow01_s_L");
-                this._armLow1R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_ArmLow01_s_R");
-                this._armLow2L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_ArmLow02_dam_L");
-                this._armLow2R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_ArmLow02_dam_R");
-                this._armLow3L = this._body.solver.leftArmMapping.bone2.FindChild("cf_J_Hand_Wrist_dam_L");
-                this._armLow3R = this._body.solver.rightArmMapping.bone2.FindChild("cf_J_Hand_Wrist_dam_R");
-                this._siriDamL = this.transform.FindDescendant("cf_J_SiriDam_L");
-                this._siriDamR = this.transform.FindDescendant("cf_J_SiriDam_R");
                 this._kosi = this.transform.FindDescendant("cf_J_Kosi02_s");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_R"), "R. Foot");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
-                this._leftBoob = ((CharFemaleBody) this.chara.body).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
-                this._rightBoob = ((CharFemaleBody) this.chara.body).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+                this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
+                this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
             }
             else
             {
-                this._legKneeBackL = this._body.solver.leftLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_s_L");
-                this._legKneeBackR = this._body.solver.rightLegMapping.bone1.FindDescendant("cm_J_LegKnee_back_s_R");
-                this._legUpL = this.transform.FindDescendant("cm_J_LegUpDam_L");
-                this._legUpR = this.transform.FindDescendant("cm_J_LegUpDam_R");
-                this._elbowDamL = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_L");
-                this._elbowDamR = this.transform.FindDescendant("cm_J_ArmElbo_dam_02_R");
-                this._armUpDamL1 = this.transform.FindDescendant("cm_J_ArmUp01_dam_L");
-                this._armUpDamR1 = this.transform.FindDescendant("cm_J_ArmUp01_dam_R");
-                this._armUpDamL2 = this.transform.FindDescendant("cm_J_ArmUp02_dam_L");
-                this._armUpDamR2 = this.transform.FindDescendant("cm_J_ArmUp02_dam_R");
-                this._armUpDamL3 = this.transform.FindDescendant("cm_J_ArmUp03_dam_L");
-                this._armUpDamR3 = this.transform.FindDescendant("cm_J_ArmUp03_dam_R");
-                this._armElbouraDamL = this.transform.FindDescendant("cm_J_ArmElboura_dam_L");
-                this._armElbouraDamR = this.transform.FindDescendant("cm_J_ArmElboura_dam_R");
-                this._armLow1L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_ArmLow01_s_L");
-                this._armLow1R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_ArmLow01_s_R");
-                this._armLow2L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_ArmLow02_dam_L");
-                this._armLow2R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_ArmLow02_dam_R");
-                this._armLow3L = this._body.solver.leftArmMapping.bone2.FindChild("cm_J_Hand_Wrist_dam_L");
-                this._armLow3R = this._body.solver.rightArmMapping.bone2.FindChild("cm_J_Hand_Wrist_dam_R");
-                this._siriDamL = this.transform.FindDescendant("cm_J_SiriDam_L");
-                this._siriDamR = this.transform.FindDescendant("cm_J_SiriDam_R");
                 this._kosi = this.transform.FindDescendant("cm_J_Kosi02_s");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_L"), "L. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_R"), "R. Hand");
@@ -260,7 +242,7 @@ namespace HSPE
             this._cachedSolverIterations = this._body.solver.iterations;
             this._body.solver.spineStiffness = 0f;
             this._body.solver.pullBodyVertical = 0f;
-            this._body.solver.iterations = 1;
+            //this._body.solver.iterations = 1;
             this._body.fixTransforms = true;
         }
 
@@ -271,7 +253,7 @@ namespace HSPE
             else
                 this._repeatTimer = 0f;
             this._repeatCalled = false;
-            DynamicBone[] dynamicBones = this.transform.parent.GetComponentsInChildren<DynamicBone>();
+            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>();
             bool shouldCleanList = false;
             foreach (DynamicBone db in this._dynamicBones)
                 if (dynamicBones.Contains(db) == false)
@@ -290,22 +272,49 @@ namespace HSPE
                 this._dynamicBoneTarget = null;
             }
             this._dynamicBones = dynamicBones;
+            if (this._lastAdvModeEnabled != this.isAdvancedModeEnabled)
+                this.AdvancedModeChanged();
+            this._lastAdvModeEnabled = this.isAdvancedModeEnabled;
         }
 
         void LateUpdate()
         {
-            if (!this.isEnabled)
+            if (this.isAdvancedModeEnabled)
+            {
+                bool shouldClean = false;
+                foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+                {
+                    if (kvp.Key == null)
+                    {
+                        shouldClean = true;
+                        continue;                        
+                    }
+                    if (kvp.Value.scale.hasValue)
+                        kvp.Key.transform.localScale = kvp.Value.scale;
+                    if (kvp.Value.rotation.hasValue)
+                        kvp.Key.transform.localRotation = kvp.Value.rotation;
+                    if (kvp.Value.position.hasValue)
+                        kvp.Key.transform.localPosition = kvp.Value.position;
+                }
+                if (shouldClean)
+                {
+                    Dictionary<GameObject, TransformData> newDirtyBones = new Dictionary<GameObject, TransformData>();
+                    foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+                        if (kvp.Key != null)
+                            newDirtyBones.Add(kvp.Key, kvp.Value);
+                    this._dirtyBones = newDirtyBones;
+                }
+            }
+            if (!this.isIKEnabled)
                 return;
-            if (this.forceBendGoalsWeight)
-                for (int i = 0; i < 4; ++i)
-                    this.chara.ikCtrl.drivingRig.bendGoals[i].weight = 1f;
             this._body.solver.Update();
         }
 
         void OnDestroy()
         {
+            MainWindow.self.onParentage -= this.OnParentage;
             this._cam.onPostRender -= this.DrawGizmos;
-            this._animator.enabled = true;
+            //this._cam.onPreCull -= this.PreCull;
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             this._body.solver.iterations = this._cachedSolverIterations;
@@ -313,121 +322,327 @@ namespace HSPE
 
         void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * UIUtility.uiScale, new Vector2(Screen.width, Screen.height));
+            GUIUtility.ScaleAroundPivot(Vector2.one * (UIUtility.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
             if (this._colliderTarget)
+            {
+                for (int i = 0; i < 3; ++i)
+                    GUI.Box(this._colliderEditRect, "");
                 this._colliderEditRect = GUILayout.Window(2, this._colliderEditRect, this.ColliderEditor, "Collider Editor" + (this.IsColliderDirty(this._colliderTarget) ? "*" : ""));
+            }
+            GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
         #endregion
 
         #region Public Methods
+        public void LoadFrom(ManualBoneController other)
+        {
+            if (other == null)
+                return;
+            foreach (GameObject openedBone in other._openedBones)
+            {
+                Transform obj = this.transform.FindChild(openedBone.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                    this._openedBones.Add(obj.gameObject);
+            }
+            foreach (GameObject ignoredObject in other._ignoredObjects)
+            {
+                Transform obj = this.transform.FindChild(ignoredObject.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                    this._ignoredObjects.Add(obj.gameObject);
+            }
+            foreach (KeyValuePair<GameObject, TransformData> kvp in other._dirtyBones)
+            {
+                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                    this._dirtyBones.Add(obj.gameObject, new TransformData(kvp.Value));
+            }
+            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyBoobs)
+            {
+                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                {
+                    DynamicBone_Ver02 db = obj.GetComponent<DynamicBone_Ver02>();
+                    if (kvp.Value.originalForce.hasValue)
+                        db.Force = kvp.Key.Force;
+                    if (kvp.Value.originalGravity.hasValue)
+                        db.Gravity = kvp.Key.Gravity;
+                    this._dirtyBoobs.Add(db, new BoobData(kvp.Value));
+                }
+            }
+            foreach (KeyValuePair<DynamicBoneCollider, ColliderData> kvp in other._dirtyColliders)
+            {
+                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                {
+                    DynamicBoneCollider col = obj.GetComponent<DynamicBoneCollider>();
+                    if (kvp.Value.originalCenter.hasValue)
+                        col.m_Center = kvp.Key.m_Center;
+                    if (kvp.Value.originalBound.hasValue)
+                        col.m_Bound = kvp.Key.m_Bound;
+                    if (kvp.Value.originalDirection.hasValue)
+                        col.m_Direction = kvp.Key.m_Direction;
+                    if (kvp.Value.originalHeight.hasValue)
+                        col.m_Height = kvp.Key.m_Height;
+                    if (kvp.Value.originalRadius.hasValue)
+                        col.m_Radius = kvp.Key.m_Radius;
+                    this._dirtyColliders.Add(col, new ColliderData(kvp.Value));
+                    
+                }
+            }
+            foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in other._dirtyDynamicBones)
+            {
+                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                if (obj != null)
+                {
+                    DynamicBone db = obj.GetComponent<DynamicBone>();
+                    if (kvp.Value.originalEnabled.hasValue)
+                        db.enabled = kvp.Key.enabled;
+                    if (kvp.Value.originalForce.hasValue)
+                        db.m_Force = kvp.Key.m_Force;
+                    if (kvp.Value.originalFreezeAxis.hasValue)
+                        db.m_FreezeAxis = kvp.Key.m_FreezeAxis;
+                    if (kvp.Value.originalGravity.hasValue)
+                        db.m_Gravity = kvp.Key.m_Gravity;
+                    if (kvp.Value.originalWeight.hasValue)
+                        db.SetWeight(kvp.Key.GetWeight());
+                    this._dirtyDynamicBones.Add(db, new DynamicBoneData(kvp.Value));
+                    
+                }
+            }
+            if (other._boneTarget != null)
+            {
+                Transform t = this.transform.FindChild(other._boneTarget.GetPathFrom(other.transform));
+                if (t != null)
+                    this._boneTarget = t;
+            }
+            if (other._colliderTarget != null)
+            {
+                Transform t = this.transform.FindChild(other._colliderTarget.transform.GetPathFrom(other.transform));
+                if (t != null)
+                    this._colliderTarget = t.GetComponent<DynamicBoneCollider>();
+            }
+            if (other._dynamicBoneTarget != null)
+            {
+                Transform t = this.transform.FindChild(other._dynamicBoneTarget.transform.GetPathFrom(other.transform));
+                if (t != null)
+                    this._dynamicBoneTarget = t.GetComponent<DynamicBone>();
+            }
+            this._dynamicBonesScroll = other._dynamicBonesScroll;
+            this._boneEditionScroll = other._boneEditionScroll;
+        }
+
+        public void StartDrag(DragType dragType)
+        {
+            this.currentDragType = dragType;
+        }
+
+        public void StopDrag()
+        {
+            Studio.GuideCommand.EqualsInfo[] moveCommands = new Studio.GuideCommand.EqualsInfo[this._oldPosValues.Count];
+            if (this.currentDragType == DragType.Position || this.currentDragType == DragType.Both)
+            {
+                int i = 0;
+                foreach (KeyValuePair<int, Vector3> kvp in this._oldPosValues)
+                {
+                    moveCommands[i] = new Studio.GuideCommand.EqualsInfo()
+                    {
+                        dicKey = kvp.Key,
+                        oldValue = kvp.Value,
+                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].pos
+                    };
+                    ++i;
+                }
+            }
+            Studio.GuideCommand.EqualsInfo[] rotateCommands = new Studio.GuideCommand.EqualsInfo[this._oldRotValues.Count];
+            if (this.currentDragType == DragType.Rotation || this.currentDragType == DragType.Both)
+            {
+                int i = 0;
+                foreach (KeyValuePair<int, Vector3> kvp in this._oldRotValues)
+                {
+                    rotateCommands[i] = new Studio.GuideCommand.EqualsInfo()
+                    {
+                        dicKey = kvp.Key,
+                        oldValue = kvp.Value,
+                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].rot
+                    };
+                    ++i;
+                }
+            }
+            Studio.UndoRedoManager.Instance.Push(new Commands.MoveRotateEqualsCommand(moveCommands, rotateCommands));
+            this.currentDragType = DragType.None;
+            this._oldPosValues.Clear();
+            this._oldRotValues.Clear();
+        }
+
+        public bool IsPartEnabled(FullBodyBipedEffector part)
+        {
+            return this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[part]].active;
+        }
+
+        public bool IsPartEnabled(FullBodyBipedChain part)
+        {
+            return this.isIKEnabled && this.chara.listIKTarget[this._chainToIndex[part]].active;
+        }
+
         public void SetBoneTargetRotation(FullBodyBipedEffector type, Quaternion targetRotation)
-        { 
-            if (this.isEnabled)
-                this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[type]].target.rotation = targetRotation;
+        {
+            if (this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[type]].active)
+            {
+                Studio.GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
+                if (this.currentDragType != DragType.None)
+                {
+                    if (this._oldRotValues.ContainsKey(target.dicKey) == false)
+                        this._oldRotValues.Add(target.dicKey, target.changeAmount.rot);
+                    target.changeAmount.rot = targetRotation.eulerAngles;
+                }
+            }
         }
 
         public Quaternion GetBoneTargetRotation(FullBodyBipedEffector type)
         {
-            if (!this.isEnabled)
+            if (!this.isIKEnabled || this.chara.listIKTarget[this._effectorToIndex[type]].active == false)
                 return Quaternion.identity;
-            return this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[type]].target.rotation;
+            return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.localRotation;
         }
 
         public void SetBoneTargetPosition(FullBodyBipedEffector type, Vector3 targetPosition)
         {
-            if (this.isEnabled)
-                this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[type]].target.position = targetPosition;
+            if (this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[type]].active)
+            {
+                Studio.GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
+                if (this.currentDragType != DragType.None)
+                {
+                    if (this._oldPosValues.ContainsKey(target.dicKey) == false)
+                        this._oldPosValues.Add(target.dicKey, target.changeAmount.pos);
+                    target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                }
+            }
         }
 
         public Vector3 GetBoneTargetPosition(FullBodyBipedEffector type)
         {
-            if (!this.isEnabled)
+            if (!this.isIKEnabled || this.chara.listIKTarget[this._effectorToIndex[type]].active == false)
                 return Vector3.zero;
-            return this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[type]].target.position;
+            return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.position;
         }
 
-        public void SetBendGoalPosition(FullBodyBipedChain type, Vector3 position)
+        public void SetBendGoalPosition(FullBodyBipedChain type, Vector3 targetPosition)
         {
-            if (this.isEnabled)
-                this.chara.ikCtrl.drivingRig.bendGoals[(int)type].transform.position = position;
+            if (this.isIKEnabled && this.chara.listIKTarget[this._chainToIndex[type]].active)
+            {
+                Studio.GuideObject target = this.chara.listIKTarget[this._chainToIndex[type]].guideObject;
+                if (this.currentDragType != DragType.None)
+                {
+                    if (this._oldPosValues.ContainsKey(target.dicKey) == false)
+                        this._oldPosValues.Add(target.dicKey, target.changeAmount.pos);
+                    target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                }
+            }
         }
 
         public Vector3 GetBendGoalPosition(FullBodyBipedChain type)
         {
-            if (!this.isEnabled)
+            if (!this.isIKEnabled || this.chara.listIKTarget[this._chainToIndex[type]].active == false)
                 return Vector3.zero;
-            return this.chara.ikCtrl.drivingRig.bendGoals[(int)type].transform.position;
+            return this.chara.listIKTarget[this._chainToIndex[type]].guideObject.transformTarget.position;
         }
 
         public void CopyLimbToTwin(FullBodyBipedChain limb)
         {
-            Transform effectorSrc;
-            Transform bendGoalSrc;
-            Transform effectorDest;
-            Transform bendGoalDest;
+            FullBodyBipedEffector effectorSrc;
+            FullBodyBipedChain bendGoalSrc;
+            FullBodyBipedEffector effectorDest;
+            FullBodyBipedChain bendGoalDest;
             Transform root;
             switch (limb)
             {
                 case FullBodyBipedChain.LeftArm:
-                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftHand]].target;
-                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
-                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightHand]].target;
-                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.RightArm].transform;
+                    effectorSrc = FullBodyBipedEffector.LeftHand;
+                    bendGoalSrc = FullBodyBipedChain.LeftArm;
+                    effectorDest = FullBodyBipedEffector.RightHand;
+                    bendGoalDest = FullBodyBipedChain.RightArm;
                     root = this._body.solver.spineMapping.spineBones[this._body.solver.spineMapping.spineBones.Length - 2];
                     break;
                 case FullBodyBipedChain.LeftLeg:
-                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftFoot]].target;
-                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
-                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightFoot]].target;
-                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.RightLeg].transform;
+                    effectorSrc = FullBodyBipedEffector.LeftFoot;
+                    bendGoalSrc = FullBodyBipedChain.LeftLeg;
+                    effectorDest = FullBodyBipedEffector.RightFoot;
+                    bendGoalDest = FullBodyBipedChain.RightLeg;
                     root = this._body.solver.spineMapping.spineBones[0];
                     break;
                 case FullBodyBipedChain.RightArm:
-                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightHand]].target;
-                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
-                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftHand]].target;
-                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.LeftArm].transform;
+                    effectorSrc = FullBodyBipedEffector.RightHand;
+                    bendGoalSrc = FullBodyBipedChain.RightArm;
+                    effectorDest = FullBodyBipedEffector.LeftHand;
+                    bendGoalDest = FullBodyBipedChain.LeftArm;
                     root = this._body.solver.spineMapping.spineBones[this._body.solver.spineMapping.spineBones.Length - 2];
                     break;
                 case FullBodyBipedChain.RightLeg:
-                    effectorSrc = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.RightFoot]].target;
-                    bendGoalSrc = this.chara.ikCtrl.drivingRig.bendGoals[(int)limb].transform;
-                    effectorDest = this.chara.ikCtrl.drivingRig.effectorTargets[this._effectorToIndex[FullBodyBipedEffector.LeftFoot]].target;
-                    bendGoalDest = this.chara.ikCtrl.drivingRig.bendGoals[(int)FullBodyBipedChain.LeftLeg].transform;
+                    effectorSrc = FullBodyBipedEffector.RightFoot;
+                    bendGoalSrc = FullBodyBipedChain.RightLeg;
+                    effectorDest = FullBodyBipedEffector.LeftFoot;
+                    bendGoalDest = FullBodyBipedChain.LeftLeg;
                     root = this._body.solver.spineMapping.spineBones[0];
                     break;
                 default:
-                    effectorSrc = null;
-                    bendGoalSrc = null;
-                    effectorDest = null;
-                    bendGoalDest = null;
+                    effectorSrc = FullBodyBipedEffector.RightHand;
+                    effectorDest = FullBodyBipedEffector.RightHand;
+                    bendGoalSrc = FullBodyBipedChain.LeftArm;
+                    bendGoalDest = FullBodyBipedChain.LeftArm;
                     root = null;
                     break;
             }
 
-            Vector3 localPos = root.InverseTransformPoint(effectorSrc.position);
+            Vector3 localPos = root.InverseTransformPoint(this.chara.listIKTarget[this._effectorToIndex[effectorSrc]].guideObject.transformTarget.position);
             localPos.x *= -1f;
             Vector3 effectorPosition = root.TransformPoint(localPos);
-
-            localPos = root.InverseTransformPoint(bendGoalSrc.position);
+            localPos = root.InverseTransformPoint(this.chara.listIKTarget[this._chainToIndex[bendGoalSrc]].guideObject.transformTarget.position);
             localPos.x *= -1f;
             Vector3 bendGoalPosition = root.TransformPoint(localPos);
 
-            Quaternion rot = effectorSrc.localRotation;
+            Quaternion rot = this.chara.listIKTarget[this._effectorToIndex[effectorSrc]].guideObject.transformTarget.localRotation;
             rot.w *= -1f;
             rot.x *= -1f;
 
-            this.StartCoroutine(this.CopyLibmToTwin_Routine(effectorDest, effectorPosition, rot, bendGoalDest, bendGoalPosition));
+            this.StartDrag(DragType.Both);
+            this.SetBoneTargetPosition(effectorDest, effectorPosition);
+            this.SetBoneTargetRotation(effectorDest, rot);
+            this.SetBendGoalPosition(bendGoalDest, bendGoalPosition);
+            this.StopDrag();
+
         }
 
         public void AdvancedModeWindow(int id)
         {
-            GUILayout.BeginHorizontal();
-            for (int i = 0; i < (int) SelectedTab.Count; ++i)
-                if (this.ShouldDisplayTab((SelectedTab)i) && GUILayout.Button(((SelectedTab) i).ToString()))
-                    this._selectedTab = (SelectedTab) i;
-            GUILayout.EndHorizontal();
-            this._tabFunctions[this._selectedTab]();
+            if (this.isAdvancedModeEnabled)
+            {
+                GUILayout.BeginHorizontal();
+                for (int i = 0; i < (int)SelectedTab.Count; ++i)
+                    if (this.ShouldDisplayTab((SelectedTab)i) && GUILayout.Button(((SelectedTab)i).ToString()))
+                        this._selectedTab = (SelectedTab)i;
+                GUILayout.EndHorizontal();
+                this._tabFunctions[this._selectedTab]();
+            }
+            else
+            {
+                GUILayout.BeginVertical();
+                GUILayout.Label("It seems that your character has Forward Kinematics (FK) enabled. If you wish to use the Advanced Mode, please disable FK.");
+                GUILayout.Label("However, you can import your modifications from FK to the Advanced Mode.");
+                if (GUILayout.Button("Import my modifications"))
+                {
+                    foreach (Studio.OCIChar.BoneInfo bone in this.chara.listBones)
+                    {
+                        if (bone.active)
+                            this._dirtyBones.Add(bone.guideObject.transformTarget.gameObject, new TransformData() { rotation = bone.guideObject.transformTarget.localRotation });
+                    }
+                    this.chara.ActiveKinematicMode(Studio.OICharInfo.KinematicMode.FK, false, true);
+                    foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+                    {
+                        kvp.Value.originalRotation = kvp.Key.transform.localRotation;
+                    }
+                }
+                GUILayout.EndVertical();
+            }
             GUI.DragWindow();
         }
         #endregion
@@ -568,14 +783,8 @@ namespace HSPE
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Label("Character Tree", GUI.skin.box);
             this._boneEditionScroll = GUILayout.BeginScrollView(this._boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
-            //foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
-            //    if (t.parent == null)
-            //        this.DisplayObjectTree(t.gameObject, 0);
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
-            //if (this._boneTarget != null)
-            //    foreach (Component c in this._boneTarget.GetComponents<Component>())
-            //        GUILayout.Label(c.GetType().Name);
             GUILayout.Label("Legend:");
             GUILayout.BeginHorizontal();
             Color co = GUI.color;
@@ -605,7 +814,13 @@ namespace HSPE
                     case CoordType.Position:
                         Vector3 position = Vector3.zero;
                         if (this._boneTarget != null)
-                            position = this._boneTarget.localPosition;
+                        {
+                            if (this.IsBoneDirty(this._boneTarget.gameObject) && this._dirtyBones[this._boneTarget.gameObject].position.hasValue)
+                                position = this._dirtyBones[this._boneTarget.gameObject].position;
+                            else
+                                position = this._boneTarget.localPosition;                        
+                        }
+                        bool shouldSaveValue = false;
                         Color c = GUI.color;
                         GUI.color = Color.red;
                         GUILayout.BeginHorizontal();
@@ -613,13 +828,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position -= this._inc * Vector3.right;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position += this._inc * Vector3.right;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -631,13 +846,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position -= this._inc * Vector3.up;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position += this._inc * Vector3.up;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -649,19 +864,20 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position -= this._inc * Vector3.forward;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             position += this._inc * Vector3.forward;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
                         GUI.color = c;
-                        if (this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
+                        if (this._boneTarget != null && shouldSaveValue)
                         {
+                            this.SetBoneDirty(this._boneTarget.gameObject);
                             TransformData td = this._dirtyBones[this._boneTarget.gameObject];
                             td.position = position;
                             if (!td.originalPosition.hasValue)
@@ -671,7 +887,13 @@ namespace HSPE
                     case CoordType.Rotation:
                         Quaternion rotation = Quaternion.identity;
                         if (this._boneTarget != null)
-                            rotation = this._boneTarget.localRotation;
+                        {
+                            if (this.IsBoneDirty(this._boneTarget.gameObject) && this._dirtyBones[this._boneTarget.gameObject].rotation.hasValue)
+                                rotation = this._dirtyBones[this._boneTarget.gameObject].rotation;
+                            else
+                                rotation = this._boneTarget.localRotation;                        
+                        }
+                        shouldSaveValue = false;
                         c = GUI.color;
                         GUI.color = Color.red;
                         GUILayout.BeginHorizontal();
@@ -679,13 +901,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(-this._inc, Vector3.right);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(this._inc, Vector3.right);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -697,13 +919,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(-this._inc, Vector3.up);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(this._inc, Vector3.up);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -715,19 +937,20 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(-this._inc, Vector3.forward);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             rotation *= Quaternion.AngleAxis(this._inc, Vector3.forward);
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
                         GUI.color = c;
-                        if (this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
+                        if (this._boneTarget != null && shouldSaveValue)
                         {
+                            this.SetBoneDirty(this._boneTarget.gameObject);
                             TransformData td = this._dirtyBones[this._boneTarget.gameObject];
                             td.rotation = rotation;
                             if (!td.originalRotation.hasValue)
@@ -737,8 +960,13 @@ namespace HSPE
                     case CoordType.Scale:
                         Vector3 scale = Vector3.one;
                         if (this._boneTarget != null)
-                            scale = this._boneTarget.localScale;
-
+                        {
+                            if (this.IsBoneDirty(this._boneTarget.gameObject) && this._dirtyBones[this._boneTarget.gameObject].scale.hasValue)
+                                scale = this._dirtyBones[this._boneTarget.gameObject].scale;
+                            else
+                                scale = this._boneTarget.localScale;
+                        }
+                        shouldSaveValue = false;
                         c = GUI.color;
                         GUI.color = Color.red;
                         GUILayout.BeginHorizontal();
@@ -746,13 +974,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale -= this._inc * Vector3.right;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale += this._inc * Vector3.right;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -764,13 +992,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale -= this._inc * Vector3.up;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale += this._inc * Vector3.up;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -782,13 +1010,13 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale -= this._inc * Vector3.forward;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale += this._inc * Vector3.forward;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -799,19 +1027,20 @@ namespace HSPE
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
                         if (GUILayout.RepeatButton((-this._inc).ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale -= this._inc * Vector3.one;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         if (GUILayout.RepeatButton(this._inc.ToString("+0.####;-0.####")) && this.RepeatControl() && this._boneTarget != null)
                         {
+                            shouldSaveValue = true;
                             scale += this._inc * Vector3.one;
-                            this.SetBoneDirty(this._boneTarget.gameObject);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
                         GUI.enabled = true;
-                        if (this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
+                        if (this._boneTarget != null && shouldSaveValue)
                         {
+                            this.SetBoneDirty(this._boneTarget.gameObject);
                             TransformData td = this._dirtyBones[this._boneTarget.gameObject];
                             td.scale = scale;
                             if (!td.originalScale.hasValue)
@@ -830,19 +1059,16 @@ namespace HSPE
                 {
                     this._dirtyBones[this._boneTarget.gameObject].position.Reset();
                     this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-                    this._dirtyBones[this._boneTarget.gameObject].originalPosition.Reset();
                 }
                 if (GUILayout.Button("Reset Rot.") && this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
                 {
                     this._dirtyBones[this._boneTarget.gameObject].rotation.Reset();
                     this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-                    this._dirtyBones[this._boneTarget.gameObject].originalRotation.Reset();
                 }
                 if (GUILayout.Button("Reset Scale") && this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
                 {
                     this._dirtyBones[this._boneTarget.gameObject].scale.Reset();
                     this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-                    this._dirtyBones[this._boneTarget.gameObject].originalScale.Reset();
                 }
                 GUILayout.EndHorizontal();
 
@@ -872,7 +1098,7 @@ namespace HSPE
                             this._removeShortcutMode = false;
                         }
                         else
-                            this.GoToObject(kvp.Key);                        
+                            this.GoToObject(kvp.Key);
                     }
                     if ((i + 1) % 3 == 0)
                         GUILayout.EndHorizontal();
@@ -1034,9 +1260,25 @@ namespace HSPE
                 this._dynamicBoneTarget.m_FreezeAxis = fa;
             }
             GUILayout.EndHorizontal();
- 
+
+            GUILayout.BeginHorizontal();
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dynamicBoneTarget != null)
                 this.SetDynamicBoneNotDirty(this._dynamicBoneTarget);
+            bool b = false;
+            if (this._dynamicBoneTarget != null)
+                b = this._dynamicBoneTarget.enabled;
+            b = GUILayout.Toggle(b, "Enabled");
+            if (this._dynamicBoneTarget != null)
+            {
+                if (this._dynamicBoneTarget.enabled != b)
+                {
+                    this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                    if (this._dirtyDynamicBones[this._dynamicBoneTarget].originalEnabled.hasValue == false)
+                        this._dirtyDynamicBones[this._dynamicBoneTarget].originalEnabled = this._dynamicBoneTarget.enabled;
+                    this._dynamicBoneTarget.enabled = b;
+                }
+            }
+            GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
 
@@ -1089,6 +1331,8 @@ namespace HSPE
 
         private void DisplayObjectTree(GameObject go, int indent)
         {
+            if (this._ignoredObjects.Contains(go))
+                return;
             Color c = GUI.color;
             if (this._dirtyBones.ContainsKey(go))
                 GUI.color = Color.magenta;
@@ -1098,7 +1342,11 @@ namespace HSPE
                 GUI.color = Color.cyan;
             GUILayout.BeginHorizontal();
             GUILayout.Space(indent * 20f);
-            if (go.transform.childCount != 0)
+            int childCount = 0;
+            for (int i = 0; i < go.transform.childCount; ++i)
+                if (this._ignoredObjects.Contains(go.transform.GetChild(i).gameObject) == false)
+                    ++childCount;
+            if (childCount != 0)
             {
                 if (GUILayout.Toggle(this._openedBones.Contains(go), "", GUILayout.ExpandWidth(false)))
                 {
@@ -1167,6 +1415,7 @@ namespace HSPE
             GUILayout.EndHorizontal();
             return value;
         }
+
         private Vector3 Vector3Editor(Vector3 value, Color color)
         {
             GUILayout.BeginVertical();
@@ -1208,29 +1457,76 @@ namespace HSPE
         #endregion
 
         #region Private Methods
-
-        private IEnumerator CopyLibmToTwin_Routine(Transform effector, Vector3 effectorTargetPos, Quaternion effectorTargetRot, Transform bendGoal, Vector3 bendGoalTargetPos)
+        private void OnParentage(Studio.TreeNodeObject parent, Studio.TreeNodeObject child)
         {
-            float startTime = Time.unscaledTime - Time.unscaledDeltaTime;
-            Vector3 effectorStartPos = effector.position;
-            Vector3 bendGoalStartPos = bendGoal.position;
-            Quaternion effectorStartRot = effector.localRotation;
-            while (Time.unscaledTime - startTime < 0.1f)
+            if (parent == null)
             {
-                float v = (Time.unscaledTime - startTime) * 10f;
-                effector.position = Vector3.Lerp(effectorStartPos, effectorTargetPos, v);
-                effector.localRotation = Quaternion.Lerp(effectorStartRot, effectorTargetRot, v);
-                bendGoal.position = Vector3.Lerp(bendGoalStartPos, bendGoalTargetPos, v);
-                yield return null;
+                Studio.ObjectCtrlInfo info;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && this._ignoredObjects.Contains(info.guideObject.transformTarget.gameObject))
+                    this._ignoredObjects.Remove(info.guideObject.transformTarget.gameObject);
             }
-            effector.position = effectorTargetPos;
-            effector.localRotation = effectorTargetRot;
-            bendGoal.position = bendGoalTargetPos;
+            else
+            {
+                Studio.ObjectCtrlInfo info;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && info.guideObject.transformTarget.IsChildOf(this.transform))
+                    this._ignoredObjects.Add(info.guideObject.transformTarget.gameObject);
+            }
+        }
+
+        private void AdvancedModeChanged()
+        {
+            if (!this.isAdvancedModeEnabled)
+            {
+                while (this._dirtyBones.Count != 0)
+                {
+                    KeyValuePair<GameObject, TransformData> kvp;
+                    using (Dictionary<GameObject, TransformData>.Enumerator enumerator = this._dirtyBones.GetEnumerator())
+                    {
+                        enumerator.MoveNext();
+                        kvp = enumerator.Current;
+                    }
+                    kvp.Value.position.Reset();
+                    kvp.Value.rotation.Reset();
+                    kvp.Value.scale.Reset();
+                    this.SetBoneNotDirtyIf(kvp.Key);
+                }
+                while (this._dirtyBoobs.Count != 0)
+                {
+                    KeyValuePair<DynamicBone_Ver02, BoobData> kvp;
+                    using (Dictionary<DynamicBone_Ver02, BoobData>.Enumerator enumerator = this._dirtyBoobs.GetEnumerator())
+                    {
+                        enumerator.MoveNext();
+                        kvp = enumerator.Current;
+                    }
+                    this.SetBoobNotDirty(kvp.Key);
+                }
+                while (this._dirtyColliders.Count != 0)
+                {
+                    KeyValuePair<DynamicBoneCollider, ColliderData> kvp;
+                    using (Dictionary<DynamicBoneCollider, ColliderData>.Enumerator enumerator = this._dirtyColliders.GetEnumerator())
+                    {
+                        enumerator.MoveNext();
+                        kvp = enumerator.Current;
+                    }
+                    this.SetColliderNotDirty(kvp.Key);
+                }
+                while (this._dirtyDynamicBones.Count != 0)
+                {
+                    KeyValuePair<DynamicBone, DynamicBoneData> kvp;
+                    using (Dictionary<DynamicBone, DynamicBoneData>.Enumerator enumerator = this._dirtyDynamicBones.GetEnumerator())
+                    {
+                        enumerator.MoveNext();
+                        kvp = enumerator.Current;
+                    }
+                    this.SetDynamicBoneNotDirty(kvp.Key);
+                }
+            }
         }
 
         private void GoToObject(string path)
         {
-            this.GoToObject(this.transform.FindChild(path).gameObject);
+            if (this.transform.FindChild(path) != null)
+                this.GoToObject(this.transform.FindChild(path).gameObject);
         }
 
         private void GoToObject(GameObject go)
@@ -1253,6 +1549,8 @@ namespace HSPE
 
         private bool GetScrollPosition(GameObject root, GameObject go, int indent, ref Vector2 scrollPosition)
         {
+            if (this._ignoredObjects.Contains(go))
+                return false;
             scrollPosition = new Vector2(indent * 20f, scrollPosition.y + GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4);
             if (ReferenceEquals(root, go))
                 return true;
@@ -1401,6 +1699,11 @@ namespace HSPE
                     bone.m_FreezeAxis = data.originalFreezeAxis;
                     data.originalFreezeAxis.Reset();
                 }
+                if (data.originalEnabled.hasValue)
+                {
+                    bone.enabled = data.originalEnabled;
+                    data.originalEnabled.Reset();
+                }
                 this._dirtyDynamicBones.Remove(bone);
             }
         }
@@ -1418,61 +1721,18 @@ namespace HSPE
 
         private void OnPostSolve()
         {
-            if (this.isEnabled)
+            if (this.isIKEnabled)
             {
-                this._legKneeDamL.rotation = Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.leftLegMapping.bone2.rotation, 0.5f);
-                this._legKneeDamR.rotation = Quaternion.Lerp(this._body.solver.rightLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone2.rotation, 0.5f);
-                this._legKneeBackL.rotation = this._body.solver.leftLegMapping.bone2.rotation;
-                this._legKneeBackR.rotation = this._body.solver.rightLegMapping.bone2.rotation;
-                this._legUpL.rotation = this._body.solver.leftLegMapping.bone1.rotation;
-                this._legUpL.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._legUpL.parent.rotation, this._body.solver.leftLegMapping.bone1.rotation) / 6f, Vector3.right);
-                this._legUpR.rotation = this._body.solver.rightLegMapping.bone1.rotation;
-                this._legUpR.localRotation *= Quaternion.AngleAxis(Quaternion.Angle(this._legUpR.parent.rotation, this._body.solver.rightLegMapping.bone1.rotation) / 6f, Vector3.right);
-                this._elbowDamL.rotation = Quaternion.Lerp(this._elbowDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.65f);
-                this._elbowDamR.rotation = Quaternion.Lerp(this._elbowDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.65f);
-                this._armElbouraDamL.rotation = Quaternion.Lerp(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation, 0.5f);
-                this._armElbouraDamR.rotation = Quaternion.Lerp(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation, 0.5f);
-                //float shoulderAngle = Extensions.NormalizeAngle(Extensions.DirectionalAngle(this._shounderBaseRotL * Vector3.forward, this._body.solver.leftArmMapping.bone1.localRotation * Vector3.forward, Vector3.right));
-                //this._armUpDamL1.localRotation = Quaternion.AngleAxis(shoulderAngle / 5f, Vector3.right);
-                //this._armUpDamL2.localRotation = Quaternion.AngleAxis(shoulderAngle / 8f, Vector3.right);
-                //this._armUpDamL3.localRotation = Quaternion.AngleAxis(shoulderAngle / 10f, Vector3.right);
-                //shoulderAngle = Extensions.NormalizeAngle(Extensions.DirectionalAngle(this._shounderBaseRotR * Vector3.forward, this._body.solver.rightArmMapping.bone1.localRotation * Vector3.forward, Vector3.right));
-                //this._armUpDamR1.localRotation = Quaternion.AngleAxis(shoulderAngle / 5f, Vector3.right);
-                //this._armUpDamR2.localRotation = Quaternion.AngleAxis(shoulderAngle / 8f, Vector3.right);
-                //this._armUpDamR3.localRotation = Quaternion.AngleAxis(shoulderAngle / 10f, Vector3.right);
-                this._armUpDamL3.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamL.parent.rotation, this._body.solver.leftArmMapping.bone2.rotation) / 90f);
-                this._armUpDamR3.localScale = Vector3.Lerp(Vector3.one, _armDamScale, Quaternion.Angle(this._armElbouraDamR.parent.rotation, this._body.solver.rightArmMapping.bone2.rotation) / 90f);
-                float handAngle = Extensions.DirectionalAngle(Vector3.forward, this._body.solver.leftArmMapping.bone2.InverseTransformDirection(this._body.solver.leftArmMapping.bone3.forward), Vector3.right);
-                this._armLow1L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.25f), Vector3.right);
-                this._armLow2L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.5f), Vector3.right);
-                this._armLow3L.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.75f), Vector3.right);
-                handAngle = Extensions.DirectionalAngle(Vector3.forward, this._body.solver.rightArmMapping.bone2.InverseTransformDirection(this._body.solver.rightArmMapping.bone3.forward), Vector3.right);
-                this._armLow1R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.25f), Vector3.right);
-                this._armLow2R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.5f), Vector3.right);
-                this._armLow3R.localRotation = Quaternion.AngleAxis(Mathf.LerpAngle(0f, handAngle, 0.75f), Vector3.right);
-                this._siriDamL.rotation = Quaternion.Slerp(this._siriDamL.parent.rotation, this._body.solver.leftLegMapping.bone1.rotation, 0.4f);
-                this._siriDamR.rotation = Quaternion.Slerp(this._siriDamR.parent.rotation, this._body.solver.rightLegMapping.bone1.rotation, 0.4f);
-                this._kosi.rotation = Quaternion.Lerp(this._kosi.parent.rotation, Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone1.rotation, 0.5f), 0.25f);
-            }
-
-            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
-            {
-                if (kvp.Value.position.hasValue)
-                    kvp.Key.transform.localPosition = kvp.Value.position;
-                if (kvp.Value.rotation.hasValue)
-                    kvp.Key.transform.localRotation = kvp.Value.rotation;
-                if (kvp.Value.scale.hasValue)
-                    kvp.Key.transform.localScale = kvp.Value.scale;
+                //this._kosi.rotation = Quaternion.Lerp(this._kosi.parent.rotation, Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.rotation, this._body.solver.rightLegMapping.bone1.rotation, 0.5f), 0.25f);
             }
         }
 
         private void DrawGizmos()
         {
-            if (!this.draw)
+            if (!this.drawAdvancedMode || !this.isAdvancedModeEnabled)
                 return;
             GL.PushMatrix();
-            GL.LoadProjectionMatrix(Studio.Instance.MainCamera.projectionMatrix);
-            GL.MultMatrix(Studio.Instance.MainCamera.transform.worldToLocalMatrix);
+            GL.LoadProjectionMatrix(this._cam.camera.projectionMatrix);
             switch (this._selectedTab)
             {
                 case SelectedTab.BonesPosition:
@@ -1608,7 +1868,7 @@ namespace HSPE
                             end = end.GetChild(0);
                         float scale = 10f;
                         Vector3 origin = end.position;
-                        
+
                         Vector3 final = origin + (this._dynamicBoneTarget.m_Gravity) * scale;
                         GL.Begin(GL.LINES);
                         this._xMat.SetPass(0);
@@ -1639,7 +1899,7 @@ namespace HSPE
         private void DrawVector(Vector3 start, Vector3 end, float scale = 20f)
         {
             Vector3 dir = end - start;
-            Quaternion rot = Quaternion.AngleAxis(15f, Vector3.ProjectOnPlane(Studio.Instance.MainCamera.transform.position - end, -dir));
+            Quaternion rot = Quaternion.AngleAxis(15f, Vector3.ProjectOnPlane(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position - end, -dir));
 
             GL.Vertex(start);
             GL.Vertex(end);
@@ -1756,14 +2016,9 @@ namespace HSPE
         #endregion
 
         #region Saves
-        public void LoadBinary(BinaryReader binaryReader)
-        {
-            this.LoadVersion_1_0_0(binaryReader);
-        }
-
         public void LoadXml(XmlNode xmlNode, HSPE.VersionNumber v)
         {
-            this.LoadDefaultVersion(xmlNode);
+            this.StartCoroutine(this.LoadDefaultVersion_Routine(xmlNode));
         }
         public int SaveXml(XmlTextWriter xmlWriter)
         {
@@ -1869,13 +2124,6 @@ namespace HSPE
                 }
                 xmlWriter.WriteEndElement();
             }
-            if (this.forceBendGoalsWeight == false)
-            {
-                xmlWriter.WriteStartElement("forceBendGoalsWeight");
-                xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this.forceBendGoalsWeight));
-                xmlWriter.WriteEndElement();
-                ++written;
-            }
             if (this._dirtyDynamicBones.Count != 0)
             {
                 xmlWriter.WriteStartElement("dynamicBones");
@@ -1884,6 +2132,8 @@ namespace HSPE
                     xmlWriter.WriteStartElement("dynamicBone");
                     xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.name : kvp.Key.name);
 
+                    if (kvp.Value.originalEnabled.hasValue)
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(kvp.Key.enabled));
                     if (kvp.Value.originalWeight.hasValue)
                         xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(kvp.Key.GetWeight()));
                     if (kvp.Value.originalGravity.hasValue)
@@ -1908,67 +2158,10 @@ namespace HSPE
             return written;
         }
 
-        private void LoadVersion_1_0_0(BinaryReader binaryReader)
+        private IEnumerator LoadDefaultVersion_Routine(XmlNode xmlNode)
         {
-            binaryReader.ReadInt32();
-            for (int i = 0; i < 9; ++i)
-            {
-                Vector3 pos;
-                Quaternion rot;
-
-                pos.x = binaryReader.ReadSingle();
-                pos.y = binaryReader.ReadSingle();
-                pos.z = binaryReader.ReadSingle();
-
-                rot.w = binaryReader.ReadSingle();
-                rot.x = binaryReader.ReadSingle();
-                rot.y = binaryReader.ReadSingle();
-                rot.z = binaryReader.ReadSingle();
-
-                this.SetBoneTargetPosition((FullBodyBipedEffector)i, pos);
-                this.SetBoneTargetRotation((FullBodyBipedEffector)i, rot);
-            }
-            binaryReader.ReadInt32();
-            for (int i = 0; i < 4; ++i)
-            {
-                Vector3 pos;
-
-                pos.x = binaryReader.ReadSingle();
-                pos.y = binaryReader.ReadSingle();
-                pos.z = binaryReader.ReadSingle();
-
-                this.SetBendGoalPosition((FullBodyBipedChain)i, pos);
-            }
-            int count = binaryReader.ReadInt32();
-            for (int i = 0; i < count; ++i)
-            {
-                string name = binaryReader.ReadString();
-                GameObject obj = this.transform.FindDescendant(name).gameObject;
-                Vector3 pos;
-                Quaternion rot;
-                binaryReader.ReadSingle();
-                binaryReader.ReadSingle();
-                binaryReader.ReadSingle();
-
-                binaryReader.ReadSingle();
-                binaryReader.ReadSingle();
-                binaryReader.ReadSingle();
-                binaryReader.ReadSingle();
-
-                pos.x = binaryReader.ReadSingle();
-                pos.y = binaryReader.ReadSingle();
-                pos.z = binaryReader.ReadSingle();
-
-                rot.w = binaryReader.ReadSingle();
-                rot.x = binaryReader.ReadSingle();
-                rot.y = binaryReader.ReadSingle();
-                rot.z = binaryReader.ReadSingle();
-                this._dirtyBones.Add(obj, new TransformData() { position = pos, rotation = rot, originalPosition = obj.transform.localPosition, originalRotation = obj.transform.localRotation});
-            }
-        }
-
-        private void LoadDefaultVersion(XmlNode xmlNode)
-        {
+            yield return new WaitForEndOfFrame();
+            yield return new WaitForEndOfFrame();
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
             if (objects != null)
             {
@@ -2056,6 +2249,7 @@ namespace HSPE
                     }
                 }
             }
+
             XmlNode colliders = xmlNode.FindChildNode("colliders");
             if (colliders != null)
             {
@@ -2100,9 +2294,6 @@ namespace HSPE
                         this._dirtyColliders.Add(collider, data);
                 }
             }
-            XmlNode forceBendGoalsNode = xmlNode.FindChildNode("forceBendGoalsWeight");
-            if (forceBendGoalsNode != null && forceBendGoalsNode.Attributes["value"] != null)
-                this.forceBendGoalsWeight = XmlConvert.ToBoolean(forceBendGoalsNode.Attributes["value"].Value);
             XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
             if (dynamicBonesNode != null)
             {
@@ -2115,6 +2306,13 @@ namespace HSPE
                             db = bone;
                     DynamicBoneData data = new DynamicBoneData();
 
+
+                    if (node.Attributes["enabled"] != null)
+                    {
+                        bool enabled = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        data.originalEnabled = db.enabled;
+                        db.enabled = enabled;
+                    }
                     if (node.Attributes["weight"] != null)
                     {
                         float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
@@ -2145,7 +2343,7 @@ namespace HSPE
                         data.originalFreezeAxis = db.m_FreezeAxis;
                         db.m_FreezeAxis = axis;
                     }
-                    if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue)
+                    if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue || data.originalEnabled.hasValue)
                         this._dirtyDynamicBones.Add(db, data);
                 }
             }

@@ -1,6 +1,8 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Linq;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 namespace HSPE
 {
@@ -10,38 +12,59 @@ namespace HSPE
         public const RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
         public const bool canvasPixelPerfect = false;
 
-        public const CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        public const CanvasScaler.ScaleMode canvasScalerUiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         public const float canvasScalerReferencePixelsPerUnit = 100f;
 
         public const bool graphicRaycasterIgnoreReversedGraphics = true;
         public const GraphicRaycaster.BlockingObjects graphicRaycasterBlockingObjects = GraphicRaycaster.BlockingObjects.None;
 
         public static Sprite backgroundSprite;
-        public static Sprite headerSprite;
+        //public static Sprite headerSprite;
         public static Sprite checkMark;
+        public static Sprite checkBox;
         public static Sprite slideBackground;
         public static Sprite handle;
-        public static readonly Color whiteColor = new Color(1.000f, 1.000f, 1.000f, 0.878f);
-        public static readonly Color beigeColor = new Color(1.000f, 0.793f, 0.572f, 0.757f);
-        public static readonly Color greenColor = new Color(0.278f, 1.000f, 0.435f, 1.000f);
-        public static readonly Color yellowColor = new Color(0.993f, 1.000f, 0.463f, 1.000f);
-        public static readonly Color greyColor = new Color(0.784f, 0.784f, 0.784f, 0.502f);
+        public static readonly Color whiteColor = new Color(1.000f, 1.000f, 1.000f);
+        public static readonly Color grayColor = new Color32(100, 99, 95, 255);
+        public static readonly Color lightGrayColor = new Color32(150, 149, 143, 255);
+        public static readonly Color greenColor = new Color32(0, 140, 0, 255);
+        public static readonly Color lightGreenColor = new Color32(0, 200, 0, 255);
         public static readonly Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
-        public static readonly Color blueColor = new Color(0.270f, 0.647f, 0.780f, 1.000f);
-        public static readonly Color redColor = new Color(0.650f, 0.066f, 0.011f, 1.000f);
+        public static readonly Color transparentGrayColor = new Color32(100, 99, 95, 90);
         public static Font defaultFont;
         public static int defaultFontSize;
         public static float uiScale = 1f;
         #endregion
         void Start()
         {
-            backgroundSprite = GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").GetComponent<Image>().sprite;
-            checkMark = GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").FindChild("Toggle").GetChild(0).GetChild(0).GetComponent<Image>().sprite;
-            defaultFont = GameObject.Find("SystemCanvas").transform.FindChild("SystemUIAnime").FindChild("SystemBGImage").FindChild("Toggle").GetComponentInChildren<Text>().font;
-            defaultFontSize = GameObject.Find("CharaImoprtCanvas").transform.FindChild("BGPanel").FindChild("HideObj").FindChild("UIs").GetComponentInChildren<Text>().fontSize;
-            headerSprite = GameObject.Find("CharaImoprtCanvas").transform.FindChild("BGPanel").FindChild("NamePanel").GetComponentInChildren<Image>().sprite;
-            slideBackground = GameObject.Find("SystemCanvas").GetComponentInChildren<Scrollbar>().GetComponent<Image>().sprite;
-            handle = GameObject.Find("SystemCanvas").GetComponentInChildren<Scrollbar>().transform.GetChild(0).GetChild(0).GetComponent<Image>().sprite;
+            foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
+            {
+                switch (sprite.name)
+                {
+                    case "Background":
+                        backgroundSprite = sprite;
+                        break;
+                    case "UISprite":
+                        checkBox = sprite;
+                        break;
+                    case "toggle_c":
+                        checkMark = sprite;
+                        break;
+                }
+            }
+            slideBackground = backgroundSprite;
+            handle = backgroundSprite;
+            foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
+            {
+                switch (font.name)
+                {
+                    case "Arial":
+                        defaultFont = font;
+                        break;
+                }
+            }
+            defaultFontSize = 16;
+            //headerSprite = GameObject.Find("CharaImoprtCanvas").transform.FindChild("BGPanel").FindChild("NamePanel").GetComponentInChildren<Image>().sprite;
         }
 
         public static Canvas CreateNewUISystem(string name = "NewUISystem")
@@ -49,12 +72,13 @@ namespace HSPE
             GameObject go = new GameObject(name, typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             Canvas c = go.GetComponent<Canvas>();
             c.renderMode = canvasRenderMode;
-            c.pixelPerfect = canvasPixelPerfect;
-            c.scaleFactor = uiScale;
+            //c.pixelPerfect = canvasPixelPerfect;
 
             CanvasScaler cs = go.GetComponent<CanvasScaler>();
             cs.uiScaleMode = canvasScalerUiScaleMode;
             cs.referencePixelsPerUnit = canvasScalerReferencePixelsPerUnit;
+            cs.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            cs.referenceResolution = new Vector2(1920 / uiScale, 1080 / uiScale);
 
             GraphicRaycaster gr = go.GetComponent<GraphicRaycaster>();
             gr.ignoreReversedGraphics = graphicRaycasterIgnoreReversedGraphics;
@@ -114,13 +138,16 @@ namespace HSPE
         {
             Text t = go.AddComponent<Text>();
             t.text = text;
-            t.color = Color.black;
+            t.color = whiteColor;
             t.font = defaultFont;
             t.fontSize = defaultFontSize;
             t.resizeTextMinSize = 1;
             t.alignByGeometry = true;
             t.resizeTextMaxSize = defaultFontSize;
             t.alignment = TextAnchor.UpperLeft;
+
+            AddOutlineToObject(go);
+
             return t;
         }
 
@@ -140,10 +167,10 @@ namespace HSPE
             b.colors = new ColorBlock()
             {
                 colorMultiplier = 1f,
-                normalColor = beigeColor,
+                normalColor = lightGrayColor,
                 highlightedColor = greenColor,
-                pressedColor = yellowColor,
-                disabledColor = greyColor,
+                pressedColor = lightGreenColor,
+                disabledColor = transparentGrayColor,
                 fadeDuration = b.colors.fadeDuration
             };
             RectTransform text = CreateNewUIObject(b.transform, "Text");
@@ -165,8 +192,8 @@ namespace HSPE
         public static Outline AddOutlineToObject(GameObject go)
         {
             Outline o = go.AddComponent<Outline>();
-            o.effectColor = purpleColor;
-            o.effectDistance = new Vector2(0.75f, -0.75f);
+            o.effectColor = Color.black;
+            o.effectDistance = new Vector2(1f, -1f);
             return o;
         }
 
@@ -180,10 +207,12 @@ namespace HSPE
             Toggle t = go.AddComponent<Toggle>();
 
             RectTransform bg = CreateNewUIObject(go.transform, "Background");
-            t.targetGraphic = AddImageToObject(bg.gameObject, headerSprite);
+            t.targetGraphic = AddImageToObject(bg.gameObject, checkBox);
 
             RectTransform check = CreateNewUIObject(bg, "CheckMark");
-            t.graphic = AddImageToObject(check.gameObject, checkMark);
+            Image checkM = AddImageToObject(check.gameObject, checkMark);
+            checkM.color = Color.black;
+            t.graphic = checkM;
 
             RectTransform label = CreateNewUIObject(go.transform, "Label");
             Text te = AddTextToObject(label.gameObject, text);
@@ -192,7 +221,7 @@ namespace HSPE
 
             RectTransform rt = t.transform as RectTransform;
             rt.sizeDelta = new Vector2(160f, 20f);
-            
+
             bg.anchorMin = new Vector2(0f, 1f);
             bg.anchorMax = new Vector2(0f, 1f);
             bg.anchoredPosition = new Vector2(10f, -10f);
@@ -223,10 +252,10 @@ namespace HSPE
             s.colors = new ColorBlock()
             {
                 colorMultiplier = 1f,
-                normalColor = beigeColor,
+                normalColor = lightGrayColor,
                 highlightedColor = greenColor,
-                pressedColor = yellowColor,
-                disabledColor = greyColor,
+                pressedColor = lightGreenColor,
+                disabledColor = transparentGrayColor,
                 fadeDuration = s.colors.fadeDuration
             };
 
@@ -240,7 +269,7 @@ namespace HSPE
             s.handleRect = CreateNewUIObject(slideArea, "Handle");
             s.handleRect.SetRect(Vector2.zero, new Vector2(0.2f, 1f), new Vector2(-10f, -10f), new Vector2(10f, 10f));
             s.targetGraphic = AddImageToObject(s.handleRect, handle);
-            s.targetGraphic.color = beigeColor;
+            s.targetGraphic.color = grayColor;
             return s;
         }
     }

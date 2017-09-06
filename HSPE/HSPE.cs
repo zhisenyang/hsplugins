@@ -96,7 +96,7 @@ namespace HSPE
 
         public static int level;
 
-        private static VersionNumber _versionNumber = new VersionNumber("1.3.1");
+        private static VersionNumber _versionNumber = new VersionNumber("2.0.0");
 
         public static VersionNumber VersionNum { get { return _versionNumber; } }
 
@@ -104,7 +104,7 @@ namespace HSPE
 
         public string Version { get { return _versionNumber.ToString(); } }
 
-        public string[] Filter { get { return new[] { "HoneyStudio_32", "HoneyStudio_64" }; } }
+        public string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
 
         public void OnApplicationQuit()
         {
@@ -125,16 +125,19 @@ namespace HSPE
 
         public void OnLevelWasInitialized(int level)
         {
-            if (level != 1 && level != 2 && (level != 20 && level != 11) && level != 14)
-                return;
-            if (!GameObject.Find("HSPE"))
+            if (level == 3)
             {
-                GameObject go = new GameObject("HSPE");
-                go.AddComponent<UIUtility>();
-                go.AddComponent<MainWindow>();
+                if (!GameObject.Find("HSPE"))
+                {
+                    GameObject go = new GameObject("HSPE");
+                    go.AddComponent<UIUtility>();
+                    go.AddComponent<MainWindow>();
+                    go.AddComponent<ObjectTreeDebug>();
+                }
+                HSPE.level = level;
+                Console.WriteLine("HSPE");
+
             }
-            HSPE.level = level;
-            Console.WriteLine("HSPE");
         }
 
         public void OnLevelWasLoaded(int level)
