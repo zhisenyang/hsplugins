@@ -94,9 +94,7 @@ namespace HSPE
             }
         }
 
-        public static int level;
-
-        private static VersionNumber _versionNumber = new VersionNumber("2.0.0");
+        private static VersionNumber _versionNumber = new VersionNumber("2.1.0");
 
         public static VersionNumber VersionNum { get { return _versionNumber; } }
 
@@ -132,11 +130,8 @@ namespace HSPE
                     GameObject go = new GameObject("HSPE");
                     go.AddComponent<UIUtility>();
                     go.AddComponent<MainWindow>();
-                    go.AddComponent<ObjectTreeDebug>();
+                    //go.AddComponent<ObjectTreeDebug>();
                 }
-                HSPE.level = level;
-                Console.WriteLine("HSPE");
-
             }
         }
 

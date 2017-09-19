@@ -19,6 +19,7 @@ namespace HSPE
         private Vector2 _scroll2;
         private readonly LinkedList<string> _lastlogs = new LinkedList<string>();
         private Dictionary<Sprite, Texture2D> tex2D = new Dictionary<Sprite, Texture2D>();
+        private bool _debug = false;
 
         void Awake()
         {
@@ -38,11 +39,55 @@ namespace HSPE
             //        this.tex2D.Add(sprite, sprite.texture);
             //    }
             //}
+            //this.StartCoroutine(this.LoadAssetsBundle());
         }
 
         void OnEnable()
         {
             Application.logMessageReceived += this.HandleLog;
+            //foreach (Shader shader in Resources.FindObjectsOfTypeAll<Shader>())
+            //{
+            //    if (shader != null)
+            //        UnityEngine.Debug.Log(shader.name);
+            //}
+        }
+
+        private IEnumerator LoadAssetsBundle()
+        {
+            StringBuilder bd = new StringBuilder();
+            //string[] files = Directory.GetFiles("abdata", "*.unity3d", SearchOption.AllDirectories);
+            List<string> files = CommonLib.GetAssetBundleNameListFromPath("studioneo/info/", true);
+            for (int i = 0; i < files.Count; i++)
+            {
+                string file = files[i];
+                UnityEngine.Debug.Log(i + "/" + files.Count + " " + (i / (float)files.Count) + " " + file);
+                //if (file.StartsWith("abdata/battle") || file.StartsWith("abdata/h"))
+                //    continue;
+                AssetBundleCreateRequest abcr;
+                abcr = AssetBundle.LoadFromFileAsync("abdata/" + file);
+                if (abcr != null)
+                {
+                    yield return abcr;
+                    AssetBundleRequest abr = abcr.assetBundle.LoadAllAssetsAsync<Shader>();
+                    if (abr != null)
+                    {
+                        yield return abr;
+                        foreach (Shader shader in abr.allAssets)
+                        {
+                            if (shader != null)
+                                bd.Append(shader.name + "\n");
+                        }
+                    }
+                    abcr.assetBundle.Unload(false);
+                }
+            }
+            UnityEngine.Debug.Log("shaders\n" + bd);
+        }
+
+        void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.RightControl))
+                this._debug = !this._debug;
         }
 
         void OnDisable()
@@ -94,6 +139,8 @@ namespace HSPE
 
         void OnGUI()
         {
+            if (this._debug == false)
+                return;
             GUILayout.BeginArea(new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f));
             GUILayout.BeginHorizontal();
             this._scroll = GUILayout.BeginScrollView(this._scroll, GUI.skin.box, GUILayout.ExpandHeight(true), GUILayout.MinWidth(300));
@@ -121,12 +168,15 @@ namespace HSPE
                     if (c is Image)
                     {
                         Image img = c as Image;
-                        Color[] newImg = img.sprite.texture.GetPixels((int)img.sprite.textureRect.x, (int)img.sprite.textureRect.y, (int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
-                        Texture2D tex = new Texture2D((int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
-                        tex.SetPixels(newImg);
-                        tex.Apply();
-                        GUILayout.Label(img.sprite.name);
-                        GUILayout.Label(tex);
+                        if (img.sprite != null && img.sprite.texture != null)
+                        {
+                            Color[] newImg = img.sprite.texture.GetPixels((int)img.sprite.textureRect.x, (int)img.sprite.textureRect.y, (int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
+                            Texture2D tex = new Texture2D((int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
+                            tex.SetPixels(newImg);
+                            tex.Apply();
+                            GUILayout.Label(img.sprite.name);
+                            GUILayout.Label(tex);
+                        }
                     }
                     else if (c is RawImage)
                         GUILayout.Label(((RawImage)c).mainTexture);
@@ -140,29 +190,7 @@ namespace HSPE
                     }
                     GUILayout.EndHorizontal();
                 }
-            }            //foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
-            //{
-            //    GUILayout.Label(sprite.name);
-            //    if (this.tex2D.ContainsKey(sprite))
-            //        GUILayout.Label(this.tex2D[sprite]);
-            //    GUILayout.Label(sprite.textureRect.ToString());
-            //}
-            //foreach (KeyValuePair<string, AssetBundleManager.BundlePack> keyValuePair in AssetBundleManager.ManifestBundlePack)
-            //{
-            //    GUILayout.Label(keyValuePair.Key);
-            //    GUI.depth += 1;
-            //    foreach (KeyValuePair<string, LoadedAssetBundle> pair in keyValuePair.Value.LoadedAssetBundles)
-            //    {
-            //        GUILayout.Label(pair.Key);
-            //        GUI.depth += 1;
-            //        foreach (string assetName in pair.Value.m_AssetBundle.GetAllAssetNames())
-            //        {
-            //            GUILayout.Label(assetName);
-            //        }
-            //        GUI.depth -= 1;
-            //    }
-            //    GUI.depth -= 1;
-            //}
+            }
             GUILayout.EndScrollView();
             foreach (string lastlog in this._lastlogs)
             {

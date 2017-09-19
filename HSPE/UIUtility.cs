@@ -27,7 +27,7 @@ namespace HSPE
         public static readonly Color whiteColor = new Color(1.000f, 1.000f, 1.000f);
         public static readonly Color grayColor = new Color32(100, 99, 95, 255);
         public static readonly Color lightGrayColor = new Color32(150, 149, 143, 255);
-        public static readonly Color greenColor = new Color32(0, 140, 0, 255);
+        public static readonly Color greenColor = new Color32(0, 160, 0, 255);
         public static readonly Color lightGreenColor = new Color32(0, 200, 0, 255);
         public static readonly Color purpleColor = new Color(0.000f, 0.007f, 1.000f, 0.545f);
         public static readonly Color transparentGrayColor = new Color32(100, 99, 95, 90);
@@ -145,7 +145,7 @@ namespace HSPE
             t.alignByGeometry = true;
             t.resizeTextMaxSize = defaultFontSize;
             t.alignment = TextAnchor.UpperLeft;
-
+            t.supportRichText = true;
             AddOutlineToObject(go);
 
             return t;
@@ -159,10 +159,12 @@ namespace HSPE
         public static Button AddButtonToObject(GameObject go, string t = "Button", bool margin = true)
         {
             Button b = go.AddComponent<Button>();
+            b.transition = Selectable.Transition.ColorTint;
             RectTransform bRT = b.transform as RectTransform;
             bRT.sizeDelta = new Vector2(160f, 30f);
             Image img = AddImageToObject(go);
             img.raycastTarget = false;
+            img.color = Color.white;
             b.targetGraphic = img;
             b.colors = new ColorBlock()
             {

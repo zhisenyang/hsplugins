@@ -100,15 +100,4 @@ public static class Extensions
         List<string> listPath = (List<string>)typeof(Studio.SceneLoadScene).GetField("listPath", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
         return listPath[(int)typeof(Studio.SceneLoadScene).GetField("select", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self)];
     }
-
-    public static string GetLastScenePath()
-    {
-        List<KeyValuePair<DateTime, string>> list = (from s in Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png")
-            select new KeyValuePair<DateTime, string>(File.GetLastWriteTime(s), s)).ToList<KeyValuePair<DateTime, string>>();
-        CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
-        Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
-        list.Sort((a, b) => b.Key.CompareTo(a.Key));
-        Thread.CurrentThread.CurrentCulture = currentCulture;
-        return list[0].Value;
-    }
 }
