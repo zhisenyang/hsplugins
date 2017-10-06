@@ -254,7 +254,7 @@ namespace HSPE
         #region GUI
         private void SpawnGUI()
         {
-            this._ui = UIUtility.CreateNewUISystem();
+            this._ui = UIUtility.CreateNewUISystem("HSPE");
             {
                 Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
                 bg.raycastTarget = false;
@@ -1338,13 +1338,14 @@ namespace HSPE
             if (xmlDoc.DocumentElement == null || xmlDoc.DocumentElement.Name != "root")
                 return;
             HSPE.VersionNumber v = new HSPE.VersionNumber(xmlDoc.DocumentElement.GetAttribute("version"));
+            SortedDictionary<int, Studio.ObjectCtrlInfo> sortedCharaDic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
 
             foreach (XmlNode node in xmlDoc.DocumentElement.ChildNodes)
             {
                 switch (node.Name)
                 {
                     case "characterInfo":
-                        foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in Studio.Studio.Instance.dicObjectCtrl)
+                        foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in sortedCharaDic)
                         {
                             if (kvp.Key >= lastIndex)
                             {
@@ -1353,7 +1354,7 @@ namespace HSPE
                                 {
                                     ManualBoneController controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
                                     controller.chara = ociChar;
-                                    controller.LoadXml(node.CloneNode(true), v);
+                                    controller.ScheduleLoad(node, v);
                                     break;
                                 }
                             }

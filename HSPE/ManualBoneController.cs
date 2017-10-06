@@ -139,7 +139,7 @@ namespace HSPE
         private readonly HashSet<GameObject> _ignoredObjects = new HashSet<GameObject>();
         private readonly Dictionary<GameObject, Studio.OCIChar.BoneInfo> _fkObjects = new Dictionary<GameObject, Studio.OCIChar.BoneInfo>();
         private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
-        private DynamicBone[] _dynamicBones = new DynamicBone[0];
+        private List<DynamicBone> _dynamicBones = new List<DynamicBone>();
         private CoordType _boneEditionCoordType = CoordType.Rotation;
         private Vector2 _boneEditionScroll;
         private float _inc = 1f;
@@ -211,9 +211,9 @@ namespace HSPE
             if (this._cam == null)
                 this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraGL>();
             this._cam.onPostRender += this.DrawGizmos;
-            foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>())
+            foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
-            this._dynamicBones = this.GetComponentsInChildren<DynamicBone>();
+            this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
             MainWindow.self.onParentage += this.OnParentage;
         }
 
@@ -260,25 +260,36 @@ namespace HSPE
             else
                 this._repeatTimer = 0f;
             this._repeatCalled = false;
-            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>();
-            bool shouldCleanList = false;
+            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
+            List<DynamicBone> toDelete = null;
             foreach (DynamicBone db in this._dynamicBones)
                 if (dynamicBones.Contains(db) == false)
                 {
-                    shouldCleanList = true;
-                    break;
+                    if (toDelete == null)
+                        toDelete = new List<DynamicBone>();
+                    toDelete.Add(db);
                 }
-            if (shouldCleanList)
+            if (toDelete != null)
             {
-                List<DynamicBone> toDelete = new List<DynamicBone>();
-                foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in this._dirtyDynamicBones)
-                    if (dynamicBones.Contains(kvp.Key) == false)
-                        toDelete.Add(kvp.Key);
                 foreach (DynamicBone db in toDelete)
-                    this._dirtyDynamicBones.Remove(db);
+                {
+                    if (this._dirtyDynamicBones.ContainsKey(db))
+                        this._dirtyDynamicBones.Remove(db);
+                    this._dynamicBones.Remove(db);
+                }
                 this._dynamicBoneTarget = null;
             }
-            this._dynamicBones = dynamicBones;
+            List<DynamicBone> toAdd = null;
+            foreach (DynamicBone db in dynamicBones)
+                if (this._dynamicBones.Contains(db) == false)
+                {
+                    if (toAdd == null)
+                        toAdd = new List<DynamicBone>();
+                    toAdd.Add(db);
+                }
+            if (toAdd != null)
+                foreach (DynamicBone db in toAdd)
+                    this._dynamicBones.Add(db);
         }
 
         void LateUpdate()
@@ -1182,6 +1193,12 @@ namespace HSPE
                 {
                     this._dirtyBones[this._boneTarget.gameObject].scale.Reset();
                     this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
+
+                    if (this._symmetricalEdition && this._twinBoneTarget != null)
+                    {
+                        this._dirtyBones[this._twinBoneTarget.gameObject].scale.Reset();
+                        this.SetBoneNotDirtyIf(this._twinBoneTarget.gameObject);
+                    }
                 }
                 GUILayout.EndHorizontal();
 
@@ -2091,10 +2108,11 @@ namespace HSPE
         #endregion
 
         #region Saves
-        public void LoadXml(XmlNode xmlNode, HSPE.VersionNumber v)
+        public void ScheduleLoad(XmlNode node, HSPE.VersionNumber v)
         {
-            this.StartCoroutine(this.LoadDefaultVersion_Routine(xmlNode));
+            this.StartCoroutine(this.LoadDefaultVersion_Routine(node.CloneNode(true)));
         }
+
         public int SaveXml(XmlTextWriter xmlWriter)
         {
             int written = 0;
@@ -2103,9 +2121,6 @@ namespace HSPE
                 xmlWriter.WriteStartElement("advancedObjects");
                 foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
                 {
-                    if (this.chara.oiCharInfo.enableFK && this._fkObjects.ContainsKey(kvp.Key))
-                        continue;
-
                     Transform t = kvp.Key.transform.parent;
                     string n = kvp.Key.transform.name;
                     while (t != this.transform)
@@ -2123,7 +2138,7 @@ namespace HSPE
                         xmlWriter.WriteAttributeString("posZ", XmlConvert.ToString(kvp.Value.position.value.z));
                     }
 
-                    if (kvp.Value.rotation.hasValue)
+                    if (kvp.Value.rotation.hasValue && (!this.chara.oiCharInfo.enableFK || !this._fkObjects.ContainsKey(kvp.Key)))
                     {
                         xmlWriter.WriteAttributeString("rotW", XmlConvert.ToString(kvp.Value.rotation.value.w));
                         xmlWriter.WriteAttributeString("rotX", XmlConvert.ToString(kvp.Value.rotation.value.x));
@@ -2236,8 +2251,9 @@ namespace HSPE
 
         private IEnumerator LoadDefaultVersion_Routine(XmlNode xmlNode)
         {
-            yield return new WaitForEndOfFrame();
-            yield return new WaitForEndOfFrame();
+            yield return null;
+            yield return null;
+            yield return null;
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
             if (objects != null)
             {
@@ -2379,7 +2395,10 @@ namespace HSPE
                     DynamicBone db = null;
                     foreach (DynamicBone bone in this._dynamicBones)
                         if (bone.m_Root.name.Equals(root))
+                        {
                             db = bone;
+                            break;
+                        }
                     DynamicBoneData data = new DynamicBoneData();
 
 

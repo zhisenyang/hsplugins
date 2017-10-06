@@ -94,7 +94,7 @@ namespace HSPE
             }
         }
 
-        private static VersionNumber _versionNumber = new VersionNumber("2.1.0");
+        private static VersionNumber _versionNumber = new VersionNumber("2.1.1");
 
         public static VersionNumber VersionNum { get { return _versionNumber; } }
 

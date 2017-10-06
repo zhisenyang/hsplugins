@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -65,6 +66,8 @@ public static class Extensions
     [CanBeNull]
     public static XmlNode FindChildNode([NotNull] this XmlNode self, string name)
     {
+        if (self.HasChildNodes == false)
+            return null;
         foreach (XmlNode chilNode in self.ChildNodes)
             if (chilNode.Name.Equals(name))
                 return chilNode;
@@ -99,5 +102,53 @@ public static class Extensions
     {
         List<string> listPath = (List<string>)typeof(Studio.SceneLoadScene).GetField("listPath", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
         return listPath[(int)typeof(Studio.SceneLoadScene).GetField("select", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self)];
+    }
+
+    public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
+    {
+        return self.StartCoroutine(ExecuteDelayed_Routine(action));
+    }
+
+    private static IEnumerator ExecuteDelayed_Routine(Action action, int frameCount = 1)
+    {
+        for (int i = 0; i < frameCount; i++)
+            yield return null;
+        action();
+    }
+
+    public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, float delay, bool timeScaled = true)
+    {
+        return self.StartCoroutine(ExecuteDelayed_Routine(action, delay, timeScaled));
+    }
+
+    private static IEnumerator ExecuteDelayed_Routine(Action action, float delay, bool timeScaled)
+    {
+        if (timeScaled)
+            yield return new WaitForSeconds(delay);
+        else
+            yield return new WaitForSecondsRealtime(delay);
+        action();
+    }
+
+    public static Coroutine ExecuteDelayedFixed(this MonoBehaviour self, Action action)
+    {
+        return self.StartCoroutine(ExecuteDelayedFixed_Routine(action));
+    }
+
+    private static IEnumerator ExecuteDelayedFixed_Routine(Action action)
+    {
+        yield return new WaitForFixedUpdate();
+        action();
+    }
+
+    public static Coroutine ExecuteDelayed(this MonoBehaviour self, Func<bool> waitUntil, Action action)
+    {
+        return self.StartCoroutine(ExecuteDelayed_Routine(waitUntil, action));
+    }
+
+    private static IEnumerator ExecuteDelayed_Routine(Func<bool> waitUntil, Action action)
+    {
+        yield return new WaitUntil(waitUntil);
+        action();
     }
 }
