@@ -80,12 +80,16 @@ namespace HSPE
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
         private KeyCode[] _possibleKeyCodes;
+        private IKExecutionOrder _ikExecutionOrder;
+        private bool _positionOperationWorld = true;
         #endregion
 
         #region Public Accessors
         public Dictionary<string, string> femaleShortcuts { get; } = new Dictionary<string, string>();
         public Dictionary<string, string> maleShortcuts { get; } = new Dictionary<string, string>();
+        public Dictionary<string, string> boneAliases { get; } = new Dictionary<string, string>();
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
+        public IKExecutionOrder ikExecutionOrder { get { return this._ikExecutionOrder; } }
         #endregion
 
         #region Unity Methods
@@ -96,6 +100,9 @@ namespace HSPE
             GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/04_System/Viewport/Content/Load").GetComponent<Button>().onClick.AddListener(this.LoadCanvasCreated);
             GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/04_System/Viewport/Content/Save").GetComponent<Button>().onClick.AddListener(this.OnSceneSave);
             GameObject.Find("StudioScene").transform.FindChild("Canvas Object List/Image Bar/Button Duplicate").GetComponent<Button>().onClick.AddListener(this.OnDuplicate);
+
+            this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
+            this._ikExecutionOrder.IKComponents = new IK[0];
 
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
@@ -134,6 +141,11 @@ namespace HSPE
                         foreach (XmlNode shortcut in node.ChildNodes)
                             if (shortcut.Attributes["path"] != null)
                                 this.maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                        break;
+                    case "boneAliases":
+                        foreach (XmlNode alias in node.ChildNodes)
+                            if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
+                                this.boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
                         break;
                 }
             }
@@ -241,6 +253,16 @@ namespace HSPE
                     {
                         xmlWriter.WriteStartElement("shortcut");
                         xmlWriter.WriteAttributeString("path", kvp.Key);
+                        xmlWriter.WriteEndElement();
+                    }
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("boneAliases");
+                    foreach (KeyValuePair<string, string> kvp in this.boneAliases)
+                    {
+                        xmlWriter.WriteStartElement("alias");
+                        xmlWriter.WriteAttributeString("key", kvp.Key);
+                        xmlWriter.WriteAttributeString("value", kvp.Value);
                         xmlWriter.WriteEndElement();
                     }
                     xmlWriter.WriteEndElement();
@@ -692,7 +714,7 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -54f), new Vector2(-2.5f, -29f));
                         }
                         {
-                            RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Container");
+                            RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Slider Container");
                             sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
 
                             Text movIntensityTxt = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Text"), "Mvt. Intensity");
@@ -723,6 +745,27 @@ namespace HSPE
                             this._intensityValueText.resizeTextForBestFit = true;
                             this._intensityValueText.resizeTextMaxSize = 14;
                             this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+
+                            RectTransform buttonContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
+                            buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
+
+                            Text positionOpLabel = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(buttonContainer, "Position Operation Label"), "Pos. Operation");
+                            positionOpLabel.alignment = TextAnchor.MiddleLeft;
+                            positionOpLabel.resizeTextForBestFit = true;
+                            positionOpLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
+
+                            Button positionOp = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttonContainer, "Position Operation"), "World");
+                            Text buttonText = positionOp.GetComponentInChildren<Text>();
+                            buttonText.alignment = TextAnchor.MiddleCenter;
+                            buttonText.resizeTextForBestFit = true;
+                            buttonText.resizeTextMaxSize = 14;
+                            positionOp.onClick.AddListener(() =>
+                            {
+                                this._positionOperationWorld = !this._positionOperationWorld;
+                                buttonText.text = this._positionOperationWorld ? "World" : "Local";
+                            });
+                            buttonRT = positionOp.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.4444f, 0f), Vector2.one, Vector2.zero, new Vector2(-50f, 0f));
                         }
                     }
                 }
@@ -730,7 +773,7 @@ namespace HSPE
                 {
                     Button optionsButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(bg.transform, "Options Button"), "Options", false);
                     RectTransform rt = optionsButton.transform as RectTransform;
-                    rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(5f, 5f), new Vector2(-5f, 25f));
+                    rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(0f, 5f), new Vector2(-5f, 25f));
                     optionsButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                     optionsButton.onClick.AddListener(() =>
                     {
@@ -1094,7 +1137,7 @@ namespace HSPE
                             changeRotation = true;
                         }
                         if (changePosition)
-                            this._manualBoneTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition);
+                            this._manualBoneTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition, this._positionOperationWorld);
                         if (changeRotation)
                             this._manualBoneTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
                     }
@@ -1107,7 +1150,7 @@ namespace HSPE
                             newPosition.y += this._delta.y * this._intensityValue;
                         if (this._zMove)
                             newPosition.z += this._delta.y * this._intensityValue;
-                        this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition);
+                        this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition, this._positionOperationWorld);
                     }
                 }
             }
@@ -1120,11 +1163,11 @@ namespace HSPE
                         this._manualBoneTarget.StopDrag();
                     for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
-                        this._lastBonesPositions[i] = this._manualBoneTarget.GetBoneTargetPosition(this._boneTargets[i]);
+                        this._lastBonesPositions[i] = this._manualBoneTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
                         this._lastBonesRotations[i] = this._manualBoneTarget.GetBoneTargetRotation(this._boneTargets[i]);
                     }
                     for (int i = 0; i < this._bendGoalTargets.Count; ++i)
-                        this._lastBendGoalsPositions[i] = this._manualBoneTarget.GetBendGoalPosition(this._bendGoalTargets[i]);
+                        this._lastBendGoalsPositions[i] = this._manualBoneTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
                 }
             }
 

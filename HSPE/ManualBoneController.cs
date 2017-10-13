@@ -8,6 +8,7 @@ using System.Xml;
 using RootMotion.FinalIK;
 using Studio;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace HSPE
 {
@@ -110,6 +111,62 @@ namespace HSPE
         private delegate void TabDelegate();
         #endregion
 
+        #region IK Hack
+        private class CustomIK : RootMotion.FinalIK.IK
+        {
+            public CustomIKSolver solver;
+
+            public override IKSolver GetIKSolver()
+            {
+                return this.solver;
+            }
+
+            protected override void OpenUserManual()
+            {
+                throw new NotImplementedException();
+            }
+
+            protected override void OpenScriptReference()
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        private class CustomIKSolver : IKSolver
+        {
+            public override bool IsValid(ref string message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Point[] GetPoints()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Point GetPoint(Transform transform)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void FixTransforms()
+            {
+            }
+
+            public override void StoreDefaultLocalState()
+            {
+            }
+
+            protected override void OnInitiate()
+            {
+            }
+
+            protected override void OnUpdate()
+            {
+            }
+        }
+        #endregion
+
         #region Public Types
         public enum DragType
         {
@@ -153,7 +210,6 @@ namespace HSPE
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
         private int _cachedSolverIterations;
-        private Transform _kosi;
         private readonly Dictionary<Transform, string> _boneEditionShortcuts = new Dictionary<Transform, string>();
         private SelectedTab _selectedTab = SelectedTab.BonesPosition;
         private readonly Dictionary<SelectedTab, TabDelegate> _tabFunctions = new Dictionary<SelectedTab, TabDelegate>();
@@ -171,6 +227,12 @@ namespace HSPE
         private bool _lastShouldSaveValue = false;
         private bool _lockDrag = false;
         private bool _symmetricalEdition = false;
+        private CustomIK _customIk;
+        private CustomIKSolver _customIkSolver;
+        private readonly Color _redColor = Color.red;
+        private readonly Color _greenColor = Color.green;
+        private readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
+        private string _currentAlias = "";
         #endregion
 
         #region Public Accessors
@@ -203,10 +265,10 @@ namespace HSPE
             this._effectorToIndex.Add(FullBodyBipedEffector.RightFoot, 12);
 
             this._mat = new Material(Shader.Find("Unlit/Color")) { color = Color.white };
-            this._xMat = new Material(Shader.Find("Unlit/Color")) { color = Color.red };
-            this._yMat = new Material(Shader.Find("Unlit/Color")) { color = Color.green };
-            this._zMat = new Material(Shader.Find("Unlit/Color")) { color = Color.blue };
-            this._colliderMat = new Material(Shader.Find("Unlit/Color")) { color = Color.Lerp(Color.green, Color.white, 0.5f) };
+            this._xMat = new Material(Shader.Find("Unlit/Color")) { color = this._redColor };
+            this._yMat = new Material(Shader.Find("Unlit/Color")) { color = this._greenColor };
+            this._zMat = new Material(Shader.Find("Unlit/Color")) { color = this._blueColor };
+            this._colliderMat = new Material(Shader.Find("Unlit/Color")) { color = Color.Lerp(this._greenColor, Color.white, 0.5f) };
             this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.GetComponent<CameraGL>();
             if (this._cam == null)
                 this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraGL>();
@@ -215,6 +277,17 @@ namespace HSPE
                 this._colliderObjects.Add(c.transform);
             this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
             MainWindow.self.onParentage += this.OnParentage;
+            this._customIk = new CustomIK();
+            this._customIkSolver = new CustomIKSolver();
+            this._customIk.solver = this._customIkSolver;
+            this._customIkSolver.SetPrivate("firstInitiation", false);
+            this._customIkSolver.SetPrivateProperty("initiated", true);
+            IK[] old = MainWindow.self.ikExecutionOrder.IKComponents;
+            IK[] current = new IK[old.Length + 1];
+            old.CopyTo(current, 0);
+            current[current.Length - 1] = this._customIk;
+            this._customIkSolver.OnPostUpdate = this.OnPostUpdate;
+            MainWindow.self.ikExecutionOrder.IKComponents = current;
         }
 
         void Start()
@@ -224,7 +297,6 @@ namespace HSPE
 
             if (this._isFemale)
             {
-                this._kosi = this.transform.FindDescendant("cf_J_Kosi02_s");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
@@ -235,7 +307,6 @@ namespace HSPE
             }
             else
             {
-                this._kosi = this.transform.FindDescendant("cm_J_Kosi02_s");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_L"), "L. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_R"), "R. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_L"), "L. Foot");
@@ -292,40 +363,6 @@ namespace HSPE
                     this._dynamicBones.Add(db);
         }
 
-        void LateUpdate()
-        {
-            bool shouldClean = false;
-            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
-            {
-                if (kvp.Key == null)
-                {
-                    shouldClean = true;
-                    continue;
-                }
-                if (kvp.Value.scale.hasValue)
-                    kvp.Key.transform.localScale = kvp.Value.scale;
-                if (kvp.Value.rotation.hasValue)
-                    kvp.Key.transform.localRotation = kvp.Value.rotation;
-                if (kvp.Value.position.hasValue)
-                    kvp.Key.transform.localPosition = kvp.Value.position;
-            }
-            if (shouldClean)
-            {
-                Dictionary<GameObject, TransformData> newDirtyBones = new Dictionary<GameObject, TransformData>();
-                foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
-                    if (kvp.Key != null)
-                        newDirtyBones.Add(kvp.Key, kvp.Value);
-                this._dirtyBones = newDirtyBones;
-            }
-            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
-            {
-                if (kvp.Value.gravity.hasValue)
-                    kvp.Key.Gravity = kvp.Value.gravity;
-                if (kvp.Value.force.hasValue)
-                    kvp.Key.Force = kvp.Value.force;
-            }
-        }
-
         void OnDestroy()
         {
             MainWindow.self.onParentage -= this.OnParentage;
@@ -334,6 +371,17 @@ namespace HSPE
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             this._body.solver.iterations = this._cachedSolverIterations;
+
+            IK[] old = MainWindow.self.ikExecutionOrder.IKComponents;
+            IK[] current = new IK[old.Length - 1];
+            int i = 0;
+            foreach (IK ik in old)
+                if (ik != this._customIk)
+                {
+                    current[i] = ik;
+                    ++i;
+                }
+            MainWindow.self.ikExecutionOrder.IKComponents = current;
         }
 
         void OnGUI()
@@ -523,7 +571,7 @@ namespace HSPE
             return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.localRotation;
         }
 
-        public void SetBoneTargetPosition(FullBodyBipedEffector type, Vector3 targetPosition)
+        public void SetBoneTargetPosition(FullBodyBipedEffector type, Vector3 targetPosition, bool world = true)
         {
             if (this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[type]].active)
             {
@@ -532,19 +580,24 @@ namespace HSPE
                 {
                     if (this._oldPosValues.ContainsKey(target.dicKey) == false)
                         this._oldPosValues.Add(target.dicKey, target.changeAmount.pos);
-                    target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                    if (world)
+                        target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                    else
+                        target.changeAmount.pos = targetPosition;
                 }
             }
         }
 
-        public Vector3 GetBoneTargetPosition(FullBodyBipedEffector type)
+        public Vector3 GetBoneTargetPosition(FullBodyBipedEffector type, bool world = true)
         {
             if (!this.isIKEnabled || this.chara.listIKTarget[this._effectorToIndex[type]].active == false)
                 return Vector3.zero;
-            return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.position;
+            if (world)
+                return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.position;
+            return this.chara.listIKTarget[this._effectorToIndex[type]].guideObject.transformTarget.localPosition;
         }
 
-        public void SetBendGoalPosition(FullBodyBipedChain type, Vector3 targetPosition)
+        public void SetBendGoalPosition(FullBodyBipedChain type, Vector3 targetPosition, bool world = true)
         {
             if (this.isIKEnabled && this.chara.listIKTarget[this._chainToIndex[type]].active)
             {
@@ -553,16 +606,21 @@ namespace HSPE
                 {
                     if (this._oldPosValues.ContainsKey(target.dicKey) == false)
                         this._oldPosValues.Add(target.dicKey, target.changeAmount.pos);
-                    target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                    if (world)
+                        target.changeAmount.pos = target.transformTarget.parent.InverseTransformPoint(targetPosition);
+                    else
+                        target.changeAmount.pos = targetPosition;
                 }
             }
         }
 
-        public Vector3 GetBendGoalPosition(FullBodyBipedChain type)
+        public Vector3 GetBendGoalPosition(FullBodyBipedChain type, bool world = true)
         {
             if (!this.isIKEnabled || this.chara.listIKTarget[this._chainToIndex[type]].active == false)
                 return Vector3.zero;
-            return this.chara.listIKTarget[this._chainToIndex[type]].guideObject.transformTarget.position;
+            if (world)
+                return this.chara.listIKTarget[this._chainToIndex[type]].guideObject.transformTarget.position;
+            return this.chara.listIKTarget[this._chainToIndex[type]].guideObject.transformTarget.localPosition;
         }
 
         public void CopyLimbToTwin(FullBodyBipedChain limb)
@@ -639,7 +697,7 @@ namespace HSPE
                 Quaternion rot = effectorSrcRealBone.localRotation;
                 rot.Set(-rot.x, rot.y, rot.z, -rot.w);
                 rot = effectorDestRealBone.parent.rotation * rot;
-                rot *= Quaternion.Inverse(this.chara.listIKTarget[this._effectorToIndex[effectorDest]].guideObject.transform.parent.rotation);
+                rot *= Quaternion.Inverse(this.chara.listIKTarget[this._effectorToIndex[effectorDest]].guideObject.transformTarget.parent.rotation);
 
                 this.SetBoneTargetRotation(effectorDest, rot);
 
@@ -654,6 +712,11 @@ namespace HSPE
             for (int i = 0; i < (int)SelectedTab.Count; ++i)
                 if (this.ShouldDisplayTab((SelectedTab)i) && GUILayout.Button(((SelectedTab)i).ToString()))
                     this._selectedTab = (SelectedTab)i;
+            Color c = GUI.color;
+            GUI.color = this._redColor;
+            if (GUILayout.Button("Close"))
+                this.drawAdvancedMode = false;
+            GUI.color = c;
             GUILayout.EndHorizontal();
             this._tabFunctions[this._selectedTab]();
             GUI.DragWindow();
@@ -783,7 +846,7 @@ namespace HSPE
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             Color c = GUI.color;
-            GUI.color = Color.red;
+            GUI.color = this._redColor;
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 this.SetColliderNotDirty(this._colliderTarget);
             GUI.color = c;
@@ -802,8 +865,33 @@ namespace HSPE
             this._boneEditionScroll = GUILayout.BeginScrollView(this._boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
-            GUILayout.Label("Legend:");
             GUILayout.BeginHorizontal();
+            GUILayout.Label("Alias", GUILayout.ExpandWidth(false));
+            this._currentAlias = GUILayout.TextField(this._currentAlias, GUILayout.ExpandWidth(true));
+            if (GUILayout.Button("Save", GUILayout.ExpandWidth(false)))
+            {
+                if (this._boneTarget != null)
+                {
+                    this._currentAlias = this._currentAlias.Trim();
+                    if (this._currentAlias.Length == 0)
+                    {
+                        if (MainWindow.self.boneAliases.ContainsKey(this._boneTarget.name))
+                            MainWindow.self.boneAliases.Remove(this._boneTarget.name);
+                    }
+                    else
+                    {
+                        if (MainWindow.self.boneAliases.ContainsKey(this._boneTarget.name) == false)
+                            MainWindow.self.boneAliases.Add(this._boneTarget.name, this._currentAlias);
+                        else
+                            MainWindow.self.boneAliases[this._boneTarget.name] = this._currentAlias;
+                    }
+                }
+                else
+                    this._currentAlias = "";
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Legend:");
             Color co = GUI.color;
             GUI.color = Color.cyan;
             GUILayout.Button("Selected");
@@ -845,7 +933,7 @@ namespace HSPE
                         }
                         bool shouldSaveValue = false;
                         Color c = GUI.color;
-                        GUI.color = Color.red;
+                        GUI.color = this._redColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X:\t" + position.x.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -863,7 +951,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.green;
+                        GUI.color = this._greenColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y:\t" + position.y.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -881,7 +969,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.blue;
+                        GUI.color = this._blueColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z:\t" + position.z.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -934,7 +1022,7 @@ namespace HSPE
                         }
                         shouldSaveValue = false;
                         c = GUI.color;
-                        GUI.color = Color.red;
+                        GUI.color = this._redColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X (Pitch):\t" + rotation.eulerAngles.x.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -954,7 +1042,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.green;
+                        GUI.color = this._greenColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y (Yaw):\t" + rotation.eulerAngles.y.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -974,7 +1062,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.blue;
+                        GUI.color = this._blueColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z (Roll):\t" + rotation.eulerAngles.z.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1066,7 +1154,7 @@ namespace HSPE
                         }
                         shouldSaveValue = false;
                         c = GUI.color;
-                        GUI.color = Color.red;
+                        GUI.color = this._redColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X:\t" + scale.x.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1084,7 +1172,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.green;
+                        GUI.color = this._greenColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y:\t" + scale.y.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1102,7 +1190,7 @@ namespace HSPE
                         GUILayout.EndHorizontal();
                         GUI.color = c;
 
-                        GUI.color = Color.blue;
+                        GUI.color = this._blueColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z:\t" + scale.z.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1220,7 +1308,11 @@ namespace HSPE
                 {
                     if (i % 3 == 0)
                         GUILayout.BeginHorizontal();
-                    if (GUILayout.Button(kvp.Value))
+                    string sName = kvp.Value;
+                    string newName;
+                    if (MainWindow.self.boneAliases.TryGetValue(sName, out newName))
+                        sName = newName;
+                    if (GUILayout.Button(sName))
                     {
                         if (this._removeShortcutMode)
                         {
@@ -1257,7 +1349,7 @@ namespace HSPE
                 GUILayout.FlexibleSpace();
                 Color color = GUI.color;
                 if (this._removeShortcutMode)
-                    GUI.color = Color.red;
+                    GUI.color = this._redColor;
                 if (GUILayout.Button(this._removeShortcutMode ? "Click on a shortcut" : "Remove Shortcut"))
                     this._removeShortcutMode = !this._removeShortcutMode;
                 GUI.color = color;
@@ -1304,7 +1396,11 @@ namespace HSPE
                     GUI.color = Color.magenta;
                 if (ReferenceEquals(db, this._dynamicBoneTarget))
                     GUI.color = Color.cyan;
-                if (GUILayout.Button(db.m_Root.name + (this.IsDynamicBoneDirty(db) ? "*" : "")))
+                string dName = db.m_Root.name;
+                string newName;
+                if (MainWindow.self.boneAliases.TryGetValue(dName, out newName))
+                    dName = newName;
+                if (GUILayout.Button(dName + (this.IsDynamicBoneDirty(db) ? "*" : "")))
                     this._dynamicBoneTarget = db;
                 GUI.color = c;
             }
@@ -1335,7 +1431,7 @@ namespace HSPE
             Vector3 g = Vector3.zero;
             if (this._dynamicBoneTarget != null)
                 g = this._dynamicBoneTarget.m_Gravity;
-            g = this.Vector3Editor(g, Color.red);
+            g = this.Vector3Editor(g, this._redColor);
             if (this._dynamicBoneTarget != null)
             {
                 if (this._dynamicBoneTarget.m_Gravity != g)
@@ -1353,7 +1449,7 @@ namespace HSPE
             Vector3 f = Vector3.zero;
             if (this._dynamicBoneTarget != null)
                 f = this._dynamicBoneTarget.m_Force;
-            f = this.Vector3Editor(f, Color.blue);
+            f = this.Vector3Editor(f, this._blueColor);
             if (this._dynamicBoneTarget != null)
             {
                 if (this._dynamicBoneTarget.m_Force != f)
@@ -1412,7 +1508,7 @@ namespace HSPE
             GUILayout.BeginVertical();
             GUILayout.Label("Gravity");
             Vector3 gravity = boob.Gravity;
-            gravity = this.Vector3Editor(gravity, Color.red);
+            gravity = this.Vector3Editor(gravity, this._redColor);
             if (gravity != boob.Gravity)
             {
                 this.SetBoobDirty(boob);
@@ -1425,7 +1521,7 @@ namespace HSPE
             GUILayout.BeginVertical();
             GUILayout.Label("Force");
             Vector3 force = boob.Force;
-            force = this.Vector3Editor(force, Color.blue);
+            force = this.Vector3Editor(force, this._blueColor);
             if (force != boob.Force)
             {
                 this.SetBoobDirty(boob);
@@ -1438,7 +1534,7 @@ namespace HSPE
             GUILayout.BeginHorizontal();
             GUILayout.FlexibleSpace();
             Color c = GUI.color;
-            GUI.color = Color.red;
+            GUI.color = this._redColor;
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 this.SetBoobNotDirty(boob);
             GUI.color = c;
@@ -1477,9 +1573,17 @@ namespace HSPE
             }
             else
                 GUILayout.Space(20f);
-            if (GUILayout.Button(go.name + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
+            string bName = go.name;
+            string newName;
+            if (MainWindow.self.boneAliases.TryGetValue(bName, out newName))
+                bName = newName;
+            if (GUILayout.Button(bName + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
             {
                 this._boneTarget = go.transform;
+                if (MainWindow.self.boneAliases.ContainsKey(this._boneTarget.name))
+                    this._currentAlias = MainWindow.self.boneAliases[this._boneTarget.name];
+                else
+                    this._currentAlias = "";
                 this._twinBoneTarget = this.GetTwinBone(go.transform);
                 if (this._boneTarget == this._twinBoneTarget)
                     this._twinBoneTarget = null;
@@ -1496,7 +1600,7 @@ namespace HSPE
         {
             GUILayout.BeginVertical();
             Color c = GUI.color;
-            GUI.color = Color.red;
+            GUI.color = this._redColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("X:\t" + value.x.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1508,7 +1612,7 @@ namespace HSPE
             GUILayout.EndHorizontal();
             GUI.color = c;
 
-            GUI.color = Color.green;
+            GUI.color = this._greenColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Y:\t" + value.y.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1520,7 +1624,7 @@ namespace HSPE
             GUILayout.EndHorizontal();
             GUI.color = c;
 
-            GUI.color = Color.blue;
+            GUI.color = this._blueColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Z:\t" + value.z.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
@@ -1576,6 +1680,40 @@ namespace HSPE
         #endregion
 
         #region Private Methods
+        private void OnPostUpdate()
+        {
+            bool shouldClean = false;
+            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+            {
+                if (kvp.Key == null)
+                {
+                    shouldClean = true;
+                    continue;
+                }
+                if (kvp.Value.scale.hasValue)
+                    kvp.Key.transform.localScale = kvp.Value.scale;
+                if (kvp.Value.rotation.hasValue)
+                    kvp.Key.transform.localRotation = kvp.Value.rotation;
+                if (kvp.Value.position.hasValue)
+                    kvp.Key.transform.localPosition = kvp.Value.position;
+            }
+            if (shouldClean)
+            {
+                Dictionary<GameObject, TransformData> newDirtyBones = new Dictionary<GameObject, TransformData>();
+                foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+                    if (kvp.Key != null)
+                        newDirtyBones.Add(kvp.Key, kvp.Value);
+                this._dirtyBones = newDirtyBones;
+            }
+            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
+            {
+                if (kvp.Value.gravity.hasValue)
+                    kvp.Key.Gravity = kvp.Value.gravity;
+                if (kvp.Value.force.hasValue)
+                    kvp.Key.Force = kvp.Value.force;
+            }
+        }
+
         private Transform GetCommonAncestor(Transform bone1, Transform bone2)
         {
             Transform i = bone1;

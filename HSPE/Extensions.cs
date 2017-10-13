@@ -13,6 +13,35 @@ using UnityEngine;
 
 public static class Extensions
 {
+    public static void SetPrivate<T>(this T self, string name, object value)
+    {
+        typeof(T).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).SetValue(self, value);
+    }
+    public static void SetPrivate(this object self, string name, object value)
+    {
+        self.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).SetValue(self, value);
+    }
+    public static void SetPrivateProperty<T>(this T self, string name, object value)
+    {
+        typeof(T).GetProperty(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).SetValue(self, value, null);
+    }
+    public static object GetPrivate<T>(this T self, string name)
+    {
+        return typeof(T).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).GetValue(self);
+    }
+    public static object GetPrivate(this object self, string name)
+    {
+        return self.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).GetValue(self);
+    }
+    public static object GetPrivateProperty<T>(this T self, string name)
+    {
+        return typeof(T).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).GetValue(self);
+    }
+    public static object CallPrivate<T>(this T self, string name, params object[] p)
+    {
+        return typeof(T).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).Invoke(self, p);
+    }
+
     public static Transform FindDescendant(this Transform self, string name)
     {
         if (self.name.Equals(name))
