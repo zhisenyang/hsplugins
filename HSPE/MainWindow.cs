@@ -82,6 +82,7 @@ namespace HSPE
         private KeyCode[] _possibleKeyCodes;
         private IKExecutionOrder _ikExecutionOrder;
         private bool _positionOperationWorld = true;
+        private Toggle _optimizeIKToggle;
         #endregion
 
         #region Public Accessors
@@ -280,8 +281,8 @@ namespace HSPE
             {
                 Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
                 bg.raycastTarget = false;
-                bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(300f, 450f));
-                bg.rectTransform.anchoredPosition = new Vector2(276f, 343f);
+                bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(300f, 470f));
+                bg.rectTransform.anchoredPosition = new Vector2(276f, 363f);
 
                 {
                     Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.rectTransform, "Top Container").gameObject, UIUtility.backgroundSprite);
@@ -496,7 +497,7 @@ namespace HSPE
 
                         {
                             RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
-                            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 45f), new Vector2(0f, -245f));
+                            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 65f), new Vector2(0f, -245f));
 
                             Button xMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "X Move Button").gameObject, "↑\nX\n↓");
                             cb = xMoveButton.colors;
@@ -690,7 +691,7 @@ namespace HSPE
                         {
                             Image experimental = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._bones, "Experimental Features"));
                             experimental.color = UIUtility.whiteColor;
-                            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 45f), new Vector2(0f, -310f));
+                            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 65f), new Vector2(0f, -310f));
 
                             Image experimentalHeader = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Header").gameObject, UIUtility.backgroundSprite);
                             experimentalHeader.color = UIUtility.purpleColor;
@@ -715,7 +716,7 @@ namespace HSPE
                         }
                         {
                             RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Slider Container");
-                            sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
+                            sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 40f), new Vector2(0f, 60f));
 
                             Text movIntensityTxt = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Text"), "Mvt. Intensity");
                             movIntensityTxt.alignment = TextAnchor.MiddleLeft;
@@ -747,7 +748,7 @@ namespace HSPE
                             this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
 
                             RectTransform buttonContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
-                            buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
+                            buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
 
                             Text positionOpLabel = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(buttonContainer, "Position Operation Label"), "Pos. Operation");
                             positionOpLabel.alignment = TextAnchor.MiddleLeft;
@@ -766,6 +767,24 @@ namespace HSPE
                             });
                             buttonRT = positionOp.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.4444f, 0f), Vector2.one, Vector2.zero, new Vector2(-50f, 0f));
+
+                            RectTransform checkboxContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
+                            checkboxContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
+
+                            Text optimizeIKLabel = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK Label"), "Optimize IK");
+                            optimizeIKLabel.alignment = TextAnchor.MiddleLeft;
+                            optimizeIKLabel.resizeTextForBestFit = true;
+                            optimizeIKLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
+
+                            this._optimizeIKToggle = UIUtility.AddCheckboxToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK"));
+                            this._optimizeIKToggle.onValueChanged.AddListener((b) =>
+                            {
+                                if (this._manualBoneTarget != null)
+                                    this._manualBoneTarget.optimizeIK = this._optimizeIKToggle.isOn;
+                            });
+                            buttonRT = this._optimizeIKToggle.transform as RectTransform;
+                            buttonRT.SetRect(new Vector2(0.4444f, 0f), new Vector2(0.4444f, 1f), Vector2.zero, new Vector2(20f, 0f));
+
                         }
                     }
                 }
@@ -1236,6 +1255,7 @@ namespace HSPE
             }
             else
             {
+                this._optimizeIKToggle.isOn = this._manualBoneTarget.optimizeIK;
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
             }
@@ -1353,6 +1373,11 @@ namespace HSPE
                             xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
                             xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
                             ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
+                            if (controller.optimizeIK == false)
+                            {
+                                xmlWriter.WriteAttributeString("optimizeIK", XmlConvert.ToString(controller.optimizeIK));
+                                written++;
+                            }
                             written += controller.SaveXml(xmlWriter);
                             xmlWriter.WriteEndElement();
                         }
@@ -1396,6 +1421,10 @@ namespace HSPE
                                 if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<ManualBoneController>() == null)
                                 {
                                     ManualBoneController controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
+                                    if (node.Attributes?["optimizeIK"] != null)
+                                        controller.optimizeIK = XmlConvert.ToBoolean(node.Attributes["optimizeIK"].Value);
+                                    else
+                                        controller.optimizeIK = true;
                                     controller.chara = ociChar;
                                     controller.ScheduleLoad(node, v);
                                     break;

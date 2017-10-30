@@ -8,7 +8,6 @@ namespace HSPE
 {
     public class UIUtility : MonoBehaviour
     {
-        #region Public Static Variables
         public const RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
         public const bool canvasPixelPerfect = false;
 
@@ -34,7 +33,7 @@ namespace HSPE
         public static Font defaultFont;
         public static int defaultFontSize;
         public static float uiScale = 1f;
-        #endregion
+
         void Start()
         {
             foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
@@ -236,6 +235,28 @@ namespace HSPE
             label.offsetMin = new Vector2(23f, 0f);
             label.offsetMax = new Vector2(5f, 0f);
 
+            return t;
+        }
+
+        public static Toggle AddCheckboxToObject(Transform t)
+        {
+            return AddCheckboxToObject(t.gameObject);
+        }
+
+        public static Toggle AddCheckboxToObject(GameObject go)
+        {
+            Toggle t = go.AddComponent<Toggle>();
+
+            RectTransform bg = CreateNewUIObject(go.transform, "Background");
+            t.targetGraphic = AddImageToObject(bg.gameObject, checkBox);
+
+            RectTransform check = CreateNewUIObject(bg, "CheckMark");
+            Image checkM = AddImageToObject(check.gameObject, checkMark);
+            checkM.color = Color.black;
+            t.graphic = checkM;
+
+            bg.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            check.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             return t;
         }
 

@@ -209,7 +209,6 @@ namespace HSPE
         private bool _isFemale = false;
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
-        private int _cachedSolverIterations;
         private readonly Dictionary<Transform, string> _boneEditionShortcuts = new Dictionary<Transform, string>();
         private SelectedTab _selectedTab = SelectedTab.BonesPosition;
         private readonly Dictionary<SelectedTab, TabDelegate> _tabFunctions = new Dictionary<SelectedTab, TabDelegate>();
@@ -233,6 +232,7 @@ namespace HSPE
         private readonly Color _greenColor = Color.green;
         private readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
         private string _currentAlias = "";
+        private bool _optimizeIK = true;
         #endregion
 
         #region Public Accessors
@@ -242,6 +242,28 @@ namespace HSPE
         public Rect colliderEditRect { get { return this._colliderEditRect; } }
         public bool colliderEditEnabled { get { return this._colliderTarget != null; } }
         public DragType currentDragType { get; private set; }
+
+        public bool optimizeIK
+        {
+            get { return this._optimizeIK; }
+            set
+            {
+                this._optimizeIK = value;
+                if (this._body != null)
+                {
+                    if (value)
+                    {
+                        this._body.solver.spineStiffness = 0f;
+                        this._body.solver.pullBodyVertical = 0f;
+                    }
+                    else
+                    {
+                        this._body.solver.spineStiffness = this._cachedSpineStiffness;
+                        this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
+                    }
+                }
+            }
+        }
         #endregion
 
         #region Unity Methods
@@ -282,12 +304,10 @@ namespace HSPE
             this._customIk.solver = this._customIkSolver;
             this._customIkSolver.SetPrivate("firstInitiation", false);
             this._customIkSolver.SetPrivateProperty("initiated", true);
-            IK[] old = MainWindow.self.ikExecutionOrder.IKComponents;
-            IK[] current = new IK[old.Length + 1];
-            old.CopyTo(current, 0);
-            current[current.Length - 1] = this._customIk;
             this._customIkSolver.OnPostUpdate = this.OnPostUpdate;
-            MainWindow.self.ikExecutionOrder.IKComponents = current;
+            List<IK> l = MainWindow.self.ikExecutionOrder.IKComponents.ToList();
+            l.Add(this._customIk);
+            MainWindow.self.ikExecutionOrder.IKComponents = l.ToArray();
         }
 
         void Start()
@@ -318,10 +338,18 @@ namespace HSPE
 
             this._cachedSpineStiffness = this._body.solver.spineStiffness;
             this._cachedPullBodyVertical = this._body.solver.pullBodyVertical;
-            this._cachedSolverIterations = this._body.solver.iterations;
-            this._body.solver.spineStiffness = 0f;
-            this._body.solver.pullBodyVertical = 0f;
-            this._body.fixTransforms = true;
+
+            if (this._optimizeIK)
+            {
+                this._body.solver.spineStiffness = 0f;
+                this._body.solver.pullBodyVertical = 0f;
+            }
+            else
+            {
+                this._body.solver.spineStiffness = this._cachedSpineStiffness;
+                this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
+            }
+
         }
 
         void Update()
@@ -370,18 +398,10 @@ namespace HSPE
             //this._cam.onPreCull -= this.PreCull;
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
-            this._body.solver.iterations = this._cachedSolverIterations;
 
-            IK[] old = MainWindow.self.ikExecutionOrder.IKComponents;
-            IK[] current = new IK[old.Length - 1];
-            int i = 0;
-            foreach (IK ik in old)
-                if (ik != this._customIk)
-                {
-                    current[i] = ik;
-                    ++i;
-                }
-            MainWindow.self.ikExecutionOrder.IKComponents = current;
+            List<IK> l = MainWindow.self.ikExecutionOrder.IKComponents.ToList();
+            l.Remove(this._customIk);
+            MainWindow.self.ikExecutionOrder.IKComponents = l.ToArray();
         }
 
         void OnGUI()
@@ -1322,6 +1342,7 @@ namespace HSPE
                         else
                             this.GoToObject(kvp.Key);
                     }
+
                     if ((i + 1) % 3 == 0)
                         GUILayout.EndHorizontal();
                     ++i;
@@ -1576,14 +1597,11 @@ namespace HSPE
             string bName = go.name;
             string newName;
             if (MainWindow.self.boneAliases.TryGetValue(bName, out newName))
-                bName = newName;
+                bName = newName;                
             if (GUILayout.Button(bName + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
             {
                 this._boneTarget = go.transform;
-                if (MainWindow.self.boneAliases.ContainsKey(this._boneTarget.name))
-                    this._currentAlias = MainWindow.self.boneAliases[this._boneTarget.name];
-                else
-                    this._currentAlias = "";
+                this._currentAlias = MainWindow.self.boneAliases.ContainsKey(this._boneTarget.name) ? MainWindow.self.boneAliases[this._boneTarget.name] : "";
                 this._twinBoneTarget = this.GetTwinBone(go.transform);
                 if (this._boneTarget == this._twinBoneTarget)
                     this._twinBoneTarget = null;
