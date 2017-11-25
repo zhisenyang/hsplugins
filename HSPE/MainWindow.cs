@@ -360,23 +360,21 @@ namespace HSPE
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
 
-                    Text titleText = UIUtility.CreateText("Title Text", topContainer.transform, "HSPE");
+                    Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "HSPE");
                     titleText.alignment = TextAnchor.MiddleCenter;
-                    titleText.resizeTextForBestFit = true;
                     titleText.fontStyle = FontStyle.Bold;
                     titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
                     titleText.color = Color.white;
 
-                    UIUtility.AddOutlineToObject(titleText.transform);
                     titleText.GetComponent<Outline>().effectDistance = new Vector2(2f, 2f);
                 }
 
-                this._nothingText = UIUtility.CreateText("Nothing Text", bg.transform, "There is no character selected. Please select a character to begin pose edition.");
+                this._nothingText = this.CreateCustomText("Nothing Text", bg.transform, "There is no character selected. Please select a character to begin pose edition.");
                 this._nothingText.alignment = TextAnchor.MiddleCenter;
                 this._nothingText.fontSize = 16;
+                this._nothingText.resizeTextForBestFit = false;
                 this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
                 this._nothingText.gameObject.SetActive(false);
-                this._nothingText.color = Color.black;
 
                 {
                     this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
@@ -386,196 +384,157 @@ namespace HSPE
                         this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
                         this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
 
-                        Button rightShoulder = UIUtility.CreateButton("Right Shoulder Button", this._bones, "R. Shoulder");
+                        Button rightShoulder = this.CreateCustomButton("Right Shoulder Button", this._bones, "R. Shoulder");
                         rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
                         ColorBlock cb = rightShoulder.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightShoulder.colors = cb;
                         Text t = rightShoulder.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         RectTransform buttonRT = rightShoulder.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -35f), Vector2.zero);
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightShoulder] = t;
 
-                        Button leftShoulder = UIUtility.CreateButton("Left Shoulder Button", this._bones, "L. Shoulder");
+                        Button leftShoulder = this.CreateCustomButton("Left Shoulder Button", this._bones, "L. Shoulder");
                         cb = leftShoulder.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftShoulder.colors = cb;
                         leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
                         t = leftShoulder.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftShoulder.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -35f), Vector2.zero);
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftShoulder] = t;
 
-                        Button rightArmBendGoal = UIUtility.CreateButton("Right Arm Bend Goal Button", this._bones, "R. Elbow Dir.");
+                        Button rightArmBendGoal = this.CreateCustomButton("Right Arm Bend Goal Button", this._bones, "R. Elbow Dir.");
                         cb = rightArmBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         rightArmBendGoal.colors = cb;
                         rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
                         t = rightArmBendGoal.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = rightArmBendGoal.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
                         this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.RightArm] = t;
 
-                        Button leftArmBendGoal = UIUtility.CreateButton("Left Arm Bend Goal Button", this._bones, "L. Elbow Dir.");
+                        Button leftArmBendGoal = this.CreateCustomButton("Left Arm Bend Goal Button", this._bones, "L. Elbow Dir.");
                         cb = leftArmBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         leftArmBendGoal.colors = cb;
                         leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
                         t = leftArmBendGoal.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftArmBendGoal.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
                         this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.LeftArm] = t;
 
-                        Button rightHand = UIUtility.CreateButton("Right Hand Button", this._bones, "R. Hand");
+                        Button rightHand = this.CreateCustomButton("Right Hand Button", this._bones, "R. Hand");
                         cb = rightHand.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightHand.colors = cb;
                         rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
                         t = rightHand.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = rightHand.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -105f), new Vector2(0f, -70f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightHand] = t;
 
-                        Button leftHand = UIUtility.CreateButton("Left Hand Button", this._bones, "L. Hand");
+                        Button leftHand = this.CreateCustomButton("Left Hand Button", this._bones, "L. Hand");
                         cb = leftHand.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftHand.colors = cb;
                         leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
                         t = leftHand.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftHand.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -105f), new Vector2(0f, -70f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftHand] = t;
 
-                        Button body = UIUtility.CreateButton("Body Button", this._bones, "Body");
+                        Button body = this.CreateCustomButton("Body Button", this._bones, "Body");
                         cb = body.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         body.colors = cb;
                         body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
                         t = body.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = body.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.375f, 1f), new Vector2(0.625f, 1f), new Vector2(0f, -140f), new Vector2(0f, -105f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
                         this._effectorsTexts[(int)FullBodyBipedEffector.Body] = t;
 
-                        Button rightThigh = UIUtility.CreateButton("Right Thigh Button", this._bones, "R. Thigh");
+                        Button rightThigh = this.CreateCustomButton("Right Thigh Button", this._bones, "R. Thigh");
                         cb = rightThigh.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightThigh.colors = cb;
                         rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
                         t = rightThigh.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = rightThigh.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightThigh] = t;
 
-                        Button leftThigh = UIUtility.CreateButton("Left Thigh Button", this._bones, "L. Thigh");
+                        Button leftThigh = this.CreateCustomButton("Left Thigh Button", this._bones, "L. Thigh");
                         cb = leftThigh.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftThigh.colors = cb;
                         leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
                         t = leftThigh.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftThigh.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftThigh] = t;
 
-                        Button rightLegBendGoal = UIUtility.CreateButton("Right Leg Bend Goal Button", this._bones, "R. Knee Dir.");
+                        Button rightLegBendGoal = this.CreateCustomButton("Right Leg Bend Goal Button", this._bones, "R. Knee Dir.");
                         cb = rightLegBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         rightLegBendGoal.colors = cb;
                         rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
                         t = rightLegBendGoal.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = rightLegBendGoal.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
                         this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.RightLeg] = t;
 
-                        Button leftLegBendGoal = UIUtility.CreateButton("Left Leg Bend Goal Button", this._bones, "L. Knee Dir.");
+                        Button leftLegBendGoal = this.CreateCustomButton("Left Leg Bend Goal Button", this._bones, "L. Knee Dir.");
                         cb = leftLegBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         leftLegBendGoal.colors = cb;
                         leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
                         t = leftLegBendGoal.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftLegBendGoal.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
                         this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.LeftLeg] = t;
 
-                        Button rightFoot = UIUtility.CreateButton("Right Foot Button", this._bones, "R. Foot");
+                        Button rightFoot = this.CreateCustomButton("Right Foot Button", this._bones, "R. Foot");
                         cb = rightFoot.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightFoot.colors = cb;
                         rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
                         t = rightFoot.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = rightFoot.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -245f), new Vector2(0f, -210f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightFoot] = t;
 
-                        Button leftFoot = UIUtility.CreateButton("Left Foot Button", this._bones, "L. Foot");
+                        Button leftFoot = this.CreateCustomButton("Left Foot Button", this._bones, "L. Foot");
                         cb = leftFoot.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftFoot.colors = cb;
                         leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
                         t = leftFoot.GetComponentInChildren<Text>();
-                        UIUtility.AddOutlineToObject(t.transform);
-                        t.resizeTextForBestFit = true;
-                        t.resizeTextMaxSize = 100;
                         buttonRT = leftFoot.transform as RectTransform;
                         buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -245f), new Vector2(0f, -210f));
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
@@ -585,14 +544,12 @@ namespace HSPE
                             RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
                             buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 65f), new Vector2(0f, -245f));
 
-                            Button xMoveButton = UIUtility.CreateButton("X Move Button", buttons, "↑\nX\n↓");
+                            Button xMoveButton = this.CreateCustomButton("X Move Button", buttons, "↑\nX\n↓");
                             cb = xMoveButton.colors;
                             cb.normalColor = Color.red;
                             cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
                             xMoveButton.colors = cb;
                             t = xMoveButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -607,14 +564,12 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
                             this._positionButtons[0] = xMoveButton;
 
-                            Button yMoveButton = UIUtility.CreateButton("Y Move Button", buttons, "↑\nY\n↓");
+                            Button yMoveButton = this.CreateCustomButton("Y Move Button", buttons, "↑\nY\n↓");
                             cb = yMoveButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
                             cb.normalColor = Color.green;
                             yMoveButton.colors = cb;
                             t = yMoveButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -629,14 +584,12 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
                             this._positionButtons[1] = yMoveButton;
 
-                            Button zMoveButton = UIUtility.CreateButton("Z Move Button", buttons, "↑\nZ\n↓");
+                            Button zMoveButton = this.CreateCustomButton("Z Move Button", buttons, "↑\nZ\n↓");
                             cb = zMoveButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                             cb.normalColor = Color.blue;
                             zMoveButton.colors = cb;
                             t = zMoveButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -651,14 +604,12 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
                             this._positionButtons[2] = zMoveButton;
 
-                            Button rotXButton = UIUtility.CreateButton("Rot X Button", buttons, "←   →\nRot X");
+                            Button rotXButton = this.CreateCustomButton("Rot X Button", buttons, "←   →\nRot X");
                             cb = rotXButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
                             cb.normalColor = Color.red;
                             rotXButton.colors = cb;
                             t = rotXButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -673,14 +624,12 @@ namespace HSPE
                             buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
                             this._rotationButtons[0] = rotXButton;
 
-                            Button rotYButton = UIUtility.CreateButton("Rot Y Button", buttons, "←   →\nRot Y");
+                            Button rotYButton = this.CreateCustomButton("Rot Y Button", buttons, "←   →\nRot Y");
                             cb = rotYButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
                             cb.normalColor = Color.green;
                             rotYButton.colors = cb;
                             t = rotYButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -695,14 +644,13 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
                             this._rotationButtons[1] = rotYButton;
 
-                            Button rotZButton = UIUtility.CreateButton("Rot Z Button", buttons, "←   →\nRot Z");
+                            Button rotZButton = this.CreateCustomButton("Rot Z Button", buttons, "←   →\nRot Z");
                             cb = rotZButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                             cb.normalColor = Color.blue;
                             rotZButton.colors = cb;
                             t = rotZButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
-                            t.resizeTextForBestFit = true;
+
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
                             rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
@@ -723,13 +671,11 @@ namespace HSPE
                             otherButtons.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 74f), new Vector2(0f, -245f));
 
 
-                            Button copyLeftArmButton = UIUtility.CreateButton("Copy Right Arm Button", otherButtons, "Copy R. arm");
-                            UIUtility.AddOutlineToObject(copyLeftArmButton.GetComponentInChildren<Text>().transform);
+                            Button copyLeftArmButton = this.CreateCustomButton("Copy Right Arm Button", otherButtons, "Copy R. arm");
                             cb = copyLeftArmButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
                             copyLeftArmButton.colors = cb;
-                            copyLeftArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             copyLeftArmButton.onClick.AddListener(() =>
                             {
                                 if (this._manualBoneTarget != null)
@@ -738,13 +684,11 @@ namespace HSPE
                             buttonRT = copyLeftArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -32.5f), new Vector2(-1.25f, -0f));
 
-                            Button copyRightArmButton = UIUtility.CreateButton("Copy Left Arm Button", otherButtons, "Copy L. arm");
-                            UIUtility.AddOutlineToObject(copyRightArmButton.GetComponentInChildren<Text>().transform);
+                            Button copyRightArmButton = this.CreateCustomButton("Copy Left Arm Button", otherButtons, "Copy L. arm");
                             cb = copyRightArmButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
                             copyRightArmButton.colors = cb;
-                            copyRightArmButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             copyRightArmButton.onClick.AddListener(() =>
                             {
                                 if (this._manualBoneTarget != null)
@@ -753,13 +697,11 @@ namespace HSPE
                             buttonRT = copyRightArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -32.5f), new Vector2(-0f, -0f));
 
-                            Button copyLeftLegButton = UIUtility.CreateButton("Copy Right Leg Button", otherButtons, "Copy R. leg");
-                            UIUtility.AddOutlineToObject(copyLeftLegButton.GetComponentInChildren<Text>().transform);
+                            Button copyLeftLegButton = this.CreateCustomButton("Copy Right Leg Button", otherButtons, "Copy R. leg");
                             cb = copyLeftLegButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
                             copyLeftLegButton.colors = cb;
-                            copyLeftLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             copyLeftLegButton.onClick.AddListener(() =>
                             {
                                 if (this._manualBoneTarget != null)
@@ -768,13 +710,11 @@ namespace HSPE
                             buttonRT = copyLeftLegButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62.5f), new Vector2(-1.25f, -32.5f));
 
-                            Button copyRightLegButton = UIUtility.CreateButton("Copy Left LegButton", otherButtons, "Copy L. leg");
-                            UIUtility.AddOutlineToObject(copyRightLegButton.GetComponentInChildren<Text>().transform);
+                            Button copyRightLegButton = this.CreateCustomButton("Copy Left LegButton", otherButtons, "Copy L. leg");
                             cb = copyRightLegButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
                             copyRightLegButton.colors = cb;
-                            copyRightLegButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             copyRightLegButton.onClick.AddListener(() =>
                             {
                                 if (this._manualBoneTarget != null)
@@ -793,21 +733,17 @@ namespace HSPE
                             experimentalHeader.color = UIUtility.purpleColor;
                             experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
 
-                            Text headerText = UIUtility.CreateText("Header Text", experimentalHeader.transform, "Experimental Features");
-                            UIUtility.AddOutlineToObject(headerText.transform);
+                            Text headerText = this.CreateCustomText("Header Text", experimentalHeader.transform, "Experimental Features");
                             headerText.alignment = TextAnchor.MiddleCenter;
-                            headerText.resizeTextForBestFit = true;
                             headerText.fontStyle = FontStyle.Bold;
                             headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
                             headerText.color = Color.white;
 
-                            Button advancedModeButton = UIUtility.CreateButton("Advanced Mode Button", experimental.rectTransform, "Advanced mode");
-                            UIUtility.AddOutlineToObject(advancedModeButton.GetComponentInChildren<Text>().transform);
+                            Button advancedModeButton = this.CreateCustomButton("Advanced Mode Button", experimental.rectTransform, "Advanced mode");
                             cb = advancedModeButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
                             advancedModeButton.colors = cb;
-                            advancedModeButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             advancedModeButton.onClick.AddListener(this.ToggleAdvancedMode);
                             buttonRT = advancedModeButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -54f), new Vector2(-2.5f, -29f));
@@ -816,10 +752,8 @@ namespace HSPE
                             RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Slider Container");
                             sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 40f), new Vector2(0f, 60f));
 
-                            Text movIntensityTxt = UIUtility.CreateText("Movement Intensity Text", sliderContainer, "Mvt. Intensity");
-                            UIUtility.AddOutlineToObject(movIntensityTxt.transform);
+                            Text movIntensityTxt = this.CreateCustomText("Movement Intensity Text", sliderContainer, "Mvt. Intensity");
                             movIntensityTxt.alignment = TextAnchor.MiddleLeft;
-                            movIntensityTxt.resizeTextForBestFit = true;
                             movIntensityTxt.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
 
                             this._movementIntensity = UIUtility.CreateScrollbar("Movement Intensity Slider", sliderContainer);
@@ -843,27 +777,21 @@ namespace HSPE
                             handle.sizeDelta = new Vector2(14f, handle.sizeDelta.y);
                             rt.SetRect(new Vector2(0.333f, 0f), new Vector2(0.9f, 1f), new Vector2(0f, 3f), new Vector2(0f, -3f));
 
-                            this._intensityValueText = UIUtility.CreateText("Movement Intensity Value", sliderContainer, "x1");
-                            UIUtility.AddOutlineToObject(this._intensityValueText.transform);
+                            this._intensityValueText = this.CreateCustomText("Movement Intensity Value", sliderContainer, "x1");
                             this._intensityValueText.alignment = TextAnchor.MiddleCenter;
-                            this._intensityValueText.resizeTextForBestFit = true;
                             this._intensityValueText.resizeTextMaxSize = 14;
                             this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
 
                             RectTransform buttonContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
                             buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
 
-                            Text positionOpLabel = UIUtility.CreateText("Position Operation Label", buttonContainer, "Pos. Operation");
-                            UIUtility.AddOutlineToObject(positionOpLabel.transform);
+                            Text positionOpLabel = this.CreateCustomText("Position Operation Label", buttonContainer, "Pos. Operation");
                             positionOpLabel.alignment = TextAnchor.MiddleLeft;
-                            positionOpLabel.resizeTextForBestFit = true;
                             positionOpLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
 
-                            Button positionOp = UIUtility.CreateButton("Position Operation", buttonContainer, "World");
+                            Button positionOp = this.CreateCustomButton("Position Operation", buttonContainer, "World");
                             Text buttonText = positionOp.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(buttonText.transform);
                             buttonText.alignment = TextAnchor.MiddleCenter;
-                            buttonText.resizeTextForBestFit = true;
                             buttonText.resizeTextMaxSize = 14;
                             positionOp.onClick.AddListener(() =>
                             {
@@ -876,10 +804,8 @@ namespace HSPE
                             RectTransform checkboxContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
                             checkboxContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
 
-                            Text optimizeIKLabel = UIUtility.CreateText("Optimize IK Label", checkboxContainer, "Optimize IK");
-                            UIUtility.AddOutlineToObject(optimizeIKLabel.transform);
+                            Text optimizeIKLabel = this.CreateCustomText("Optimize IK Label", checkboxContainer, "Optimize IK");
                             optimizeIKLabel.alignment = TextAnchor.MiddleLeft;
-                            optimizeIKLabel.resizeTextForBestFit = true;
                             optimizeIKLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
 
                             this._optimizeIKToggle = UIUtility.AddCheckboxToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK"));
@@ -896,11 +822,9 @@ namespace HSPE
                 }
 
                 {
-                    Button optionsButton = UIUtility.CreateButton("Options Button", bg.transform, "Options");
-                    UIUtility.AddOutlineToObject(optionsButton.GetComponentInChildren<Text>().transform);
+                    Button optionsButton = this.CreateCustomButton("Options Button", bg.transform, "Options");
                     RectTransform rt = optionsButton.transform as RectTransform;
                     rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(0f, 5f), new Vector2(-5f, 25f));
-                    optionsButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                     optionsButton.onClick.AddListener(() =>
                     {
                         if (this._shortcutRegisterMode)
@@ -927,10 +851,8 @@ namespace HSPE
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
 
-                    Text titleText = UIUtility.CreateText("Title Text", topContainer.transform, "Options");
-                    UIUtility.AddOutlineToObject(titleText.transform);
+                    Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "Options");
                     titleText.alignment = TextAnchor.MiddleCenter;
-                    titleText.resizeTextForBestFit = true;
                     titleText.fontStyle = FontStyle.Bold;
                     titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
                     titleText.color = Color.white;
@@ -944,14 +866,11 @@ namespace HSPE
                             RectTransform scaleContainer = UIUtility.CreateNewUIObject(options, "Scale Container");
                             scaleContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -20f), Vector2.zero);
 
-                            Text label = UIUtility.CreateText("Label", scaleContainer, "UI Scale (x" + this.uiScale.ToString("0.0") + ")");
-                            UIUtility.AddOutlineToObject(label.transform);
+                            Text label = this.CreateCustomText("Label", scaleContainer, "UI Scale (x" + this.uiScale.ToString("0.0") + ")");
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.75f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
-                            label.resizeTextForBestFit = true;
 
-                            Button minusButton = UIUtility.CreateButton("Minus Button", scaleContainer, "-");
-                            UIUtility.AddOutlineToObject(minusButton.GetComponentInChildren<Text>().transform);
+                            Button minusButton = this.CreateCustomButton("Minus Button", scaleContainer, "-");
                             (minusButton.transform as RectTransform).SetRect(new Vector2(0.75f, 0f), new Vector2(0.875f, 1f), Vector2.zero, Vector2.zero);
                             minusButton.onClick.AddListener(() =>
                             {
@@ -960,13 +879,10 @@ namespace HSPE
                                 label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
                             });
                             Text t = minusButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-                            t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
 
-                            Button plusButton = UIUtility.CreateButton("Plus Button", scaleContainer, "+");
-                            UIUtility.AddOutlineToObject(plusButton.GetComponentInChildren<Text>().transform);
+                            Button plusButton = this.CreateCustomButton("Plus Button", scaleContainer, "+");
                             (plusButton.transform as RectTransform).SetRect(new Vector2(0.875f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             plusButton.onClick.AddListener(() =>
                             {
@@ -975,9 +891,7 @@ namespace HSPE
                                 label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
                             });
                             t = plusButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(t.transform);
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-                            t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
                         }
 
@@ -986,14 +900,11 @@ namespace HSPE
                             advWindowSizeContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -60f), new Vector2(0f, -20f));
 
 
-                            Text label = UIUtility.CreateText("Label", advWindowSizeContainer, "Adv. mode win. size");
-                            UIUtility.AddOutlineToObject(label.transform);
+                            Text label = this.CreateCustomText("Label", advWindowSizeContainer, "Adv. mode win. size");
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
-                            label.resizeTextForBestFit = true;
 
-                            Button normalButton = UIUtility.CreateButton("Normal Button", advWindowSizeContainer, "Normal");
-                            UIUtility.AddOutlineToObject(normalButton.GetComponentInChildren<Text>().transform);
+                            Button normalButton = this.CreateCustomButton("Normal Button", advWindowSizeContainer, "Normal");
                             (normalButton.transform as RectTransform).SetRect(new Vector2(0.333f, 0f), new Vector2(0.555f, 1f), Vector2.zero, Vector2.zero);
                             normalButton.onClick.AddListener(() =>
                             {
@@ -1004,10 +915,8 @@ namespace HSPE
                                 this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
                                 this._advancedModeRect.height = r.height;
                             });
-                            normalButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
 
-                            Button plusButton = UIUtility.CreateButton("Large Button", advWindowSizeContainer, "Large");
-                            UIUtility.AddOutlineToObject(plusButton.GetComponentInChildren<Text>().transform);
+                            Button plusButton = this.CreateCustomButton("Large Button", advWindowSizeContainer, "Large");
                             (plusButton.transform as RectTransform).SetRect(new Vector2(0.555f, 0f), new Vector2(0.777f, 1f), Vector2.zero, Vector2.zero);
                             plusButton.onClick.AddListener(() =>
                             {
@@ -1018,10 +927,8 @@ namespace HSPE
                                 this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
                                 this._advancedModeRect.height = r.height;
                             });
-                            plusButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
 
-                            Button veryLargeButton = UIUtility.CreateButton("Very Large Button", advWindowSizeContainer, "Very large");
-                            UIUtility.AddOutlineToObject(veryLargeButton.GetComponentInChildren<Text>().transform);
+                            Button veryLargeButton = this.CreateCustomButton("Very Large Button", advWindowSizeContainer, "Very large");
                             (veryLargeButton.transform as RectTransform).SetRect(new Vector2(0.777f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             veryLargeButton.onClick.AddListener(() =>
                             {
@@ -1032,7 +939,6 @@ namespace HSPE
                                 this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
                                 this._advancedModeRect.height = r.height;
                             });
-                            veryLargeButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                             this._advancedModeRect = this._advancedModeRects[this._advancedModeWindowSize];
                         }
 
@@ -1040,28 +946,50 @@ namespace HSPE
                             RectTransform shortcutKey = UIUtility.CreateNewUIObject(options, "Shortcut Key Container");
                             shortcutKey.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -90f), new Vector2(0f, -60f));
 
-                            Text label = UIUtility.CreateText("Label", shortcutKey, "Shortcut Key");
-                            UIUtility.AddOutlineToObject(label.transform);
+                            Text label = this.CreateCustomText("Label", shortcutKey, "Shortcut Key");
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
-                            label.resizeTextForBestFit = true;
 
-                            this._shortcutKeyButton = UIUtility.CreateButton("Listener Button", shortcutKey, this._mainWindowKeyCode.ToString());
+                            this._shortcutKeyButton = this.CreateCustomButton("Listener Button", shortcutKey, this._mainWindowKeyCode.ToString());
                             (this._shortcutKeyButton.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
-                            UIUtility.AddOutlineToObject(text.transform);
                             this._shortcutKeyButton.onClick.AddListener(() =>
                             {
                                 this._shortcutRegisterMode = !this._shortcutRegisterMode;
                                 text.text = this._shortcutRegisterMode ? "Press a Key" : this._mainWindowKeyCode.ToString();
                             });
-                            this._shortcutKeyButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
                         }
                     }
                 }
             }
             this._optionsWindow.gameObject.SetActive(false);
             LayoutRebuilder.ForceRebuildLayoutImmediate(this._ui.transform.GetChild(0).transform as RectTransform);
+        }
+
+        private Button CreateCustomButton(string objectName = "New Button", Transform parent = null, string buttonText = "Button")
+        {
+            Button b = UIUtility.CreateButton(objectName, parent, buttonText);
+            b.colors = new ColorBlock()
+            {
+                colorMultiplier = 1f,
+                normalColor = UIUtility.lightGrayColor,
+                highlightedColor = UIUtility.greenColor,
+                pressedColor = UIUtility.lightGreenColor,
+                disabledColor = UIUtility.transparentGrayColor,
+                fadeDuration = b.colors.fadeDuration
+            };
+            Text t = b.GetComponentInChildren<Text>();
+            t.color = UIUtility.whiteColor;
+            UIUtility.AddOutlineToObject(t.transform);
+            return b;
+        }
+
+        private Text CreateCustomText(string objectName = "New Text", Transform parent = null, string textText = "Text")
+        {
+            Text t = UIUtility.CreateText(objectName, parent, textText);
+            t.color = UIUtility.whiteColor;
+            UIUtility.AddOutlineToObject(t.transform);
+            return t;
         }
 
         private void SetBoneTarget(FullBodyBipedEffector bone)

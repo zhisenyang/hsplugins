@@ -258,20 +258,9 @@ namespace UILib
             text.alignment = TextAnchor.MiddleCenter;
             text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
             text.text = buttonText;
-            text.color = whiteColor;
             go.transform.SetParent(parent, false);
 
-            Button b = go.GetComponent<Button>();
-            b.colors = new ColorBlock()
-            {
-                colorMultiplier = 1f,
-                normalColor = lightGrayColor,
-                highlightedColor = greenColor,
-                pressedColor = lightGreenColor,
-                disabledColor = transparentGrayColor,
-                fadeDuration = b.colors.fadeDuration
-            };
-            return b;
+            return go.GetComponent<Button>();
         }
 
         public static Image CreateImage(string objectName = "New Image", Transform parent = null, Sprite sprite = null)
