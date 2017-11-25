@@ -11,7 +11,7 @@
     <AssemblyName>HSPENeo</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile />
+    <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -24,9 +24,10 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
+    <Optimize>false</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>
+    </DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -42,7 +43,6 @@
     <Compile Include="PointerDownHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HSPE.cs" />
-    <Compile Include="UIUtility.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -83,6 +83,12 @@
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UIUtility\UIUtility.csproj">
+      <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
+      <Name>UIUtility</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

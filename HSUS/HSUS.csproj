@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{46B9049D-9A1A-47FA-9E8D-7F8C07A374D6}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>HSUS</RootNamespace>
+    <AssemblyName>HSUS</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="DeleteConfirmation.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="HSUS.cs" />
+    <Compile Include="ObjectTreeDebug.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RoutinesComponent.cs" />
+    <Compile Include="ShortcutsDisabler.cs" />
+    <Compile Include="SmAccessoryCustom.cs" />
+    <Compile Include="SmCharaLoadCustom.cs" />
+    <Compile Include="SmClothesLoadCustom.cs" />
+    <Compile Include="SmClothes_FCustom.cs" />
+    <Compile Include="SmFaceSkinCustom.cs" />
+    <Compile Include="SmHair_FCustom.cs" />
+    <Compile Include="SmKindColorDCustom.cs" />
+    <Compile Include="SmKindColorDSCustom.cs" />
+    <Compile Include="SmSwimsuitCustom.cs" />
+    <Compile Include="SubMenuControlCustom.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="IllusionPlugin">
+      <HintPath>C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\IllusionPlugin.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="UnityEngine">
+      <HintPath>C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI.Translation">
+      <HintPath>C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_32_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\UIUtility\UIUtility.csproj">
+      <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
+      <Name>UIUtility</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(TargetDir)\HSUS.dll" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
+  </PropertyGroup>
+</Project>

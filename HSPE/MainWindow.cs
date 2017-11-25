@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Xml;
 using RootMotion.FinalIK;
+using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -23,12 +24,69 @@ namespace HSPE
 
         #region Events
         public event Action<Studio.TreeNodeObject, Studio.TreeNodeObject> onParentage;
+        public event Action onPostUpdate;
         #endregion
 
         #region Private Constants
         private const string _config = "configNEO.xml";
         private const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
+        #endregion
+
+        #region IK Hack
+        public class CustomIK : IK
+        {
+            public CustomIKSolver solver;
+
+            public override IKSolver GetIKSolver()
+            {
+                return this.solver;
+            }
+
+            protected override void OpenUserManual()
+            {
+                throw new NotImplementedException();
+            }
+
+            protected override void OpenScriptReference()
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        public class CustomIKSolver : IKSolver
+        {
+            public override bool IsValid(ref string message)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Point[] GetPoints()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Point GetPoint(Transform transform)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void FixTransforms()
+            {
+            }
+
+            public override void StoreDefaultLocalState()
+            {
+            }
+
+            protected override void OnInitiate()
+            {
+            }
+
+            protected override void OnUpdate()
+            {
+            }
+        }
         #endregion
 
         #region Private Variables
@@ -91,6 +149,7 @@ namespace HSPE
         public Dictionary<string, string> boneAliases { get; } = new Dictionary<string, string>();
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
         public IKExecutionOrder ikExecutionOrder { get { return this._ikExecutionOrder; } }
+        public float uiScale { get; private set; }
         #endregion
 
         #region Unity Methods
@@ -102,8 +161,14 @@ namespace HSPE
             GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/04_System/Viewport/Content/Save").GetComponent<Button>().onClick.AddListener(this.OnSceneSave);
             GameObject.Find("StudioScene").transform.FindChild("Canvas Object List/Image Bar/Button Duplicate").GetComponent<Button>().onClick.AddListener(this.OnDuplicate);
 
+            CustomIK ik = new CustomIK();
+            CustomIKSolver ikSolver = new CustomIKSolver();
+            ik.solver = ikSolver;
+            ikSolver.SetPrivate("firstInitiation", false);
+            ikSolver.SetPrivateProperty("initiated", true);
+            ikSolver.OnPostUpdate = this.CallPostUpdate;
             this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
-            this._ikExecutionOrder.IKComponents = new IK[0];
+            this._ikExecutionOrder.IKComponents = new IK[1] { ik };
 
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
@@ -123,7 +188,7 @@ namespace HSPE
                 {
                     case "uiScale":
                         if (node.Attributes["value"] != null)
-                            UIUtility.uiScale = Mathf.Clamp(XmlConvert.ToSingle(node.Attributes["value"].Value), 0.5f, 2f);
+                            this.uiScale = Mathf.Clamp(XmlConvert.ToSingle(node.Attributes["value"].Value), 0.5f, 2f);
                         break;
                     case "mainWindowShortcut":
                         if (node.Attributes["value"] != null && this._nameToKeyCode.ContainsKey(node.Attributes["value"].Value))
@@ -199,7 +264,7 @@ namespace HSPE
 
         protected virtual void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * (UIUtility.uiScale * this.resolutionRatio), new Vector2(Screen.width, Screen.height));
+            GUIUtility.ScaleAroundPivot(Vector2.one * (this.uiScale * this.resolutionRatio), new Vector2(Screen.width, Screen.height));
             if (this._manualBoneTarget != null)
             {
                 if (this._manualBoneTarget.drawAdvancedMode)
@@ -212,6 +277,8 @@ namespace HSPE
                     else
                         this._mouseInAdvMode = false;
                 }
+                else
+                    this._mouseInAdvMode = false;
             }
             GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
@@ -229,7 +296,7 @@ namespace HSPE
                     xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
 
                     xmlWriter.WriteStartElement("uiScale");
-                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(UIUtility.uiScale));
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this.uiScale));
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("mainWindowShortcut");
@@ -278,32 +345,38 @@ namespace HSPE
         private void SpawnGUI()
         {
             this._ui = UIUtility.CreateNewUISystem("HSPE");
+            this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
+
             {
-                Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "BG").gameObject);
+                Image bg = UIUtility.CreatePanel("BG", this._ui.transform);
                 bg.raycastTarget = false;
+                bg.color = UIUtility.whiteColor;
                 bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(300f, 470f));
                 bg.rectTransform.anchoredPosition = new Vector2(276f, 363f);
 
                 {
-                    Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.rectTransform, "Top Container").gameObject, UIUtility.backgroundSprite);
+                    Image topContainer = UIUtility.CreatePanel("Top Container", bg.rectTransform);
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
 
-                    Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "HSPE");
+                    Text titleText = UIUtility.CreateText("Title Text", topContainer.transform, "HSPE");
                     titleText.alignment = TextAnchor.MiddleCenter;
                     titleText.resizeTextForBestFit = true;
                     titleText.fontStyle = FontStyle.Bold;
                     titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
                     titleText.color = Color.white;
+
+                    UIUtility.AddOutlineToObject(titleText.transform);
                     titleText.GetComponent<Outline>().effectDistance = new Vector2(2f, 2f);
                 }
 
-                this._nothingText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(bg.transform, "Nothing Text").gameObject, "There is no character selected. Please select a character to begin pose edition.");
+                this._nothingText = UIUtility.CreateText("Nothing Text", bg.transform, "There is no character selected. Please select a character to begin pose edition.");
                 this._nothingText.alignment = TextAnchor.MiddleCenter;
                 this._nothingText.fontSize = 16;
                 this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
                 this._nothingText.gameObject.SetActive(false);
+                this._nothingText.color = Color.black;
 
                 {
                     this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
@@ -313,13 +386,14 @@ namespace HSPE
                         this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
                         this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
 
-                        Button rightShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Shoulder Button").gameObject, "R. Shoulder");
+                        Button rightShoulder = UIUtility.CreateButton("Right Shoulder Button", this._bones, "R. Shoulder");
                         rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
                         ColorBlock cb = rightShoulder.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightShoulder.colors = cb;
                         Text t = rightShoulder.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         RectTransform buttonRT = rightShoulder.transform as RectTransform;
@@ -327,13 +401,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightShoulder] = t;
 
-                        Button leftShoulder = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Shoulder Button").gameObject, "L. Shoulder");
+                        Button leftShoulder = UIUtility.CreateButton("Left Shoulder Button", this._bones, "L. Shoulder");
                         cb = leftShoulder.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftShoulder.colors = cb;
                         leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
                         t = leftShoulder.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftShoulder.transform as RectTransform;
@@ -341,13 +416,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftShoulder] = t;
 
-                        Button rightArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Arm Bend Goal Button").gameObject, "R. Elbow Dir.");
+                        Button rightArmBendGoal = UIUtility.CreateButton("Right Arm Bend Goal Button", this._bones, "R. Elbow Dir.");
                         cb = rightArmBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         rightArmBendGoal.colors = cb;
                         rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
                         t = rightArmBendGoal.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = rightArmBendGoal.transform as RectTransform;
@@ -355,13 +431,14 @@ namespace HSPE
                         this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.RightArm] = t;
 
-                        Button leftArmBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Arm Bend Goal Button").gameObject, "L. Elbow Dir.");
+                        Button leftArmBendGoal = UIUtility.CreateButton("Left Arm Bend Goal Button", this._bones, "L. Elbow Dir.");
                         cb = leftArmBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         leftArmBendGoal.colors = cb;
                         leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
                         t = leftArmBendGoal.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftArmBendGoal.transform as RectTransform;
@@ -369,13 +446,14 @@ namespace HSPE
                         this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.LeftArm] = t;
 
-                        Button rightHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Hand Button").gameObject, "R. Hand");
+                        Button rightHand = UIUtility.CreateButton("Right Hand Button", this._bones, "R. Hand");
                         cb = rightHand.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightHand.colors = cb;
                         rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
                         t = rightHand.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = rightHand.transform as RectTransform;
@@ -383,13 +461,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightHand] = t;
 
-                        Button leftHand = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Hand Button").gameObject, "L. Hand");
+                        Button leftHand = UIUtility.CreateButton("Left Hand Button", this._bones, "L. Hand");
                         cb = leftHand.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftHand.colors = cb;
                         leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
                         t = leftHand.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftHand.transform as RectTransform;
@@ -397,13 +476,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftHand] = t;
 
-                        Button body = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Body Button").gameObject, "Body");
+                        Button body = UIUtility.CreateButton("Body Button", this._bones, "Body");
                         cb = body.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         body.colors = cb;
                         body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
                         t = body.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = body.transform as RectTransform;
@@ -411,13 +491,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
                         this._effectorsTexts[(int)FullBodyBipedEffector.Body] = t;
 
-                        Button rightThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Thigh Button").gameObject, "R. Thigh");
+                        Button rightThigh = UIUtility.CreateButton("Right Thigh Button", this._bones, "R. Thigh");
                         cb = rightThigh.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightThigh.colors = cb;
                         rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
                         t = rightThigh.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = rightThigh.transform as RectTransform;
@@ -425,13 +506,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightThigh] = t;
 
-                        Button leftThigh = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Thigh Button").gameObject, "L. Thigh");
+                        Button leftThigh = UIUtility.CreateButton("Left Thigh Button", this._bones, "L. Thigh");
                         cb = leftThigh.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftThigh.colors = cb;
                         leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
                         t = leftThigh.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftThigh.transform as RectTransform;
@@ -439,13 +521,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
                         this._effectorsTexts[(int)FullBodyBipedEffector.LeftThigh] = t;
 
-                        Button rightLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Leg Bend Goal Button").gameObject, "R. Knee Dir.");
+                        Button rightLegBendGoal = UIUtility.CreateButton("Right Leg Bend Goal Button", this._bones, "R. Knee Dir.");
                         cb = rightLegBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         rightLegBendGoal.colors = cb;
                         rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
                         t = rightLegBendGoal.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = rightLegBendGoal.transform as RectTransform;
@@ -453,13 +536,14 @@ namespace HSPE
                         this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.RightLeg] = t;
 
-                        Button leftLegBendGoal = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Leg Bend Goal Button").gameObject, "L. Knee Dir.");
+                        Button leftLegBendGoal = UIUtility.CreateButton("Left Leg Bend Goal Button", this._bones, "L. Knee Dir.");
                         cb = leftLegBendGoal.colors;
                         cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
                         leftLegBendGoal.colors = cb;
                         leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
                         t = leftLegBendGoal.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftLegBendGoal.transform as RectTransform;
@@ -467,13 +551,14 @@ namespace HSPE
                         this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
                         this._bendGoalsTexts[(int)FullBodyBipedChain.LeftLeg] = t;
 
-                        Button rightFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Right Foot Button").gameObject, "R. Foot");
+                        Button rightFoot = UIUtility.CreateButton("Right Foot Button", this._bones, "R. Foot");
                         cb = rightFoot.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         rightFoot.colors = cb;
                         rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
                         t = rightFoot.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = rightFoot.transform as RectTransform;
@@ -481,13 +566,14 @@ namespace HSPE
                         this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
                         this._effectorsTexts[(int)FullBodyBipedEffector.RightFoot] = t;
 
-                        Button leftFoot = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(this._bones, "Left Foot Button").gameObject, "L. Foot");
+                        Button leftFoot = UIUtility.CreateButton("Left Foot Button", this._bones, "L. Foot");
                         cb = leftFoot.colors;
                         cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
                         cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
                         leftFoot.colors = cb;
                         leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
                         t = leftFoot.GetComponentInChildren<Text>();
+                        UIUtility.AddOutlineToObject(t.transform);
                         t.resizeTextForBestFit = true;
                         t.resizeTextMaxSize = 100;
                         buttonRT = leftFoot.transform as RectTransform;
@@ -499,12 +585,13 @@ namespace HSPE
                             RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
                             buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 65f), new Vector2(0f, -245f));
 
-                            Button xMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "X Move Button").gameObject, "↑\nX\n↓");
+                            Button xMoveButton = UIUtility.CreateButton("X Move Button", buttons, "↑\nX\n↓");
                             cb = xMoveButton.colors;
                             cb.normalColor = Color.red;
                             cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
                             xMoveButton.colors = cb;
                             t = xMoveButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -520,12 +607,13 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
                             this._positionButtons[0] = xMoveButton;
 
-                            Button yMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Y Move Button").gameObject, "↑\nY\n↓");
+                            Button yMoveButton = UIUtility.CreateButton("Y Move Button", buttons, "↑\nY\n↓");
                             cb = yMoveButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
                             cb.normalColor = Color.green;
                             yMoveButton.colors = cb;
                             t = yMoveButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -541,12 +629,13 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
                             this._positionButtons[1] = yMoveButton;
 
-                            Button zMoveButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Z Move Button").gameObject, "↑\nZ\n↓");
+                            Button zMoveButton = UIUtility.CreateButton("Z Move Button", buttons, "↑\nZ\n↓");
                             cb = zMoveButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                             cb.normalColor = Color.blue;
                             zMoveButton.colors = cb;
                             t = zMoveButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -562,12 +651,13 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
                             this._positionButtons[2] = zMoveButton;
 
-                            Button rotXButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot X Button").gameObject, "←   →\nRot X");
+                            Button rotXButton = UIUtility.CreateButton("Rot X Button", buttons, "←   →\nRot X");
                             cb = rotXButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
                             cb.normalColor = Color.red;
                             rotXButton.colors = cb;
                             t = rotXButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -583,12 +673,13 @@ namespace HSPE
                             buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
                             this._rotationButtons[0] = rotXButton;
 
-                            Button rotYButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Y Button").gameObject, "←   →\nRot Y");
+                            Button rotYButton = UIUtility.CreateButton("Rot Y Button", buttons, "←   →\nRot Y");
                             cb = rotYButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
                             cb.normalColor = Color.green;
                             rotYButton.colors = cb;
                             t = rotYButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -604,12 +695,13 @@ namespace HSPE
                             buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
                             this._rotationButtons[1] = rotYButton;
 
-                            Button rotZButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttons, "Rot Z Button").gameObject, "←   →\nRot Z");
+                            Button rotZButton = UIUtility.CreateButton("Rot Z Button", buttons, "←   →\nRot Z");
                             cb = rotZButton.colors;
                             cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
                             cb.normalColor = Color.blue;
                             rotZButton.colors = cb;
                             t = rotZButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.resizeTextForBestFit = true;
                             t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
                             rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -631,7 +723,8 @@ namespace HSPE
                             otherButtons.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 74f), new Vector2(0f, -245f));
 
 
-                            Button copyLeftArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(otherButtons, "Copy Right Arm Button"), "Copy R. arm");
+                            Button copyLeftArmButton = UIUtility.CreateButton("Copy Right Arm Button", otherButtons, "Copy R. arm");
+                            UIUtility.AddOutlineToObject(copyLeftArmButton.GetComponentInChildren<Text>().transform);
                             cb = copyLeftArmButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
@@ -645,7 +738,8 @@ namespace HSPE
                             buttonRT = copyLeftArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -32.5f), new Vector2(-1.25f, -0f));
 
-                            Button copyRightArmButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(otherButtons, "Copy Left Arm Button"), "Copy L. arm");
+                            Button copyRightArmButton = UIUtility.CreateButton("Copy Left Arm Button", otherButtons, "Copy L. arm");
+                            UIUtility.AddOutlineToObject(copyRightArmButton.GetComponentInChildren<Text>().transform);
                             cb = copyRightArmButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
@@ -659,7 +753,8 @@ namespace HSPE
                             buttonRT = copyRightArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -32.5f), new Vector2(-0f, -0f));
 
-                            Button copyLeftLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(otherButtons, "Copy Right Leg Button"), "Copy R. leg");
+                            Button copyLeftLegButton = UIUtility.CreateButton("Copy Right Leg Button", otherButtons, "Copy R. leg");
+                            UIUtility.AddOutlineToObject(copyLeftLegButton.GetComponentInChildren<Text>().transform);
                             cb = copyLeftLegButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
@@ -673,7 +768,8 @@ namespace HSPE
                             buttonRT = copyLeftLegButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62.5f), new Vector2(-1.25f, -32.5f));
 
-                            Button copyRightLegButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(otherButtons, "Copy Left LegButton"), "Copy L. leg");
+                            Button copyRightLegButton = UIUtility.CreateButton("Copy Left LegButton", otherButtons, "Copy L. leg");
+                            UIUtility.AddOutlineToObject(copyRightLegButton.GetComponentInChildren<Text>().transform);
                             cb = copyRightLegButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
@@ -689,22 +785,24 @@ namespace HSPE
                         }
 
                         {
-                            Image experimental = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._bones, "Experimental Features"));
+                            Image experimental = UIUtility.CreatePanel("Experimental Features", this._bones);
                             experimental.color = UIUtility.whiteColor;
                             experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 65f), new Vector2(0f, -310f));
 
-                            Image experimentalHeader = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Header").gameObject, UIUtility.backgroundSprite);
+                            Image experimentalHeader = UIUtility.CreatePanel("Header", experimental.rectTransform);
                             experimentalHeader.color = UIUtility.purpleColor;
                             experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
 
-                            Text headerText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(experimentalHeader.transform, "Header Text"), "Experimental Features");
+                            Text headerText = UIUtility.CreateText("Header Text", experimentalHeader.transform, "Experimental Features");
+                            UIUtility.AddOutlineToObject(headerText.transform);
                             headerText.alignment = TextAnchor.MiddleCenter;
                             headerText.resizeTextForBestFit = true;
                             headerText.fontStyle = FontStyle.Bold;
                             headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
                             headerText.color = Color.white;
 
-                            Button advancedModeButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(experimental.rectTransform, "Advanced Mode Button"), "Advanced mode");
+                            Button advancedModeButton = UIUtility.CreateButton("Advanced Mode Button", experimental.rectTransform, "Advanced mode");
+                            UIUtility.AddOutlineToObject(advancedModeButton.GetComponentInChildren<Text>().transform);
                             cb = advancedModeButton.colors;
                             cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
                             cb.highlightedColor = UIUtility.purpleColor;
@@ -718,12 +816,16 @@ namespace HSPE
                             RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Slider Container");
                             sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 40f), new Vector2(0f, 60f));
 
-                            Text movIntensityTxt = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Text"), "Mvt. Intensity");
+                            Text movIntensityTxt = UIUtility.CreateText("Movement Intensity Text", sliderContainer, "Mvt. Intensity");
+                            UIUtility.AddOutlineToObject(movIntensityTxt.transform);
                             movIntensityTxt.alignment = TextAnchor.MiddleLeft;
                             movIntensityTxt.resizeTextForBestFit = true;
                             movIntensityTxt.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
 
-                            this._movementIntensity = UIUtility.AddScrollbarToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Slider"));
+                            this._movementIntensity = UIUtility.CreateScrollbar("Movement Intensity Slider", sliderContainer);
+                            this._movementIntensity.size = 0f;
+                            this._movementIntensity.numberOfSteps = 15;
+                            this._movementIntensity.value = 0.5f;
                             this._movementIntensity.onValueChanged.AddListener(value =>
                             {
                                 value *= 14;
@@ -741,7 +843,8 @@ namespace HSPE
                             handle.sizeDelta = new Vector2(14f, handle.sizeDelta.y);
                             rt.SetRect(new Vector2(0.333f, 0f), new Vector2(0.9f, 1f), new Vector2(0f, 3f), new Vector2(0f, -3f));
 
-                            this._intensityValueText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(sliderContainer, "Movement Intensity Value"), "x1");
+                            this._intensityValueText = UIUtility.CreateText("Movement Intensity Value", sliderContainer, "x1");
+                            UIUtility.AddOutlineToObject(this._intensityValueText.transform);
                             this._intensityValueText.alignment = TextAnchor.MiddleCenter;
                             this._intensityValueText.resizeTextForBestFit = true;
                             this._intensityValueText.resizeTextMaxSize = 14;
@@ -750,13 +853,15 @@ namespace HSPE
                             RectTransform buttonContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
                             buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
 
-                            Text positionOpLabel = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(buttonContainer, "Position Operation Label"), "Pos. Operation");
+                            Text positionOpLabel = UIUtility.CreateText("Position Operation Label", buttonContainer, "Pos. Operation");
+                            UIUtility.AddOutlineToObject(positionOpLabel.transform);
                             positionOpLabel.alignment = TextAnchor.MiddleLeft;
                             positionOpLabel.resizeTextForBestFit = true;
                             positionOpLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
 
-                            Button positionOp = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(buttonContainer, "Position Operation"), "World");
+                            Button positionOp = UIUtility.CreateButton("Position Operation", buttonContainer, "World");
                             Text buttonText = positionOp.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(buttonText.transform);
                             buttonText.alignment = TextAnchor.MiddleCenter;
                             buttonText.resizeTextForBestFit = true;
                             buttonText.resizeTextMaxSize = 14;
@@ -771,7 +876,8 @@ namespace HSPE
                             RectTransform checkboxContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
                             checkboxContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
 
-                            Text optimizeIKLabel = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK Label"), "Optimize IK");
+                            Text optimizeIKLabel = UIUtility.CreateText("Optimize IK Label", checkboxContainer, "Optimize IK");
+                            UIUtility.AddOutlineToObject(optimizeIKLabel.transform);
                             optimizeIKLabel.alignment = TextAnchor.MiddleLeft;
                             optimizeIKLabel.resizeTextForBestFit = true;
                             optimizeIKLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
@@ -790,7 +896,8 @@ namespace HSPE
                 }
 
                 {
-                    Button optionsButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(bg.transform, "Options Button"), "Options", false);
+                    Button optionsButton = UIUtility.CreateButton("Options Button", bg.transform, "Options");
+                    UIUtility.AddOutlineToObject(optionsButton.GetComponentInChildren<Text>().transform);
                     RectTransform rt = optionsButton.transform as RectTransform;
                     rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(0f, 5f), new Vector2(-5f, 25f));
                     optionsButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
@@ -808,18 +915,20 @@ namespace HSPE
             this.SetBoneTarget(FullBodyBipedEffector.Body);
             this.OnTargetChange(null);
 
-            this._optionsWindow = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._ui.transform, "Options Window")).rectTransform;
+            this._optionsWindow = UIUtility.CreatePanel("Options Window", this._ui.transform).rectTransform;
+            this._optionsWindow.GetComponent<Image>().color = UIUtility.whiteColor;
             this._optionsWindow.SetRect(Vector2.zero, Vector2.zero, new Vector2(390f, 3f), new Vector2(620f, 243f));
             this._optionsWindow.anchoredPosition = new Vector2(558f, 192f);
             {
 
                 {
-                    Image topContainer = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(this._optionsWindow, "Top Container").gameObject, UIUtility.backgroundSprite);
+                    Image topContainer = UIUtility.CreatePanel("Top Container", this._optionsWindow);
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
 
-                    Text titleText = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(topContainer.transform, "Title Text"), "Options");
+                    Text titleText = UIUtility.CreateText("Title Text", topContainer.transform, "Options");
+                    UIUtility.AddOutlineToObject(titleText.transform);
                     titleText.alignment = TextAnchor.MiddleCenter;
                     titleText.resizeTextForBestFit = true;
                     titleText.fontStyle = FontStyle.Bold;
@@ -835,33 +944,38 @@ namespace HSPE
                             RectTransform scaleContainer = UIUtility.CreateNewUIObject(options, "Scale Container");
                             scaleContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -20f), Vector2.zero);
 
-                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(scaleContainer, "Label"), "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")");
+                            Text label = UIUtility.CreateText("Label", scaleContainer, "UI Scale (x" + this.uiScale.ToString("0.0") + ")");
+                            UIUtility.AddOutlineToObject(label.transform);
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.75f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
                             label.resizeTextForBestFit = true;
 
-                            Button minusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(scaleContainer, "Minus Button"), "-");
+                            Button minusButton = UIUtility.CreateButton("Minus Button", scaleContainer, "-");
+                            UIUtility.AddOutlineToObject(minusButton.GetComponentInChildren<Text>().transform);
                             (minusButton.transform as RectTransform).SetRect(new Vector2(0.75f, 0f), new Vector2(0.875f, 1f), Vector2.zero, Vector2.zero);
                             minusButton.onClick.AddListener(() =>
                             {
-                                UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale - 0.1f, 0.5f, 2f);
-                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / UIUtility.uiScale, 1080 / UIUtility.uiScale);
-                                label.text = "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")";
+                                this.uiScale = Mathf.Clamp(this.uiScale - 0.1f, 0.5f, 2f);
+                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
+                                label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
                             });
                             Text t = minusButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
                             t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
 
-                            Button plusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(scaleContainer, "Plus Button"), "+");
+                            Button plusButton = UIUtility.CreateButton("Plus Button", scaleContainer, "+");
+                            UIUtility.AddOutlineToObject(plusButton.GetComponentInChildren<Text>().transform);
                             (plusButton.transform as RectTransform).SetRect(new Vector2(0.875f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             plusButton.onClick.AddListener(() =>
                             {
-                                UIUtility.uiScale = Mathf.Clamp(UIUtility.uiScale + 0.1f, 0.5f, 2f);
-                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / UIUtility.uiScale, 1080 / UIUtility.uiScale);
-                                label.text = "UI Scale (x" + UIUtility.uiScale.ToString("0.0") + ")";
+                                this.uiScale = Mathf.Clamp(this.uiScale + 0.1f, 0.5f, 2f);
+                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
+                                label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
                             });
                             t = plusButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(t.transform);
                             t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
                             t.resizeTextForBestFit = true;
                             t.fontStyle = FontStyle.Bold;
@@ -872,12 +986,14 @@ namespace HSPE
                             advWindowSizeContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -60f), new Vector2(0f, -20f));
 
 
-                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Label"), "Adv. mode win. size");
+                            Text label = UIUtility.CreateText("Label", advWindowSizeContainer, "Adv. mode win. size");
+                            UIUtility.AddOutlineToObject(label.transform);
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
                             label.resizeTextForBestFit = true;
 
-                            Button normalButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Normal Button"), "Normal");
+                            Button normalButton = UIUtility.CreateButton("Normal Button", advWindowSizeContainer, "Normal");
+                            UIUtility.AddOutlineToObject(normalButton.GetComponentInChildren<Text>().transform);
                             (normalButton.transform as RectTransform).SetRect(new Vector2(0.333f, 0f), new Vector2(0.555f, 1f), Vector2.zero, Vector2.zero);
                             normalButton.onClick.AddListener(() =>
                             {
@@ -890,7 +1006,8 @@ namespace HSPE
                             });
                             normalButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
 
-                            Button plusButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Large Button"), "Large");
+                            Button plusButton = UIUtility.CreateButton("Large Button", advWindowSizeContainer, "Large");
+                            UIUtility.AddOutlineToObject(plusButton.GetComponentInChildren<Text>().transform);
                             (plusButton.transform as RectTransform).SetRect(new Vector2(0.555f, 0f), new Vector2(0.777f, 1f), Vector2.zero, Vector2.zero);
                             plusButton.onClick.AddListener(() =>
                             {
@@ -903,7 +1020,8 @@ namespace HSPE
                             });
                             plusButton.GetComponentInChildren<Text>().resizeTextForBestFit = true;
 
-                            Button veryLargeButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(advWindowSizeContainer, "Very Large Button"), "Very large");
+                            Button veryLargeButton = UIUtility.CreateButton("Very Large Button", advWindowSizeContainer, "Very large");
+                            UIUtility.AddOutlineToObject(veryLargeButton.GetComponentInChildren<Text>().transform);
                             (veryLargeButton.transform as RectTransform).SetRect(new Vector2(0.777f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             veryLargeButton.onClick.AddListener(() =>
                             {
@@ -922,14 +1040,16 @@ namespace HSPE
                             RectTransform shortcutKey = UIUtility.CreateNewUIObject(options, "Shortcut Key Container");
                             shortcutKey.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -90f), new Vector2(0f, -60f));
 
-                            Text label = UIUtility.AddTextToObject(UIUtility.CreateNewUIObject(shortcutKey, "Label"), "Shortcut Key");
+                            Text label = UIUtility.CreateText("Label", shortcutKey, "Shortcut Key");
+                            UIUtility.AddOutlineToObject(label.transform);
                             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
                             label.alignment = TextAnchor.MiddleLeft;
                             label.resizeTextForBestFit = true;
 
-                            this._shortcutKeyButton = UIUtility.AddButtonToObject(UIUtility.CreateNewUIObject(shortcutKey, "Listener Button"), this._mainWindowKeyCode.ToString());
+                            this._shortcutKeyButton = UIUtility.CreateButton("Listener Button", shortcutKey, this._mainWindowKeyCode.ToString());
                             (this._shortcutKeyButton.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
                             Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
+                            UIUtility.AddOutlineToObject(text.transform);
                             this._shortcutKeyButton.onClick.AddListener(() =>
                             {
                                 this._shortcutRegisterMode = !this._shortcutRegisterMode;
@@ -1212,6 +1332,11 @@ namespace HSPE
         #endregion
 
         #region Private Methods
+        private void CallPostUpdate()
+        {
+            this.onPostUpdate?.Invoke();
+        }
+
         private IEnumerator OnSceneSavedShortcut()
         {
             if ((DateTime.Now - Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png").Max(f => File.GetLastWriteTime(f))).TotalSeconds > 1.5f)

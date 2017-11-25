@@ -1,14 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading;
 using System.Xml;
-using JetBrains.Annotations;
 using UnityEngine;
 
 public static class Extensions
@@ -55,45 +49,7 @@ public static class Extensions
         return null;
     }
 
-    public static void SetRect(this RectTransform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
-    {
-        self.anchorMin = anchorMin;
-        self.anchorMax = anchorMax;
-        self.offsetMin = offsetMin;
-        self.offsetMax = offsetMax;
-    }
-
-    public static float DirectionalAngle(Vector3 from, Vector3 to, Vector3 up)
-    {
-        Vector3 f = Vector3.ProjectOnPlane(from, up);
-        Vector3 t = Vector3.ProjectOnPlane(to, up);
-
-        Quaternion toZ = Quaternion.FromToRotation(up, Vector3.up);
-        f = toZ * f;
-        t = toZ * t;
-
-        Quaternion fromTo = Quaternion.FromToRotation(f, t);
-
-        return fromTo.eulerAngles.y;
-    }
-
-    public static float DirectionalAngleSigned(Vector3 from, Vector3 to, Vector3 up)
-    {
-        Vector3 f = Vector3.ProjectOnPlane(from, up);
-        Vector3 t = Vector3.ProjectOnPlane(to, up);
-        return Quaternion.Angle(Quaternion.LookRotation(f, up), Quaternion.LookRotation(t, up));
-    }
-
-    public static float NormalizeAngle(float angle)
-    {
-        angle = (angle + 360) % 360;
-        if (angle > 180)
-            angle -= 360;
-        return angle;
-    }
-
-    [CanBeNull]
-    public static XmlNode FindChildNode([NotNull] this XmlNode self, string name)
+    public static XmlNode FindChildNode(this XmlNode self, string name)
     {
         if (self.HasChildNodes == false)
             return null;

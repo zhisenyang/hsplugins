@@ -111,61 +111,6 @@ namespace HSPE
         private delegate void TabDelegate();
         #endregion
 
-        #region IK Hack
-        private class CustomIK : RootMotion.FinalIK.IK
-        {
-            public CustomIKSolver solver;
-
-            public override IKSolver GetIKSolver()
-            {
-                return this.solver;
-            }
-
-            protected override void OpenUserManual()
-            {
-                throw new NotImplementedException();
-            }
-
-            protected override void OpenScriptReference()
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        private class CustomIKSolver : IKSolver
-        {
-            public override bool IsValid(ref string message)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override Point[] GetPoints()
-            {
-                throw new NotImplementedException();
-            }
-
-            public override Point GetPoint(Transform transform)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override void FixTransforms()
-            {
-            }
-
-            public override void StoreDefaultLocalState()
-            {
-            }
-
-            protected override void OnInitiate()
-            {
-            }
-
-            protected override void OnUpdate()
-            {
-            }
-        }
-        #endregion
 
         #region Public Types
         public enum DragType
@@ -194,7 +139,7 @@ namespace HSPE
         private readonly Dictionary<FullBodyBipedChain, int> _chainToIndex = new Dictionary<FullBodyBipedChain, int>();
         private readonly HashSet<GameObject> _openedBones = new HashSet<GameObject>();
         private readonly HashSet<GameObject> _ignoredObjects = new HashSet<GameObject>();
-        private readonly Dictionary<GameObject, Studio.OCIChar.BoneInfo> _fkObjects = new Dictionary<GameObject, Studio.OCIChar.BoneInfo>();
+        private readonly Dictionary<GameObject, OCIChar.BoneInfo> _fkObjects = new Dictionary<GameObject, OCIChar.BoneInfo>();
         private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
         private List<DynamicBone> _dynamicBones = new List<DynamicBone>();
         private CoordType _boneEditionCoordType = CoordType.Rotation;
@@ -226,8 +171,6 @@ namespace HSPE
         private bool _lastShouldSaveValue = false;
         private bool _lockDrag = false;
         private bool _symmetricalEdition = false;
-        private CustomIK _customIk;
-        private CustomIKSolver _customIkSolver;
         private readonly Color _redColor = Color.red;
         private readonly Color _greenColor = Color.green;
         private readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
@@ -236,7 +179,7 @@ namespace HSPE
         #endregion
 
         #region Public Accessors
-        public Studio.OCIChar chara { get; set; }
+        public OCIChar chara { get; set; }
         public bool isIKEnabled { get { return this.chara.oiCharInfo.enableIK; } }
         public bool drawAdvancedMode { get; set; }
         public Rect colliderEditRect { get { return this._colliderEditRect; } }
@@ -299,15 +242,7 @@ namespace HSPE
                 this._colliderObjects.Add(c.transform);
             this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
             MainWindow.self.onParentage += this.OnParentage;
-            this._customIk = new CustomIK();
-            this._customIkSolver = new CustomIKSolver();
-            this._customIk.solver = this._customIkSolver;
-            this._customIkSolver.SetPrivate("firstInitiation", false);
-            this._customIkSolver.SetPrivateProperty("initiated", true);
-            this._customIkSolver.OnPostUpdate = this.OnPostUpdate;
-            List<IK> l = MainWindow.self.ikExecutionOrder.IKComponents.ToList();
-            l.Add(this._customIk);
-            MainWindow.self.ikExecutionOrder.IKComponents = l.ToArray();
+            MainWindow.self.onPostUpdate += this.OnPostUpdate;
         }
 
         void Start()
@@ -333,7 +268,7 @@ namespace HSPE
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_R"), "R. Foot");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_FaceRoot"), "Face");
             }
-            foreach (Studio.OCIChar.BoneInfo bone in this.chara.listBones)
+            foreach (OCIChar.BoneInfo bone in this.chara.listBones)
                 this._fkObjects.Add(bone.guideObject.transformTarget.gameObject, bone);
 
             this._cachedSpineStiffness = this._body.solver.spineStiffness;
@@ -394,19 +329,15 @@ namespace HSPE
         void OnDestroy()
         {
             MainWindow.self.onParentage -= this.OnParentage;
+            MainWindow.self.onPostUpdate -= this.OnPostUpdate;
             this._cam.onPostRender -= this.DrawGizmos;
-            //this._cam.onPreCull -= this.PreCull;
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
-
-            List<IK> l = MainWindow.self.ikExecutionOrder.IKComponents.ToList();
-            l.Remove(this._customIk);
-            MainWindow.self.ikExecutionOrder.IKComponents = l.ToArray();
         }
 
         void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * (UIUtility.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
+            GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow.self.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
             if (this._colliderTarget)
             {
                 for (int i = 0; i < 3; ++i)
@@ -524,13 +455,13 @@ namespace HSPE
         {
             if (this._lockDrag)
                 return;
-            Studio.GuideCommand.EqualsInfo[] moveCommands = new Studio.GuideCommand.EqualsInfo[this._oldPosValues.Count];
+            GuideCommand.EqualsInfo[] moveCommands = new GuideCommand.EqualsInfo[this._oldPosValues.Count];
             if (this.currentDragType == DragType.Position || this.currentDragType == DragType.Both)
             {
                 int i = 0;
                 foreach (KeyValuePair<int, Vector3> kvp in this._oldPosValues)
                 {
-                    moveCommands[i] = new Studio.GuideCommand.EqualsInfo()
+                    moveCommands[i] = new GuideCommand.EqualsInfo()
                     {
                         dicKey = kvp.Key,
                         oldValue = kvp.Value,
@@ -539,13 +470,13 @@ namespace HSPE
                     ++i;
                 }
             }
-            Studio.GuideCommand.EqualsInfo[] rotateCommands = new Studio.GuideCommand.EqualsInfo[this._oldRotValues.Count];
+            GuideCommand.EqualsInfo[] rotateCommands = new GuideCommand.EqualsInfo[this._oldRotValues.Count];
             if (this.currentDragType == DragType.Rotation || this.currentDragType == DragType.Both)
             {
                 int i = 0;
                 foreach (KeyValuePair<int, Vector3> kvp in this._oldRotValues)
                 {
-                    rotateCommands[i] = new Studio.GuideCommand.EqualsInfo()
+                    rotateCommands[i] = new GuideCommand.EqualsInfo()
                     {
                         dicKey = kvp.Key,
                         oldValue = kvp.Value,
@@ -554,7 +485,7 @@ namespace HSPE
                     ++i;
                 }
             }
-            Studio.UndoRedoManager.Instance.Push(new Commands.MoveRotateEqualsCommand(moveCommands, rotateCommands));
+            UndoRedoManager.Instance.Push(new Commands.MoveRotateEqualsCommand(moveCommands, rotateCommands));
             this.currentDragType = DragType.None;
             this._oldPosValues.Clear();
             this._oldRotValues.Clear();
@@ -574,7 +505,7 @@ namespace HSPE
         {
             if (this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[type]].active)
             {
-                Studio.GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
+                GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
                 if (this.currentDragType != DragType.None)
                 {
                     if (this._oldRotValues.ContainsKey(target.dicKey) == false)
@@ -595,7 +526,7 @@ namespace HSPE
         {
             if (this.isIKEnabled && this.chara.listIKTarget[this._effectorToIndex[type]].active)
             {
-                Studio.GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
+                GuideObject target = this.chara.listIKTarget[this._effectorToIndex[type]].guideObject;
                 if (this.currentDragType != DragType.None)
                 {
                     if (this._oldPosValues.ContainsKey(target.dicKey) == false)
@@ -621,7 +552,7 @@ namespace HSPE
         {
             if (this.isIKEnabled && this.chara.listIKTarget[this._chainToIndex[type]].active)
             {
-                Studio.GuideObject target = this.chara.listIKTarget[this._chainToIndex[type]].guideObject;
+                GuideObject target = this.chara.listIKTarget[this._chainToIndex[type]].guideObject;
                 if (this.currentDragType != DragType.None)
                 {
                     if (this._oldPosValues.ContainsKey(target.dicKey) == false)
@@ -924,10 +855,10 @@ namespace HSPE
             GUILayout.EndVertical();
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(350f));
             {
-                Studio.OCIChar.BoneInfo fkBoneInfo = null;
+                OCIChar.BoneInfo fkBoneInfo = null;
                 if (this._boneTarget != null && this.chara.oiCharInfo.enableFK)
                     this._fkObjects.TryGetValue(this._boneTarget.gameObject, out fkBoneInfo);
-                Studio.OCIChar.BoneInfo fkTwinBoneInfo = null;
+                OCIChar.BoneInfo fkTwinBoneInfo = null;
                 if (this._symmetricalEdition && this._twinBoneTarget != null && this.chara.oiCharInfo.enableFK)
                     this._fkObjects.TryGetValue(this._twinBoneTarget.gameObject, out fkTwinBoneInfo);
                 GUILayout.BeginHorizontal(GUI.skin.box);
@@ -1758,17 +1689,17 @@ namespace HSPE
             return null;
         }
 
-        private void OnParentage(Studio.TreeNodeObject parent, Studio.TreeNodeObject child)
+        private void OnParentage(TreeNodeObject parent, TreeNodeObject child)
         {
             if (parent == null)
             {
-                Studio.ObjectCtrlInfo info;
+                ObjectCtrlInfo info;
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && this._ignoredObjects.Contains(info.guideObject.transformTarget.gameObject))
                     this._ignoredObjects.Remove(info.guideObject.transformTarget.gameObject);
             }
             else
             {
-                Studio.ObjectCtrlInfo info;
+                ObjectCtrlInfo info;
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && info.guideObject.transformTarget.IsChildOf(this.transform))
                     this._ignoredObjects.Add(info.guideObject.transformTarget.gameObject);
             }
@@ -2550,11 +2481,26 @@ namespace HSPE
                     string root = node.Attributes["root"].Value;
                     DynamicBone db = null;
                     foreach (DynamicBone bone in this._dynamicBones)
-                        if (bone.m_Root.name.Equals(root))
+                    {
+                        if (bone.m_Root)
                         {
-                            db = bone;
-                            break;
+                            if ((bone.m_Root.GetPathFrom(this.transform).Equals(root) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
                         }
+                        else
+                        {
+                            if ((bone.transform.GetPathFrom(this.transform).Equals(root) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
+                        }
+                    }
+                    if (db == null)
+                        continue;
                     DynamicBoneData data = new DynamicBoneData();
 
 

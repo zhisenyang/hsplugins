@@ -128,9 +128,8 @@ namespace HSPE
                 if (!GameObject.Find("HSPE"))
                 {
                     GameObject go = new GameObject("HSPE");
-                    go.AddComponent<UIUtility>();
                     go.AddComponent<MainWindow>();
-                    go.AddComponent<ObjectTreeDebug>();
+                    //go.AddComponent<ObjectTreeDebug>();
                 }
             }
         }
