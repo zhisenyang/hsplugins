@@ -48,6 +48,9 @@ namespace CustomMenu
             rt.offsetMax += new Vector2(0f, -24f);
 
             this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
+            foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
+                t.color = Color.white;
+
             rt = this._searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;

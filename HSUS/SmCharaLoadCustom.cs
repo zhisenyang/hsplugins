@@ -71,6 +71,9 @@ namespace CustomMenu
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
             this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
             this._searchBar.onValueChanged.AddListener(this.SearchChanged);
+            foreach (Text te in this._searchBar.GetComponentsInChildren<Text>())
+                te.color = Color.white;
+
         }
 
         private void SearchChanged(string arg0)

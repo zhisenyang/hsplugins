@@ -141,6 +141,7 @@ namespace HSPE
         private IKExecutionOrder _ikExecutionOrder;
         private bool _positionOperationWorld = true;
         private Toggle _optimizeIKToggle;
+        private bool _windowMoving;
         #endregion
 
         #region Public Accessors
@@ -358,7 +359,10 @@ namespace HSPE
                     Image topContainer = UIUtility.CreatePanel("Top Container", bg.rectTransform);
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
-                    topContainer.gameObject.AddComponent<MovableWindow>().toDrag = bg.rectTransform;
+                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, bg.rectTransform);
+                    mw.onPointerDown += this.OnWindowStartDrag;
+                    mw.onDrag += this.OnWindowDrag;
+                    mw.onPointerUp += this.OnWindowEndDrag;
 
                     Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "HSPE");
                     titleText.alignment = TextAnchor.MiddleCenter;
@@ -850,6 +854,10 @@ namespace HSPE
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
+                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, this._optionsWindow);
+                    mw.onPointerDown += this.OnWindowStartDrag;
+                    mw.onDrag += this.OnWindowDrag;
+                    mw.onPointerUp += this.OnWindowEndDrag;
 
                     Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "Options");
                     titleText.alignment = TextAnchor.MiddleCenter;
@@ -990,6 +998,24 @@ namespace HSPE
             t.color = UIUtility.whiteColor;
             UIUtility.AddOutlineToObject(t.transform);
             return t;
+        }
+
+        private void OnWindowStartDrag(PointerEventData data)
+        {
+            this.SetNoControlCondition();
+            this._windowMoving = true;
+        }
+
+        private void OnWindowDrag(PointerEventData data)
+        {
+            this._windowMoving = true;
+
+        }
+
+        private void OnWindowEndDrag(PointerEventData data)
+        {
+            this._windowMoving = false;
+
         }
 
         private void SetBoneTarget(FullBodyBipedEffector bone)
@@ -1332,7 +1358,7 @@ namespace HSPE
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
-            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode;
+            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving;
         }
         #endregion
 

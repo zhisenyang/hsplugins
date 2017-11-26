@@ -59,6 +59,8 @@ namespace CustomMenu
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
                 this._searchBarHead.placeholder.GetComponent<Text>().text = "Search...";
                 this._searchBarHead.onValueChanged.AddListener(this.SearchChangedHead);
+                foreach (Text t in this._searchBarHead.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
             }
 
             {
@@ -87,6 +89,8 @@ namespace CustomMenu
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
                 this._searchBarSkin.placeholder.GetComponent<Text>().text = "Search...";
                 this._searchBarSkin.onValueChanged.AddListener(this.SearchChangedSkin);
+                foreach (Text t in this._searchBarSkin.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
             }
 
             {
@@ -115,6 +119,8 @@ namespace CustomMenu
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
                 this._searchBarDetail.placeholder.GetComponent<Text>().text = "Search...";
                 this._searchBarDetail.onValueChanged.AddListener(this.SearchChangedDetail);
+                foreach (Text t in this._searchBarDetail.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
             }
         }
 

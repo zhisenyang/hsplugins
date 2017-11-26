@@ -420,37 +420,28 @@ namespace UILib
             i.sprite = sprite == null ? backgroundSprite : sprite;
             return i;
         }
+
+        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject)
+        {
+            MovableWindow mv = clickableDragZone.gameObject.AddComponent<MovableWindow>();
+            mv.toDrag = draggableObject;
+            return mv;
+        }
     }
 
     public static class UIExtensions
     {
-        public static void SetRect(this RectTransform self)
-        {
-            self.anchorMin = Vector2.zero;
-            self.anchorMax = Vector2.one;
-            self.offsetMin = Vector2.zero;
-            self.offsetMax = Vector2.zero;
-        }
         public static void SetRect(this RectTransform self, Vector2 anchorMin)
         {
-            self.anchorMin = anchorMin;
-            self.anchorMax = Vector2.one;
-            self.offsetMin = Vector2.zero;
-            self.offsetMax = Vector2.zero;
+            SetRect(self, anchorMin, Vector2.one, Vector2.zero, Vector2.zero);
         }
         public static void SetRect(this RectTransform self, Vector2 anchorMin, Vector2 anchorMax)
         {
-            self.anchorMin = anchorMin;
-            self.anchorMax = anchorMax;
-            self.offsetMin = Vector2.zero;
-            self.offsetMax = Vector2.zero;
+            SetRect(self, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
         }
         public static void SetRect(this RectTransform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin)
         {
-            self.anchorMin = anchorMin;
-            self.anchorMax = anchorMax;
-            self.offsetMin = offsetMin;
-            self.offsetMax = Vector2.zero;
+            SetRect(self, anchorMin, anchorMax, offsetMin, Vector2.zero);
         }
         public static void SetRect(this RectTransform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
         {
@@ -458,6 +449,44 @@ namespace UILib
             self.anchorMax = anchorMax;
             self.offsetMin = offsetMin;
             self.offsetMax = offsetMax;
+        }
+
+        public static void SetRect(this RectTransform self, float anchorLeft = 0f, float anchorBottom = 0f, float anchorRight = 1f, float anchorTop = 1f, float offsetLeft = 0f, float offsetBottom = 0f, float offsetRight = 0f, float offsetTop = 0f)
+        {
+            self.anchorMin = new Vector2(anchorLeft, anchorBottom);
+            self.anchorMax = new Vector2(anchorRight, anchorTop);
+            self.offsetMin = new Vector2(offsetLeft, offsetBottom);
+            self.offsetMax = new Vector2(offsetRight, offsetTop);
+        }
+
+        public static void SetRect(this Transform self, Vector2 anchorMin)
+        {
+            SetRect(self as RectTransform, anchorMin, Vector2.one, Vector2.zero, Vector2.zero);
+        }
+        public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax)
+        {
+            SetRect(self as RectTransform, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+        }
+        public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin)
+        {
+            SetRect(self as RectTransform, anchorMin, anchorMax, offsetMin, Vector2.zero);
+        }
+        public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
+        {
+            RectTransform rt = self as RectTransform;
+            rt.anchorMin = anchorMin;
+            rt.anchorMax = anchorMax;
+            rt.offsetMin = offsetMin;
+            rt.offsetMax = offsetMax;
+        }
+
+        public static void SetRect(this Transform self, float anchorLeft = 0f, float anchorBottom = 0f, float anchorRight = 1f, float anchorTop = 1f, float offsetLeft = 0f, float offsetBottom = 0f, float offsetRight = 0f, float offsetTop = 0f)
+        {
+            RectTransform rt = self as RectTransform;
+            rt.anchorMin = new Vector2(anchorLeft, anchorBottom);
+            rt.anchorMax = new Vector2(anchorRight, anchorTop);
+            rt.offsetMin = new Vector2(offsetLeft, offsetBottom);
+            rt.offsetMax = new Vector2(offsetRight, offsetTop);
         }
     }
 }
