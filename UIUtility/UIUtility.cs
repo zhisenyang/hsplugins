@@ -227,7 +227,7 @@ namespace UILib
         {
             GameObject go = DefaultControls.CreateInputField(resources);
             go.name = objectName;
-            foreach (Text text in go.GetComponentsInChildren<Text>())
+            foreach (Text text in go.GetComponentsInChildren<Text>(true))
             {
                 text.font = defaultFont;
                 text.resizeTextForBestFit = true;
@@ -250,7 +250,7 @@ namespace UILib
             GameObject go = DefaultControls.CreateButton(resources);
             go.name = objectName;
 
-            Text text = go.GetComponentInChildren<Text>();
+            Text text = go.GetComponentInChildren<Text>(true);
             text.font = defaultFont;
             text.resizeTextForBestFit = true;
             text.resizeTextMinSize = 2;
@@ -278,7 +278,7 @@ namespace UILib
             GameObject go = DefaultControls.CreateText(resources);
             go.name = objectName;
 
-            Text text = go.GetComponentInChildren<Text>();
+            Text text = go.GetComponentInChildren<Text>(true);
             text.font = defaultFont;
             text.resizeTextForBestFit = true;
             text.resizeTextMinSize = 2;
@@ -296,7 +296,7 @@ namespace UILib
             GameObject go = DefaultControls.CreateToggle(resources);
             go.name = objectName;
 
-            Text text = go.GetComponentInChildren<Text>();
+            Text text = go.GetComponentInChildren<Text>(true);
             text.font = defaultFont;
             text.resizeTextForBestFit = true;
             text.resizeTextMinSize = 2;
@@ -314,7 +314,7 @@ namespace UILib
             GameObject go = DefaultControls.CreateDropdown(resources);
             go.name = objectName;
 
-            foreach (Text text in go.GetComponentsInChildren<Text>())
+            foreach (Text text in go.GetComponentsInChildren<Text>(true))
             {
                 text.font = defaultFont;
                 text.resizeTextForBestFit = true;

@@ -36,7 +36,6 @@
     <Compile Include="Commands.cs" />
     <Compile Include="EditableValue.cs" />
     <Compile Include="Extensions.cs" />
-    <Compile Include="ObjectTreeDebug.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="ManualBoneController.cs" />
     <Compile Include="PointerDownHandler.cs" />

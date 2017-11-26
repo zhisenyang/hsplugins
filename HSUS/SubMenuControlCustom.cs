@@ -33,20 +33,20 @@ namespace CustomMenu
             this.nowSubMenuTypeId = (int)Enum.Parse(typeof(SubMenuType), subMenuStr);
             foreach (SubMenuItem item in this.smItem)
             {
-                if (item != null && !((UnityEngine.Object)null == (UnityEngine.Object)item.objTop))
+                if (item != null && !(null == item.objTop))
                 {
                     item.objTop.SetActive(false);
                 }
             }
             if (this.smItem[this.nowSubMenuTypeId] != null)
             {
-                if ((UnityEngine.Object)null != (UnityEngine.Object)this.textTitle)
+                if (null != this.textTitle)
                     this.textTitle.text = this.smItem[this.nowSubMenuTypeId].menuName;
-                if ((UnityEngine.Object)null != (UnityEngine.Object)this.smItem[this.nowSubMenuTypeId].objTop)
+                if (null != this.smItem[this.nowSubMenuTypeId].objTop)
                 {
                     this.smItem[this.nowSubMenuTypeId].objTop.SetActive(true);
                     this.SetPrivateExplicit<SubMenuControl>("objActiveSubItem", this.smItem[this.nowSubMenuTypeId].objTop);
-                    if ((UnityEngine.Object)null != (UnityEngine.Object)this.rtfBasePanel)
+                    if (null != this.rtfBasePanel)
                     {
                         RectTransform rectTransform = this.smItem[this.nowSubMenuTypeId].objTop.transform as RectTransform;
                         Vector2 sizeDelta = rectTransform.sizeDelta;
@@ -87,18 +87,6 @@ namespace CustomMenu
                 SubMenuBase component = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SubMenuBase>();
                 if (null != component)
                     component.SetCharaInfo(this.nowSubMenuTypeId, sameSubMenu);
-                if (this.nowSubMenuTypeId == (int)SubMenuType.SM_BodyNip)
-                foreach (Toggle t in GameObject.Find("CustomScene").transform.FindChild("CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/BodyNip/TabControl/TabItem01/ScrollView/TypeControlPanel/ListTop").GetComponentsInChildren<Toggle>())
-                {
-                    Toggle t1 = t;
-                    t.onValueChanged.AddListener(b =>
-                    {
-                        MatTypeInfo info = t1.GetComponent<MatTypeInfo>();
-                        if (t1.isOn == true)
-                            UnityEngine.Debug.Log(info.info.Id + " " + info.info.ABPath);
-                    });
-                }
-                
             }
             int cosStateFromSelect = this.GetCosStateFromSelect();
             if (cosStateFromSelect != -1 && this.customCtrlPanel && this.customCtrlPanel.autoClothesState)

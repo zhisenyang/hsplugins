@@ -9,6 +9,7 @@ using RootMotion.FinalIK;
 using Studio;
 using UnityEngine;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 namespace HSPE
 {
@@ -109,8 +110,27 @@ namespace HSPE
         }
 
         private delegate void TabDelegate();
-        #endregion
 
+        private class Triangle
+        {
+            public int one;
+            public int two;
+            public int three;
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    //int hash = 17;
+                    //hash = hash * 23 + this.one.GetHashCode();
+                    //hash = hash * 23 + this.two.GetHashCode();
+                    //hash = hash * 23 + this.three.GetHashCode();
+                    int hash = this.one.GetHashCode() * this.two.GetHashCode() * this.three.GetHashCode();
+                    return hash;
+                }
+            }
+        }
+        #endregion
 
         #region Public Types
         public enum DragType
@@ -176,6 +196,12 @@ namespace HSPE
         private readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
         private string _currentAlias = "";
         private bool _optimizeIK = true;
+        private SkinnedMeshRenderer _skinnedMeshRenderer;
+        private readonly HashSet<Triangle> _trianglesToDraw = new HashSet<Triangle>();
+        private readonly Dictionary<Transform, int> _weightedBonesToIndex = new Dictionary<Transform, int>();
+        //private readonly int[] _verticesToDraw = new int[99999];
+        //private int _verticesToDrawCount = 0;
+        private Coroutine _assignToDrawVerticesHandler;
         #endregion
 
         #region Public Accessors
@@ -259,6 +285,9 @@ namespace HSPE
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
                 this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
                 this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+                this._skinnedMeshRenderer = this.transform.Find("BodyTop/p_cf_body_00/cf_N_O_root/N_top00/N_top_c/cf_O_body_00").GetComponent<SkinnedMeshRenderer>();
+                for (int i = 0; i < this._skinnedMeshRenderer.bones.Length; i++)
+                    this._weightedBonesToIndex.Add(this._skinnedMeshRenderer.bones[i], i);
             }
             else
             {
@@ -643,7 +672,7 @@ namespace HSPE
 
             this.SetBoneTargetPosition(effectorDest, effectorPosition);
             this.SetBendGoalPosition(bendGoalDest, bendGoalPosition);
-            this.StartCoroutine(this.ExecuteDelayed(() =>
+            this.ExecuteDelayed(() =>
             {
                 Quaternion rot = effectorSrcRealBone.localRotation;
                 rot.Set(-rot.x, rot.y, rot.z, -rot.w);
@@ -654,7 +683,7 @@ namespace HSPE
 
                 this._lockDrag = false;
                 this.StopDrag();
-            }));
+            });
         }
 
         public void AdvancedModeWindow(int id)
@@ -1537,6 +1566,9 @@ namespace HSPE
                 if (this._boneTarget == this._twinBoneTarget)
                     this._twinBoneTarget = null;
                 this._colliderTarget = go.GetComponent<DynamicBoneCollider>();
+                if (this._assignToDrawVerticesHandler != null)
+                    this.StopCoroutine(this._assignToDrawVerticesHandler);
+                this._assignToDrawVerticesHandler = this.StartCoroutine(this.AssignToDrawVertices());
             }
             GUI.color = c;
             GUILayout.EndHorizontal();
@@ -1629,6 +1661,51 @@ namespace HSPE
         #endregion
 
         #region Private Methods
+        private IEnumerator AssignToDrawVertices()
+        {
+            this._trianglesToDraw.Clear();
+            //this._verticesToDrawCount = 0;
+            Mesh m = new Mesh();
+            this._skinnedMeshRenderer.BakeMesh(m);
+            IEnumerator e = this.AssignToDrawVerticesRecursive(this._boneTarget, m.triangles, this._skinnedMeshRenderer.sharedMesh.boneWeights);
+            while (e.MoveNext())
+                yield return null;
+        }
+
+        private IEnumerator AssignToDrawVerticesRecursive(Transform t, int[] triangles, BoneWeight[] boneWeights)
+        {
+            int boneIndex;
+            if (this._weightedBonesToIndex.TryGetValue(t, out boneIndex))
+            {
+                for (int i = 0; i < triangles.Length; i += 3)
+                {
+                    int vertexIndex1 = triangles[i];
+                    BoneWeight weight = boneWeights[vertexIndex1];
+                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
+                        continue;
+                    int vertexIndex2 = triangles[i + 1];
+                    weight = boneWeights[vertexIndex2];
+                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
+                        continue;
+                    int vertexIndex3 = triangles[i + 2];
+                    weight = boneWeights[vertexIndex3];
+                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
+                        continue;
+                    Triangle tri = new Triangle(){one = vertexIndex1, two = vertexIndex2, three = vertexIndex3};
+                    if (this._trianglesToDraw.Contains(tri) == false)
+                        this._trianglesToDraw.Add(tri);
+                    yield return null;
+                }
+            }
+            for (int i = 0; i < t.childCount; i++)
+            {
+                IEnumerator e = this.AssignToDrawVerticesRecursive(t.GetChild(i), triangles, boneWeights);
+                while (e.MoveNext())
+                    yield return null;
+
+            }
+        }
+
         private void OnPostUpdate()
         {
             bool shouldClean = false;
@@ -1900,12 +1977,6 @@ namespace HSPE
             return this._dirtyDynamicBones.ContainsKey(bone);
         }
 
-        private IEnumerator ExecuteDelayed(Action action)
-        {
-            yield return new WaitForEndOfFrame();
-            action();
-        }
-
         private void DrawGizmos()
         {
             if (!this.drawAdvancedMode/* || !this.isAdvancedModeEnabled*/)
@@ -1919,13 +1990,13 @@ namespace HSPE
                     {
                         float size = 0.0125f;
                         Vector3 topLeftForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.left + Vector3.forward) * size)),
-                                topRightForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.right + Vector3.forward) * size)),
-                                bottomLeftForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.left + Vector3.forward) * size)),
-                                bottomRightForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.right + Vector3.forward) * size)),
-                                topLeftBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.left + Vector3.back) * size)),
-                                topRightBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.right + Vector3.back) * size)),
-                                bottomLeftBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.left + Vector3.back) * size)),
-                                bottomRightBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.right + Vector3.back) * size));
+                            topRightForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.right + Vector3.forward) * size)),
+                            bottomLeftForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.left + Vector3.forward) * size)),
+                            bottomRightForward = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.right + Vector3.forward) * size)),
+                            topLeftBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.left + Vector3.back) * size)),
+                            topRightBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.up + Vector3.right + Vector3.back) * size)),
+                            bottomLeftBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.left + Vector3.back) * size)),
+                            bottomRightBack = this._boneTarget.position + (this._boneTarget.rotation * ((Vector3.down + Vector3.right + Vector3.back) * size));
 
                         this._mat.SetPass(0);
                         GL.Begin(GL.LINES);
@@ -1987,6 +2058,38 @@ namespace HSPE
 
                         if (this._colliderTarget)
                             this.DrawCollider();
+
+                        GL.Begin(GL.LINES);
+                        this._colliderMat.SetPass(0);
+
+                        Mesh baked = new Mesh();
+                        this._skinnedMeshRenderer.BakeMesh(baked);
+
+                        Vector3[] vertices = baked.vertices;
+
+                        Vector3 one = Vector3.zero;
+                        Vector3 two = Vector3.zero;
+                        Vector3 three = Vector3.zero;
+                        //for (int i = 0; i < this._verticesToDrawCount; i += 3)
+                        foreach (Triangle triangle in this._trianglesToDraw)
+                        {
+                            //one = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i]]);
+                            //two = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i + 1]]);
+                            //three = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i + 2]]);
+                            one = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.one]);
+                            two = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.two]);
+                            three = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.three]);
+
+                            GL.Vertex(one);
+                            GL.Vertex(two);
+
+                            GL.Vertex(two);
+                            GL.Vertex(three);
+
+                            GL.Vertex(three);
+                            GL.Vertex(one);
+                        }
+                        GL.End();
                     }
                     break;
                 case SelectedTab.BoobsEditor:
@@ -2036,7 +2139,6 @@ namespace HSPE
                         this._colliderMat.SetPass(0);
                         this.DrawVector(origin, final);
                         GL.End();
-
                     }
                     break;
                 case SelectedTab.DynamicBonesEditor:

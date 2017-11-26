@@ -306,6 +306,11 @@ namespace CustomMenu
                         this.CallPrivateExplicit<SmKindColorD>("SetButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
                         cd.Add(new ObjectData {key = current.Key, obj = gameObject, toggle = component2, text = component});
+                        component2.onValueChanged.AddListener(v =>
+                        {
+                            if (component2.isOn)
+                                UnityEngine.Debug.Log(texTypeInfo.info.Id + " " + texTypeInfo.info.ABPath);
+                        });
                         if (current.Key == num)
                         {
                             component2.isOn = true;

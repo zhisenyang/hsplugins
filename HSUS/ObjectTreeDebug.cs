@@ -110,8 +110,13 @@ namespace HSUS
                 GUILayout.EndHorizontal();
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
+
                     GUILayout.BeginHorizontal();
-                    GUILayout.Label(c.GetType().FullName);
+                    MonoBehaviour m = c as MonoBehaviour;
+                    if (m != null)
+                        m.enabled = GUILayout.Toggle(m.enabled, c.GetType().FullName, GUILayout.ExpandWidth(false));
+                    else
+                        GUILayout.Label(c.GetType().FullName);
 
                     if (c is Image)
                     {

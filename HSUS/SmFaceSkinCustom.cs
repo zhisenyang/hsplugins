@@ -275,6 +275,11 @@ namespace CustomMenu
                         this.CallPrivateExplicit<SmFaceSkin>("SetHeadButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
                         this._listHead.Add(new ObjectData(){key = current.Key, obj = gameObject, text = component, toggle = component2});
+                        component2.onValueChanged.AddListener(v =>
+                        {
+                            if (component2.isOn)
+                                UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
+                        });
                         if (current.Key == num)
                         {
                             component2.isOn = true;
