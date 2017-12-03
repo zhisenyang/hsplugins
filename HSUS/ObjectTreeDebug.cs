@@ -115,6 +115,11 @@ namespace HSUS
                     MonoBehaviour m = c as MonoBehaviour;
                     if (m != null)
                         m.enabled = GUILayout.Toggle(m.enabled, c.GetType().FullName, GUILayout.ExpandWidth(false));
+                    else if (c is Animator)
+                    {
+                        Animator an = (Animator)c;
+                        an.enabled = GUILayout.Toggle(an.enabled, c.GetType().FullName, GUILayout.ExpandWidth(false));
+                    }
                     else
                         GUILayout.Label(c.GetType().FullName);
 

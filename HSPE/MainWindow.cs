@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -134,7 +135,7 @@ namespace HSPE
         private readonly Button[] _positionButtons = new Button[3];
         private readonly Button[] _rotationButtons = new Button[3];
         private bool _charactersAddedByCopy = false;
-        private List<ManualBoneController> _copySources = new List<ManualBoneController>();
+        private readonly List<ManualBoneController> _copySources = new List<ManualBoneController>();
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
         private KeyCode[] _possibleKeyCodes;
@@ -142,6 +143,7 @@ namespace HSPE
         private bool _positionOperationWorld = true;
         private Toggle _optimizeIKToggle;
         private bool _windowMoving;
+        private Image _hspeButtonImage;
         #endregion
 
         #region Public Accessors
@@ -345,6 +347,31 @@ namespace HSPE
         #region GUI
         private void SpawnGUI()
         {
+
+            byte[] bytes = File.ReadAllBytes(_pluginDir + "Resources\\Icon.png");
+            Texture2D texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+            texture.filterMode = FilterMode.Trilinear;
+            texture.LoadImage(bytes);
+
+            RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
+            Button hspeButton = GameObject.Instantiate(original.gameObject).GetComponent<Button>();
+            RectTransform hspeButtonRectTransform = hspeButton.transform as RectTransform;
+            hspeButton.transform.SetParent(original.parent, true);
+            hspeButton.transform.localScale = original.localScale;
+            hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
+            hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
+            this._hspeButtonImage = hspeButton.targetGraphic as Image;
+            this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
+            hspeButton.onClick = new Button.ButtonClickedEvent();
+            hspeButton.onClick.AddListener(() =>
+            {
+                this._isVisible = !this._isVisible;
+                this._ui.gameObject.SetActive(this._isVisible);
+                this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
+            });
+            this._hspeButtonImage.color = Color.white;
+
+
             this._ui = UIUtility.CreateNewUISystem("HSPE");
             this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
 
@@ -1009,13 +1036,11 @@ namespace HSPE
         private void OnWindowDrag(PointerEventData data)
         {
             this._windowMoving = true;
-
         }
 
         private void OnWindowEndDrag(PointerEventData data)
         {
             this._windowMoving = false;
-
         }
 
         private void SetBoneTarget(FullBodyBipedEffector bone)
@@ -1124,6 +1149,7 @@ namespace HSPE
             {
                 this._isVisible = !this._isVisible;
                 this._ui.gameObject.SetActive(this._isVisible);
+                this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
             }
 
             if (Input.GetMouseButtonDown(0))
@@ -1278,8 +1304,10 @@ namespace HSPE
                 }
             }
         }
+        #endregion
 
-        private void SetNoControlCondition()
+        #region Public Methods
+        public void SetNoControlCondition()
         {
             Studio.Studio.Instance.cameraCtrl.noCtrlCondition = this.CameraControllerCondition;
         }
@@ -1358,7 +1386,7 @@ namespace HSPE
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
-            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving;
+            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving || (this._manualBoneTarget != null && this._manualBoneTarget.isDraggingDynamicBone);
         }
         #endregion
 
@@ -1441,7 +1469,7 @@ namespace HSPE
                 {
                     xmlWriter.Formatting = Formatting.Indented;
                     xmlWriter.WriteStartElement("root");
-                    xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
+                    xmlWriter.WriteAttributeString("version", HSPE.VersionNum);
                     SortedDictionary<int, Studio.ObjectCtrlInfo> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
                     foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in dic)
                     {
@@ -1484,7 +1512,7 @@ namespace HSPE
         {
             if (xmlDoc.DocumentElement == null || xmlDoc.DocumentElement.Name != "root")
                 return;
-            HSPE.VersionNumber v = new HSPE.VersionNumber(xmlDoc.DocumentElement.GetAttribute("version"));
+            string v = xmlDoc.DocumentElement.GetAttribute("version");
             SortedDictionary<int, Studio.ObjectCtrlInfo> sortedCharaDic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
 
             foreach (XmlNode node in xmlDoc.DocumentElement.ChildNodes)

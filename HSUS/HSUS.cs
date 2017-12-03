@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Xml;
 using CustomMenu;
@@ -11,7 +12,6 @@ using Manager;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
-using Debug = UnityEngine.Debug;
 using Object = UnityEngine.Object;
 
 namespace HSUS
@@ -185,6 +185,7 @@ namespace HSUS
 
         public void OnLevelWasLoaded(int level)
         {
+            UIUtility.Init();
         }
 
         public void OnLevelWasInitialized(int level)

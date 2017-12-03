@@ -1,11 +1,10 @@
 ﻿using System.Diagnostics;
-using IllusionPlugin;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace UILib
 {
-    public class Plugin : IEnhancedPlugin
+    public static class UIUtility
     {
         #region Public Types
         public enum Binary
@@ -15,56 +14,6 @@ namespace UILib
         }
         #endregion
 
-        public string Name { get { return "UIUtility"; } }
-        public string Version { get { return "1.0.0"; } }
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
-        public static Plugin instance { get; private set; }
-        public Binary binary { get; set; }
-        public void OnApplicationStart()
-        {
-            instance = this;
-            switch (Process.GetCurrentProcess().ProcessName)
-            {
-                case "HoneySelect_32":
-                case "HoneySelect_64":
-                    this.binary = Binary.Game;
-                    break;
-                case "StudioNEO_32":
-                case "StudioNEO_64":
-                    this.binary = Binary.Neo;
-                    break;
-            }
-        }
-
-        public void OnApplicationQuit()
-        {
-        }
-
-        public void OnLevelWasLoaded(int level)
-        {
-            new GameObject("UIUtility", typeof(UIUtility));
-        }
-
-        public void OnLevelWasInitialized(int level)
-        {
-        }
-
-        public void OnUpdate()
-        {
-        }
-
-        public void OnFixedUpdate()
-        {
-        }
-
-
-        public void OnLateUpdate()
-        {
-        }
-    }
-
-    public class UIUtility : MonoBehaviour
-    {
         public const RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
         public const bool canvasPixelPerfect = false;
 
@@ -92,9 +41,22 @@ namespace UILib
         public static int defaultFontSize;
         public static DefaultControls.Resources resources;
 
-        void Awake()
+        private static Binary _binary;
+
+        public static void Init()
         {
-            if (Plugin.instance.binary == Plugin.Binary.Game)
+            switch (Process.GetCurrentProcess().ProcessName)
+            {
+                case "HoneySelect_32":
+                case "HoneySelect_64":
+                    _binary = Binary.Game;
+                    break;
+                case "StudioNEO_32":
+                case "StudioNEO_64":
+                    _binary = Binary.Neo;
+                    break;
+            }
+            if (_binary == Binary.Game)
             {
                 foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
                 {
@@ -137,7 +99,7 @@ namespace UILib
             {
                 foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
                 {
-                    UnityEngine.Debug.Log("sprite "+ sprite.name);
+                    //UnityEngine.Debug.Log("sprite "+ sprite.name);
                     switch (sprite.name)
                     {
                         case "Background":

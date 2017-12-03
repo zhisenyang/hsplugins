@@ -4,103 +4,23 @@
 // MVID: 62AE9985-56CF-46BD-982F-B15D5A0C4B01
 // Assembly location: C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\ShortcutsHS.dll
 
-using IllusionPlugin;
 using System;
+using System.Collections.Generic;
+using System.Reflection;
+using IllusionPlugin;
+using UILib;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace HSPE
 {
     public class HSPE : IEnhancedPlugin
     {
-        public struct VersionNumber
-        {
-            public readonly int x;
-            public readonly int y;
-            public readonly int z;
-            public readonly bool valid;
-
-            public VersionNumber(int x, int y, int z)
-            {
-                this.x = x;
-                this.y = y;
-                this.z = z;
-                this.valid = true;
-            }
-
-            public VersionNumber(string str)
-            {
-                string[] s = str.Split('.');
-                this.valid = false;
-                this.x = 0;
-                this.y = 0;
-                this.z = 0;
-                if (!int.TryParse(s[0], out this.x))
-                    return;
-                if (!int.TryParse(s[1], out this.y))
-                    return;
-                if (!int.TryParse(s[2], out this.z))
-                    return;
-                this.valid = true;
-            }
-
-            public override string ToString()
-            {
-                return this.x + "." + this.y + "." + this.z;
-            }
-
-            public static bool operator <(VersionNumber first, VersionNumber second)
-            {
-                return (first.x < second.x || first.y < second.y || first.z < second.z);
-            }
-            public static bool operator >(VersionNumber first, VersionNumber second)
-            {
-                return (first.x > second.x || first.y > second.y || first.z > second.z);
-            }
-            public static bool operator ==(VersionNumber first, VersionNumber second)
-            {
-                return (first.x == second.x && first.y == second.y && first.z == second.z);
-            }
-            public static bool operator !=(VersionNumber first, VersionNumber second)
-            {
-                return !(first == second);
-            }
-            public static bool operator <(VersionNumber first, string s)
-            {
-                VersionNumber second = new VersionNumber(s);
-                if (!second.valid)
-                    return false;
-                return (first.x < second.x || first.y < second.y || first.z < second.z);
-            }
-            public static bool operator >(VersionNumber first, string s)
-            {
-                VersionNumber second = new VersionNumber(s);
-                if (!second.valid)
-                    return false;
-                return (first.x > second.x || first.y > second.y || first.z > second.z);
-            }
-            public static bool operator ==(VersionNumber first, string s)
-            {
-                VersionNumber second = new VersionNumber(s);
-                if (!second.valid)
-                    return false;
-                return (first.x == second.x && first.y == second.y && first.z == second.z);
-            }
-            public static bool operator !=(VersionNumber first, string s)
-            {
-                VersionNumber second = new VersionNumber(s);
-                if (!second.valid)
-                    return false;
-                return !(first == second);
-            }
-        }
-
-        private static VersionNumber _versionNumber = new VersionNumber("2.2.0");
-
-        public static VersionNumber VersionNum { get { return _versionNumber; } }
+        public static string VersionNum { get { return "2.3.0"; } }
 
         public string Name { get { return "HSPE"; } }
 
-        public string Version { get { return _versionNumber.ToString(); } }
+        public string Version { get { return HSPE.VersionNum; } }
 
         public string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
 
@@ -125,11 +45,11 @@ namespace HSPE
         {
             if (level == 3)
             {
+                UIUtility.Init();
                 if (!GameObject.Find("HSPE"))
                 {
                     GameObject go = new GameObject("HSPE");
                     go.AddComponent<MainWindow>();
-                    //go.AddComponent<ObjectTreeDebug>();
                 }
             }
         }

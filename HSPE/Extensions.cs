@@ -36,6 +36,13 @@ public static class Extensions
         return typeof(T).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).Invoke(self, p);
     }
 
+    public static void LoadWith<T>(this T to, T from)
+    {
+        FieldInfo[] fields = typeof(T).GetFields(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+        foreach (FieldInfo fi in fields)
+            fi.SetValue(to, fi.GetValue(from));
+    }
+
     public static Transform FindDescendant(this Transform self, string name)
     {
         if (self.name.Equals(name))
@@ -81,6 +88,13 @@ public static class Extensions
             self2 = self2.parent;
         }
         return path;
+    }
+
+    public static Transform GetFirstLeaf(this Transform self)
+    {
+        while (self.childCount != 0)
+            self = self.GetChild(0);
+        return self;
     }
 
     public static string GetChosenScenePath(this Studio.SceneLoadScene self)

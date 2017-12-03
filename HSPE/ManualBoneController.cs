@@ -9,7 +9,6 @@ using RootMotion.FinalIK;
 using Studio;
 using UnityEngine;
 using UnityEngine.UI;
-using Debug = UnityEngine.Debug;
 
 namespace HSPE
 {
@@ -29,6 +28,13 @@ namespace HSPE
             BoobsEditor,
             DynamicBonesEditor,
             Count
+        }
+
+        private enum DynamicBoneDragType
+        {
+            LeftBoob,
+            RightBoob,
+            DynamicBone
         }
 
         private class TransformData
@@ -110,26 +116,6 @@ namespace HSPE
         }
 
         private delegate void TabDelegate();
-
-        private class Triangle
-        {
-            public int one;
-            public int two;
-            public int three;
-
-            public override int GetHashCode()
-            {
-                unchecked
-                {
-                    //int hash = 17;
-                    //hash = hash * 23 + this.one.GetHashCode();
-                    //hash = hash * 23 + this.two.GetHashCode();
-                    //hash = hash * 23 + this.three.GetHashCode();
-                    int hash = this.one.GetHashCode() * this.two.GetHashCode() * this.three.GetHashCode();
-                    return hash;
-                }
-            }
-        }
         #endregion
 
         #region Public Types
@@ -143,6 +129,9 @@ namespace HSPE
         #endregion
 
         #region Private Variables
+        private const float _boobsDragRadius = 0.05f;
+        private const float _dynamicBonesDragRadius = 0.025f;
+
         private FullBodyBipedIK _body;
         private CameraGL _cam;
         private Material _mat;
@@ -196,12 +185,13 @@ namespace HSPE
         private readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
         private string _currentAlias = "";
         private bool _optimizeIK = true;
-        private SkinnedMeshRenderer _skinnedMeshRenderer;
-        private readonly HashSet<Triangle> _trianglesToDraw = new HashSet<Triangle>();
-        private readonly Dictionary<Transform, int> _weightedBonesToIndex = new Dictionary<Transform, int>();
-        //private readonly int[] _verticesToDraw = new int[99999];
-        //private int _verticesToDrawCount = 0;
-        private Coroutine _assignToDrawVerticesHandler;
+        private DynamicBoneDragType _dynamicBoneDragType;
+        private Vector3 _dragDynamicBoneStartPosition;
+        private Vector3 _dragDynamicBoneEndPosition;
+        private Vector3 _lastDynamicBoneGravity;
+        private DynamicBone _draggedDynamicBone;
+        //private DynamicBone _leftButtCheek;
+        //private DynamicBone _rightButtCheek;
         #endregion
 
         #region Public Accessors
@@ -211,7 +201,6 @@ namespace HSPE
         public Rect colliderEditRect { get { return this._colliderEditRect; } }
         public bool colliderEditEnabled { get { return this._colliderTarget != null; } }
         public DragType currentDragType { get; private set; }
-
         public bool optimizeIK
         {
             get { return this._optimizeIK; }
@@ -233,6 +222,7 @@ namespace HSPE
                 }
             }
         }
+        public bool isDraggingDynamicBone { get; private set; }
         #endregion
 
         #region Unity Methods
@@ -285,9 +275,48 @@ namespace HSPE
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
                 this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
                 this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
-                this._skinnedMeshRenderer = this.transform.Find("BodyTop/p_cf_body_00/cf_N_O_root/N_top00/N_top_c/cf_O_body_00").GetComponent<SkinnedMeshRenderer>();
-                for (int i = 0; i < this._skinnedMeshRenderer.bones.Length; i++)
-                    this._weightedBonesToIndex.Add(this._skinnedMeshRenderer.bones[i], i);
+
+                //this._leftButtCheek = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02").gameObject.AddComponent<DynamicBone>();
+                //this._leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                //this._leftButtCheek.m_Exclusions = new List<Transform>();
+                //this._leftButtCheek.m_notRolls = new List<Transform>();
+                //this._leftButtCheek.SetWeight(1f);
+                //this._leftButtCheek.m_DistantDisable = false;
+                //this._leftButtCheek.m_Root = this._leftButtCheek.transform.Find("cf_J_SiriDam_L/cf_J_SiriDam01_L");
+                //this._leftButtCheek.m_Damping = 1f;
+                //this._leftButtCheek.m_Elasticity = 0.85f;
+                //this._leftButtCheek.m_Stiffness = 0f;
+                //this._leftButtCheek.m_DampingDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._leftButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._leftButtCheek.m_StiffnessDistrib = AnimationCurve.EaseInOut(0f, 1f, 1f, 0.95f);
+                //this._leftButtCheek.m_Inert = 0f;
+                //this._leftButtCheek.m_InertDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._leftButtCheek.m_Radius = 0f;
+                //this._leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._leftButtCheek.m_EndOffset = new Vector3(0f, -0.01f, 0f);
+                //this._leftButtCheek.m_Gravity = Vector3.zero;
+                ////this._leftButtCheek.m_Force = new Vector3(0f, -0.01f, 0f);
+
+                //this._rightButtCheek = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02").gameObject.AddComponent<DynamicBone>();
+                //this._rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                //this._rightButtCheek.m_Exclusions = new List<Transform>();
+                //this._rightButtCheek.m_notRolls = new List<Transform>();
+                //this._rightButtCheek.SetWeight(1f);
+                //this._rightButtCheek.m_DistantDisable = false;
+                //this._rightButtCheek.m_Root = this._rightButtCheek.transform.Find("cf_J_SiriDam_R/cf_J_SiriDam01_R");
+                //this._rightButtCheek.m_Damping = 1f;
+                //this._rightButtCheek.m_Elasticity = 0.85f;
+                //this._rightButtCheek.m_Stiffness = 0f;
+                //this._rightButtCheek.m_DampingDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._rightButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._rightButtCheek.m_StiffnessDistrib = AnimationCurve.EaseInOut(0f, 1f, 1f, 0.95f);
+                //this._rightButtCheek.m_Inert = 0f;
+                //this._rightButtCheek.m_InertDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._rightButtCheek.m_Radius = 0f;
+                //this._rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
+                //this._rightButtCheek.m_EndOffset = new Vector3(0f, -0.01f, 0f);
+                //this._rightButtCheek.m_Gravity = Vector3.zero;
+                ////this._rightButtCheek.m_Force = new Vector3(0f, -0.01f, 0f);
             }
             else
             {
@@ -353,6 +382,7 @@ namespace HSPE
             if (toAdd != null)
                 foreach (DynamicBone db in toAdd)
                     this._dynamicBones.Add(db);
+            this.DynamicBoneDraggingLogic();
         }
 
         void OnDestroy()
@@ -1566,9 +1596,6 @@ namespace HSPE
                 if (this._boneTarget == this._twinBoneTarget)
                     this._twinBoneTarget = null;
                 this._colliderTarget = go.GetComponent<DynamicBoneCollider>();
-                if (this._assignToDrawVerticesHandler != null)
-                    this.StopCoroutine(this._assignToDrawVerticesHandler);
-                this._assignToDrawVerticesHandler = this.StartCoroutine(this.AssignToDrawVertices());
             }
             GUI.color = c;
             GUILayout.EndHorizontal();
@@ -1661,53 +1688,95 @@ namespace HSPE
         #endregion
 
         #region Private Methods
-        private IEnumerator AssignToDrawVertices()
+        private void DynamicBoneDraggingLogic()
         {
-            this._trianglesToDraw.Clear();
-            //this._verticesToDrawCount = 0;
-            Mesh m = new Mesh();
-            this._skinnedMeshRenderer.BakeMesh(m);
-            IEnumerator e = this.AssignToDrawVerticesRecursive(this._boneTarget, m.triangles, this._skinnedMeshRenderer.sharedMesh.boneWeights);
-            while (e.MoveNext())
-                yield return null;
-        }
-
-        private IEnumerator AssignToDrawVerticesRecursive(Transform t, int[] triangles, BoneWeight[] boneWeights)
-        {
-            int boneIndex;
-            if (this._weightedBonesToIndex.TryGetValue(t, out boneIndex))
+            if (Input.GetMouseButtonDown(0))
             {
-                for (int i = 0; i < triangles.Length; i += 3)
+                float distanceFromCamera = float.PositiveInfinity;
+                if (this._isFemale && this._selectedTab == SelectedTab.BoobsEditor)
                 {
-                    int vertexIndex1 = triangles[i];
-                    BoneWeight weight = boneWeights[vertexIndex1];
-                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
-                        continue;
-                    int vertexIndex2 = triangles[i + 1];
-                    weight = boneWeights[vertexIndex2];
-                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
-                        continue;
-                    int vertexIndex3 = triangles[i + 2];
-                    weight = boneWeights[vertexIndex3];
-                    if (weight.boneIndex0 != boneIndex && weight.boneIndex1 != boneIndex && weight.boneIndex2 != boneIndex && weight.boneIndex3 != boneIndex)
-                        continue;
-                    Triangle tri = new Triangle(){one = vertexIndex1, two = vertexIndex2, three = vertexIndex3};
-                    if (this._trianglesToDraw.Contains(tri) == false)
-                        this._trianglesToDraw.Add(tri);
-                    yield return null;
+                    Vector3 leftBoobRaycastPos = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._leftBoob.Bones[2].position - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                    if ((leftBoobRaycastPos - this._leftBoob.Bones[2].position).sqrMagnitude < (_boobsDragRadius * _boobsDragRadius))
+                    {
+                        this.isDraggingDynamicBone = true;
+                        distanceFromCamera = (leftBoobRaycastPos - this._cam.transform.position).sqrMagnitude;
+                        this._dynamicBoneDragType = DynamicBoneDragType.LeftBoob;
+                        this._dragDynamicBoneStartPosition = leftBoobRaycastPos;
+                        this._lastDynamicBoneGravity = this._leftBoob.Gravity;
+                    }
+
+                    Vector3 rightBoobRaycastPos = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._rightBoob.Bones[2].position - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                    if ((rightBoobRaycastPos - this._rightBoob.Bones[2].position).sqrMagnitude < (_boobsDragRadius * _boobsDragRadius) &&
+                        (rightBoobRaycastPos - this._cam.transform.position).sqrMagnitude < distanceFromCamera)
+                    {
+                        this.isDraggingDynamicBone = true;
+                        distanceFromCamera = (leftBoobRaycastPos - this._cam.transform.position).sqrMagnitude;
+                        this._dynamicBoneDragType = DynamicBoneDragType.RightBoob;
+                        this._dragDynamicBoneStartPosition = rightBoobRaycastPos;
+                        this._lastDynamicBoneGravity = this._rightBoob.Gravity;
+                    }
+                    MainWindow.self.SetNoControlCondition();
+                }
+                if (this._selectedTab == SelectedTab.DynamicBonesEditor)
+                {
+                    for (int i = 0; i < this._dynamicBones.Count; i++)
+                    {
+                        DynamicBone db = this._dynamicBones[i];
+                        Transform leaf = (db.m_Root ?? db.transform).GetFirstLeaf();
+                        Vector3 raycastPos = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(leaf.position - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                        if ((raycastPos - leaf.position).sqrMagnitude < (_dynamicBonesDragRadius * _dynamicBonesDragRadius) &&
+                            (raycastPos - this._cam.transform.position).sqrMagnitude < distanceFromCamera)
+                        {
+                            this.isDraggingDynamicBone = true;
+                            distanceFromCamera = (raycastPos - this._cam.transform.position).sqrMagnitude;
+                            this._dynamicBoneDragType = DynamicBoneDragType.DynamicBone;
+                            this._dragDynamicBoneStartPosition = raycastPos;
+                            this._lastDynamicBoneGravity = db.m_Force;
+                            this._draggedDynamicBone = db;
+                        }
+                    }
+                    MainWindow.self.SetNoControlCondition();
                 }
             }
-            for (int i = 0; i < t.childCount; i++)
+            else if (Input.GetMouseButton(0) && this.isDraggingDynamicBone)
             {
-                IEnumerator e = this.AssignToDrawVerticesRecursive(t.GetChild(i), triangles, boneWeights);
-                while (e.MoveNext())
-                    yield return null;
-
+                switch (this._dynamicBoneDragType)
+                {
+                    case DynamicBoneDragType.LeftBoob:
+                        this._dragDynamicBoneEndPosition = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                        this.SetBoobDirty(this._leftBoob);
+                        if (this._dirtyBoobs[this._leftBoob].originalGravity.hasValue == false)
+                            this._dirtyBoobs[this._leftBoob].originalGravity = this._leftBoob.Gravity;
+                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 3f;
+                        break;
+                    case DynamicBoneDragType.RightBoob:
+                        this._dragDynamicBoneEndPosition = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                        this.SetBoobDirty(this._rightBoob);
+                        if (this._dirtyBoobs[this._rightBoob].originalGravity.hasValue == false)
+                            this._dirtyBoobs[this._rightBoob].originalGravity = this._rightBoob.Gravity;
+                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 3f;
+                        break;
+                    case DynamicBoneDragType.DynamicBone:
+                        this._dragDynamicBoneEndPosition = this._cam.camera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - this._cam.transform.position, this._cam.transform.forward).magnitude));
+                        this.SetDynamicBoneDirty(this._draggedDynamicBone);
+                        if (this._dirtyDynamicBones[this._draggedDynamicBone].originalForce.hasValue == false)
+                            this._dirtyDynamicBones[this._draggedDynamicBone].originalForce = this._draggedDynamicBone.m_Force;
+                        this._draggedDynamicBone.m_Force = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 3f;
+                        break;
+                }
+            }
+            else if (Input.GetMouseButtonUp(0))
+            {
+                this.isDraggingDynamicBone = false;
             }
         }
 
         private void OnPostUpdate()
         {
+            //this._leftButtCheek.CallPrivate("Update");
+            //this._rightButtCheek.CallPrivate("Update");
+            //this._leftButtCheek.CallPrivate("LateUpdate");
+            //this._rightButtCheek.CallPrivate("LateUpdate");
             bool shouldClean = false;
             foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
             {
@@ -1738,19 +1807,6 @@ namespace HSPE
                 if (kvp.Value.force.hasValue)
                     kvp.Key.Force = kvp.Value.force;
             }
-        }
-
-        private Transform GetCommonAncestor(Transform bone1, Transform bone2)
-        {
-            Transform i = bone1;
-            Transform j = bone2;
-
-            while (i != j && i != null && j != null)
-            {
-                i = i.parent;
-                j = j.parent;
-            }
-            return i == j ? i : null;
         }
 
         private Transform GetTwinBone(Transform bone)
@@ -2058,38 +2114,6 @@ namespace HSPE
 
                         if (this._colliderTarget)
                             this.DrawCollider();
-
-                        GL.Begin(GL.LINES);
-                        this._colliderMat.SetPass(0);
-
-                        Mesh baked = new Mesh();
-                        this._skinnedMeshRenderer.BakeMesh(baked);
-
-                        Vector3[] vertices = baked.vertices;
-
-                        Vector3 one = Vector3.zero;
-                        Vector3 two = Vector3.zero;
-                        Vector3 three = Vector3.zero;
-                        //for (int i = 0; i < this._verticesToDrawCount; i += 3)
-                        foreach (Triangle triangle in this._trianglesToDraw)
-                        {
-                            //one = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i]]);
-                            //two = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i + 1]]);
-                            //three = this._skinnedMeshRenderer.transform.TransformPoint(vertices[this._verticesToDraw[i + 2]]);
-                            one = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.one]);
-                            two = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.two]);
-                            three = this._skinnedMeshRenderer.transform.TransformPoint(vertices[triangle.three]);
-
-                            GL.Vertex(one);
-                            GL.Vertex(two);
-
-                            GL.Vertex(two);
-                            GL.Vertex(three);
-
-                            GL.Vertex(three);
-                            GL.Vertex(one);
-                        }
-                        GL.End();
                     }
                     break;
                 case SelectedTab.BoobsEditor:
@@ -2139,25 +2163,32 @@ namespace HSPE
                         this._colliderMat.SetPass(0);
                         this.DrawVector(origin, final);
                         GL.End();
+
+                        GL.Begin(GL.LINES);
+                        this._yMat.SetPass(0);
+                        this.DrawCircle(this._leftBoob.Bones[2].position, _boobsDragRadius, this._cam.transform.rotation);
+                        this.DrawCircle(this._rightBoob.Bones[2].position, _boobsDragRadius, this._cam.transform.rotation);
+                        GL.End();
                     }
                     break;
                 case SelectedTab.DynamicBonesEditor:
-                    if (this._dynamicBoneTarget != null)
+                    for (int i = 0; i < this._dynamicBones.Count; i++)
                     {
-                        Transform end = this._dynamicBoneTarget.m_Root ?? this._dynamicBoneTarget.transform;
-                        while (end.childCount != 0)
-                            end = end.GetChild(0);
+                        DynamicBone db = this._dynamicBones[i];
+
+                        Transform end = (db.m_Root ?? db.transform).GetFirstLeaf();
+
                         float scale = 10f;
                         Vector3 origin = end.position;
 
-                        Vector3 final = origin + (this._dynamicBoneTarget.m_Gravity) * scale;
+                        Vector3 final = origin + (db.m_Gravity) * scale;
                         GL.Begin(GL.LINES);
                         this._xMat.SetPass(0);
                         this.DrawVector(origin, final);
                         GL.End();
 
                         origin = final;
-                        final += this._dynamicBoneTarget.m_Force * scale;
+                        final += db.m_Force * scale;
 
                         GL.Begin(GL.LINES);
                         this._zMat.SetPass(0);
@@ -2169,6 +2200,11 @@ namespace HSPE
                         GL.Begin(GL.LINES);
                         this._colliderMat.SetPass(0);
                         this.DrawVector(origin, final);
+                        GL.End();
+
+                        GL.Begin(GL.LINES);
+                        this._yMat.SetPass(0);
+                        this.DrawCircle(end.position, _dynamicBonesDragRadius, this._cam.transform.rotation);
                         GL.End();
                     }
                     break;
@@ -2297,7 +2333,7 @@ namespace HSPE
         #endregion
 
         #region Saves
-        public void ScheduleLoad(XmlNode node, HSPE.VersionNumber v)
+        public void ScheduleLoad(XmlNode node, string v)
         {
             this.StartCoroutine(this.LoadDefaultVersion_Routine(node.CloneNode(true)));
         }
