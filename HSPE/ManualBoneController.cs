@@ -190,6 +190,7 @@ namespace HSPE
         private Vector3 _dragDynamicBoneEndPosition;
         private Vector3 _lastDynamicBoneGravity;
         private DynamicBone _draggedDynamicBone;
+        private Vector2 _shortcutsScroll;
         //private DynamicBone _leftButtCheek;
         //private DynamicBone _rightButtCheek;
         #endregion
@@ -1301,23 +1302,16 @@ namespace HSPE
                 GUILayout.EndHorizontal();
 
                 GUILayout.BeginVertical(GUI.skin.box);
-                GUIStyle style = GUI.skin.GetStyle("Label");
-                TextAnchor bak = style.alignment;
-                style.alignment = TextAnchor.MiddleCenter;
-                GUILayout.Label("Shortcuts", style);
-                style.alignment = bak;
                 GUILayout.BeginHorizontal();
+                this._shortcutsScroll = GUILayout.BeginScrollView(this._shortcutsScroll, false, true, GUILayout.MinWidth(200));
                 foreach (KeyValuePair<Transform, string> kvp in this._boneEditionShortcuts)
                     if (GUILayout.Button(kvp.Value))
                         this.GoToObject(kvp.Key.gameObject);
-                GUILayout.EndHorizontal();
+
                 Dictionary<string, string> customShortcuts = this._isFemale ? MainWindow.self.femaleShortcuts : MainWindow.self.maleShortcuts;
-                int i = 0;
                 string toRemove = null;
                 foreach (KeyValuePair<string, string> kvp in customShortcuts)
                 {
-                    if (i % 3 == 0)
-                        GUILayout.BeginHorizontal();
                     string sName = kvp.Value;
                     string newName;
                     if (MainWindow.self.boneAliases.TryGetValue(sName, out newName))
@@ -1332,39 +1326,36 @@ namespace HSPE
                         else
                             this.GoToObject(kvp.Key);
                     }
-
-                    if ((i + 1) % 3 == 0)
-                        GUILayout.EndHorizontal();
-                    ++i;
                 }
                 if (toRemove != null)
                     customShortcuts.Remove(toRemove);
-                if (i != 12)
+                GUILayout.EndScrollView();
+                GUILayout.BeginVertical(GUILayout.ExpandWidth(false));
+
+                GUIStyle style = GUI.skin.GetStyle("Label");
+                TextAnchor bak = style.alignment;
+                style.alignment = TextAnchor.MiddleCenter;
+                GUILayout.Label("Shortcuts", style);
+                style.alignment = bak;
+
+                if (GUILayout.Button("+ Add Shortcut") && this._boneTarget != null)
                 {
-                    if (i % 3 == 0)
-                        GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("+ Add Shortcut", GUILayout.ExpandWidth(false)) && this._boneTarget != null)
-                    {
-                        string path = this._boneTarget.GetPathFrom(this.transform);
-                        if (customShortcuts.ContainsKey(path) == false)
-                            customShortcuts.Add(path, this._boneTarget.name);
-                        this._removeShortcutMode = false;
-                    }
-                    if ((i + 1) % 3 == 0)
-                        GUILayout.EndHorizontal();
-                    ++i;
+                    string path = this._boneTarget.GetPathFrom(this.transform);
+                    if (customShortcuts.ContainsKey(path) == false)
+                        customShortcuts.Add(path, this._boneTarget.name);
+                    this._removeShortcutMode = false;
                 }
-                if (i % 3 != 0)
-                    GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
+
                 Color color = GUI.color;
                 if (this._removeShortcutMode)
                     GUI.color = this._redColor;
-                if (GUILayout.Button(this._removeShortcutMode ? "Click on a shortcut" : "Remove Shortcut"))
+                if (GUILayout.Button(this._removeShortcutMode ? "Click on a shortcut" : "- Remove Shortcut"))
                     this._removeShortcutMode = !this._removeShortcutMode;
                 GUI.color = color;
+
+                GUILayout.EndVertical();
                 GUILayout.EndHorizontal();
+
                 GUILayout.EndVertical();
             }
             GUILayout.EndVertical();

@@ -41,102 +41,45 @@ namespace UILib
         public static int defaultFontSize;
         public static DefaultControls.Resources resources;
 
-        private static Binary _binary;
+        private static bool _initCalled = false;
 
         public static void Init()
         {
-            switch (Process.GetCurrentProcess().ProcessName)
+            if (_initCalled)
+                return;
+            _initCalled = true;
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.DefaultResources);
+            foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
             {
-                case "HoneySelect_32":
-                case "HoneySelect_64":
-                    _binary = Binary.Game;
-                    break;
-                case "StudioNEO_32":
-                case "StudioNEO_64":
-                    _binary = Binary.Neo;
-                    break;
-            }
-            if (_binary == Binary.Game)
-            {
-                foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
+                switch (sprite.name)
                 {
-                    switch (sprite.name)
-                    {
-                        case "Background":
-                            backgroundSprite = sprite;
-                            break;
-                        case "UISprite":
-                            standardSprite = sprite;
-                            break;
-                        case "rect_middle":
-                            inputFieldBackground = sprite;
-                            break;
-                        case "sld_thumb":
-                            knob = sprite;
-                            break;
-                        case "toggle_c":
-                            checkMark = sprite;
-                            break;
-                        case "expand":
-                            dropdownArrow = sprite;
-                            break;
-                        case "UIMask":
-                            mask = sprite;
-                            break;
-                    }
-                }
-                foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
-                {
-                    switch (font.name)
-                    {
-                        case "mplus-1c-medium":
-                            defaultFont = font;
-                            break;
-                    }
+                    case "Background":
+                        backgroundSprite = sprite;
+                        break;
+                    case "UISprite":
+                        standardSprite = sprite;
+                        break;
+                    case "InputFieldBackground":
+                        inputFieldBackground = sprite;
+                        break;
+                    case "Knob":
+                        knob = sprite;
+                        break;
+                    case "Checkmark":
+                        checkMark = sprite;
+                        break;
+                    case "DropdownArrow":
+                        dropdownArrow = sprite;
+                        break;
+                    case "UIMask":
+                        mask = sprite;
+                        break;
                 }
             }
-            else
-            {
-                foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
-                {
-                    //UnityEngine.Debug.Log("sprite "+ sprite.name);
-                    switch (sprite.name)
-                    {
-                        case "Background":
-                            backgroundSprite = sprite;
-                            break;
-                        case "UISprite":
-                            standardSprite = sprite;
-                            break;
-                        case "InputFieldBackground":
-                            inputFieldBackground = sprite;
-                            break;
-                        case "sp_sn_16_00_02":
-                            knob = sprite;
-                            break;
-                        case "toggle_c":
-                            checkMark = sprite;
-                            break;
-                        case "sp_sn_09_00_03":
-                            dropdownArrow = sprite;
-                            break;
-                        case "UIMask":
-                            mask = sprite;
-                            break;
-                    }
-                }
-                foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
-                {
-                    switch (font.name)
-                    {
-                        case "Arial":
-                            defaultFont = font;
-                            break;
-                    }
-                }
-            }
+            defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
             resources = new DefaultControls.Resources {background = backgroundSprite, checkmark = checkMark, dropdown = dropdownArrow, inputField = inputFieldBackground, knob = knob, mask = mask, standard = standardSprite};
             defaultFontSize = 16;
+            bundle.Unload(false);
         }
 
         public static Canvas CreateNewUISystem(string name = "NewUISystem")
@@ -383,10 +326,11 @@ namespace UILib
             return i;
         }
 
-        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject)
+        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject, bool preventCameraControl = true)
         {
             MovableWindow mv = clickableDragZone.gameObject.AddComponent<MovableWindow>();
             mv.toDrag = draggableObject;
+            mv.preventCameraControl = preventCameraControl;
             return mv;
         }
     }

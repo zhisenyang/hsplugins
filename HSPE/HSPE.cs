@@ -10,7 +10,6 @@ using System.Reflection;
 using IllusionPlugin;
 using UILib;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace HSPE
 {
@@ -31,6 +30,7 @@ namespace HSPE
 
         public void OnApplicationStart()
         {
+            UIUtility.Init();
         }
 
         public void OnFixedUpdate()
@@ -45,7 +45,6 @@ namespace HSPE
         {
             if (level == 3)
             {
-                UIUtility.Init();
                 if (!GameObject.Find("HSPE"))
                 {
                     GameObject go = new GameObject("HSPE");

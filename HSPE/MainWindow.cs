@@ -386,7 +386,7 @@ namespace HSPE
                     Image topContainer = UIUtility.CreatePanel("Top Container", bg.rectTransform);
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
-                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, bg.rectTransform);
+                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, bg.rectTransform, false);
                     mw.onPointerDown += this.OnWindowStartDrag;
                     mw.onDrag += this.OnWindowDrag;
                     mw.onPointerUp += this.OnWindowEndDrag;
@@ -881,7 +881,7 @@ namespace HSPE
                     topContainer.color = UIUtility.grayColor;
                     topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
                     topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
-                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, this._optionsWindow);
+                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, this._optionsWindow, false);
                     mw.onPointerDown += this.OnWindowStartDrag;
                     mw.onDrag += this.OnWindowDrag;
                     mw.onPointerUp += this.OnWindowEndDrag;

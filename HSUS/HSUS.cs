@@ -114,6 +114,7 @@ namespace HSUS
                         break;
                 }
             }
+            UIUtility.Init();
         }
 
         public void OnApplicationQuit()
