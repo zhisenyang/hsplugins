@@ -191,6 +191,11 @@ namespace HSUS
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
+                System.Diagnostics.Process.Start(".\\output_log.txt");
+            GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
             GUILayout.EndArea();

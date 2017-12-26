@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
+using Harmony;
 using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
@@ -8,9 +10,9 @@ using UnityEngine.UI;
 
 namespace CustomMenu
 {
-    public class SmClothes_FCustom : SmClothes_F
+    public static class SmClothes_F_Data
     {
-        private class ObjectData
+        public class ObjectData
         {
             public int key;
             public Toggle toggle;
@@ -18,52 +20,51 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        private readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
-        private int _previousType;
-        private RectTransform _container;
-        private InputField _searchBar;
+        public static readonly Dictionary<int, List<ObjectData>> objects = new Dictionary<int, List<ObjectData>>();
+        public static int previousType = -1;
+        public static RectTransform container;
+        public static InputField searchBar;
 
-        public void LoadFrom(SmClothes_F other)
+        private static SmClothes_F _originalComponent;
+
+        public static void Init(SmClothes_F originalComponent)
         {
-            this.LoadWith(other);
-            this.ReplaceEventsOf(other);
-
-            this._container = this.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = this._container.gameObject.AddComponent<VerticalLayoutGroup>();
+            _originalComponent = originalComponent;
+            container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = this._container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            this.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = this.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
+            RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
             float newY = rt.offsetMax.y;
-            rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
+            rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
-            rt = this._searchBar.transform as RectTransform;
+            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            this._searchBar.onValueChanged.AddListener(this.SearchChanged);
-            foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
+            searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            searchBar.onValueChanged.AddListener(SearchChanged);
+            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
-
         }
 
-        private void SearchChanged(string arg0)
+        public static void SearchChanged(string arg0)
         {
-            string search = this._searchBar.text.Trim();
-            if (this._objects.ContainsKey(this.nowSubMenuTypeId) == false)
+            string search = searchBar.text.Trim();
+            if (objects.ContainsKey((int)_originalComponent.GetPrivate("nowSubMenuTypeId")) == false)
                 return;
-            foreach (ObjectData objectData in this._objects[this.nowSubMenuTypeId])
+            foreach (ObjectData objectData in objects[(int)_originalComponent.GetPrivate("nowSubMenuTypeId")])
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -72,154 +73,70 @@ namespace CustomMenu
                     group.RegisterToggle(objectData.toggle);
             }
         }
+    }
 
-        public new virtual void SetCharaInfo(int smTypeId, bool sameSubMenu)
+    [HarmonyPatch(typeof(SmClothes_F))]
+    [HarmonyPatch("SetCharaInfoSub")]
+    public class SmClothes_F_SetCharaInfoSub_Patches
+    {
+        public static void Prefix(SmClothes_F __instance)
         {
-            if (null == this.customControl)
-            {
+            SmClothes_F_Data.searchBar.text = "";
+            SmClothes_F_Data.SearchChanged("");
+            int nowSubMenuTypeId = (int) __instance.GetPrivate("nowSubMenuTypeId");
+            CharFileInfoClothesFemale clothesInfoF = (CharFileInfoClothesFemale)__instance.GetPrivate("clothesInfoF");
+            CharInfo chaInfo = (CharInfo) __instance.GetPrivate("chaInfo");
+            if (null == __instance.GetPrivate("chaInfo") || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
                 return;
-            }
-            this.colorMenu = this.customControl.colorMenu;
-            this.chaInfo = this.customControl.chainfo;
-            if (null == this.chaInfo)
-            {
-                return;
-            }
-            this.chaBody = this.chaInfo.chaBody;
-            this.chaCustom = this.chaInfo.chaCustom;
-            this.chaClothes = this.chaInfo.chaClothes;
-            this.customInfo = this.chaInfo.customInfo;
-            this.clothesInfo = this.chaInfo.clothesInfo;
-            this.coordinateInfo = this.chaInfo.chaFile.coordinateInfo;
-            this.statusInfo = this.chaInfo.statusInfo;
-            this.parameterInfo = this.chaInfo.parameterInfo;
-            if (this.chaInfo.Sex == 0)
-            {
-                this.chaM = (this.chaInfo as CharMale);
-                this.chaBodyM = (this.chaInfo.chaBody as CharMaleBody);
-                this.chaCustomM = (this.chaCustom as CharMaleCustom);
-                this.chaClothesM = (this.chaClothes as CharMaleClothes);
-                this.customInfoM = (this.customInfo as CharFileInfoCustomMale);
-                this.clothesInfoM = (this.clothesInfo as CharFileInfoClothesMale);
-                this.coordinateInfoM = (this.coordinateInfo as CharFileInfoCoordinateMale);
-                this.statusInfoM = (this.statusInfo as CharFileInfoStatusMale);
-                this.parameterInfoM = (this.parameterInfo as CharFileInfoParameterMale);
-            }
-            else
-            {
-                this.chaF = (this.chaInfo as CharFemale);
-                this.chaBodyF = (this.chaInfo.chaBody as CharFemaleBody);
-                this.chaCustomF = (this.chaCustom as CharFemaleCustom);
-                this.chaClothesF = (this.chaClothes as CharFemaleClothes);
-                this.customInfoF = (this.customInfo as CharFileInfoCustomFemale);
-                this.clothesInfoF = (this.clothesInfo as CharFileInfoClothesFemale);
-                this.coordinateInfoF = (this.coordinateInfo as CharFileInfoCoordinateFemale);
-                this.statusInfoF = (this.statusInfo as CharFileInfoStatusFemale);
-                this.parameterInfoF = (this.parameterInfo as CharFileInfoParameterFemale);
-            }
-            this.defMale = this.customControl.defMaleSetting;
-            if (null != this.defMale)
-            {
-                this.defCustomM = this.defMale.maleCustom;
-                this.defClothesM = this.defMale.maleClothes;
-                this.defCustomInfoM = this.defMale.maleCustomInfo;
-                this.defClothesInfoM = this.defMale.maleClothesInfo;
-            }
-            this.defFemale = this.customControl.defFemaleSetting;
-            if (null != this.defFemale)
-            {
-                this.defCustomF = this.defFemale.femaleCustom;
-                this.defClothesF = this.defFemale.femaleClothes;
-                this.defCustomInfoF = this.defFemale.femaleCustomInfo;
-                this.defClothesInfoF = this.defFemale.femaleClothesInfo;
-            }
-            if (!sameSubMenu)
-            {
-                if (this.customControl.smClothesColorCtrlM)
-                {
-                    this.customControl.smClothesColorCtrlM.ReflectColorOff();
-                }
-                if (this.customControl.smClothesColorCtrlF)
-                {
-                    this.customControl.smClothesColorCtrlF.ReflectColorOff();
-                }
-            }
-            this._searchBar.text = "";
-            this.SearchChanged("");
-            this._previousType = this.nowSubMenuTypeId;
-            this.nowSubMenuTypeId = smTypeId;
-            this.SetCharaInfoSub();
-        }
-
-        public new virtual void SetCharaInfoSub()
-        {
-            if (null == this.chaInfo)
-            {
-                return;
-            }
-            if (null == this.objListTop)
-            {
-                return;
-            }
-            if (null == this.objLineBase)
-            {
-                return;
-            }
-            if (null == this.rtfPanel)
-            {
-                return;
-            }
-            if (null != this.tglTab)
-            {
-                this.tglTab.isOn = true;
-            }
-            if (this._previousType != this.nowSubMenuTypeId && this._objects.ContainsKey(this._previousType))
-                foreach (ObjectData o in this._objects[this._previousType])
+            if (null != __instance.tglTab)
+                __instance.tglTab.isOn = true;
+            if (SmClothes_F_Data.previousType != nowSubMenuTypeId && SmClothes_F_Data.objects.ContainsKey(SmClothes_F_Data.previousType))
+                foreach (SmClothes_F_Data.ObjectData o in SmClothes_F_Data.objects[SmClothes_F_Data.previousType])
                     o.obj.SetActive(false);
             int count = 0;
             int selected = 0;
 
-            if (this._objects.ContainsKey(this.nowSubMenuTypeId))
+            if (SmClothes_F_Data.objects.ContainsKey(nowSubMenuTypeId))
             {
                 int num = 0;
-                if (this.clothesInfoF != null)
-                    switch (this.nowSubMenuTypeId)
+                if (clothesInfoF != null)
+                    switch (nowSubMenuTypeId)
                     {
                         case 57:
-                            num = this.clothesInfoF.clothesId[0];
+                            num = clothesInfoF.clothesId[0];
                             break;
                         case 58:
-                            num = this.clothesInfoF.clothesId[1];
+                            num = clothesInfoF.clothesId[1];
                             break;
                         case 59:
-                            num = this.clothesInfoF.clothesId[2];
+                            num = clothesInfoF.clothesId[2];
                             break;
                         case 60:
-                            num = this.clothesInfoF.clothesId[3];
+                            num = clothesInfoF.clothesId[3];
                             break;
                         case 61:
-                            num = this.clothesInfoF.clothesId[7];
+                            num = clothesInfoF.clothesId[7];
                             break;
                         case 62:
-                            num = this.clothesInfoF.clothesId[8];
+                            num = clothesInfoF.clothesId[8];
                             break;
                         case 63:
-                            num = this.clothesInfoF.clothesId[9];
+                            num = clothesInfoF.clothesId[9];
                             break;
                         case 64:
-                            num = this.clothesInfoF.clothesId[10];
+                            num = clothesInfoF.clothesId[10];
                             break;
                         case 76:
-                            num = this.clothesInfoF.clothesId[5];
+                            num = clothesInfoF.clothesId[5];
                             break;
                         case 77:
-                            num = this.clothesInfoF.clothesId[6];
+                            num = clothesInfoF.clothesId[6];
                             break;
                     }
-                count = this._objects[this.nowSubMenuTypeId].Count;
-                for (int i = 0; i < this._objects[this.nowSubMenuTypeId].Count; i++)
+                count = SmClothes_F_Data.objects[nowSubMenuTypeId].Count;
+                for (int i = 0; i < SmClothes_F_Data.objects[nowSubMenuTypeId].Count; i++)
                 {
-                    ObjectData o = this._objects[this.nowSubMenuTypeId][i];
+                    SmClothes_F_Data.ObjectData o = SmClothes_F_Data.objects[nowSubMenuTypeId][i];
                     o.obj.SetActive(true);
                     if (o.key == num)
                     {
@@ -235,112 +152,112 @@ namespace CustomMenu
             {
                 Dictionary<int, ListTypeFbx> dictionary = null;
                 int num = 0;
-                switch (this.nowSubMenuTypeId)
+                switch (nowSubMenuTypeId)
                 {
                     case 57:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_top);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_top);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[0];
+                            num = clothesInfoF.clothesId[0];
                         }
                         break;
                     case 58:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bot);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bot);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[1];
+                            num = clothesInfoF.clothesId[1];
                         }
                         break;
                     case 59:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bra);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bra);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[2];
+                            num = clothesInfoF.clothesId[2];
                         }
                         break;
                     case 60:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shorts);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shorts);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[3];
+                            num = clothesInfoF.clothesId[3];
                         }
                         break;
                     case 61:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_gloves);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_gloves);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[7];
+                            num = clothesInfoF.clothesId[7];
                         }
                         break;
                     case 62:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_panst);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_panst);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[8];
+                            num = clothesInfoF.clothesId[8];
                         }
                         break;
                     case 63:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_socks);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_socks);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[9];
+                            num = clothesInfoF.clothesId[9];
                         }
                         break;
                     case 64:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shoes);
-                        if (this.clothesInfoF != null)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shoes);
+                        if (clothesInfoF != null)
                         {
-                            num = this.clothesInfoF.clothesId[10];
+                            num = clothesInfoF.clothesId[10];
                         }
                         break;
                     default:
-                        if (this.nowSubMenuTypeId != 76)
+                        if (nowSubMenuTypeId != 76)
                         {
-                            if (this.nowSubMenuTypeId == 77)
+                            if (nowSubMenuTypeId == 77)
                             {
-                                dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimbot);
-                                if (this.clothesInfoF != null)
+                                dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimbot);
+                                if (clothesInfoF != null)
                                 {
-                                    num = this.clothesInfoF.clothesId[6];
+                                    num = clothesInfoF.clothesId[6];
                                 }
                             }
                         }
                         else
                         {
-                            dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimtop);
-                            if (this.clothesInfoF != null)
+                            dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimtop);
+                            if (clothesInfoF != null)
                             {
-                                num = this.clothesInfoF.clothesId[5];
+                                num = clothesInfoF.clothesId[5];
                             }
                         }
                         break;
                 }
-                List<ObjectData> cd = new List<ObjectData>();
-                this._objects.Add(this.nowSubMenuTypeId, cd);
+                List<SmClothes_F_Data.ObjectData> cd = new List<SmClothes_F_Data.ObjectData>();
+                SmClothes_F_Data.objects.Add(nowSubMenuTypeId, cd);
                 foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
                 {
                     bool flag = false;
-                    if (this.chaInfo.customInfo.isConcierge)
+                    if (chaInfo.customInfo.isConcierge)
                     {
                         flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
                     }
                     if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0 || flag)
                     {
-                        GameObject gameObject = Instantiate(this.objLineBase);
+                        GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
                         gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
                         FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
                         fbxTypeInfo.id = current.Key;
                         fbxTypeInfo.typeName = current.Value.Name;
                         fbxTypeInfo.info = current.Value;
-                        gameObject.transform.SetParent(this.objListTop.transform, false);
+                        gameObject.transform.SetParent(__instance.objListTop.transform, false);
                         RectTransform rectTransform = gameObject.transform as RectTransform;
                         rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(this._container.rect.width, 24f);
+                        rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
                         Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                         component.text = fbxTypeInfo.typeName;
-                        this.CallPrivateExplicit<SmClothes_F>("SetButtonClickHandler", gameObject);
+                        __instance.CallPrivateExplicit<SmClothes_F>("SetButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
-                        cd.Add(new ObjectData { key = current.Key, obj = gameObject, toggle = component2, text = component });
+                        cd.Add(new SmClothes_F_Data.ObjectData { key = current.Key, obj = gameObject, toggle = component2, text = component });
                         component2.onValueChanged.AddListener(v =>
                         {
                             if (component2.isOn)
@@ -351,7 +268,7 @@ namespace CustomMenu
                             component2.isOn = true;
                             selected = count;
                         }
-                        ToggleGroup component3 = this.objListTop.GetComponent<ToggleGroup>();
+                        ToggleGroup component3 = __instance.objListTop.GetComponent<ToggleGroup>();
                         component2.group = component3;
                         gameObject.SetActive(true);
                         if (!flag)
@@ -363,7 +280,7 @@ namespace CustomMenu
                                 transform.gameObject.SetActive(true);
                             }
                         }
-                        IdTglInfo idTglInfo = new IdTglInfo();
+                        SmClothes_F.IdTglInfo idTglInfo = new SmClothes_F.IdTglInfo();
                         idTglInfo.coorde = int.Parse(current.Value.Etc[1]);
                         idTglInfo.tgl = component2;
                         GameObject gameObject2 = gameObject.transform.FindLoop("Background");
@@ -381,112 +298,118 @@ namespace CustomMenu
                         {
                             idTglInfo.text = gameObject2.GetComponent<Text>();
                         }
-                        ((List<IdTglInfo>)this.GetPrivateExplicit<SmClothes_F>("lstIdTgl")).Add(idTglInfo);
+                        ((List<SmClothes_F.IdTglInfo>)__instance.GetPrivateExplicit<SmClothes_F>("lstIdTgl")).Add(idTglInfo);
                         count++;
                     }
                 }
             }
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
-            this.rtfPanel.anchoredPosition = new Vector2(0f, y);
-            this.SetPrivateExplicit<SmClothes_F>("nowChanging", true);
-            if (this.clothesInfoF != null)
+            __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
+            __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", true);
+            if (clothesInfoF != null)
             {
                 float value = 1f;
                 float value2 = 1f;
                 float value3 = 1f;
-                switch (this.nowSubMenuTypeId)
+                switch (nowSubMenuTypeId)
                 {
                     case 57:
-                        value = this.clothesInfoF.clothesColor[0].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[0].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[0].specularSharpness;
-                        this.CallPrivateExplicit<SmClothes_F>("UpdateTopListEnable");
+                        value = clothesInfoF.clothesColor[0].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[0].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[0].specularSharpness;
+                        __instance.CallPrivateExplicit<SmClothes_F>("UpdateTopListEnable");
                         break;
                     case 58:
-                        value = this.clothesInfoF.clothesColor[1].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[1].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[1].specularSharpness;
-                        this.CallPrivateExplicit<SmClothes_F>("UpdateTopListEnable");
+                        value = clothesInfoF.clothesColor[1].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[1].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[1].specularSharpness;
+                        __instance.CallPrivateExplicit<SmClothes_F>("UpdateTopListEnable");
                         break;
                     case 59:
-                        value = this.clothesInfoF.clothesColor[2].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[2].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[2].specularSharpness;
+                        value = clothesInfoF.clothesColor[2].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[2].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[2].specularSharpness;
                         break;
                     case 60:
-                        value = this.clothesInfoF.clothesColor[3].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[3].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[3].specularSharpness;
+                        value = clothesInfoF.clothesColor[3].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[3].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[3].specularSharpness;
                         break;
                     case 61:
-                        value = this.clothesInfoF.clothesColor[7].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[7].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[7].specularSharpness;
+                        value = clothesInfoF.clothesColor[7].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[7].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[7].specularSharpness;
                         break;
                     case 62:
-                        value = this.clothesInfoF.clothesColor[8].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[8].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[8].specularSharpness;
+                        value = clothesInfoF.clothesColor[8].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[8].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[8].specularSharpness;
                         break;
                     case 63:
-                        value = this.clothesInfoF.clothesColor[9].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[9].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[9].specularSharpness;
+                        value = clothesInfoF.clothesColor[9].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[9].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[9].specularSharpness;
                         break;
                     case 64:
-                        value = this.clothesInfoF.clothesColor[10].specularIntensity;
-                        value2 = this.clothesInfoF.clothesColor[10].specularSharpness;
-                        value3 = this.clothesInfoF.clothesColor2[10].specularSharpness;
+                        value = clothesInfoF.clothesColor[10].specularIntensity;
+                        value2 = clothesInfoF.clothesColor[10].specularSharpness;
+                        value3 = clothesInfoF.clothesColor2[10].specularSharpness;
                         break;
                     default:
-                        if (this.nowSubMenuTypeId != 76)
+                        if (nowSubMenuTypeId != 76)
                         {
-                            if (this.nowSubMenuTypeId == 77)
+                            if (nowSubMenuTypeId == 77)
                             {
-                                value = this.clothesInfoF.clothesColor[6].specularIntensity;
-                                value2 = this.clothesInfoF.clothesColor[6].specularSharpness;
-                                value3 = this.clothesInfoF.clothesColor2[6].specularSharpness;
+                                value = clothesInfoF.clothesColor[6].specularIntensity;
+                                value2 = clothesInfoF.clothesColor[6].specularSharpness;
+                                value3 = clothesInfoF.clothesColor2[6].specularSharpness;
                             }
                         }
                         else
                         {
-                            value = this.clothesInfoF.clothesColor[5].specularIntensity;
-                            value2 = this.clothesInfoF.clothesColor[5].specularSharpness;
-                            value3 = this.clothesInfoF.clothesColor2[5].specularSharpness;
+                            value = clothesInfoF.clothesColor[5].specularIntensity;
+                            value2 = clothesInfoF.clothesColor[5].specularSharpness;
+                            value3 = clothesInfoF.clothesColor2[5].specularSharpness;
                         }
                         break;
                 }
-                if (this.sldIntensity)
+                if (__instance.sldIntensity)
                 {
-                    this.sldIntensity.value = value;
+                    __instance.sldIntensity.value = value;
                 }
-                if (this.inputIntensity)
+                if (__instance.inputIntensity)
                 {
-                    this.inputIntensity.text = this.ChangeTextFromFloat(value);
+                    __instance.inputIntensity.text = __instance.ChangeTextFromFloat(value);
                 }
-                if (this.sldSharpness[0])
+                if (__instance.sldSharpness[0])
                 {
-                    this.sldSharpness[0].value = value2;
+                    __instance.sldSharpness[0].value = value2;
                 }
-                if (this.inputSharpness[0])
+                if (__instance.inputSharpness[0])
                 {
-                    this.inputSharpness[0].text = this.ChangeTextFromFloat(value2);
+                    __instance.inputSharpness[0].text = __instance.ChangeTextFromFloat(value2);
                 }
-                if (this.sldSharpness[1])
+                if (__instance.sldSharpness[1])
                 {
-                    this.sldSharpness[1].value = value3;
+                    __instance.sldSharpness[1].value = value3;
                 }
-                if (this.inputSharpness[1])
+                if (__instance.inputSharpness[1])
                 {
-                    this.inputSharpness[1].text = this.ChangeTextFromFloat(value3);
+                    __instance.inputSharpness[1].text = __instance.ChangeTextFromFloat(value3);
                 }
             }
-            this.SetPrivateExplicit<SmClothes_F>("nowChanging", false);
-            this.OnClickColorSpecular(1);
-            this.OnClickColorSpecular(0);
-            this.OnClickColorDiffuse(1);
-            this.OnClickColorDiffuse(0);
+            __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", false);
+            __instance.OnClickColorSpecular(1);
+            __instance.OnClickColorSpecular(0);
+            __instance.OnClickColorDiffuse(1);
+            __instance.OnClickColorDiffuse(0);
+            SmClothes_F_Data.previousType = nowSubMenuTypeId;
+        }
+
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            yield return new CodeInstruction(OpCodes.Ret);
         }
     }
 }

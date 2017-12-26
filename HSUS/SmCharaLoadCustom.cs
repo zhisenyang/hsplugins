@@ -81,10 +81,13 @@ namespace CustomMenu
             string search = this._searchBar.text.Trim();
             foreach (FileInfo fi in this._fileInfos)
             {
+                GameObject obj;
+                if (this._objects.TryGetValue(fi, out obj) == false)
+                    continue;
                 if (fi.noAccess == false)
-                    this._objects[fi].SetActive(fi.CharaName.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
+                    obj.SetActive(fi.CharaName.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
                 else
-                    this._objects[fi].SetActive(false);
+                    obj.SetActive(false);
             }
         }
 

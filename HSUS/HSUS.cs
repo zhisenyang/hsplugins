@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Xml;
 using CustomMenu;
+using Harmony;
 using IllusionPlugin;
 using Manager;
 using UILib;
@@ -55,6 +56,7 @@ namespace HSUS
         public void OnApplicationStart()
         {
             self = this;
+
             switch (Process.GetCurrentProcess().ProcessName)
             {
                 case "HoneySelect_32":
@@ -66,6 +68,8 @@ namespace HSUS
                     this.binary = Binary.Neo;
                     break;
             }
+            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
                 return;
@@ -250,8 +254,8 @@ namespace HSUS
                 }
                 foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
                 {
-                    f.gameObject.AddComponent<SmClothes_FCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmClothes_F_Data.Init(f);
+                    break;
                 }
                 foreach (SmCharaLoad f in Resources.FindObjectsOfTypeAll<SmCharaLoad>())
                 {
@@ -260,8 +264,8 @@ namespace HSUS
                 }
                 foreach (SmAccessory f in Resources.FindObjectsOfTypeAll<SmAccessory>())
                 {
-                    f.gameObject.AddComponent<SmAccessoryCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmAccessory_Data.Init(f);
+                    break;
                 }
                 foreach (SmHair_F f in Resources.FindObjectsOfTypeAll<SmHair_F>())
                 {

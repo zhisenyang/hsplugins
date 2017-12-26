@@ -1,4 +1,5 @@
 ﻿using System;
+using HSUS;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -55,21 +56,15 @@ namespace CustomMenu
                 }
             }
 
-            SmClothes_FCustom compCutsom = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmClothes_FCustom>();
             SmCharaLoadCustom compCustom2;
-            SmAccessoryCustom compCustom3;
             SmHair_FCustom compCustom4;
             SmKindColorDCustom compCustom5;
             SmKindColorDSCustom compCustom6;
             SmFaceSkinCustom compCustom7;
             SmSwimsuitCustom compCustom8;
             SmClothesLoadCustom compCustom9;
-            if (compCutsom != null)
-                compCutsom.SetCharaInfo(this.nowSubMenuTypeId, sameSubMenu);
-            else if ((compCustom2 = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmCharaLoadCustom>()) != null)
+            if ((compCustom2 = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmCharaLoadCustom>()) != null)
                 compCustom2.SetCharaInfo(this.nowSubMenuTypeId, sameSubMenu);
-            else if ((compCustom3 = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmAccessoryCustom>()) != null)
-                compCustom3.SetCharaInfo(this.nowSubMenuTypeId, sameSubMenu);
             else if ((compCustom4 = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmHair_FCustom>()) != null)
                 compCustom4.SetCharaInfo(this.nowSubMenuTypeId, sameSubMenu);
             else if ((compCustom5 = ((GameObject)this.GetPrivateExplicit<SubMenuControl>("objActiveSubItem")).GetComponent<SmKindColorDCustom>()) != null)
