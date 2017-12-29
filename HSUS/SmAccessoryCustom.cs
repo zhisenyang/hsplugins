@@ -20,22 +20,22 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        public static readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
-        public static int _lastType;
-        public static int _lastId;
-        public static RectTransform _container;
-        public static InputField _searchBar;
+        public static readonly Dictionary<int, List<ObjectData>> objects = new Dictionary<int, List<ObjectData>>();
+        public static int lastType;
+        public static int lastId;
+        public static RectTransform container;
+        public static InputField searchBar;
 
         private static SmAccessory _originalComponent;
 
         public static void Init(SmAccessory originalComponent)
         {
             _originalComponent = originalComponent;
-            _container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = _container.gameObject.AddComponent<VerticalLayoutGroup>();
+            container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = _container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -49,24 +49,24 @@ namespace CustomMenu
             rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            _searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
-            foreach (Text t in _searchBar.GetComponentsInChildren<Text>())
+            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
 
-            rt = _searchBar.transform as RectTransform;
+            rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            _searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            _searchBar.onValueChanged.AddListener(SearchChanged);
+            searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            searchBar.onValueChanged.AddListener(SearchChanged);
         }
 
         public static void SearchChanged(string arg0)
         {
-            string search = _searchBar.text.Trim();
-            if (_objects.ContainsKey(_lastType) == false)
+            string search = searchBar.text.Trim();
+            if (objects.ContainsKey(lastType) == false)
                 return;
-            foreach (ObjectData objectData in _objects[_lastType])
+            foreach (ObjectData objectData in objects[lastType])
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -99,14 +99,14 @@ namespace CustomMenu
             int slotNoFromSubMenuSelect = (int)__instance.CallPrivateExplicit<SmAccessory>("GetSlotNoFromSubMenuSelect");
             int count = 0;
             int selectedIndex = 0;
-            if (SmAccessory_Data._lastType != nowSubMenuTypeId && SmAccessory_Data._objects.ContainsKey(SmAccessory_Data._lastType))
-                foreach (SmAccessory_Data.ObjectData o in SmAccessory_Data._objects[SmAccessory_Data._lastType])
+            if (SmAccessory_Data.lastType != nowSubMenuTypeId && SmAccessory_Data.objects.ContainsKey(SmAccessory_Data.lastType))
+                foreach (SmAccessory_Data.ObjectData o in SmAccessory_Data.objects[SmAccessory_Data.lastType])
                     o.obj.SetActive(false);
             if (newType != -1)
             {
-                if (SmAccessory_Data._objects.ContainsKey(newType))
+                if (SmAccessory_Data.objects.ContainsKey(newType))
                 {
-                    foreach (SmAccessory_Data.ObjectData o in SmAccessory_Data._objects[newType])
+                    foreach (SmAccessory_Data.ObjectData o in SmAccessory_Data.objects[newType])
                     {
                         o.obj.SetActive(true);
                         if (count == 0)
@@ -127,8 +127,8 @@ namespace CustomMenu
                 }
                 else
                 {
-                    SmAccessory_Data._objects.Add(newType, new List<SmAccessory_Data.ObjectData>());
-                    List<SmAccessory_Data.ObjectData> objects = SmAccessory_Data._objects[newType];
+                    SmAccessory_Data.objects.Add(newType, new List<SmAccessory_Data.ObjectData>());
+                    List<SmAccessory_Data.ObjectData> objects = SmAccessory_Data.objects[newType];
                     Dictionary<int, ListTypeFbx> dictionary = null;
                     CharaListInfo.TypeAccessoryFbx type = (CharaListInfo.TypeAccessoryFbx)((int)Enum.ToObject(typeof(CharaListInfo.TypeAccessoryFbx), newType));
                     dictionary = chaInfo.ListInfo.GetAccessoryFbxList(type, true);
@@ -160,7 +160,7 @@ namespace CustomMenu
                             gameObject.transform.SetParent(__instance.objListTop.transform, false);
                             RectTransform rectTransform = gameObject.transform as RectTransform;
                             rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                            rectTransform.sizeDelta = new Vector2(SmAccessory_Data._container.rect.width, 24f);
+                            rectTransform.sizeDelta = new Vector2(SmAccessory_Data.container.rect.width, 24f);
                             Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                             component.text = fbxTypeInfo.typeName;
                             __instance.CallPrivateExplicit<SmAccessory>("SetButtonClickHandler", gameObject);
@@ -242,8 +242,8 @@ namespace CustomMenu
             __instance.OnClickColorSpecular(0);
             __instance.OnClickColorDiffuse(1);
             __instance.OnClickColorDiffuse(0);
-            SmAccessory_Data._lastType = newType;
-            SmAccessory_Data._lastId = newId;
+            SmAccessory_Data.lastType = newType;
+            SmAccessory_Data.lastId = newId;
         }
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
@@ -258,9 +258,9 @@ namespace CustomMenu
     {
         public static void Prefix(int smTypeId, bool sameSubMenu)
         {
-            if (SmAccessory_Data._searchBar != null)
+            if (SmAccessory_Data.searchBar != null)
             {
-                SmAccessory_Data._searchBar.text = "";
+                SmAccessory_Data.searchBar.text = "";
                 SmAccessory_Data.SearchChanged("");
             }
         }
@@ -273,9 +273,9 @@ namespace CustomMenu
     {
         public static void Prefix(int newType)
         {
-            if (SmAccessory_Data._searchBar != null)
+            if (SmAccessory_Data.searchBar != null)
             {
-                SmAccessory_Data._searchBar.text = "";
+                SmAccessory_Data.searchBar.text = "";
                 SmAccessory_Data.SearchChanged("");
             }
         }

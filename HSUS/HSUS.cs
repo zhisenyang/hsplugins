@@ -1,19 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Xml;
 using CustomMenu;
 using Harmony;
 using IllusionPlugin;
-using Manager;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
 
 namespace HSUS
 {
@@ -247,11 +243,6 @@ namespace HSUS
         {
             this._routines.ExecuteDelayed(() =>
             {
-                foreach (SubMenuControl ct in Resources.FindObjectsOfTypeAll<SubMenuControl>())
-                {
-                    ct.gameObject.AddComponent<SubMenuControlCustom>().LoadFrom(ct);
-                    Object.Destroy(ct);
-                }
                 foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
                 {
                     SmClothes_F_Data.Init(f);
@@ -259,8 +250,8 @@ namespace HSUS
                 }
                 foreach (SmCharaLoad f in Resources.FindObjectsOfTypeAll<SmCharaLoad>())
                 {
-                    f.gameObject.AddComponent<SmCharaLoadCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmCharaLoad_Data.Init(f);
+                    break;
                 }
                 foreach (SmAccessory f in Resources.FindObjectsOfTypeAll<SmAccessory>())
                 {
@@ -269,33 +260,33 @@ namespace HSUS
                 }
                 foreach (SmHair_F f in Resources.FindObjectsOfTypeAll<SmHair_F>())
                 {
-                    f.gameObject.AddComponent<SmHair_FCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmHair_F_Data.Init(f);
+                    break;  
                 }
                 foreach (SmKindColorD f in Resources.FindObjectsOfTypeAll<SmKindColorD>())
                 {
-                    f.gameObject.AddComponent<SmKindColorDCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmKindColorD_Data.Init(f);
+                    break;
                 }
                 foreach (SmKindColorDS f in Resources.FindObjectsOfTypeAll<SmKindColorDS>())
                 {
-                    f.gameObject.AddComponent<SmKindColorDSCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmKindColorDS_Data.Init(f);
+                    break;
                 }
                 foreach (SmFaceSkin f in Resources.FindObjectsOfTypeAll<SmFaceSkin>())
                 {
-                    f.gameObject.AddComponent<SmFaceSkinCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmFaceSkin_Data.Init(f);
+                    break;
                 }
                 foreach (SmSwimsuit f in Resources.FindObjectsOfTypeAll<SmSwimsuit>())
                 {
-                    f.gameObject.AddComponent<SmSwimsuitCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmSwimsuit_Data.Init(f);
+                    break;
                 }
                 foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
                 {
-                    f.gameObject.AddComponent<SmClothesLoadCustom>().LoadFrom(f);
-                    Object.Destroy(f);
+                    SmClothesLoad_Data.Init(f);
+                    break;
                 }
             }, 10);
         }

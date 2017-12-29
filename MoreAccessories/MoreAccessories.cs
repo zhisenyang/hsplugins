@@ -3,12 +3,23 @@ using System.Reflection;
 using System.Xml;
 using Harmony;
 using IllusionPlugin;
+using Manager;
+using UILib;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace MoreAccessories
 {
     public class MoreAccessories : IEnhancedPlugin
     {
+        #region private Types
+        private class SlotData
+        {
+            public Button button;
+            public Text text;
+        }
+        #endregion
+
         #region Public Types
         public class CharAdditionalData
         {
@@ -24,6 +35,12 @@ namespace MoreAccessories
 
         #region Private Variables
         private readonly Dictionary<CharFile, CharAdditionalData> _accessoriesByChar = new Dictionary<CharFile, CharAdditionalData>();
+        private readonly List<SlotData> _displayedSlots = new List<SlotData>();
+        private RectTransform _slotsContainer;
+        private RectTransform _container;
+        private RectTransform _prefab;
+        private Vector2 _slotsContainerCachedOffsetMin;
+        private CharFile _lastLoaded;
         #endregion
 
         #region Public Accessors
@@ -41,11 +58,20 @@ namespace MoreAccessories
             CharExtSave.CharExtSave.RegisterHandler("moreAccessories", this.OnCharaLoad, this.OnCharaSave);
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
-
         }
 
         public void OnLevelWasInitialized(int level)
         {
+            this._slotsContainer = GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory") as RectTransform;
+            this._slotsContainerCachedOffsetMin = this._slotsContainer.offsetMin;
+            this._container = new GameObject("MoreAccessoriesSlots", typeof(RectTransform), typeof(ContentSizeFitter), typeof(VerticalLayoutGroup)).GetComponent<RectTransform>();
+            this._container.SetParent(this._slotsContainer);
+            this._container.localScale = Vector3.one;
+            this._container.localPosition = Vector3.zero;
+            this._container.pivot = new Vector2(0.5f, 1f);
+            this._container.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -this._slotsContainer.rect.height), new Vector2(1f, - this._slotsContainer.rect.height));
+
+            this._prefab = this._slotsContainer.Find("AcsSlot10") as RectTransform;
         }
 
         public void OnLevelWasLoaded(int level)
@@ -58,6 +84,7 @@ namespace MoreAccessories
 
         public void OnUpdate()
         {
+            this.GUILogic();
         }
 
         public void OnLateUpdate()
@@ -70,6 +97,39 @@ namespace MoreAccessories
         #endregion
 
         #region Private Methods
+
+        private void GUILogic()
+        {
+            if (Input.GetKeyDown(KeyCode.Plus))
+            {
+                this.AddSlot();
+            }
+        }
+
+        private void AddSlot()
+        {
+            SlotData sd = new SlotData();
+            GameObject obj = GameObject.Instantiate(this._prefab.gameObject);
+            obj.AddComponent<LayoutElement>().preferredHeight = this._prefab.rect.height;
+            obj.transform.SetParent(this._container);
+            sd.button = obj.GetComponent<Button>();
+            sd.text = sd.button.GetComponentInChildren<Text>();
+            sd.button.onClick = new Button.ButtonClickedEvent();
+            sd.button.onClick.AddListener(() => UnityEngine.Debug.Log("it's alive"));
+            this._displayedSlots.Add(sd);
+            sd.text.text = "Accessory " + (11 + this._displayedSlots.Count);
+            this._slotsContainer.offsetMin = this._slotsContainerCachedOffsetMin + new Vector2(0f, -this._prefab.rect.height * this._displayedSlots.Count);
+
+            CharAdditionalData additionalData = this._accessoriesByChar[this._lastLoaded];
+            additionalData.clothesInfoAccessory.Add(new CharFileInfoClothes.Accessory());
+            while (additionalData.infoAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.infoAccessory.Add(null);
+            while (additionalData.objAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAccessory.Add(null);
+            while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAcsMove.Add(null);
+        }
+
         private void OnCharaSave(CharFile charFile, XmlTextWriter writer)
         {
             CharAdditionalData additionalData;
@@ -187,6 +247,7 @@ namespace MoreAccessories
                         break;
                 }
             }
+            this._lastLoaded = charFile;
         }
         #endregion
     }

@@ -50,7 +50,6 @@
     <Compile Include="SmKindColorDCustom.cs" />
     <Compile Include="SmKindColorDSCustom.cs" />
     <Compile Include="SmSwimsuitCustom.cs" />
-    <Compile Include="SubMenuControlCustom.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">

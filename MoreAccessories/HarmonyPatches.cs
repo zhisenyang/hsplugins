@@ -4,6 +4,7 @@ using Harmony;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace MoreAccessories
 {
@@ -101,7 +102,7 @@ namespace MoreAccessories
                 }
                 if ((bool) data.objAccessory[_slotNo])
                 {
-                    UnityEngine.Object.Destroy(data.objAccessory[_slotNo]);
+                    Object.Destroy(data.objAccessory[_slotNo]);
                     data.objAccessory[_slotNo] = null;
                     data.infoAccessory[_slotNo] = null;
                     ReleaseTagObject(data, _slotNo);
@@ -162,7 +163,7 @@ namespace MoreAccessories
         private static List<GameObject> GetTagInfo(MoreAccessories.CharAdditionalData data, int key)
         {
             List<GameObject> collection = null;
-            if (data.charInfoDictTagObj.TryGetValue((int)key, out collection))
+            if (data.charInfoDictTagObj.TryGetValue(key, out collection))
             {
                 return new List<GameObject>(collection);
             }
@@ -178,7 +179,7 @@ namespace MoreAccessories
             if (data.charInfoDictTagObj.TryGetValue(key, out gameObjectList))
                 gameObjectList.AddRange(add);
             else
-                data.charInfoDictTagObj[(int)key] = add;
+                data.charInfoDictTagObj[key] = add;
         }
 
         private static void ChangeAccessoryColor(MoreAccessories.CharAdditionalData data, int slotNo)
@@ -194,7 +195,7 @@ namespace MoreAccessories
                 return false;
             }
             GameObject gameObject = data.objAccessory[slotNo];
-            if ((UnityEngine.Object)null == (UnityEngine.Object)gameObject)
+            if (null == gameObject)
             {
                 return false;
             }
@@ -208,7 +209,7 @@ namespace MoreAccessories
             {
                 CharReference.RefObjKey key = (CharReference.RefObjKey)(int)Enum.Parse(typeof(CharReference.RefObjKey), parentStr);
                 GameObject referenceInfo = charBody.chaInfo.GetReferenceInfo(key);
-                if ((UnityEngine.Object)null == (UnityEngine.Object)referenceInfo)
+                if (null == referenceInfo)
                 {
                     return false;
                 }
