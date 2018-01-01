@@ -8,7 +8,7 @@ namespace UILib
     {
         private Vector2 _cachedDragPosition;
         private Vector2 _cachedMousePosition;
-        private bool _isDragging = false;
+        private bool _pointerDownCalled = false;
         private BaseCameraControl _cameraControl;
         private BaseCameraControl.NoCtrlFunc _noControlFunctionCached;
 
@@ -32,7 +32,7 @@ namespace UILib
                 this._noControlFunctionCached = this._cameraControl.NoCtrlCondition;
                 this._cameraControl.NoCtrlCondition = () => true;
             }
-            this._isDragging = true;
+            this._pointerDownCalled = true;
             this._cachedDragPosition = this.toDrag.position;
             this._cachedMousePosition = Input.mousePosition;
             this.onPointerDown?.Invoke(eventData);
@@ -40,16 +40,19 @@ namespace UILib
 
         public void OnDrag(PointerEventData eventData)
         {
-            this._isDragging = true;
+            if (this._pointerDownCalled == false)
+                return;
             this.toDrag.position = this._cachedDragPosition + ((Vector2)Input.mousePosition - this._cachedMousePosition);
             this.onDrag?.Invoke(eventData);
         }
 
         public void OnPointerUp(PointerEventData eventData)
         {
+            if (this._pointerDownCalled == false)
+                return;
             if (this.preventCameraControl && this._cameraControl)
                 this._cameraControl.NoCtrlCondition = this._noControlFunctionCached;
-            this._isDragging = false;
+            this._pointerDownCalled = false;
             this.onPointerUp?.Invoke(eventData);
         }
     }
