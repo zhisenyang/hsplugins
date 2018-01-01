@@ -17,11 +17,6 @@ namespace HSUS
         private readonly LinkedList<string> _lastlogs = new LinkedList<string>();
         private bool _debug;
 
-        void Awake()
-        {
-
-        }
-
         void OnEnable()
         {
             Application.logMessageReceived += this.HandleLog;
@@ -110,7 +105,8 @@ namespace HSUS
                 GUILayout.EndHorizontal();
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
-
+                    if (c == null)
+                        continue;
                     GUILayout.BeginHorizontal();
                     MonoBehaviour m = c as MonoBehaviour;
                     if (m != null)
@@ -191,6 +187,11 @@ namespace HSUS
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
+                System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.dataPath, "output_log.txt"));
+            GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
             GUILayout.EndArea();

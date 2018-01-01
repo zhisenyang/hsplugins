@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
+using Harmony;
 using HSUS;
 using UILib;
 using UnityEngine;
@@ -7,9 +9,9 @@ using UnityEngine.UI;
 
 namespace CustomMenu
 {
-    public class SmHair_FCustom : SmHair_F
+    public static class SmHair_F_Data
     {
-        private class ObjectData
+        public class ObjectData
         {
             public int key;
             public Toggle toggle;
@@ -17,51 +19,53 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        private readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
-        private int _previousType;
-        private RectTransform _container;
-        private InputField _searchBar;
+        public static readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
+        public static int _previousType;
+        public static RectTransform _container;
+        public static InputField _searchBar;
 
-        public void LoadFrom(SmHair_F other)
+        private static SmHair_F _originalComponent;
+
+        public static void Init(SmHair_F originalComponent)
         {
-            this.LoadWith(other);
-            this.ReplaceEventsOf(other);
+            _originalComponent = originalComponent;
 
-            this._container = this.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = this._container.gameObject.AddComponent<VerticalLayoutGroup>();
+            _container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = _container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = this._container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = _container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            this.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = this.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
+            RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
             float newY = rt.offsetMax.y;
-            rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
+            rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
-            rt = this._searchBar.transform as RectTransform;
+            _searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            rt = _searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            this._searchBar.onValueChanged.AddListener(this.SearchChanged);
-            foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
+            _searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            _searchBar.onValueChanged.AddListener(SearchChanged);
+            foreach (Text t in _searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
+
         }
 
-        private void SearchChanged(string arg0)
+        public static void SearchChanged(string arg0)
         {
-            string search = this._searchBar.text.Trim();
-            if (this._objects.ContainsKey(this.nowSubMenuTypeId) == false)
+            string search = _searchBar.text.Trim();
+            if (_objects.ContainsKey(_previousType) == false)
                 return;
-            foreach (ObjectData objectData in this._objects[this.nowSubMenuTypeId])
+            foreach (ObjectData objectData in _objects[_previousType])
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -70,135 +74,68 @@ namespace CustomMenu
                     group.RegisterToggle(objectData.toggle);
             }
         }
+    }
 
-        public new virtual void SetCharaInfo(int smTypeId, bool sameSubMenu)
+    [HarmonyPatch(typeof(SmHair_F), "SetCharaInfoSub")]
+    public class SmHair_F_SetCharaInfoSub_Patches
+    {
+
+        public static void Prefix(SmHair_F __instance)
         {
-            if (null == this.customControl)
+            int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
+            CharInfo chaInfo = (CharInfo)__instance.GetPrivate("chaInfo");
+            CharFileInfoCustom customInfo = (CharFileInfoCustom) __instance.GetPrivate("customInfo");
+            SmHair_F_Data._searchBar.text = "";
+            SmHair_F_Data.SearchChanged("");
+            if (null == chaInfo)
             {
                 return;
             }
-            this.colorMenu = this.customControl.colorMenu;
-            this.chaInfo = this.customControl.chainfo;
-            if (null == this.chaInfo)
+            if (null == __instance.objListTop)
             {
                 return;
             }
-            this.chaBody = this.chaInfo.chaBody;
-            this.chaCustom = this.chaInfo.chaCustom;
-            this.chaClothes = this.chaInfo.chaClothes;
-            this.customInfo = this.chaInfo.customInfo;
-            this.clothesInfo = this.chaInfo.clothesInfo;
-            this.coordinateInfo = this.chaInfo.chaFile.coordinateInfo;
-            this.statusInfo = this.chaInfo.statusInfo;
-            this.parameterInfo = this.chaInfo.parameterInfo;
-            if (this.chaInfo.Sex == 0)
-            {
-                this.chaM = (this.chaInfo as CharMale);
-                this.chaBodyM = (this.chaInfo.chaBody as CharMaleBody);
-                this.chaCustomM = (this.chaCustom as CharMaleCustom);
-                this.chaClothesM = (this.chaClothes as CharMaleClothes);
-                this.customInfoM = (this.customInfo as CharFileInfoCustomMale);
-                this.clothesInfoM = (this.clothesInfo as CharFileInfoClothesMale);
-                this.coordinateInfoM = (this.coordinateInfo as CharFileInfoCoordinateMale);
-                this.statusInfoM = (this.statusInfo as CharFileInfoStatusMale);
-                this.parameterInfoM = (this.parameterInfo as CharFileInfoParameterMale);
-            }
-            else
-            {
-                this.chaF = (this.chaInfo as CharFemale);
-                this.chaBodyF = (this.chaInfo.chaBody as CharFemaleBody);
-                this.chaCustomF = (this.chaCustom as CharFemaleCustom);
-                this.chaClothesF = (this.chaClothes as CharFemaleClothes);
-                this.customInfoF = (this.customInfo as CharFileInfoCustomFemale);
-                this.clothesInfoF = (this.clothesInfo as CharFileInfoClothesFemale);
-                this.coordinateInfoF = (this.coordinateInfo as CharFileInfoCoordinateFemale);
-                this.statusInfoF = (this.statusInfo as CharFileInfoStatusFemale);
-                this.parameterInfoF = (this.parameterInfo as CharFileInfoParameterFemale);
-            }
-            this.defMale = this.customControl.defMaleSetting;
-            if (null != this.defMale)
-            {
-                this.defCustomM = this.defMale.maleCustom;
-                this.defClothesM = this.defMale.maleClothes;
-                this.defCustomInfoM = this.defMale.maleCustomInfo;
-                this.defClothesInfoM = this.defMale.maleClothesInfo;
-            }
-            this.defFemale = this.customControl.defFemaleSetting;
-            if (null != this.defFemale)
-            {
-                this.defCustomF = this.defFemale.femaleCustom;
-                this.defClothesF = this.defFemale.femaleClothes;
-                this.defCustomInfoF = this.defFemale.femaleCustomInfo;
-                this.defClothesInfoF = this.defFemale.femaleClothesInfo;
-            }
-            if (!sameSubMenu)
-            {
-                if (this.customControl.smClothesColorCtrlM)
-                {
-                    this.customControl.smClothesColorCtrlM.ReflectColorOff();
-                }
-                if (this.customControl.smClothesColorCtrlF)
-                {
-                    this.customControl.smClothesColorCtrlF.ReflectColorOff();
-                }
-            }
-            this._searchBar.text = "";
-            this.SearchChanged("");
-            this.nowSubMenuTypeId = smTypeId;
-            this.SetCharaInfoSub();
-        }
-
-        public override void SetCharaInfoSub()
-        {
-            if (null == this.chaInfo)
+            if (null == __instance.objLineBase)
             {
                 return;
             }
-            if (null == this.objListTop)
+            if (null == __instance.rtfPanel)
             {
                 return;
             }
-            if (null == this.objLineBase)
+            if (null != __instance.tglTab)
             {
-                return;
-            }
-            if (null == this.rtfPanel)
-            {
-                return;
-            }
-            if (null != this.tglTab)
-            {
-                this.tglTab.isOn = true;
+                __instance.tglTab.isOn = true;
             }
 
-            if (this._previousType != this.nowSubMenuTypeId && this._objects.ContainsKey(this._previousType))
-                foreach (ObjectData o in this._objects[this._previousType])
+            if (SmHair_F_Data._previousType != nowSubMenuTypeId && SmHair_F_Data._objects.ContainsKey(SmHair_F_Data._previousType))
+                foreach (SmHair_F_Data.ObjectData o in SmHair_F_Data._objects[SmHair_F_Data._previousType])
                     o.obj.SetActive(false);
             int count = 0;
             int selected = 0;
 
-            if (this._objects.ContainsKey(this.nowSubMenuTypeId))
+            if (SmHair_F_Data._objects.ContainsKey(nowSubMenuTypeId))
             {
                 int num = 0;
-                switch (this.nowSubMenuTypeId)
+                switch (nowSubMenuTypeId)
                 {
                     case 47:
-                        num = this.customInfo.hairId[1];
+                        num = customInfo.hairId[1];
                         break;
                     case 48:
-                        num = this.customInfo.hairId[0];
+                        num = customInfo.hairId[0];
                         break;
                     case 49:
-                        num = this.customInfo.hairId[2];
+                        num = customInfo.hairId[2];
                         break;
                     case 50:
-                        num = this.customInfo.hairId[0];
+                        num = customInfo.hairId[0];
                         break;
                 }
-                count = this._objects[this.nowSubMenuTypeId].Count;
-                for (int i = 0; i < this._objects[this.nowSubMenuTypeId].Count; i++)
+                count = SmHair_F_Data._objects[nowSubMenuTypeId].Count;
+                for (int i = 0; i < SmHair_F_Data._objects[nowSubMenuTypeId].Count; i++)
                 {
-                    ObjectData o = this._objects[this.nowSubMenuTypeId][i];
+                    SmHair_F_Data.ObjectData o = SmHair_F_Data._objects[nowSubMenuTypeId][i];
                     o.obj.SetActive(true);
                     if (o.key == num)
                     {
@@ -214,36 +151,36 @@ namespace CustomMenu
             {
                 Dictionary<int, ListTypeFbx> dictionary = null;
                 int num = 0;
-                switch (this.nowSubMenuTypeId)
+                switch (nowSubMenuTypeId)
                 {
                     case 47:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairF, true);
-                        num = this.customInfo.hairId[1];
-                        if (this.btnIntegrate01)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairF, true);
+                        num = customInfo.hairId[1];
+                        if (__instance.btnIntegrate01)
                         {
-                            Text[] componentsInChildren = this.btnIntegrate01.GetComponentsInChildren<Text>(true);
+                            Text[] componentsInChildren = __instance.btnIntegrate01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren.Length != 0)
                             {
                                 componentsInChildren[0].text = "後ろ髪と横髪も同じ色に合わせる";
                             }
                         }
-                        if (this.btnIntegrate02)
+                        if (__instance.btnIntegrate02)
                         {
-                            this.btnIntegrate02.gameObject.SetActive(true);
+                            __instance.btnIntegrate02.gameObject.SetActive(true);
                         }
-                        if (this.btnReference01)
+                        if (__instance.btnReference01)
                         {
-                            this.btnReference01.gameObject.SetActive(true);
-                            Text[] componentsInChildren2 = this.btnReference01.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference01.gameObject.SetActive(true);
+                            Text[] componentsInChildren2 = __instance.btnReference01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren2.Length != 0)
                             {
                                 componentsInChildren2[0].text = "眉毛の色に合わせる";
                             }
                         }
-                        if (this.btnReference02)
+                        if (__instance.btnReference02)
                         {
-                            this.btnReference02.gameObject.SetActive(true);
-                            Text[] componentsInChildren3 = this.btnReference02.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference02.gameObject.SetActive(true);
+                            Text[] componentsInChildren3 = __instance.btnReference02.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren3.Length != 0)
                             {
                                 componentsInChildren3[0].text = "アンダーヘアの色に合わせる";
@@ -251,35 +188,35 @@ namespace CustomMenu
                         }
                         break;
                     case 48:
-                        if (this.chaInfo.Sex == 0)
+                        if (chaInfo.Sex == 0)
                         {
-                            dictionary = this.chaInfo.ListInfo.GetMaleFbxList(CharaListInfo.TypeMaleFbx.cm_f_hair, true);
-                            num = this.customInfo.hairId[0];
-                            if (this.btnIntegrate01)
+                            dictionary = chaInfo.ListInfo.GetMaleFbxList(CharaListInfo.TypeMaleFbx.cm_f_hair, true);
+                            num = customInfo.hairId[0];
+                            if (__instance.btnIntegrate01)
                             {
-                                Text[] componentsInChildren4 = this.btnIntegrate01.GetComponentsInChildren<Text>(true);
+                                Text[] componentsInChildren4 = __instance.btnIntegrate01.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren4.Length != 0)
                                 {
                                     componentsInChildren4[0].text = "眉毛とヒゲも同じ色に合わせる";
                                 }
                             }
-                            if (this.btnIntegrate02)
+                            if (__instance.btnIntegrate02)
                             {
-                                this.btnIntegrate02.gameObject.SetActive(false);
+                                __instance.btnIntegrate02.gameObject.SetActive(false);
                             }
-                            if (this.btnReference01)
+                            if (__instance.btnReference01)
                             {
-                                this.btnReference01.gameObject.SetActive(true);
-                                Text[] componentsInChildren5 = this.btnReference01.GetComponentsInChildren<Text>(true);
+                                __instance.btnReference01.gameObject.SetActive(true);
+                                Text[] componentsInChildren5 = __instance.btnReference01.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren5.Length != 0)
                                 {
                                     componentsInChildren5[0].text = "眉毛の色に合わせる";
                                 }
                             }
-                            if (this.btnReference02)
+                            if (__instance.btnReference02)
                             {
-                                this.btnReference02.gameObject.SetActive(true);
-                                Text[] componentsInChildren6 = this.btnReference02.GetComponentsInChildren<Text>(true);
+                                __instance.btnReference02.gameObject.SetActive(true);
+                                Text[] componentsInChildren6 = __instance.btnReference02.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren6.Length != 0)
                                 {
                                     componentsInChildren6[0].text = "ヒゲの色に合わせる";
@@ -288,33 +225,33 @@ namespace CustomMenu
                         }
                         else
                         {
-                            dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairB, true);
-                            num = this.customInfo.hairId[0];
-                            if (this.btnIntegrate01)
+                            dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairB, true);
+                            num = customInfo.hairId[0];
+                            if (__instance.btnIntegrate01)
                             {
-                                Text[] componentsInChildren7 = this.btnIntegrate01.GetComponentsInChildren<Text>(true);
+                                Text[] componentsInChildren7 = __instance.btnIntegrate01.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren7.Length != 0)
                                 {
                                     componentsInChildren7[0].text = "前髪と横髪も同じ色に合わせる";
                                 }
                             }
-                            if (this.btnIntegrate02)
+                            if (__instance.btnIntegrate02)
                             {
-                                this.btnIntegrate02.gameObject.SetActive(true);
+                                __instance.btnIntegrate02.gameObject.SetActive(true);
                             }
-                            if (this.btnReference01)
+                            if (__instance.btnReference01)
                             {
-                                this.btnReference01.gameObject.SetActive(true);
-                                Text[] componentsInChildren8 = this.btnReference01.GetComponentsInChildren<Text>(true);
+                                __instance.btnReference01.gameObject.SetActive(true);
+                                Text[] componentsInChildren8 = __instance.btnReference01.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren8.Length != 0)
                                 {
                                     componentsInChildren8[0].text = "眉毛の色に合わせる";
                                 }
                             }
-                            if (this.btnReference02)
+                            if (__instance.btnReference02)
                             {
-                                this.btnReference02.gameObject.SetActive(true);
-                                Text[] componentsInChildren9 = this.btnReference02.GetComponentsInChildren<Text>(true);
+                                __instance.btnReference02.gameObject.SetActive(true);
+                                Text[] componentsInChildren9 = __instance.btnReference02.GetComponentsInChildren<Text>(true);
                                 if (componentsInChildren9.Length != 0)
                                 {
                                     componentsInChildren9[0].text = "アンダーヘアの色に合わせる";
@@ -323,33 +260,33 @@ namespace CustomMenu
                         }
                         break;
                     case 49:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairS, true);
-                        num = this.customInfo.hairId[2];
-                        if (this.btnIntegrate01)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairS, true);
+                        num = customInfo.hairId[2];
+                        if (__instance.btnIntegrate01)
                         {
-                            Text[] componentsInChildren10 = this.btnIntegrate01.GetComponentsInChildren<Text>(true);
+                            Text[] componentsInChildren10 = __instance.btnIntegrate01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren10.Length != 0)
                             {
                                 componentsInChildren10[0].text = "前髪と後ろ髪も同じ色に合わせる";
                             }
                         }
-                        if (this.btnIntegrate02)
+                        if (__instance.btnIntegrate02)
                         {
-                            this.btnIntegrate02.gameObject.SetActive(true);
+                            __instance.btnIntegrate02.gameObject.SetActive(true);
                         }
-                        if (this.btnReference01)
+                        if (__instance.btnReference01)
                         {
-                            this.btnReference01.gameObject.SetActive(true);
-                            Text[] componentsInChildren11 = this.btnReference01.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference01.gameObject.SetActive(true);
+                            Text[] componentsInChildren11 = __instance.btnReference01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren11.Length != 0)
                             {
                                 componentsInChildren11[0].text = "眉毛の色に合わせる";
                             }
                         }
-                        if (this.btnReference02)
+                        if (__instance.btnReference02)
                         {
-                            this.btnReference02.gameObject.SetActive(true);
-                            Text[] componentsInChildren12 = this.btnReference02.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference02.gameObject.SetActive(true);
+                            Text[] componentsInChildren12 = __instance.btnReference02.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren12.Length != 0)
                             {
                                 componentsInChildren12[0].text = "アンダーヘアの色に合わせる";
@@ -357,33 +294,33 @@ namespace CustomMenu
                         }
                         break;
                     case 50:
-                        dictionary = this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairB, true);
-                        num = this.customInfo.hairId[0];
-                        if (this.btnIntegrate01)
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_hairB, true);
+                        num = customInfo.hairId[0];
+                        if (__instance.btnIntegrate01)
                         {
-                            Text[] componentsInChildren13 = this.btnIntegrate01.GetComponentsInChildren<Text>(true);
+                            Text[] componentsInChildren13 = __instance.btnIntegrate01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren13.Length != 0)
                             {
                                 componentsInChildren13[0].text = "眉毛とアンダーヘアも同じ色に合わせる";
                             }
                         }
-                        if (this.btnIntegrate02)
+                        if (__instance.btnIntegrate02)
                         {
-                            this.btnIntegrate02.gameObject.SetActive(false);
+                            __instance.btnIntegrate02.gameObject.SetActive(false);
                         }
-                        if (this.btnReference01)
+                        if (__instance.btnReference01)
                         {
-                            this.btnReference01.gameObject.SetActive(true);
-                            Text[] componentsInChildren14 = this.btnReference01.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference01.gameObject.SetActive(true);
+                            Text[] componentsInChildren14 = __instance.btnReference01.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren14.Length != 0)
                             {
                                 componentsInChildren14[0].text = "眉毛の色に合わせる";
                             }
                         }
-                        if (this.btnReference02)
+                        if (__instance.btnReference02)
                         {
-                            this.btnReference02.gameObject.SetActive(true);
-                            Text[] componentsInChildren15 = this.btnReference02.GetComponentsInChildren<Text>(true);
+                            __instance.btnReference02.gameObject.SetActive(true);
+                            Text[] componentsInChildren15 = __instance.btnReference02.GetComponentsInChildren<Text>(true);
                             if (componentsInChildren15.Length != 0)
                             {
                                 componentsInChildren15[0].text = "アンダーヘアの色に合わせる";
@@ -391,49 +328,49 @@ namespace CustomMenu
                         }
                         break;
                 }
-                if (this.btnIntegrate02)
+                if (__instance.btnIntegrate02)
                 {
-                    Text[] componentsInChildren16 = this.btnIntegrate02.GetComponentsInChildren<Text>(true);
+                    Text[] componentsInChildren16 = __instance.btnIntegrate02.GetComponentsInChildren<Text>(true);
                     if (componentsInChildren16.Length != 0)
                     {
                         componentsInChildren16[0].text = "眉毛とアンダーヘアも同じ色に合わせる";
                     }
                 }
-                List<ObjectData> cd = new List<ObjectData>();
-                this._objects.Add(this.nowSubMenuTypeId, cd);
+                List<SmHair_F_Data.ObjectData> cd = new List<SmHair_F_Data.ObjectData>();
+                SmHair_F_Data._objects.Add(nowSubMenuTypeId, cd);
                 foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
                 {
                     if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0)
                     {
-                        if (this.chaInfo.Sex != 0)
+                        if (chaInfo.Sex != 0)
                         {
-                            if (this.nowSubMenuTypeId == 48)
+                            if (nowSubMenuTypeId == 48)
                             {
                                 if ("1" == current.Value.Etc[0])
                                 {
                                     continue;
                                 }
                             }
-                            else if (this.nowSubMenuTypeId == 50 && "1" != current.Value.Etc[0])
+                            else if (nowSubMenuTypeId == 50 && "1" != current.Value.Etc[0])
                             {
                                 continue;
                             }
                         }
-                        GameObject gameObject = Instantiate(this.objLineBase);
+                        GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
                         gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
                         FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
                         fbxTypeInfo.id = current.Key;
                         fbxTypeInfo.typeName = current.Value.Name;
                         fbxTypeInfo.info = current.Value;
-                        gameObject.transform.SetParent(this.objListTop.transform, false);
+                        gameObject.transform.SetParent(__instance.objListTop.transform, false);
                         RectTransform rectTransform = gameObject.transform as RectTransform;
                         rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(this._container.rect.width, 24f);
+                        rectTransform.sizeDelta = new Vector2(SmHair_F_Data._container.rect.width, 24f);
                         Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                         component.text = fbxTypeInfo.typeName;
-                        this.CallPrivateExplicit<SmHair_F>("SetButtonClickHandler", gameObject);
+                        __instance.CallPrivateExplicit<SmHair_F>("SetButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
-                        cd.Add(new ObjectData {key = current.Key, obj = gameObject, toggle = component2, text = component });
+                        cd.Add(new SmHair_F_Data.ObjectData {key = current.Key, obj = gameObject, toggle = component2, text = component });
                         component2.onValueChanged.AddListener(v =>
                         {
                             if (component2.isOn)
@@ -444,7 +381,7 @@ namespace CustomMenu
                             component2.isOn = true;
                             selected = count;
                         }
-                        ToggleGroup component3 = this.objListTop.GetComponent<ToggleGroup>();
+                        ToggleGroup component3 = __instance.objListTop.GetComponent<ToggleGroup>();
                         component2.group = component3;
                         gameObject.SetActive(true);
                         int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
@@ -459,91 +396,96 @@ namespace CustomMenu
             }
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
-            this.rtfPanel.anchoredPosition = new Vector2(0f, y);
+            __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
 
-            this.SetPrivateExplicit<SmHair_F>("nowChanging", true);
-            if (this.customInfo != null)
+            __instance.SetPrivateExplicit<SmHair_F>("nowChanging", true);
+            if (customInfo != null)
             {
                 float value = 1f;
                 float value2 = 1f;
                 float value3 = 1f;
                 float value4 = 1f;
-                switch (this.nowSubMenuTypeId)
+                switch (nowSubMenuTypeId)
                 {
                     case 47:
-                        value = this.customInfo.hairColor[1].specularIntensity;
-                        value2 = this.customInfo.hairColor[1].specularSharpness;
-                        value3 = this.customInfo.hairAcsColor[1].specularIntensity;
-                        value4 = this.customInfo.hairAcsColor[1].specularSharpness;
+                        value = customInfo.hairColor[1].specularIntensity;
+                        value2 = customInfo.hairColor[1].specularSharpness;
+                        value3 = customInfo.hairAcsColor[1].specularIntensity;
+                        value4 = customInfo.hairAcsColor[1].specularSharpness;
                         break;
                     case 48:
-                        if (this.chaInfo.Sex == 0)
+                        if (chaInfo.Sex == 0)
                         {
-                            value = this.customInfo.hairColor[0].specularIntensity;
-                            value2 = this.customInfo.hairColor[0].specularSharpness;
-                            value3 = this.customInfo.hairAcsColor[0].specularIntensity;
-                            value4 = this.customInfo.hairAcsColor[0].specularSharpness;
+                            value = customInfo.hairColor[0].specularIntensity;
+                            value2 = customInfo.hairColor[0].specularSharpness;
+                            value3 = customInfo.hairAcsColor[0].specularIntensity;
+                            value4 = customInfo.hairAcsColor[0].specularSharpness;
                         }
                         else
                         {
-                            value = this.customInfo.hairColor[0].specularIntensity;
-                            value2 = this.customInfo.hairColor[0].specularSharpness;
-                            value3 = this.customInfo.hairAcsColor[0].specularIntensity;
-                            value4 = this.customInfo.hairAcsColor[0].specularSharpness;
+                            value = customInfo.hairColor[0].specularIntensity;
+                            value2 = customInfo.hairColor[0].specularSharpness;
+                            value3 = customInfo.hairAcsColor[0].specularIntensity;
+                            value4 = customInfo.hairAcsColor[0].specularSharpness;
                         }
                         break;
                     case 49:
-                        value = this.customInfo.hairColor[2].specularIntensity;
-                        value2 = this.customInfo.hairColor[2].specularSharpness;
-                        value3 = this.customInfo.hairAcsColor[2].specularIntensity;
-                        value4 = this.customInfo.hairAcsColor[2].specularSharpness;
+                        value = customInfo.hairColor[2].specularIntensity;
+                        value2 = customInfo.hairColor[2].specularSharpness;
+                        value3 = customInfo.hairAcsColor[2].specularIntensity;
+                        value4 = customInfo.hairAcsColor[2].specularSharpness;
                         break;
                     case 50:
-                        value = this.customInfo.hairColor[0].specularIntensity;
-                        value2 = this.customInfo.hairColor[0].specularSharpness;
-                        value3 = this.customInfo.hairAcsColor[0].specularIntensity;
-                        value4 = this.customInfo.hairAcsColor[0].specularSharpness;
+                        value = customInfo.hairColor[0].specularIntensity;
+                        value2 = customInfo.hairColor[0].specularSharpness;
+                        value3 = customInfo.hairAcsColor[0].specularIntensity;
+                        value4 = customInfo.hairAcsColor[0].specularSharpness;
                         break;
                 }
-                if (this.sldIntensity)
+                if (__instance.sldIntensity)
                 {
-                    this.sldIntensity.value = value;
+                    __instance.sldIntensity.value = value;
                 }
-                if (this.inputIntensity)
+                if (__instance.inputIntensity)
                 {
-                    this.inputIntensity.text = this.ChangeTextFromFloat(value);
+                    __instance.inputIntensity.text = __instance.ChangeTextFromFloat(value);
                 }
-                if (this.sldSharpness)
+                if (__instance.sldSharpness)
                 {
-                    this.sldSharpness.value = value2;
+                    __instance.sldSharpness.value = value2;
                 }
-                if (this.inputSharpness)
+                if (__instance.inputSharpness)
                 {
-                    this.inputSharpness.text = this.ChangeTextFromFloat(value2);
+                    __instance.inputSharpness.text = __instance.ChangeTextFromFloat(value2);
                 }
-                if (this.sldAcsIntensity)
+                if (__instance.sldAcsIntensity)
                 {
-                    this.sldAcsIntensity.value = value3;
+                    __instance.sldAcsIntensity.value = value3;
                 }
-                if (this.inputAcsIntensity)
+                if (__instance.inputAcsIntensity)
                 {
-                    this.inputAcsIntensity.text = this.ChangeTextFromFloat(value3);
+                    __instance.inputAcsIntensity.text = __instance.ChangeTextFromFloat(value3);
                 }
-                if (this.sldAcsSharpness)
+                if (__instance.sldAcsSharpness)
                 {
-                    this.sldAcsSharpness.value = value4;
+                    __instance.sldAcsSharpness.value = value4;
                 }
-                if (this.inputAcsSharpness)
+                if (__instance.inputAcsSharpness)
                 {
-                    this.inputAcsSharpness.text = this.ChangeTextFromFloat(value4);
+                    __instance.inputAcsSharpness.text = __instance.ChangeTextFromFloat(value4);
                 }
             }
-            this.SetPrivateExplicit<SmHair_F>("nowChanging", false);
-            this.OnClickAcsColorSpecular();
-            this.OnClickAcsColorDiffuse();
-            this.OnClickColorSpecular();
-            this.OnClickColorDiffuse();
-            this._previousType = this.nowSubMenuTypeId;
+            __instance.SetPrivateExplicit<SmHair_F>("nowChanging", false);
+            __instance.OnClickAcsColorSpecular();
+            __instance.OnClickAcsColorDiffuse();
+            __instance.OnClickColorSpecular();
+            __instance.OnClickColorDiffuse();
+            SmHair_F_Data._previousType = nowSubMenuTypeId;
+        }
+
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            yield return new CodeInstruction(OpCodes.Ret);
         }
     }
 }

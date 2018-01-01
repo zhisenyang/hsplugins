@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
+using Harmony;
 using HSUS;
 using UILib;
 using UnityEngine;
@@ -7,9 +9,9 @@ using UnityEngine.UI;
 
 namespace CustomMenu
 {
-    public class SmFaceSkinCustom : SmFaceSkin
+    public static class SmFaceSkin_Data
     {
-        private class ObjectData
+        public class ObjectData
         {
             public int key;
             public Toggle toggle;
@@ -17,129 +19,130 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        private bool _created;
-        private readonly List<ObjectData> _listHead = new List<ObjectData>();
-        private readonly List<ObjectData> _listFace = new List<ObjectData>();
-        private readonly List<ObjectData> _listDetail = new List<ObjectData>();
-        private RectTransform _containerHead;
-        private InputField _searchBarHead;
-        private RectTransform _containerSkin;
-        private InputField _searchBarSkin;
-        private RectTransform _containerDetail;
-        private InputField _searchBarDetail;
+        public static bool _created;
+        public static readonly List<ObjectData> _listHead = new List<ObjectData>();
+        public static readonly List<ObjectData> _listFace = new List<ObjectData>();
+        public static readonly List<ObjectData> _listDetail = new List<ObjectData>();
+        public static RectTransform _containerHead;
+        public static InputField _searchBarHead;
+        public static RectTransform _containerSkin;
+        public static InputField _searchBarSkin;
+        public static RectTransform _containerDetail;
+        public static InputField _searchBarDetail;
 
-        public void LoadFrom(SmFaceSkin other)
+        private static SmFaceSkin _originalComponent;
+
+        public static void Init(SmFaceSkin originalComponent)
         {
-            this.LoadWith(other);
-            this.ReplaceEventsOf(other);
-
+            _originalComponent = originalComponent;
             {
-                this._containerHead = this.transform.FindChild("TabControl/TabItem01").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = this._containerHead.gameObject.AddComponent<VerticalLayoutGroup>();
+                _containerHead = _originalComponent.transform.FindChild("TabControl/TabItem01").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = _containerHead.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = this._containerHead.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = _containerHead.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-                this.rtfPanelHead.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = this.rtfPanelHead.gameObject.AddComponent<VerticalLayoutGroup>();
+                _originalComponent.rtfPanelHead.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                group = _originalComponent.rtfPanelHead.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
-                RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
+                RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
                 float newY = rt.offsetMax.y;
-                rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
+                rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                this._searchBarHead = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
-                rt = this._searchBarHead.transform as RectTransform;
+                _searchBarHead = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+                rt = _searchBarHead.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                this._searchBarHead.placeholder.GetComponent<Text>().text = "Search...";
-                this._searchBarHead.onValueChanged.AddListener(this.SearchChangedHead);
-                foreach (Text t in this._searchBarHead.GetComponentsInChildren<Text>())
+                _searchBarHead.placeholder.GetComponent<Text>().text = "Search...";
+                _searchBarHead.onValueChanged.AddListener(SearchChangedHead);
+                foreach (Text t in _searchBarHead.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
 
             {
-                this._containerSkin = this.transform.FindChild("TabControl/TabItem02").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = this._containerSkin.gameObject.AddComponent<VerticalLayoutGroup>();
+                _containerSkin = _originalComponent.transform.FindChild("TabControl/TabItem02").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = _containerSkin.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = this._containerSkin.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = _containerSkin.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-                this.rtfPanelSkin.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = this.rtfPanelSkin.gameObject.AddComponent<VerticalLayoutGroup>();
+                _originalComponent.rtfPanelSkin.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                group = _originalComponent.rtfPanelSkin.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
-                RectTransform rt = this.transform.FindChild("TabControl/TabItem02/ScrollView") as RectTransform;
+                RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem02/ScrollView") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
                 float newY = rt.offsetMax.y;
-                rt = this.transform.FindChild("TabControl/TabItem02/Scrollbar") as RectTransform;
+                rt = _originalComponent.transform.FindChild("TabControl/TabItem02/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                this._searchBarSkin = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem02"));
-                rt = this._searchBarSkin.transform as RectTransform;
+                _searchBarSkin = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem02"));
+                rt = _searchBarSkin.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                this._searchBarSkin.placeholder.GetComponent<Text>().text = "Search...";
-                this._searchBarSkin.onValueChanged.AddListener(this.SearchChangedSkin);
-                foreach (Text t in this._searchBarSkin.GetComponentsInChildren<Text>())
+                _searchBarSkin.placeholder.GetComponent<Text>().text = "Search...";
+                _searchBarSkin.onValueChanged.AddListener(SearchChangedSkin);
+                foreach (Text t in _searchBarSkin.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
 
             {
-                this._containerDetail = this.transform.FindChild("TabControl/TabItem03").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = this._containerDetail.gameObject.AddComponent<VerticalLayoutGroup>();
+                _containerDetail = _originalComponent.transform.FindChild("TabControl/TabItem03").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = _containerDetail.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = this._containerDetail.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = _containerDetail.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-                this.rtfPanelDetail.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = this.rtfPanelDetail.gameObject.AddComponent<VerticalLayoutGroup>();
+                _originalComponent.rtfPanelDetail.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                group = _originalComponent.rtfPanelDetail.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
-                RectTransform rt = this.transform.FindChild("TabControl/TabItem03/ScrollView") as RectTransform;
+                RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem03/ScrollView") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
                 float newY = rt.offsetMax.y;
-                rt = this.transform.FindChild("TabControl/TabItem03/Scrollbar") as RectTransform;
+                rt = _originalComponent.transform.FindChild("TabControl/TabItem03/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                this._searchBarDetail = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem03"));
-                rt = this._searchBarDetail.transform as RectTransform;
+                _searchBarDetail = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem03"));
+                rt = _searchBarDetail.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                this._searchBarDetail.placeholder.GetComponent<Text>().text = "Search...";
-                this._searchBarDetail.onValueChanged.AddListener(this.SearchChangedDetail);
-                foreach (Text t in this._searchBarDetail.GetComponentsInChildren<Text>())
+                _searchBarDetail.placeholder.GetComponent<Text>().text = "Search...";
+                _searchBarDetail.onValueChanged.AddListener(SearchChangedDetail);
+                foreach (Text t in _searchBarDetail.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
         }
 
-        private void SearchChangedHead(string arg0)
+
+        public static void SearchChangedHead(string arg0)
         {
-            this.SearchChanged(this._searchBarHead.text.Trim(), this._listHead);
+            SearchChanged(_searchBarHead.text.Trim(), _listHead);
         }
 
-        private void SearchChangedSkin(string arg0)
+        public static void SearchChangedSkin(string arg0)
         {
-            this.SearchChanged(this._searchBarSkin.text.Trim(), this._listFace);
+            SearchChanged(_searchBarSkin.text.Trim(), _listFace);
         }
 
-        private void SearchChangedDetail(string arg0)
+        public static void SearchChangedDetail(string arg0)
         {
-            this.SearchChanged(this._searchBarDetail.text.Trim(), this._listDetail);
+            SearchChanged(_searchBarDetail.text.Trim(), _listDetail);
         }
 
-        private void SearchChanged(string search, List<ObjectData> list)
+        public static void SearchChanged(string search, List<ObjectData> list)
         {
             if (list != null)
                 foreach (ObjectData objectData in list)
@@ -151,130 +154,65 @@ namespace CustomMenu
                         group.RegisterToggle(objectData.toggle);
                 }
         }
+    }
 
-        public new virtual void SetCharaInfo(int smTypeId, bool sameSubMenu)
+    [HarmonyPatch(typeof(SmFaceSkin), "SetCharaInfoSub")]
+    public class SmFaceSkin_SetCharaInfoSub_Patches
+    {
+        public static void Prefix(SmFaceSkin __instance)
         {
-            if (null == this.customControl)
+            SmFaceSkin_Data._searchBarHead.text = "";
+            SmFaceSkin_Data.SearchChangedHead("");
+            SmFaceSkin_Data._searchBarSkin.text = "";
+            SmFaceSkin_Data.SearchChangedSkin("");
+            SmFaceSkin_Data._searchBarDetail.text = "";
+            SmFaceSkin_Data.SearchChangedDetail("");
+            CharInfo chaInfo = (CharInfo)__instance.GetPrivate("chaInfo");
+            CharFileInfoCustom customInfo = (CharFileInfoCustom)__instance.GetPrivate("customInfo");
+            if (null == chaInfo)
                 return;
-            this.colorMenu = this.customControl.colorMenu;
-            this.chaInfo = this.customControl.chainfo;
-            if (null == this.chaInfo)
+            if (null == __instance.objListTopHead)
                 return;
-            this.chaBody = this.chaInfo.chaBody;
-            this.chaCustom = this.chaInfo.chaCustom;
-            this.chaClothes = this.chaInfo.chaClothes;
-            this.customInfo = this.chaInfo.customInfo;
-            this.clothesInfo = this.chaInfo.clothesInfo;
-            this.coordinateInfo = this.chaInfo.chaFile.coordinateInfo;
-            this.statusInfo = this.chaInfo.statusInfo;
-            this.parameterInfo = this.chaInfo.parameterInfo;
-            if (this.chaInfo.Sex == 0)
+            if (null == __instance.objListTopSkin)
+                return;
+            if (null == __instance.objListTopDetail)
+                return;
+            if (null == __instance.objLineBase)
+                return;
+            if (null == __instance.rtfPanelHead)
+                return;
+            if (null == __instance.rtfPanelSkin)
+                return;
+            if (null == __instance.rtfPanelDetail)
+                return;
+            if (SmFaceSkin_Data._created == false)
             {
-                this.chaM = (this.chaInfo as CharMale);
-                this.chaBodyM = (this.chaInfo.chaBody as CharMaleBody);
-                this.chaCustomM = (this.chaCustom as CharMaleCustom);
-                this.chaClothesM = (this.chaClothes as CharMaleClothes);
-                this.customInfoM = (this.customInfo as CharFileInfoCustomMale);
-                this.clothesInfoM = (this.clothesInfo as CharFileInfoClothesMale);
-                this.coordinateInfoM = (this.coordinateInfo as CharFileInfoCoordinateMale);
-                this.statusInfoM = (this.statusInfo as CharFileInfoStatusMale);
-                this.parameterInfoM = (this.parameterInfo as CharFileInfoParameterMale);
-            }
-            else
-            {
-                this.chaF = (this.chaInfo as CharFemale);
-                this.chaBodyF = (this.chaInfo.chaBody as CharFemaleBody);
-                this.chaCustomF = (this.chaCustom as CharFemaleCustom);
-                this.chaClothesF = (this.chaClothes as CharFemaleClothes);
-                this.customInfoF = (this.customInfo as CharFileInfoCustomFemale);
-                this.clothesInfoF = (this.clothesInfo as CharFileInfoClothesFemale);
-                this.coordinateInfoF = (this.coordinateInfo as CharFileInfoCoordinateFemale);
-                this.statusInfoF = (this.statusInfo as CharFileInfoStatusFemale);
-                this.parameterInfoF = (this.parameterInfo as CharFileInfoParameterFemale);
-            }
-            this.defMale = this.customControl.defMaleSetting;
-            if (null != this.defMale)
-            {
-                this.defCustomM = this.defMale.maleCustom;
-                this.defClothesM = this.defMale.maleClothes;
-                this.defCustomInfoM = this.defMale.maleCustomInfo;
-                this.defClothesInfoM = this.defMale.maleClothesInfo;
-            }
-            this.defFemale = this.customControl.defFemaleSetting;
-            if (null != this.defFemale)
-            {
-                this.defCustomF = this.defFemale.femaleCustom;
-                this.defClothesF = this.defFemale.femaleClothes;
-                this.defCustomInfoF = this.defFemale.femaleCustomInfo;
-                this.defClothesInfoF = this.defFemale.femaleClothesInfo;
-            }
-            if (!sameSubMenu)
-            {
-                if (this.customControl.smClothesColorCtrlM)
-                {
-                    this.customControl.smClothesColorCtrlM.ReflectColorOff();
-                }
-                if (this.customControl.smClothesColorCtrlF)
-                {
-                    this.customControl.smClothesColorCtrlF.ReflectColorOff();
-                }
-            }
-            this._searchBarHead.text = "";
-            this.SearchChangedHead("");
-            this._searchBarSkin.text = "";
-            this.SearchChangedSkin("");
-            this._searchBarDetail.text = "";
-            this.SearchChangedDetail("");
-            this.nowSubMenuTypeId = smTypeId;
-            this.SetCharaInfoSub();
-        }
-
-        public override void SetCharaInfoSub()
-        {
-            if (null == this.chaInfo)
-                return;
-            if (null == this.objListTopHead)
-                return;
-            if (null == this.objListTopSkin)
-                return;
-            if (null == this.objListTopDetail)
-                return;
-            if (null == this.objLineBase)
-                return;
-            if (null == this.rtfPanelHead)
-                return;
-            if (null == this.rtfPanelSkin)
-                return;
-            if (null == this.rtfPanelDetail)
-                return;
-            if (this._created == false)
-            {
-                Dictionary<int, ListTypeFbx> dictionary = this.chaInfo.Sex == 0 ? this.chaInfo.ListInfo.GetMaleFbxList(CharaListInfo.TypeMaleFbx.cm_f_head, true) : this.chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_head, true);
+                Dictionary<int, ListTypeFbx> dictionary = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleFbxList(CharaListInfo.TypeMaleFbx.cm_f_head, true) : chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_head, true);
                 int num = 0;
-                if (this.customInfo != null)
+                if (customInfo != null)
                 {
-                    num = this.customInfo.headId;
+                    num = customInfo.headId;
                 }
                 int count = 0;
                 foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
                 {
                     if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0)
                     {
-                        GameObject gameObject = Instantiate(this.objLineBase);
+                        GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
                         gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
                         FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
                         fbxTypeInfo.id = current.Key;
                         fbxTypeInfo.typeName = current.Value.Name;
                         fbxTypeInfo.info = current.Value;
-                        gameObject.transform.SetParent(this.objListTopHead.transform, false);
+                        gameObject.transform.SetParent(__instance.objListTopHead.transform, false);
                         RectTransform rectTransform = gameObject.transform as RectTransform;
                         rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(this._containerHead.rect.width, 24f);
+                        rectTransform.sizeDelta = new Vector2(SmFaceSkin_Data._containerHead.rect.width, 24f);
                         Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                         component.text = fbxTypeInfo.typeName;
-                        this.CallPrivateExplicit<SmFaceSkin>("SetHeadButtonClickHandler", gameObject);
+                        __instance.CallPrivateExplicit<SmFaceSkin>("SetHeadButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
-                        this._listHead.Add(new ObjectData(){key = current.Key, obj = gameObject, text = component, toggle = component2});
+                        SmFaceSkin_Data._listHead.Add(new SmFaceSkin_Data.ObjectData(){key = current.Key, obj = gameObject, text = component, toggle = component2});
                         component2.onValueChanged.AddListener(v =>
                         {
                             if (component2.isOn)
@@ -284,7 +222,7 @@ namespace CustomMenu
                         {
                             component2.isOn = true;
                         }
-                        ToggleGroup component3 = this.objListTopHead.GetComponent<ToggleGroup>();
+                        ToggleGroup component3 = __instance.objListTopHead.GetComponent<ToggleGroup>();
                         component2.group = component3;
                         gameObject.SetActive(true);
                         int num3 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
@@ -296,37 +234,37 @@ namespace CustomMenu
                         count++;
                     }
                 }
-                Dictionary<int, ListTypeTexture> dictionary2 = this.chaInfo.Sex == 0 ? this.chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_face, true) : this.chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_face, true);
+                Dictionary<int, ListTypeTexture> dictionary2 = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_face, true) : chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_face, true);
                 num = 0;
-                if (this.customInfo != null)
+                if (customInfo != null)
                 {
-                    num = this.customInfo.texFaceId;
+                    num = customInfo.texFaceId;
                 }
                 count = 0;
                 foreach (KeyValuePair<int, ListTypeTexture> current in dictionary2)
                 {
                     if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0)
                     {
-                        GameObject gameObject2 = Instantiate(this.objLineBase);
+                        GameObject gameObject2 = GameObject.Instantiate(__instance.objLineBase);
                         gameObject2.AddComponent<LayoutElement>().preferredHeight = 24f;
                         TexTypeInfo texTypeInfo = gameObject2.AddComponent<TexTypeInfo>();
                         texTypeInfo.id = current.Key;
                         texTypeInfo.typeName = current.Value.Name;
                         texTypeInfo.info = current.Value;
-                        gameObject2.transform.SetParent(this.objListTopSkin.transform, false);
+                        gameObject2.transform.SetParent(__instance.objListTopSkin.transform, false);
                         RectTransform rectTransform2 = gameObject2.transform as RectTransform;
                         rectTransform2.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform2.sizeDelta = new Vector2(this._containerSkin.rect.width, 24f);
+                        rectTransform2.sizeDelta = new Vector2(SmFaceSkin_Data._containerSkin.rect.width, 24f);
                         Text component4 = rectTransform2.FindChild("Label").GetComponent<Text>();
                         component4.text = texTypeInfo.typeName;
-                        this.CallPrivateExplicit<SmFaceSkin>("SetSkinButtonClickHandler", gameObject2);
+                        __instance.CallPrivateExplicit<SmFaceSkin>("SetSkinButtonClickHandler", gameObject2);
                         Toggle component5 = gameObject2.GetComponent<Toggle>();
-                        this._listFace.Add(new ObjectData() { key = current.Key, obj = gameObject2, text = component4, toggle = component5 });
+                        SmFaceSkin_Data._listFace.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject2, text = component4, toggle = component5 });
                         if (current.Key == num)
                         {
                             component5.isOn = true;
                         }
-                        ToggleGroup component6 = this.objListTopSkin.GetComponent<ToggleGroup>();
+                        ToggleGroup component6 = __instance.objListTopSkin.GetComponent<ToggleGroup>();
                         component5.group = component6;
                         gameObject2.SetActive(true);
                         int num5 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
@@ -338,37 +276,37 @@ namespace CustomMenu
                         count++;
                     }
                 }
-                dictionary2 = this.chaInfo.Sex == 0 ? this.chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_detail_f, true) : this.chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_detail_f, true);
+                dictionary2 = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_detail_f, true) : chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_detail_f, true);
                 num = 0;
-                if (this.customInfo != null)
+                if (customInfo != null)
                 {
-                    num = this.customInfo.texFaceDetailId;
+                    num = customInfo.texFaceDetailId;
                 }
                 count = 0;
                 foreach (KeyValuePair<int, ListTypeTexture> current in dictionary2)
                 {
                     if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0)
                     {
-                        GameObject gameObject3 = Instantiate(this.objLineBase);
+                        GameObject gameObject3 = GameObject.Instantiate(__instance.objLineBase);
                         gameObject3.AddComponent<LayoutElement>().preferredHeight = 24f;
                         TexTypeInfo texTypeInfo2 = gameObject3.AddComponent<TexTypeInfo>();
                         texTypeInfo2.id = current.Key;
                         texTypeInfo2.typeName = current.Value.Name;
                         texTypeInfo2.info = current.Value;
-                        gameObject3.transform.SetParent(this.objListTopDetail.transform, false);
+                        gameObject3.transform.SetParent(__instance.objListTopDetail.transform, false);
                         RectTransform rectTransform3 = gameObject3.transform as RectTransform;
                         rectTransform3.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform3.sizeDelta = new Vector2(this._containerDetail.rect.width, 24f);
+                        rectTransform3.sizeDelta = new Vector2(SmFaceSkin_Data._containerDetail.rect.width, 24f);
                         Text component7 = rectTransform3.FindChild("Label").GetComponent<Text>();
                         component7.text = texTypeInfo2.typeName;
-                        this.CallPrivateExplicit<SmFaceSkin>("SetDetailButtonClickHandler", gameObject3);
+                        __instance.CallPrivateExplicit<SmFaceSkin>("SetDetailButtonClickHandler", gameObject3);
                         Toggle component8 = gameObject3.GetComponent<Toggle>();
-                        this._listDetail.Add(new ObjectData() { key = current.Key, obj = gameObject3, text = component7, toggle = component8 });
+                        SmFaceSkin_Data._listDetail.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject3, text = component7, toggle = component8 });
                         if (current.Key == num)
                         {
                             component8.isOn = true;
                         }
-                        ToggleGroup component9 = this.objListTopDetail.GetComponent<ToggleGroup>();
+                        ToggleGroup component9 = __instance.objListTopDetail.GetComponent<ToggleGroup>();
                         component8.group = component9;
                         gameObject3.SetActive(true);
                         int num7 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
@@ -384,9 +322,9 @@ namespace CustomMenu
             else
             {
                 int num = 0;
-                if (this.customInfo != null)
-                    num = this.customInfo.headId;
-                foreach (ObjectData objectData in this._listHead)
+                if (customInfo != null)
+                    num = customInfo.headId;
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listHead)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -394,9 +332,9 @@ namespace CustomMenu
                         objectData.toggle.isOn = false;
                 }
                 num = 0;
-                if (this.customInfo != null)
-                    num = this.customInfo.texFaceId;
-                foreach (ObjectData objectData in this._listFace)
+                if (customInfo != null)
+                    num = customInfo.texFaceId;
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listFace)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -404,9 +342,9 @@ namespace CustomMenu
                         objectData.toggle.isOn = false;
                 }
                 num = 0;
-                if (this.customInfo != null)
-                    num = this.customInfo.texFaceDetailId;
-                foreach (ObjectData objectData in this._listDetail)
+                if (customInfo != null)
+                    num = customInfo.texFaceDetailId;
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listDetail)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -414,20 +352,24 @@ namespace CustomMenu
                         objectData.toggle.isOn = false;
                 }
             }
-            this.SetPrivateExplicit<SmFaceSkin>("nowChanging", true);
-            if (this.customInfo != null)
+            __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", true);
+            if (customInfo != null)
             {
-                if (this.sldDetail)
+                if (__instance.sldDetail)
                 {
-                    this.sldDetail.value = this.customInfo.faceDetailWeight;
+                    __instance.sldDetail.value = customInfo.faceDetailWeight;
                 }
-                if (this.inputDetail)
+                if (__instance.inputDetail)
                 {
-                    this.inputDetail.text = this.ChangeTextFromFloat(this.customInfo.faceDetailWeight);
+                    __instance.inputDetail.text = __instance.ChangeTextFromFloat(customInfo.faceDetailWeight);
                 }
             }
-            this.SetPrivateExplicit<SmFaceSkin>("nowChanging", false);
-            this._created = true;
+            __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", false);
+            SmFaceSkin_Data._created = true;
+        }
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            yield return new CodeInstruction(OpCodes.Ret);
         }
     }
 }
