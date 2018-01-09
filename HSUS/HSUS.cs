@@ -15,8 +15,8 @@ namespace HSUS
 {
     public class HSUS : IEnhancedPlugin
     {
-        #region Public Types
-        public enum Binary
+        #region Private Types
+        private enum Binary
         {
             Neo,
             Game,
@@ -38,14 +38,17 @@ namespace HSUS
         private GameObject _go;
         private RoutinesComponent _routines;
         private HashSet<Canvas> _scaledCanvases = new HashSet<Canvas>();
+        private Binary _binary;
+        private Sprite _searchBarBackground;
         #endregion
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
         public string Version { get { return "1.1.0"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
-        public Binary binary { get; private set; }
         public static HSUS self { get; private set; }
+        public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
+        public Sprite searchBarBackground { get { return this._searchBarBackground; } }
         #endregion
 
         #region Unity Methods
@@ -57,15 +60,13 @@ namespace HSUS
             {
                 case "HoneySelect_32":
                 case "HoneySelect_64":
-                    this.binary = Binary.Game;
+                    this._binary = Binary.Game;
                     break;
                 case "StudioNEO_32":
                 case "StudioNEO_64":
-                    this.binary = Binary.Neo;
+                    this._binary = Binary.Neo;
                     break;
             }
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
                 return;
@@ -115,6 +116,8 @@ namespace HSUS
                 }
             }
             UIUtility.Init();
+            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
         public void OnApplicationQuit()
@@ -198,13 +201,13 @@ namespace HSUS
             if (this._optimizeCharaMaker)
                 this.InitFasterCharaMakerLoading();
             this.InitUIScale();
-            if (this._deleteConfirmation && this.binary == Binary.Neo && level == 3)
+            if (this._deleteConfirmation && this._binary == Binary.Neo && level == 3)
                 this.InitDeleteConfirmationDialog();
             if (this._disableShortcutsWhenTyping)
                 this._go.AddComponent<ShortcutsDisabler>();
-            if (this.binary == Binary.Game && level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+            if (this._binary == Binary.Game && level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                 this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
-            if (this._improveNeoUI && this.binary == Binary.Neo && level == 3)
+            if (this._improveNeoUI && this._binary == Binary.Neo && level == 3)
             {
 
                 RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
@@ -243,6 +246,20 @@ namespace HSUS
         {
             this._routines.ExecuteDelayed(() =>
             {
+                foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
+                {
+                    bool shouldBreak = false;
+                    switch (sprite.name)
+                    {
+                        case "rect_middle":
+                            this._searchBarBackground = sprite;
+                            shouldBreak = true;
+                            break;
+                    }
+                    if (shouldBreak)
+                        break;
+                }
+                UIUtility.SetCustomFont("mplus-1c-medium");
                 foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
                 {
                     SmClothes_F_Data.Init(f);
@@ -295,7 +312,7 @@ namespace HSUS
         {
             this._routines.ExecuteDelayed(() =>
             {
-                float usedScale = this.binary == Binary.Game ? this._gameUIScale : this._neoUIScale;
+                float usedScale = this._binary == Binary.Game ? this._gameUIScale : this._neoUIScale;
                 foreach (Canvas c in Resources.FindObjectsOfTypeAll<Canvas>())
                 {
                     if (this._scaledCanvases.Contains(c) == false && this.ShouldScaleUI(c))
@@ -332,7 +349,7 @@ namespace HSUS
         {
             bool ok = true;
             string path = c.transform.GetPathFrom(null);
-            if (this.binary == Binary.Neo)
+            if (this._binary == Binary.Neo)
             {
                 if (ok)
                     ok = path != "StartScene/Canvas";

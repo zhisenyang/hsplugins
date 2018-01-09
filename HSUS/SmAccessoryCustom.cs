@@ -1,14 +1,14 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmAccessory_Data
     {
@@ -30,6 +30,8 @@ namespace CustomMenu
 
         public static void Init(SmAccessory originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
             VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -50,6 +52,7 @@ namespace CustomMenu
             rt.offsetMax += new Vector2(0f, -24f);
 
             searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
             foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
 
@@ -59,6 +62,11 @@ namespace CustomMenu
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
             searchBar.placeholder.GetComponent<Text>().text = "Search...";
             searchBar.onValueChanged.AddListener(SearchChanged);
+        }
+
+        private static void Reset()
+        {
+            objects.Clear();
         }
 
         public static void SearchChanged(string arg0)
@@ -82,6 +90,11 @@ namespace CustomMenu
     [HarmonyPatch(new []{typeof(int), typeof(int)})]
     public class SmAccessory_ChangeAccessoryTypeList_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmAccessory __instance, int newType, int newId)
         {
             __instance.SetPrivateExplicit<SmAccessory>("acsType", newType);
@@ -256,6 +269,11 @@ namespace CustomMenu
     [HarmonyPatch(new[] {typeof(int), typeof(bool)})]
     public class SmAccessory_SetCharaInfo_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(int smTypeId, bool sameSubMenu)
         {
             if (SmAccessory_Data.searchBar != null)
@@ -271,6 +289,11 @@ namespace CustomMenu
     [HarmonyPatch(new[] { typeof(int) })]
     public class SmAccessory_OnChangeAccessoryType_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(int newType)
         {
             if (SmAccessory_Data.searchBar != null)

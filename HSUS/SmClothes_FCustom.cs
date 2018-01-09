@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmClothes_F_Data
     {
@@ -29,6 +29,8 @@ namespace CustomMenu
 
         public static void Init(SmClothes_F originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
             VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -49,6 +51,7 @@ namespace CustomMenu
             rt.offsetMax += new Vector2(0f, -24f);
 
             searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
             rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
@@ -57,6 +60,10 @@ namespace CustomMenu
             searchBar.onValueChanged.AddListener(SearchChanged);
             foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
+        }
+        private static void Reset()
+        {
+            objects.Clear();
         }
 
         public static void SearchChanged(string arg0)
@@ -79,6 +86,11 @@ namespace CustomMenu
     [HarmonyPatch("SetCharaInfoSub")]
     public class SmClothes_F_SetCharaInfoSub_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmClothes_F __instance)
         {
             SmClothes_F_Data.searchBar.text = "";

@@ -2,6 +2,7 @@
 using System.IO;
 using System.Xml;
 using System.Collections.Generic;
+using System.Text;
 using Harmony;
 
 namespace CharExtSave
@@ -13,6 +14,7 @@ namespace CharExtSave
     {
         public static void Postfix(CharFile __instance, BinaryWriter writer)
         {
+            
             UnityEngine.Debug.Log(CharExtSave.logPrefix + "Saving extended data for character...");
             using (XmlTextWriter xmlWriter = new XmlTextWriter(writer.BaseStream, System.Text.Encoding.UTF8))
             {
@@ -21,21 +23,24 @@ namespace CharExtSave
                 xmlWriter.WriteStartElement("charExtData");
                 foreach (KeyValuePair<string, CharExtSave.HandlerPair> kvp in CharExtSave._handlers)
                 {
-                    using (MemoryStream memoryStream = new MemoryStream())
-                    using (XmlTextWriter xmlWriter2 = new XmlTextWriter(memoryStream, System.Text.Encoding.UTF8))
+                    using (StringWriter stringWriter = new StringWriter())
                     {
-                        try
+                        using (XmlTextWriter xmlWriter2 = new XmlTextWriter(stringWriter))
                         {
-                            xmlWriter2.WriteStartElement(kvp.Key);
-                            kvp.Value.onWrite(__instance, xmlWriter2);
-                            xmlWriter2.WriteEndElement();
+                            try
+                            {
+                                xmlWriter2.WriteStartElement(kvp.Key);
+                                kvp.Value.onWrite(__instance, xmlWriter2);
+                                xmlWriter2.WriteEndElement();
 
-                            xmlWriter.WriteRaw(xmlWriter2.BaseStream.ToString());
+                                xmlWriter.WriteRaw(stringWriter.ToString());
+                            }
+                            catch (Exception e)
+                            {
+                                UnityEngine.Debug.LogError(CharExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
+                            }
                         }
-                        catch (Exception e)
-                        {
-                            UnityEngine.Debug.LogError(CharExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
-                        }
+                        
                     }
                 }
                 xmlWriter.WriteEndElement();
@@ -46,7 +51,7 @@ namespace CharExtSave
 
     [HarmonyPatch(typeof(CharFile))]
     [HarmonyPatch("Load")]
-    [HarmonyPatch(new Type[] { typeof(BinaryReader), typeof(Boolean), typeof(Boolean) })]
+    [HarmonyPatch(new[] { typeof(BinaryReader), typeof(Boolean), typeof(Boolean) })]
     public class CharFile_Load_Patches
     {
         public static void Postfix(CharFile __instance, BinaryReader reader, Boolean noSetPNG, Boolean noLoadStatus)
@@ -82,6 +87,8 @@ namespace CharExtSave
             catch (XmlException)
             {
                 UnityEngine.Debug.Log(CharExtSave.logPrefix + "No ext data in reader.");
+                foreach (KeyValuePair<string, CharExtSave.HandlerPair> kvp in CharExtSave._handlers)
+                    kvp.Value.onRead(__instance, null);
             }
         }
     }

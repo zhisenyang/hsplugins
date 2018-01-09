@@ -3,6 +3,7 @@ using Harmony;
 using System.Reflection;
 using System.IO;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Xml;
 
 namespace CharExtSave
@@ -83,7 +84,10 @@ namespace CharExtSave
             if (_handlers.TryGetValue(name, out pair))
                 UnityEngine.Debug.LogWarning(CharExtSave.logPrefix + "Handler is already registered, updating callbacks...");
             else
+            {
                 pair = new HandlerPair();
+                _handlers.Add(name, pair);
+            }
             pair.onRead = onRead;
             pair.onWrite = onWrite;
             return true;

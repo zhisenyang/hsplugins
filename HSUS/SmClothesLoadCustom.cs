@@ -3,37 +3,34 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection.Emit;
 using System.Threading;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmClothesLoad_Data
     {
-        public static bool _created;
-        public static RectTransform _container;
-        public static readonly Dictionary<SmClothesLoad.FileInfo, GameObject> _objects = new Dictionary<SmClothesLoad.FileInfo, GameObject>();
-        public static List<SmClothesLoad.FileInfo> _fileInfos;
-        public static List<RectTransform> _rectTransforms;
-        public static InputField _searchBar;
+        public static bool created;
+        public static RectTransform container;
+        public static readonly Dictionary<SmClothesLoad.FileInfo, GameObject> objects = new Dictionary<SmClothesLoad.FileInfo, GameObject>();
+        public static InputField searchBar;
 
         private static SmClothesLoad _originalComponent;
         public static void Init(SmClothesLoad originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
 
-            _fileInfos = (List<SmClothesLoad.FileInfo>)_originalComponent.GetPrivateExplicit<SmClothesLoad>("lstFileInfo");
-            _rectTransforms = ((List<RectTransform>)_originalComponent.GetPrivateExplicit<SmClothesLoad>("lstRtfTgl"));
-
-            _container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = _container.gameObject.AddComponent<VerticalLayoutGroup>();
+            container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = _container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -47,85 +44,111 @@ namespace CustomMenu
             rt = _originalComponent.transform.FindChild("Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            _searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform);
-            rt = _searchBar.transform as RectTransform;
+            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform);
+            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
+            rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            _searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            _searchBar.onValueChanged.AddListener(SearchChanged);
-            foreach (Text t in _searchBar.GetComponentsInChildren<Text>())
+            searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            searchBar.onValueChanged.AddListener(SearchChanged);
+            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
         }
 
+        private static void Reset()
+        {
+            objects.Clear();
+            created = false;
+        }
 
         public static void SearchChanged(string arg0)
         {
-            string search = _searchBar.text.Trim();
-            if (_objects != null && _objects.Count != 0)
-                foreach (SmClothesLoad.FileInfo fi in _fileInfos)
-                    _objects[fi].SetActive(fi.comment.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
+            string search = searchBar.text.Trim();
+            if (objects != null && objects.Count != 0)
+                foreach (SmClothesLoad.FileInfo fi in (List<SmClothesLoad.FileInfo>)_originalComponent.GetPrivate("lstFileInfo"))
+                    objects[fi].SetActive(fi.comment.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
         }
     }
 
     [HarmonyPatch(typeof(SmClothesLoad), "CreateListObject")]
     public class SmClothesLoad_CreateListObject_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmClothesLoad __instance)
         {
-            SmClothesLoad_Data._searchBar.text = "";
-            SmClothesLoad_Data.SearchChanged("");
+            if (SmClothesLoad_Data.searchBar != null)
+            {
+                SmClothesLoad_Data.searchBar.text = "";
+                SmClothesLoad_Data.SearchChanged("");
+            }
             if (__instance.imgPrev)
                 __instance.imgPrev.enabled = false;
-            if (SmClothesLoad_Data._created)
+            if (SmClothesLoad_Data.created)
                 return;
-            while (__instance.objListTop.transform.childCount != 0)
-            {
-                GameObject obj = __instance.objListTop.transform.GetChild(0).gameObject;
-                obj.transform.SetParent(null);
-                GameObject.Destroy(obj);
-            }
-            SmClothesLoad_Data._rectTransforms.Clear();
+            List<RectTransform> lstRtfTgl = ((List<RectTransform>)__instance.GetPrivate("lstRtfTgl"));
+            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
             ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
             int num2 = 0;
-            foreach (SmClothesLoad.FileInfo fi in SmClothesLoad_Data._fileInfos)
+            if (lstFileInfo.Count > SmClothesLoad_Data.objects.Count)
             {
-                GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
-                SmClothesLoad_Data._objects.Add(fi, gameObject);
-                gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                SmClothesLoad.FileInfoComponent fileInfoComponent = gameObject.AddComponent<SmClothesLoad.FileInfoComponent>();
-                fileInfoComponent.info = fi;
-                GameObject gameObject2 = null;
-                fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
-                gameObject2 = gameObject.transform.FindLoop("Background");
-                if (gameObject2)
+                foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
                 {
-                    fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
+                    if (SmClothesLoad_Data.objects.ContainsKey(fi))
+                        continue;
+                    GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
+                    SmClothesLoad_Data.objects.Add(fi, gameObject);
+                    gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    SmClothesLoad.FileInfoComponent fileInfoComponent = gameObject.AddComponent<SmClothesLoad.FileInfoComponent>();
+                    fileInfoComponent.info = fi;
+                    GameObject gameObject2 = null;
+                    fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
+                    gameObject2 = gameObject.transform.FindLoop("Background");
+                    if (gameObject2)
+                    {
+                        fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
+                    }
+                    gameObject2 = gameObject.transform.FindLoop("Checkmark");
+                    if (gameObject2)
+                    {
+                        fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
+                    }
+                    gameObject2 = gameObject.transform.FindLoop("Label");
+                    if (gameObject2)
+                    {
+                        fileInfoComponent.text = gameObject2.GetComponent<Text>();
+                    }
+                    fileInfoComponent.tgl.group = component;
+                    gameObject.transform.SetParent(__instance.objListTop.transform, false);
+                    RectTransform rectTransform = gameObject.transform as RectTransform;
+                    rectTransform.localScale = new Vector3(1f, 1f, 1f);
+                    rectTransform.anchoredPosition = new Vector3(0f, (float)(-24.0 * num2), 0f);
+                    Text component2 = rectTransform.FindChild("Label").GetComponent<Text>();
+                    component2.text = fileInfoComponent.info.comment;
+                    __instance.CallPrivate("SetButtonClickHandler", gameObject);
+                    gameObject.SetActive(true);
+                    lstRtfTgl.Add(rectTransform);
+                    num2++;
                 }
-                gameObject2 = gameObject.transform.FindLoop("Checkmark");
-                if (gameObject2)
+            }
+            else if (lstFileInfo.Count < SmClothesLoad_Data.objects.Count)
+            {
+                foreach (KeyValuePair<SmClothesLoad.FileInfo, GameObject> pair in new Dictionary<SmClothesLoad.FileInfo, GameObject>(SmClothesLoad_Data.objects))
                 {
-                    fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
+                    if (lstFileInfo.Contains(pair.Key) == false)
+                    {
+                        lstRtfTgl.Remove(pair.Value.transform as RectTransform);
+                        GameObject.Destroy(pair.Value);
+                        SmClothesLoad_Data.objects.Remove(pair.Key);
+                    }
                 }
-                gameObject2 = gameObject.transform.FindLoop("Label");
-                if (gameObject2)
-                {
-                    fileInfoComponent.text = gameObject2.GetComponent<Text>();
-                }
-                fileInfoComponent.tgl.group = component;
-                gameObject.transform.SetParent(__instance.objListTop.transform, false);
-                RectTransform rectTransform = gameObject.transform as RectTransform;
-                rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                rectTransform.anchoredPosition = new Vector3(0f, (float)(-24.0 * num2), 0f);
-                Text component2 = rectTransform.FindChild("Label").GetComponent<Text>();
-                component2.text = fileInfoComponent.info.comment;
-                __instance.CallPrivateExplicit<SmClothesLoad>("SetButtonClickHandler", gameObject);
-                gameObject.SetActive(true);
-                SmClothesLoad_Data._rectTransforms.Add(rectTransform);
-                num2++;
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
-            SmClothesLoad_Data._created = true;
+            SmClothesLoad_Data.created = true;
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -134,9 +157,32 @@ namespace CustomMenu
         }
     }
 
+    [HarmonyPatch(typeof(SmClothesLoad), "ExecuteSaveNew")]
+    public class SmClothesLoad_ExecuteSaveNew_Patches
+    {
+        public static void Prefix()
+        {
+            SmClothesLoad_Data.created = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesLoad), "ExecuteDelete")]
+    public class SmClothesLoad_ExecuteDelete_Patches
+    {
+        public static void Prefix()
+        {
+            SmClothesLoad_Data.created = false;
+        }
+    }
+
     [HarmonyPatch(typeof(SmClothesLoad), "OnSortDate")]
     public class SmClothesLoad_OnSortDate_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Postfix(SmClothesLoad __instance)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
@@ -146,6 +192,11 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmClothesLoad), "OnSortName")]
     public class SmClothesLoad_OnSortName_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Postfix(SmClothesLoad __instance)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
@@ -155,28 +206,34 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmClothesLoad), "SortDate", new []{typeof(bool)})]
     public class SmClothesLoad_SortDate_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmClothesLoad __instance, bool ascend)
         {
             __instance.SetPrivateExplicit<SmClothesLoad>("ascendDate", ascend);
-            if (SmClothesLoad_Data._fileInfos.Count == 0)
+            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
+            if (lstFileInfo.Count == 0)
                 return;
             __instance.SetPrivateExplicit<SmClothesLoad>("lastSort", (byte)1);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
             if (ascend)
-                SmClothesLoad_Data._fileInfos.Sort((a, b) => a.time.CompareTo(b.time));
+                lstFileInfo.Sort((a, b) => a.time.CompareTo(b.time));
             else
-                SmClothesLoad_Data._fileInfos.Sort((a, b) => b.time.CompareTo(a.time));
+                lstFileInfo.Sort((a, b) => b.time.CompareTo(a.time));
             Thread.CurrentThread.CurrentCulture = currentCulture;
             int i = 0;
-            foreach (SmClothesLoad.FileInfo fi in SmClothesLoad_Data._fileInfos)
+            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
             {
                 fi.no = i;
                 ++i;
             }
-            foreach (SmClothesLoad.FileInfo fi in SmClothesLoad_Data._fileInfos)
+            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
             {
-                foreach (RectTransform rt in SmClothesLoad_Data._rectTransforms)
+                foreach (RectTransform rt in (List<RectTransform>)__instance.GetPrivate("lstRtfTgl"))
                 {
                     SmClothesLoad.FileInfoComponent component = rt.GetComponent<SmClothesLoad.FileInfoComponent>();
                     if (component.info == fi)
@@ -197,28 +254,34 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmClothesLoad), "SortName", new[] { typeof(bool) })]
     public class SmClothesLoad_SortName_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmClothesLoad __instance, bool ascend)
         {
             __instance.SetPrivateExplicit<SmClothesLoad>("ascendName", ascend);
-            if (SmClothesLoad_Data._fileInfos.Count == 0)
+            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
+            if (lstFileInfo.Count == 0)
                 return;
             __instance.SetPrivateExplicit<SmClothesLoad>("lastSort", (byte)0);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
             if (ascend)
-                SmClothesLoad_Data._fileInfos.Sort((a, b) => a.comment.CompareTo(b.comment));
+                lstFileInfo.Sort((a, b) => a.comment.CompareTo(b.comment));
             else
-                SmClothesLoad_Data._fileInfos.Sort((a, b) => b.comment.CompareTo(a.comment));
+                lstFileInfo.Sort((a, b) => b.comment.CompareTo(a.comment));
             Thread.CurrentThread.CurrentCulture = currentCulture;
             int i = 0;
-            foreach (SmClothesLoad.FileInfo fi in SmClothesLoad_Data._fileInfos)
+            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
             {
                 fi.no = i;
                 ++i;
             }
-            foreach (SmClothesLoad.FileInfo fi in SmClothesLoad_Data._fileInfos)
+            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
             {
-                foreach (RectTransform rt in SmClothesLoad_Data._rectTransforms)
+                foreach (RectTransform rt in (List<RectTransform>)__instance.GetPrivate("lstRtfTgl"))
                 {
                     SmClothesLoad.FileInfoComponent component = rt.GetComponent<SmClothesLoad.FileInfoComponent>();
                     if (component.info == fi)

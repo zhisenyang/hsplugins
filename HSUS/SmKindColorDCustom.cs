@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmKindColorD_Data
     {
@@ -19,22 +19,24 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        public static readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
-        public static int _previousType;
-        public static InputField _searchBar;
-        public static RectTransform _container;
+        public static readonly Dictionary<int, List<ObjectData>> objects = new Dictionary<int, List<ObjectData>>();
+        public static int previousType;
+        public static InputField searchBar;
+        public static RectTransform container;
 
         private static SmKindColorD _originalComponent;
 
         public static void Init(SmKindColorD originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
 
-            _container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = _container.gameObject.AddComponent<VerticalLayoutGroup>();
+            container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = _container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -48,23 +50,29 @@ namespace CustomMenu
             rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            _searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
-            rt = _searchBar.transform as RectTransform;
+            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
+            rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            _searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            _searchBar.onValueChanged.AddListener(SearchChanged);
-            foreach (Text t in _searchBar.GetComponentsInChildren<Text>())
+            searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            searchBar.onValueChanged.AddListener(SearchChanged);
+            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
+        }
+
+        private static void Reset()
+        {
+            objects.Clear();
         }
 
         public static void SearchChanged(string arg0)
         {
-            string search = _searchBar.text.Trim();
-            if (_objects.ContainsKey(_previousType) == false)
+            string search = searchBar.text.Trim();
+            if (objects.ContainsKey(previousType) == false)
                 return;
-            foreach (ObjectData objectData in _objects[_previousType])
+            foreach (ObjectData objectData in objects[previousType])
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -78,9 +86,14 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmKindColorD), "SetCharaInfoSub")]
     public class SmKindColorD_SetCharaInfoSub_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmKindColorD __instance)
         {
-            SmKindColorD_Data._searchBar.text = "";
+            SmKindColorD_Data.searchBar.text = "";
             SmKindColorD_Data.SearchChanged("");
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             CharInfo chaInfo = (CharInfo)__instance.GetPrivate("chaInfo");
@@ -107,13 +120,13 @@ namespace CustomMenu
                 __instance.tglTab.isOn = true;
             }
 
-            if (SmKindColorD_Data._previousType != nowSubMenuTypeId && SmKindColorD_Data._objects.ContainsKey(SmKindColorD_Data._previousType))
-                foreach (SmKindColorD_Data.ObjectData o in SmKindColorD_Data._objects[SmKindColorD_Data._previousType])
+            if (SmKindColorD_Data.previousType != nowSubMenuTypeId && SmKindColorD_Data.objects.ContainsKey(SmKindColorD_Data.previousType))
+                foreach (SmKindColorD_Data.ObjectData o in SmKindColorD_Data.objects[SmKindColorD_Data.previousType])
                     o.obj.SetActive(false);
             int count = 0;
             int selected = 0;
 
-            if (SmKindColorD_Data._objects.ContainsKey(nowSubMenuTypeId))
+            if (SmKindColorD_Data.objects.ContainsKey(nowSubMenuTypeId))
             {
                 int num = 0;
                 if (customInfo != null)
@@ -141,10 +154,10 @@ namespace CustomMenu
                             num = customInfoF.texSunburnId;
                             break;
                     }
-                count = SmKindColorD_Data._objects[nowSubMenuTypeId].Count;
-                for (int i = 0; i < SmKindColorD_Data._objects[nowSubMenuTypeId].Count; i++)
+                count = SmKindColorD_Data.objects[nowSubMenuTypeId].Count;
+                for (int i = 0; i < SmKindColorD_Data.objects[nowSubMenuTypeId].Count; i++)
                 {
-                    SmKindColorD_Data.ObjectData o = SmKindColorD_Data._objects[nowSubMenuTypeId][i];
+                    SmKindColorD_Data.ObjectData o = SmKindColorD_Data.objects[nowSubMenuTypeId][i];
                     o.obj.SetActive(true);
                     if (o.key == num)
                     {
@@ -220,7 +233,7 @@ namespace CustomMenu
                         break;
                 }
                 List<SmKindColorD_Data.ObjectData> cd = new List<SmKindColorD_Data.ObjectData>();
-                SmKindColorD_Data._objects.Add(nowSubMenuTypeId, cd);
+                SmKindColorD_Data.objects.Add(nowSubMenuTypeId, cd);
 
                 foreach (KeyValuePair<int, ListTypeTexture> current in dictionary)
                 {
@@ -235,7 +248,7 @@ namespace CustomMenu
                         gameObject.transform.SetParent(__instance.objListTop.transform, false);
                         RectTransform rectTransform = gameObject.transform as RectTransform;
                         rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(SmKindColorD_Data._container.rect.width, 24f);
+                        rectTransform.sizeDelta = new Vector2(SmKindColorD_Data.container.rect.width, 24f);
                         Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                         component.text = texTypeInfo.typeName;
                         __instance.CallPrivateExplicit<SmKindColorD>("SetButtonClickHandler", gameObject);
@@ -269,7 +282,7 @@ namespace CustomMenu
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
 
             __instance.OnClickColorDiffuse();
-            SmKindColorD_Data._previousType = nowSubMenuTypeId;
+            SmKindColorD_Data.previousType = nowSubMenuTypeId;
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

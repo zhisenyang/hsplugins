@@ -101,6 +101,15 @@ namespace UILib
             return c;
         }
 
+        public static void SetCustomFont(string customFontName)
+        {
+            foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
+            {
+                if (font.name.Equals(customFontName))
+                    defaultFont = font;
+            }
+        }
+
         public static RectTransform CreateNewUIObject()
         {
             return CreateNewUIObject(null, "UIObject");
@@ -355,6 +364,14 @@ namespace UILib
             self.anchorMax = anchorMax;
             self.offsetMin = offsetMin;
             self.offsetMax = offsetMax;
+        }
+
+        public static void SetRect(this RectTransform self, RectTransform other)
+        {
+            self.anchorMin = other.anchorMin;
+            self.anchorMax = other.anchorMax;
+            self.offsetMin = other.offsetMin;
+            self.offsetMax = other.offsetMax;
         }
 
         public static void SetRect(this RectTransform self, float anchorLeft = 0f, float anchorBottom = 0f, float anchorRight = 1f, float anchorTop = 1f, float offsetLeft = 0f, float offsetBottom = 0f, float offsetRight = 0f, float offsetTop = 0f)

@@ -2,9 +2,7 @@
 using System.Collections;
 using System.Reflection;
 using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
+
 
 namespace HSUS
 {
@@ -71,100 +69,6 @@ namespace HSUS
                     return res;
             }
             return null;
-        }
-
-        public static void LoadWith<T>(this T to, T from)
-        {
-            FieldInfo[] fields = typeof(T).GetFields(BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-            foreach (FieldInfo fi in fields)
-                fi.SetValue(to, fi.GetValue(from));
-        }
-
-        public static void ReplaceEventsOf(this object self, object obj)
-        {
-            foreach (Button b in Resources.FindObjectsOfTypeAll<Button>())
-            {
-                for (int i = 0; i < b.onClick.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b.onClick.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b.onClick.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-            }
-            foreach (Slider b in Resources.FindObjectsOfTypeAll<Slider>())
-            {
-                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-            }
-            foreach (InputField b in Resources.FindObjectsOfTypeAll<InputField>())
-            {
-                for (int i = 0; i < b.onEndEdit.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b.onEndEdit.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b.onEndEdit.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-                if (b.onValidateInput != null && ReferenceEquals(b.onValidateInput.Target, obj))
-                {
-                    b.onValidateInput.SetPrivate("_target", obj);
-                }
-            }
-            foreach (Toggle b in Resources.FindObjectsOfTypeAll<Toggle>())
-            {
-                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-            }
-
-            foreach (UI_OnEnableEvent b in Resources.FindObjectsOfTypeAll<UI_OnEnableEvent>())
-            {
-                for (int i = 0; i < b._event.GetPersistentEventCount(); ++i)
-                {
-                    if (ReferenceEquals(b._event.GetPersistentTarget(i), obj))
-                    {
-                        IList objects = b._event.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                        objects[i].SetPrivate("m_Target", self);
-                    }
-                }
-            }
-
-            foreach (EventTrigger b in Resources.FindObjectsOfTypeAll<EventTrigger>())
-            {
-                foreach (EventTrigger.Entry et in b.triggers)
-                {
-                    for (int i = 0; i < et.callback.GetPersistentEventCount(); ++i)
-                    {
-                        if (ReferenceEquals(et.callback.GetPersistentTarget(i), obj))
-                        {
-                            IList objects = et.callback.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
-                            objects[i].SetPrivate("m_Target", self);
-                        }
-                    }
-                }
-            }
         }
     }
 }

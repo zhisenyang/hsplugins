@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Emit;
+using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
@@ -34,6 +36,7 @@ namespace MoreAccessories
                     additionalData.objAccessory.Add(null);
                 while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
                     additionalData.objAcsMove.Add(null);
+                MoreAccessories.self.UpdateGUI();
             }
         }
 
@@ -48,46 +51,49 @@ namespace MoreAccessories
             MoreAccessories.CharAdditionalData additionalData;
             if (MoreAccessories.self.accessoriesByChar.TryGetValue(__instance.chaFile, out additionalData))
             {
-                for (int i = 0; i < additionalData.clothesInfoAccessory.Count; i++)
+                int i;
+                for (i = 0; i < additionalData.clothesInfoAccessory.Count; i++)
                 {
                     CharFileInfoClothes.Accessory accessory = additionalData.clothesInfoAccessory[i];
-                    ChangeAccessoryAsync(__instance, additionalData, accessory, i, forceChange);
+                    ChangeAccessoryAsync(__instance, additionalData, i, accessory.type, accessory.id, accessory.parentKey, forceChange);
                 }
+                for (; i < additionalData.objAccessory.Count; i++)
+                    CleanRemainingAccessory(additionalData, i);
             }
         }
 
-        private static void ChangeAccessoryAsync(CharBody self, MoreAccessories.CharAdditionalData data, CharFileInfoClothes.Accessory accessory, int _slotNo, bool forceChange = false)
+        public static void ChangeAccessoryAsync(CharBody self, MoreAccessories.CharAdditionalData data, int _slotNo, int _acsType, int _acsId, string parentKey, bool forceChange = false)
         {
             ListTypeFbx ltf = null;
             bool load = true;
             bool release = true;
             int typeNum = Enum.GetNames(typeof(CharaListInfo.TypeAccessoryFbx)).Length;
-            if (accessory.type == -1 || !MathfEx.RangeEqualOn(0, accessory.type, typeNum - 1))
+            if (_acsType == -1 || !MathfEx.RangeEqualOn(0, _acsType, typeNum - 1))
             {
                 release = true;
                 load = false;
             }
             else
             {
-                if (accessory.id == -1)
+                if (_acsId == -1)
                 {
                     release = false;
                     load = false;
                 }
-                if (!forceChange && null != data.objAccessory[_slotNo] && accessory.type == data.clothesInfoAccessory[_slotNo].type && accessory.id == data.clothesInfoAccessory[_slotNo].id)
+                if (!forceChange && null != data.objAccessory[_slotNo] && _acsType == data.clothesInfoAccessory[_slotNo].type && _acsId == data.clothesInfoAccessory[_slotNo].id)
                 {
                     load = false;
                     release = false;
                 }
-                if (accessory.id != -1)
+                if (_acsId != -1)
                 {
-                    Dictionary<int, ListTypeFbx> work = self.chaInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx) accessory.type);
+                    Dictionary<int, ListTypeFbx> work = self.chaInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx) _acsType);
                     if (work == null)
                     {
                         release = true;
                         load = false;
                     }
-                    else if (!work.TryGetValue(accessory.id, out ltf))
+                    else if (!work.TryGetValue(_acsId, out ltf))
                     {
                         release = true;
                         load = false;
@@ -100,12 +106,12 @@ namespace MoreAccessories
                 {
                     data.clothesInfoAccessory[_slotNo].MemberInitialize();
                 }
-                if ((bool) data.objAccessory[_slotNo])
+                if (data.objAccessory[_slotNo])
                 {
                     Object.Destroy(data.objAccessory[_slotNo]);
                     data.objAccessory[_slotNo] = null;
                     data.infoAccessory[_slotNo] = null;
-                    ReleaseTagObject(data, _slotNo);
+                    CharInfo_ReleaseTagObject(data, _slotNo);
                     data.objAcsMove[_slotNo] = null;
                 }
             }
@@ -118,15 +124,15 @@ namespace MoreAccessories
                     weight = 2;
                     trfParent = self.objTop.transform;
                 }
-                data.objAccessory[_slotNo] = (GameObject) self.CallPrivate("LoadCharaFbxData", typeof(CharaListInfo.TypeAccessoryFbx), accessory.type, accessory.id, "ca_slot" + (_slotNo + 10).ToString("00"), false, weight, trfParent, 0, false);
-                if ((bool) data.objAccessory[_slotNo])
+                data.objAccessory[_slotNo] = (GameObject) self.CallPrivate("LoadCharaFbxData", typeof(CharaListInfo.TypeAccessoryFbx), _acsType, _acsId, "ca_slot" + (_slotNo + 10).ToString("00"), false, weight, trfParent, 0, false);
+                if (data.objAccessory[_slotNo])
                 {
                     ListTypeFbxComponent ltfComponent = data.objAccessory[_slotNo].GetComponent<ListTypeFbxComponent>();
                     ltf = (data.infoAccessory[_slotNo] = ltfComponent.ltfData);
-                    data.clothesInfoAccessory[_slotNo].type = accessory.type;
+                    data.clothesInfoAccessory[_slotNo].type = _acsType;
                     data.clothesInfoAccessory[_slotNo].id = ltf.Id;
                     data.objAcsMove[_slotNo] = data.objAccessory[_slotNo].transform.FindLoop("N_move");
-                    CreateTagInfo(data, _slotNo, data.objAccessory[_slotNo]);
+                    CharInfo_CreateTagInfo(data, _slotNo, data.objAccessory[_slotNo]);
                 }
                 else
                 {
@@ -134,44 +140,57 @@ namespace MoreAccessories
                     data.clothesInfoAccessory[_slotNo].id = 0;
                 }
             }
-            if ((bool) data.objAccessory[_slotNo])
+            if (data.objAccessory[_slotNo])
             {
-                ChangeAccessoryColor(data, _slotNo);
-                if (string.IsNullOrEmpty(accessory.parentKey))
+                CharClothes_ChangeAccessoryColor(data, _slotNo);
+                if (string.IsNullOrEmpty(parentKey))
                 {
-                    accessory.parentKey = ltf.Parent;
+                    parentKey = ltf.Parent;
                 }
-                ChangeAccessoryParent(self, data, _slotNo, accessory.parentKey);
-                UpdateAccessoryMoveFromInfo(data, _slotNo);
+                CharClothes_ChangeAccessoryParent(self, data, _slotNo, parentKey);
+                CharClothes_UpdateAccessoryMoveFromInfo(data, _slotNo);
             }
         }
 
-        private static void CreateTagInfo(MoreAccessories.CharAdditionalData data, int key, GameObject objTag)
+        public static void CleanRemainingAccessory(MoreAccessories.CharAdditionalData data, int _slotNo)
+        {
+            if (data.objAccessory[_slotNo])
+            {
+                Object.Destroy(data.objAccessory[_slotNo]);
+                data.objAccessory[_slotNo] = null;
+                data.infoAccessory[_slotNo] = null;
+                CharInfo_ReleaseTagObject(data, _slotNo);
+                data.objAcsMove[_slotNo] = null;
+            }
+        }
+
+        private static void CharInfo_CreateTagInfo(MoreAccessories.CharAdditionalData data, int key, GameObject objTag)
         {
             if (objTag == null)
                 return;
             FindAssist findAssist = new FindAssist();
             findAssist.Initialize(objTag.transform);
-            AddListToTag(data, key, findAssist.GetObjectFromTag("ObjColor"));
+            CharInfo_AddListToTag(data, key, findAssist.GetObjectFromTag("ObjColor"));
         }
 
-        private static void ReleaseTagObject(MoreAccessories.CharAdditionalData data, int key)
+        private static void CharInfo_ReleaseTagObject(MoreAccessories.CharAdditionalData data, int key)
         {
-            data.charInfoDictTagObj[key].Clear();
+            if (data.charInfoDictTagObj.ContainsKey(key))
+                data.charInfoDictTagObj[key].Clear();
         }
 
-        private static List<GameObject> GetTagInfo(MoreAccessories.CharAdditionalData data, int key)
+        public static List<GameObject> CharInfo_GetTagInfo(MoreAccessories.CharAdditionalData data, int key)
         {
-            List<GameObject> collection = null;
+            List<GameObject> collection;
             if (data.charInfoDictTagObj.TryGetValue(key, out collection))
             {
                 return new List<GameObject>(collection);
             }
-            return null;
+            return new List<GameObject>();
         }
 
 
-        private static void AddListToTag(MoreAccessories.CharAdditionalData data, int key, List<GameObject> add)
+        private static void CharInfo_AddListToTag(MoreAccessories.CharAdditionalData data, int key, List<GameObject> add)
         {
             if (add == null)
                 return;
@@ -182,18 +201,15 @@ namespace MoreAccessories
                 data.charInfoDictTagObj[key] = add;
         }
 
-        private static void ChangeAccessoryColor(MoreAccessories.CharAdditionalData data, int slotNo)
+        public static void CharClothes_ChangeAccessoryColor(MoreAccessories.CharAdditionalData data, int slotNo)
         {
-            List<GameObject> tagInfo = GetTagInfo(data, slotNo);
+            List<GameObject> tagInfo = CharInfo_GetTagInfo(data, slotNo);
+            ColorChange.SetHSColor(tagInfo, data.clothesInfoAccessory[slotNo].color, true, true, data.clothesInfoAccessory[slotNo].color2, true, true);
             ColorChange.SetHSColor(tagInfo, data.clothesInfoAccessory[slotNo].color, true, true, data.clothesInfoAccessory[slotNo].color2, true, true);
         }
 
-        private static bool ChangeAccessoryParent(CharBody charBody, MoreAccessories.CharAdditionalData data, int slotNo, string parentStr)
+        public static bool CharClothes_ChangeAccessoryParent(CharBody charBody, MoreAccessories.CharAdditionalData data, int slotNo, string parentStr)
         {
-            if (!MathfEx.RangeEqualOn(0, slotNo, 9))
-            {
-                return false;
-            }
             GameObject gameObject = data.objAccessory[slotNo];
             if (null == gameObject)
             {
@@ -223,7 +239,7 @@ namespace MoreAccessories
             return true;
         }
 
-        private static bool UpdateAccessoryMoveFromInfo(MoreAccessories.CharAdditionalData data, int slotNo)
+        public static bool CharClothes_UpdateAccessoryMoveFromInfo(MoreAccessories.CharAdditionalData data, int slotNo)
         {
             GameObject gameObject = data.objAcsMove[slotNo];
             if (null == gameObject)
@@ -236,5 +252,61 @@ namespace MoreAccessories
             return true;
         }
 
+    }
+
+    [HarmonyPatch(typeof(SubMenuControl), "ChangeSubMenu", new []{typeof(string)})]
+    public class SubMenuControl_ChangeSubMenu_Patches
+    {
+        public static bool Prefix(SubMenuControl __instance, string subMenuStr)
+        {
+            if (subMenuStr.StartsWith("SM_MoreAccessories_"))
+            {
+                int nowSubMenuTypeId = int.Parse(subMenuStr.Substring(19));
+                if (nowSubMenuTypeId < MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory.Count)
+                {
+                    bool sameSubMenu = __instance.nowSubMenuTypeStr == subMenuStr;
+                    __instance.nowSubMenuTypeStr = subMenuStr;
+                    __instance.nowSubMenuTypeId = (int)SubMenuControl.SubMenuType.SM_Delete + 1 + nowSubMenuTypeId;
+                    for (int i = 0; i < __instance.smItem.Length; i++)
+                        if (__instance.smItem[i] != null && !(null == __instance.smItem[i].objTop))
+                            __instance.smItem[i].objTop.SetActive(false);
+                    if (MoreAccessories.self.smItem != null)
+                    {
+                        if (null != __instance.textTitle)
+                            __instance.textTitle.text = MoreAccessories.self.smItem.menuName;
+                        if (null != MoreAccessories.self.smItem.objTop)
+                        {
+                            MoreAccessories.self.smItem.objTop.SetActive(true);
+                            __instance.SetPrivate("objActiveSubItem", MoreAccessories.self.smItem.objTop);
+                            if (null != __instance.rtfBasePanel)
+                            {
+                                RectTransform rectTransform = MoreAccessories.self.smItem.objTop.transform as RectTransform;
+                                Vector2 sizeDelta = rectTransform.sizeDelta;
+                                __instance.SetPrivate("sizeBasePanelHeight", sizeDelta.y);
+                            }
+                        }
+                    }
+                    SubMenuBase component = ((GameObject)__instance.GetPrivate("objActiveSubItem")).GetComponent<SubMenuBase>();
+                    if (null != component)
+                    {
+                        component.SetCharaInfo(__instance.nowSubMenuTypeId, sameSubMenu);
+                    }
+                    int cosStateFromSelect = __instance.GetCosStateFromSelect();
+                    if (cosStateFromSelect != -1 && __instance.customCtrlPanel && __instance.customCtrlPanel.autoClothesState)
+                    {
+                        __instance.customCtrlPanel.ChangeCosStateSub(cosStateFromSelect);
+                    }
+                }
+                else
+                {
+                    MoreAccessories.self.UIFallbackToCoordList();
+                    
+                }
+                return false;
+            }
+            if (__instance.nowSubMenuTypeStr.StartsWith("SM_MoreAccessories_"))
+                MoreAccessories.self.smItem.objTop.SetActive(false);
+            return true;
+        }
     }
 }

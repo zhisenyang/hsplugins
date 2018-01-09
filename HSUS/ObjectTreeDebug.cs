@@ -36,9 +36,9 @@ namespace HSUS
         private void HandleLog(string condition, string stackTrace, LogType type)
         {
             this._lastlogs.AddLast(type + " " + condition);
-            if (this._lastlogs.Count == 11)
+            if (this._lastlogs.Count == 101)
                 this._lastlogs.RemoveFirst();
-            this._scroll3.y += 99999;
+            this._scroll3.y += 999999;
         }
 
         private void DisplayObjectTree(GameObject go, int indent)
@@ -170,7 +170,10 @@ namespace HSUS
                     else if (c is RectTransform)
                     {
                         RectTransform rt = c as RectTransform;
-                        GUILayout.Label("rect " + rt.rect);
+                        GUILayout.Label("anchorMin " + rt.anchorMin);
+                        GUILayout.Label("anchorMax " + rt.anchorMax);
+                        GUILayout.Label("offsetMin " + rt.offsetMin);
+                        GUILayout.Label("offsetMax " + rt.offsetMax);
                         GUILayout.Label("sizeDelta " + rt.sizeDelta);
                     }
                     GUILayout.EndHorizontal();
@@ -188,6 +191,8 @@ namespace HSUS
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Clear logs", GUILayout.ExpandWidth(false)))
+                this._lastlogs.Clear();
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
                 System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.dataPath, "output_log.txt"));

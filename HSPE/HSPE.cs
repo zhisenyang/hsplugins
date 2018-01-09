@@ -45,11 +45,8 @@ namespace HSPE
         {
             if (level == 3)
             {
-                if (!GameObject.Find("HSPE"))
-                {
-                    GameObject go = new GameObject("HSPE");
-                    go.AddComponent<MainWindow>();
-                }
+                GameObject go = new GameObject("HSPE");
+                go.AddComponent<MainWindow>();
             }
         }
 

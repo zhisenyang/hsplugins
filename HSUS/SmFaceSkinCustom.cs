@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmFaceSkin_Data
     {
@@ -19,28 +19,30 @@ namespace CustomMenu
             public GameObject obj;
         }
 
-        public static bool _created;
-        public static readonly List<ObjectData> _listHead = new List<ObjectData>();
-        public static readonly List<ObjectData> _listFace = new List<ObjectData>();
-        public static readonly List<ObjectData> _listDetail = new List<ObjectData>();
-        public static RectTransform _containerHead;
-        public static InputField _searchBarHead;
-        public static RectTransform _containerSkin;
-        public static InputField _searchBarSkin;
-        public static RectTransform _containerDetail;
-        public static InputField _searchBarDetail;
+        public static bool created;
+        public static readonly List<ObjectData> listHead = new List<ObjectData>();
+        public static readonly List<ObjectData> listFace = new List<ObjectData>();
+        public static readonly List<ObjectData> listDetail = new List<ObjectData>();
+        public static RectTransform containerHead;
+        public static InputField searchBarHead;
+        public static RectTransform containerSkin;
+        public static InputField searchBarSkin;
+        public static RectTransform containerDetail;
+        public static InputField searchBarDetail;
 
         private static SmFaceSkin _originalComponent;
 
         public static void Init(SmFaceSkin originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
             {
-                _containerHead = _originalComponent.transform.FindChild("TabControl/TabItem01").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = _containerHead.gameObject.AddComponent<VerticalLayoutGroup>();
+                containerHead = _originalComponent.transform.FindChild("TabControl/TabItem01").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = containerHead.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = _containerHead.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = containerHead.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelHead.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -54,23 +56,24 @@ namespace CustomMenu
                 rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                _searchBarHead = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
-                rt = _searchBarHead.transform as RectTransform;
+                searchBarHead = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+                searchBarHead.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
+                rt = searchBarHead.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                _searchBarHead.placeholder.GetComponent<Text>().text = "Search...";
-                _searchBarHead.onValueChanged.AddListener(SearchChangedHead);
-                foreach (Text t in _searchBarHead.GetComponentsInChildren<Text>())
+                searchBarHead.placeholder.GetComponent<Text>().text = "Search...";
+                searchBarHead.onValueChanged.AddListener(SearchChangedHead);
+                foreach (Text t in searchBarHead.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
 
             {
-                _containerSkin = _originalComponent.transform.FindChild("TabControl/TabItem02").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = _containerSkin.gameObject.AddComponent<VerticalLayoutGroup>();
+                containerSkin = _originalComponent.transform.FindChild("TabControl/TabItem02").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = containerSkin.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = _containerSkin.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = containerSkin.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelSkin.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -84,23 +87,24 @@ namespace CustomMenu
                 rt = _originalComponent.transform.FindChild("TabControl/TabItem02/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                _searchBarSkin = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem02"));
-                rt = _searchBarSkin.transform as RectTransform;
+                searchBarSkin = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem02"));
+                searchBarSkin.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
+                rt = searchBarSkin.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                _searchBarSkin.placeholder.GetComponent<Text>().text = "Search...";
-                _searchBarSkin.onValueChanged.AddListener(SearchChangedSkin);
-                foreach (Text t in _searchBarSkin.GetComponentsInChildren<Text>())
+                searchBarSkin.placeholder.GetComponent<Text>().text = "Search...";
+                searchBarSkin.onValueChanged.AddListener(SearchChangedSkin);
+                foreach (Text t in searchBarSkin.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
 
             {
-                _containerDetail = _originalComponent.transform.FindChild("TabControl/TabItem03").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = _containerDetail.gameObject.AddComponent<VerticalLayoutGroup>();
+                containerDetail = _originalComponent.transform.FindChild("TabControl/TabItem03").FindDescendant("ListTop").transform as RectTransform;
+                VerticalLayoutGroup group = containerDetail.gameObject.AddComponent<VerticalLayoutGroup>();
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
-                ContentSizeFitter fitter = _containerDetail.gameObject.AddComponent<ContentSizeFitter>();
+                ContentSizeFitter fitter = containerDetail.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelDetail.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -114,32 +118,39 @@ namespace CustomMenu
                 rt = _originalComponent.transform.FindChild("TabControl/TabItem03/Scrollbar") as RectTransform;
                 rt.offsetMax += new Vector2(0f, -24f);
 
-                _searchBarDetail = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem03"));
-                rt = _searchBarDetail.transform as RectTransform;
+                searchBarDetail = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem03"));
+                searchBarDetail.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
+                rt = searchBarDetail.transform as RectTransform;
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
                 rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                _searchBarDetail.placeholder.GetComponent<Text>().text = "Search...";
-                _searchBarDetail.onValueChanged.AddListener(SearchChangedDetail);
-                foreach (Text t in _searchBarDetail.GetComponentsInChildren<Text>())
+                searchBarDetail.placeholder.GetComponent<Text>().text = "Search...";
+                searchBarDetail.onValueChanged.AddListener(SearchChangedDetail);
+                foreach (Text t in searchBarDetail.GetComponentsInChildren<Text>())
                     t.color = Color.white;
             }
         }
 
+        private static void Reset()
+        {
+            listHead.Clear();
+            listFace.Clear();
+            listDetail.Clear();
+        }
 
         public static void SearchChangedHead(string arg0)
         {
-            SearchChanged(_searchBarHead.text.Trim(), _listHead);
+            SearchChanged(searchBarHead.text.Trim(), listHead);
         }
 
         public static void SearchChangedSkin(string arg0)
         {
-            SearchChanged(_searchBarSkin.text.Trim(), _listFace);
+            SearchChanged(searchBarSkin.text.Trim(), listFace);
         }
 
         public static void SearchChangedDetail(string arg0)
         {
-            SearchChanged(_searchBarDetail.text.Trim(), _listDetail);
+            SearchChanged(searchBarDetail.text.Trim(), listDetail);
         }
 
         public static void SearchChanged(string search, List<ObjectData> list)
@@ -159,13 +170,18 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmFaceSkin), "SetCharaInfoSub")]
     public class SmFaceSkin_SetCharaInfoSub_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmFaceSkin __instance)
         {
-            SmFaceSkin_Data._searchBarHead.text = "";
+            SmFaceSkin_Data.searchBarHead.text = "";
             SmFaceSkin_Data.SearchChangedHead("");
-            SmFaceSkin_Data._searchBarSkin.text = "";
+            SmFaceSkin_Data.searchBarSkin.text = "";
             SmFaceSkin_Data.SearchChangedSkin("");
-            SmFaceSkin_Data._searchBarDetail.text = "";
+            SmFaceSkin_Data.searchBarDetail.text = "";
             SmFaceSkin_Data.SearchChangedDetail("");
             CharInfo chaInfo = (CharInfo)__instance.GetPrivate("chaInfo");
             CharFileInfoCustom customInfo = (CharFileInfoCustom)__instance.GetPrivate("customInfo");
@@ -185,7 +201,7 @@ namespace CustomMenu
                 return;
             if (null == __instance.rtfPanelDetail)
                 return;
-            if (SmFaceSkin_Data._created == false)
+            if (SmFaceSkin_Data.created == false)
             {
                 Dictionary<int, ListTypeFbx> dictionary = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleFbxList(CharaListInfo.TypeMaleFbx.cm_f_head, true) : chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_head, true);
                 int num = 0;
@@ -207,12 +223,12 @@ namespace CustomMenu
                         gameObject.transform.SetParent(__instance.objListTopHead.transform, false);
                         RectTransform rectTransform = gameObject.transform as RectTransform;
                         rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(SmFaceSkin_Data._containerHead.rect.width, 24f);
+                        rectTransform.sizeDelta = new Vector2(SmFaceSkin_Data.containerHead.rect.width, 24f);
                         Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                         component.text = fbxTypeInfo.typeName;
                         __instance.CallPrivateExplicit<SmFaceSkin>("SetHeadButtonClickHandler", gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
-                        SmFaceSkin_Data._listHead.Add(new SmFaceSkin_Data.ObjectData(){key = current.Key, obj = gameObject, text = component, toggle = component2});
+                        SmFaceSkin_Data.listHead.Add(new SmFaceSkin_Data.ObjectData(){key = current.Key, obj = gameObject, text = component, toggle = component2});
                         component2.onValueChanged.AddListener(v =>
                         {
                             if (component2.isOn)
@@ -254,12 +270,12 @@ namespace CustomMenu
                         gameObject2.transform.SetParent(__instance.objListTopSkin.transform, false);
                         RectTransform rectTransform2 = gameObject2.transform as RectTransform;
                         rectTransform2.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform2.sizeDelta = new Vector2(SmFaceSkin_Data._containerSkin.rect.width, 24f);
+                        rectTransform2.sizeDelta = new Vector2(SmFaceSkin_Data.containerSkin.rect.width, 24f);
                         Text component4 = rectTransform2.FindChild("Label").GetComponent<Text>();
                         component4.text = texTypeInfo.typeName;
                         __instance.CallPrivateExplicit<SmFaceSkin>("SetSkinButtonClickHandler", gameObject2);
                         Toggle component5 = gameObject2.GetComponent<Toggle>();
-                        SmFaceSkin_Data._listFace.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject2, text = component4, toggle = component5 });
+                        SmFaceSkin_Data.listFace.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject2, text = component4, toggle = component5 });
                         if (current.Key == num)
                         {
                             component5.isOn = true;
@@ -296,12 +312,12 @@ namespace CustomMenu
                         gameObject3.transform.SetParent(__instance.objListTopDetail.transform, false);
                         RectTransform rectTransform3 = gameObject3.transform as RectTransform;
                         rectTransform3.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform3.sizeDelta = new Vector2(SmFaceSkin_Data._containerDetail.rect.width, 24f);
+                        rectTransform3.sizeDelta = new Vector2(SmFaceSkin_Data.containerDetail.rect.width, 24f);
                         Text component7 = rectTransform3.FindChild("Label").GetComponent<Text>();
                         component7.text = texTypeInfo2.typeName;
                         __instance.CallPrivateExplicit<SmFaceSkin>("SetDetailButtonClickHandler", gameObject3);
                         Toggle component8 = gameObject3.GetComponent<Toggle>();
-                        SmFaceSkin_Data._listDetail.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject3, text = component7, toggle = component8 });
+                        SmFaceSkin_Data.listDetail.Add(new SmFaceSkin_Data.ObjectData() { key = current.Key, obj = gameObject3, text = component7, toggle = component8 });
                         if (current.Key == num)
                         {
                             component8.isOn = true;
@@ -324,7 +340,7 @@ namespace CustomMenu
                 int num = 0;
                 if (customInfo != null)
                     num = customInfo.headId;
-                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listHead)
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data.listHead)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -334,7 +350,7 @@ namespace CustomMenu
                 num = 0;
                 if (customInfo != null)
                     num = customInfo.texFaceId;
-                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listFace)
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data.listFace)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -344,7 +360,7 @@ namespace CustomMenu
                 num = 0;
                 if (customInfo != null)
                     num = customInfo.texFaceDetailId;
-                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data._listDetail)
+                foreach (SmFaceSkin_Data.ObjectData objectData in SmFaceSkin_Data.listDetail)
                 {
                     if (objectData.key == num)
                         objectData.toggle.isOn = true;
@@ -365,7 +381,7 @@ namespace CustomMenu
                 }
             }
             __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", false);
-            SmFaceSkin_Data._created = true;
+            SmFaceSkin_Data.created = true;
         }
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {

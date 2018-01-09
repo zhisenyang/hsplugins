@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Reflection;
+using System.Linq;
 using System.Reflection.Emit;
 using System.Threading;
+using CustomMenu;
 using Harmony;
-using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace CustomMenu
+namespace HSUS
 {
     public static class SmCharaLoad_Data
     {
@@ -27,6 +27,8 @@ namespace CustomMenu
 
         public static void Init(SmCharaLoad originalComponent)
         {
+            Reset();
+
             _originalComponent = originalComponent;
             lastMenuType = (int)_originalComponent.GetPrivate("nowSubMenuTypeId");
             fileInfos = (List<SmCharaLoad.FileInfo>)_originalComponent.GetPrivateExplicit<SmCharaLoad>("lstFileInfo");
@@ -55,6 +57,7 @@ namespace CustomMenu
             rt.offsetMax += new Vector2(0f, -24f);
 
             searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform);
+            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
             rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
@@ -63,6 +66,13 @@ namespace CustomMenu
             searchBar.onValueChanged.AddListener(SearchChanged);
             foreach (Text te in searchBar.GetComponentsInChildren<Text>())
                 te.color = Color.white;
+        }
+        private static void Reset()
+        {
+            objects.Clear();
+            created = false;
+            fileInfos = null;
+            rectTransforms = null;
         }
 
         public static void SearchChanged(string arg0)
@@ -85,51 +95,72 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmCharaLoad), "CreateListObject")]
     public class SmCharaLoad_CreateListObject_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
 
         public static void Prefix(SmCharaLoad __instance)
         {
             SmCharaLoad_Data.searchBar.text = "";
             SmCharaLoad_Data.SearchChanged("");
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
-            if (SmCharaLoad_Data.lastMenuType == nowSubMenuTypeId)
+            if (SmCharaLoad_Data.lastMenuType == nowSubMenuTypeId && SmCharaLoad_Data.created)
                 return;
             if (__instance.imgPrev)
                 __instance.imgPrev.enabled = false;
             ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
             if (SmCharaLoad_Data.created == false)
             {
-                foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
+                if (SmCharaLoad_Data.fileInfos.Count > SmCharaLoad_Data.objects.Count)
                 {
-                    GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
-                    SmCharaLoad_Data.objects.Add(fi, gameObject);
-                    gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                    SmCharaLoad.FileInfoComponent fileInfoComponent = gameObject.AddComponent<SmCharaLoad.FileInfoComponent>();
-                    fileInfoComponent.info = fi;
-                    fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
-                    GameObject gameObject2 = gameObject.transform.FindLoop("Background");
-                    if (gameObject2)
+                    foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
                     {
-                        fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
+                        if (SmCharaLoad_Data.objects.ContainsKey(fi))
+                            continue;
+                        GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
+                        SmCharaLoad_Data.objects.Add(fi, gameObject);
+                        gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                        SmCharaLoad.FileInfoComponent fileInfoComponent = gameObject.AddComponent<SmCharaLoad.FileInfoComponent>();
+                        fileInfoComponent.info = fi;
+                        fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
+                        GameObject gameObject2 = gameObject.transform.FindLoop("Background");
+                        if (gameObject2)
+                        {
+                            fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
+                        }
+                        gameObject2 = gameObject.transform.FindLoop("Checkmark");
+                        if (gameObject2)
+                        {
+                            fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
+                        }
+                        gameObject2 = gameObject.transform.FindLoop("Label");
+                        if (gameObject2)
+                        {
+                            fileInfoComponent.text = gameObject2.GetComponent<Text>();
+                        }
+                        fileInfoComponent.tgl.group = component;
+                        gameObject.transform.SetParent(__instance.objListTop.transform, false);
+                        gameObject.transform.localScale = Vector3.one;
+                        (gameObject.transform as RectTransform).sizeDelta = new Vector2(SmCharaLoad_Data.container.rect.width, 24f);
+                        Text component2 = gameObject.transform.FindChild("Label").GetComponent<Text>();
+                        component2.text = fileInfoComponent.info.CharaName;
+                        __instance.CallPrivate("SetButtonClickHandler", gameObject);
+                        gameObject.SetActive(true);
+                        SmCharaLoad_Data.rectTransforms.Add(gameObject.transform as RectTransform);
                     }
-                    gameObject2 = gameObject.transform.FindLoop("Checkmark");
-                    if (gameObject2)
+                }
+                else if (SmCharaLoad_Data.fileInfos.Count < SmCharaLoad_Data.objects.Count)
+                {
+                    foreach (KeyValuePair<SmCharaLoad.FileInfo, GameObject> pair in new Dictionary<SmCharaLoad.FileInfo, GameObject>(SmCharaLoad_Data.objects))
                     {
-                        fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
+                        if (SmCharaLoad_Data.fileInfos.Contains(pair.Key) == false)
+                        {
+                            SmCharaLoad_Data.rectTransforms.Remove(pair.Value.transform as RectTransform);
+                            GameObject.Destroy(pair.Value);
+                            SmCharaLoad_Data.objects.Remove(pair.Key);
+                        }
                     }
-                    gameObject2 = gameObject.transform.FindLoop("Label");
-                    if (gameObject2)
-                    {
-                        fileInfoComponent.text = gameObject2.GetComponent<Text>();
-                    }
-                    fileInfoComponent.tgl.group = component;
-                    gameObject.transform.SetParent(__instance.objListTop.transform, false);
-                    gameObject.transform.localScale = Vector3.one;
-                    (gameObject.transform as RectTransform).sizeDelta = new Vector2(SmCharaLoad_Data.container.rect.width, 24f);
-                    Text component2 = gameObject.transform.FindChild("Label").GetComponent<Text>();
-                    component2.text = fileInfoComponent.info.CharaName;
-                    __instance.CallPrivateExplicit<SmCharaLoad>("SetButtonClickHandler", gameObject);
-                    gameObject.SetActive(true);
-                    SmCharaLoad_Data.rectTransforms.Add(gameObject.transform as RectTransform);
                 }
                 SmCharaLoad_Data.created = true;
             }
@@ -145,9 +176,32 @@ namespace CustomMenu
         }
     }
 
+    [HarmonyPatch(typeof(SmCharaLoad), "ExecuteSaveNew")]
+    public class SmCharaLoad_ExecuteSaveNew_Patches
+    {
+        public static void Prefix()
+        {
+            SmCharaLoad_Data.created = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(SmCharaLoad), "ExecuteDelete")]
+    public class SmCharaLoad_ExecuteDelete_Patches
+    {
+        public static void Prefix()
+        {
+            SmCharaLoad_Data.created = false;
+        }
+    }
+
     [HarmonyPatch(typeof(SmCharaLoad), "OnSortName")]
     public class SmCharaLoad_OnSortName_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Postfix(SmCharaLoad __instance)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
@@ -157,6 +211,11 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmCharaLoad), "OnSortDate")]
     public class SmCharaLoad_OnSortDate_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Postfix(SmCharaLoad __instance)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
@@ -167,6 +226,11 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmCharaLoad), "SortName", new []{typeof(bool)})]
     public class SmCharaLoad_SortName_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmCharaLoad __instance, bool ascend)
         {
             __instance.SetPrivateExplicit<SmCharaLoad>("ascendName", ascend);
@@ -212,6 +276,11 @@ namespace CustomMenu
     [HarmonyPatch(typeof(SmCharaLoad), "SortDate", new[] { typeof(bool) })]
     public class SmCharaLoad_SortDate_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
         public static void Prefix(SmCharaLoad __instance, bool ascend)
         {
             __instance.SetPrivateExplicit<SmCharaLoad>("ascendDate", ascend);
