@@ -59,7 +59,7 @@ namespace MoreAccessories
         public Dictionary<CharFile, CharAdditionalData> accessoriesByChar { get { return (this._accessoriesByChar); } }
         public CharAdditionalData charaMakerAdditionalData { get; private set; }
         public SubMenuItem smItem { get; } = new SubMenuItem();
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
+        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32"/*, "StudioNEO_32", "StudioNEO_64"*/ }; } }
         public string Name { get { return "MoreAccessories"; } }
         public string Version { get { return "1.0.0"; } }
         public List<SlotData> displayedSlots { get { return this._displayedSlots; } }

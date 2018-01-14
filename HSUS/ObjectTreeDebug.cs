@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace HSUS
@@ -160,6 +161,12 @@ namespace HSUS
                         Button b = c as Button;
                         for (int i = 0; i < b.onClick.GetPersistentEventCount(); ++i)
                             GUILayout.Label(b.onClick.GetPersistentTarget(i).GetType().FullName + "." + b.onClick.GetPersistentMethodName(i));
+                        IList calls = b.onClick.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                        for (int i = 0; i < calls.Count; ++i)
+                        {
+                            UnityAction unityAction = ((UnityAction)calls[i].GetPrivate("Delegate"));
+                            GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);                            
+                        }
                     }
                     else if (c is Toggle)
                     {

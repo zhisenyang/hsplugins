@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -34,6 +35,8 @@ namespace HSUS
         private bool _disableShortcutsWhenTyping = true;
         private string _defaultFemaleChar = "";
         private bool _improveNeoUI = true;
+        private bool _optimizeNeo = true;
+        private bool _enableGenericFK = true;
 
         private GameObject _go;
         private RoutinesComponent _routines;
@@ -44,11 +47,14 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.1.0"; } }
+        public string Version { get { return "1.2.0"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
         public Sprite searchBarBackground { get { return this._searchBarBackground; } }
+        public bool improveNeoUI { get { return this._improveNeoUI; } }
+        public bool optimizeNeo { get { return this._optimizeNeo; } }
+        public bool enableGenericFK { get { return this._enableGenericFK; } }
         #endregion
 
         #region Unity Methods
@@ -113,11 +119,45 @@ namespace HSUS
                         if (node.Attributes["enabled"] != null)
                             this._improveNeoUI = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
                         break;
+                    case "enableGenericFK":
+                        if (node.Attributes["enabled"] != null)
+                            this._enableGenericFK = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "optimizeNeo":
+                        if (node.Attributes["enabled"] != null)
+                            this._optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
                 }
             }
             UIUtility.Init();
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            if (this._binary == Binary.Game)
+            {
+                foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+                {
+                    switch (type.FullName)
+                    {
+                        case "Studio.ItemFKCtrl_InitBone_Patches":
+                            continue;
+                    }
+                    try
+                    {
+                        List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
+                        if (harmonyMethods != null && harmonyMethods.Count > 0)
+                        {
+                            HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
+                            new PatchProcessor(harmony, type, attributes).Patch();
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            else
+            {
+                harmony.PatchAll(Assembly.GetExecutingAssembly());
+            }
         }
 
         public void OnApplicationQuit()
@@ -182,6 +222,18 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+                    {
+                        xmlWriter.WriteStartElement("optimizeNeo");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._optimizeNeo));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("enableGenericFK");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._enableGenericFK));
+                        xmlWriter.WriteEndElement();
+                    }
+
                     xmlWriter.WriteEndElement();
                 }
             }
@@ -209,7 +261,11 @@ namespace HSUS
                 this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
             if (this._improveNeoUI && this._binary == Binary.Neo && level == 3)
             {
-
+                foreach (Studio.ItemGroupList gr in Resources.FindObjectsOfTypeAll<Studio.ItemGroupList>())
+                {
+                    UnityEngine.Debug.Log(gr.transform.GetPathFrom(null));
+                    break;
+                }
                 RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
                 rt.offsetMax += new Vector2(60f, 0f);
                 rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
@@ -485,4 +541,14 @@ namespace HSUS
 
         #endregion
     }
+
+    //[HarmonyPatch(typeof(AssetBundleManager), "LoadMainManifest", new []{typeof(string)
+    //})]
+    //public class Testetetetetet
+    //{
+    //    public static void Prefix(string manifestAssetBundleName)
+    //    {
+    //        UnityEngine.Debug.Log("mabiiiiiiiiiiiiiiiite" + manifestAssetBundleName);
+    //    }
+    //}
 }

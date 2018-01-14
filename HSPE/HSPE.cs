@@ -45,7 +45,7 @@ namespace HSPE
         {
             if (level == 3)
             {
-                GameObject go = new GameObject("HSPE");
+                GameObject go = new GameObject("HSPEPlugin");
                 go.AddComponent<MainWindow>();
             }
         }
