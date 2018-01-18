@@ -37,6 +37,7 @@ namespace HSUS
         private bool _improveNeoUI = true;
         private bool _optimizeNeo = true;
         private bool _enableGenericFK = true;
+        private KeyCode _debugShortcut = KeyCode.RightControl;
 
         private GameObject _go;
         private RoutinesComponent _routines;
@@ -47,7 +48,7 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.2.0"; } }
+        public string Version { get { return "1.2.1"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
@@ -55,6 +56,7 @@ namespace HSUS
         public bool improveNeoUI { get { return this._improveNeoUI; } }
         public bool optimizeNeo { get { return this._optimizeNeo; } }
         public bool enableGenericFK { get { return this._enableGenericFK; } }
+        public KeyCode debugShortcut { get { return this._debugShortcut; } }
         #endregion
 
         #region Unity Methods
@@ -127,6 +129,14 @@ namespace HSUS
                         if (node.Attributes["enabled"] != null)
                             this._optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
                         break;
+                    case "debugShortcut":
+                        if (node.Attributes["value"] != null)
+                        {
+                            string value = node.Attributes["value"].Value;
+                            if (Enum.IsDefined(typeof(KeyCode), value))
+                                this._debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
+                        }
+                        break;
                 }
             }
             UIUtility.Init();
@@ -149,8 +159,9 @@ namespace HSUS
                             new PatchProcessor(harmony, type, attributes).Patch();
                         }
                     }
-                    catch (Exception)
+                    catch (Exception e)
                     {
+                        UnityEngine.Debug.Log("HSUS: Exception occured when patching: " + e.ToString());
                     }
                 }
             }
@@ -231,6 +242,12 @@ namespace HSUS
                     {
                         xmlWriter.WriteStartElement("enableGenericFK");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._enableGenericFK));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("debugShortcut");
+                        xmlWriter.WriteAttributeString("value", this._debugShortcut.ToString());
                         xmlWriter.WriteEndElement();
                     }
 
@@ -442,16 +459,19 @@ namespace HSUS
                     Canvas c = UIUtility.CreateNewUISystem("HSUSDeleteConfirmation");
                     c.sortingOrder = 40;
                     c.transform.SetParent(GameObject.Find("StudioScene").transform);
+                    c.transform.localPosition = Vector3.zero;
+                    c.transform.localScale = Vector3.one;
+                    c.transform.SetRect();
                     c.transform.SetAsLastSibling();
-
-                    Image bg = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(c.transform, "Background"));
+                    
+                    Image bg = UIUtility.CreateImage("Background", c.transform);
                     bg.rectTransform.SetRect();
                     bg.sprite = null;
                     bg.color = new Color(0f, 0f, 0f, 0.5f);
                     bg.raycastTarget = true;
 
-                    Image panel = UIUtility.AddImageToObject(UIUtility.CreateNewUIObject(bg.transform, "Panel"));
-                    panel.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(800, 450), new Vector2(-800, -450));
+                    Image panel = UIUtility.CreatePanel("Panel", bg.transform);
+                    panel.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(640f/2, 360f/2), new Vector2(-640f/2, -360f/2));
                     panel.color = Color.gray;
 
                     Text text = UIUtility.CreateText("Text", panel.transform, "Are you sure you want to delete this object?");
@@ -542,13 +562,19 @@ namespace HSUS
         #endregion
     }
 
-    //[HarmonyPatch(typeof(AssetBundleManager), "LoadMainManifest", new []{typeof(string)
+    //[HarmonyPatch(typeof(HsvColor), "ToRgb", new[]{typeof(HsvColor)
     //})]
     //public class Testetetetetet
     //{
-    //    public static void Prefix(string manifestAssetBundleName)
+    //    public static void Prefix(HsvColor hsv)
     //    {
-    //        UnityEngine.Debug.Log("mabiiiiiiiiiiiiiiiite" + manifestAssetBundleName);
+    //        float num = (float)(hsv.H / 60.0);
+    //        int num2 = (int)Math.Floor((double)num) % 6;
+    //        float num3 = num - (float)Math.Floor((double)num);
+    //        float num4 = (float)(hsv.V * (1.0 - hsv.S));
+    //        float num5 = (float)(hsv.V * (1.0 - hsv.S * num3));
+    //        float num6 = (float)(hsv.V * (1.0 - hsv.S * (1.0 - num3)));
+    //        UnityEngine.Debug.Log("mabiiiiiiiiiiiiiiiite" + num + " " + num2 + " " + num3 + " " + num4 + " " + num5 + " " + num6);
     //    }
     //}
 }

@@ -7,7 +7,6 @@ using Harmony;
 using IllusionPlugin;
 using UILib;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace MoreAccessories
@@ -63,6 +62,22 @@ namespace MoreAccessories
         public string Name { get { return "MoreAccessories"; } }
         public string Version { get { return "1.0.0"; } }
         public List<SlotData> displayedSlots { get { return this._displayedSlots; } }
+        public CharInfo charaMakerCharInfo
+        {
+            get { return this._charaMakerCharInfo; }
+            set
+            {
+                this._charaMakerCharInfo = value;
+                CharAdditionalData additionalData;
+                if (this._accessoriesByChar.TryGetValue(this._charaMakerCharInfo.chaFile, out additionalData) == false)
+                {
+                    additionalData = new CharAdditionalData();
+                    this._accessoriesByChar.Add(this._charaMakerCharInfo.chaFile, additionalData);
+                }
+
+                this.charaMakerAdditionalData = additionalData;
+            }
+        }
         #endregion
 
         #region Unity Methods
@@ -70,7 +85,6 @@ namespace MoreAccessories
         {
             self = this;
             CharExtSave.CharExtSave.RegisterHandler("moreAccessories", this.OnCharaLoad, this.OnCharaSave);
-
 
             switch (Process.GetCurrentProcess().ProcessName)
             {
@@ -83,6 +97,7 @@ namespace MoreAccessories
                     this._binary = Binary.Neo;
                     break;
             }
+            
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
@@ -332,10 +347,6 @@ namespace MoreAccessories
 
         private void OnCharaLoad(CharFile charFile, XmlNode node)
         {
-            foreach (CharInfo charInfo in Resources.FindObjectsOfTypeAll<CharInfo>())
-                if (charInfo.chaFile == charFile)
-                    this._charaMakerCharInfo = charInfo;
-
             CharAdditionalData additionalData;
             if (this._accessoriesByChar.TryGetValue(charFile, out additionalData) == false)
             {
@@ -348,10 +359,9 @@ namespace MoreAccessories
                     pair.Value.Clear();
             }
 
-            if (this._charaMakerCharInfo != null)
-                this.charaMakerAdditionalData = additionalData;
             if (node != null)
             {
+                UnityEngine.Debug.Log(charFile.charaFilePNG + " " + charFile.customInfo.name + " " + additionalData.rawAccessoriesInfos[CharDefine.CoordinateType.type00].Count);
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
                     switch (childNode.Name)

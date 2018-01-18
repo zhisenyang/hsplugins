@@ -29,6 +29,9 @@ namespace HSUS
         public static InputField searchBarSkin;
         public static RectTransform containerDetail;
         public static InputField searchBarDetail;
+        public static List<OneTimeVerticalLayoutGroup> groupsHead = new List<OneTimeVerticalLayoutGroup>();
+        public static List<OneTimeVerticalLayoutGroup> groupsSkin = new List<OneTimeVerticalLayoutGroup>();
+        public static List<OneTimeVerticalLayoutGroup> groupsDetail = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmFaceSkin _originalComponent;
 
@@ -39,14 +42,16 @@ namespace HSUS
             _originalComponent = originalComponent;
             {
                 containerHead = _originalComponent.transform.FindChild("TabControl/TabItem01").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = containerHead.gameObject.AddComponent<VerticalLayoutGroup>();
+                OneTimeVerticalLayoutGroup group = containerHead.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsHead.Add(group);
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
                 ContentSizeFitter fitter = containerHead.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelHead.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = _originalComponent.rtfPanelHead.gameObject.AddComponent<VerticalLayoutGroup>();
+                group = _originalComponent.rtfPanelHead.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsHead.Add(group);
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
@@ -70,14 +75,16 @@ namespace HSUS
 
             {
                 containerSkin = _originalComponent.transform.FindChild("TabControl/TabItem02").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = containerSkin.gameObject.AddComponent<VerticalLayoutGroup>();
+                OneTimeVerticalLayoutGroup group = containerSkin.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsSkin.Add(group);
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
                 ContentSizeFitter fitter = containerSkin.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelSkin.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = _originalComponent.rtfPanelSkin.gameObject.AddComponent<VerticalLayoutGroup>();
+                group = _originalComponent.rtfPanelSkin.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsSkin.Add(group);
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
@@ -101,14 +108,17 @@ namespace HSUS
 
             {
                 containerDetail = _originalComponent.transform.FindChild("TabControl/TabItem03").FindDescendant("ListTop").transform as RectTransform;
-                VerticalLayoutGroup group = containerDetail.gameObject.AddComponent<VerticalLayoutGroup>();
+                OneTimeVerticalLayoutGroup group = containerDetail.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsDetail.Add(group);
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
                 ContentSizeFitter fitter = containerDetail.gameObject.AddComponent<ContentSizeFitter>();
                 fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
                 _originalComponent.rtfPanelDetail.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                group = _originalComponent.rtfPanelDetail.gameObject.AddComponent<VerticalLayoutGroup>();
+                group = _originalComponent.rtfPanelDetail.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+                groupsDetail.Add(group);
+                group.childForceExpandWidth = true;
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
@@ -136,6 +146,30 @@ namespace HSUS
             listHead.Clear();
             listFace.Clear();
             listDetail.Clear();
+            groupsHead.Clear();
+            groupsSkin.Clear();
+            groupsDetail.Clear();
+        }
+        public static void UpdateAllHeadGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groupsHead)
+            {
+                group.UpdateLayout();
+            }
+        }
+        public static void UpdateAllSkinGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groupsSkin)
+            {
+                group.UpdateLayout();
+            }
+        }
+        public static void UpdateAllDetailGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groupsDetail)
+            {
+                group.UpdateLayout();
+            }
         }
 
         public static void SearchChangedHead(string arg0)
@@ -250,6 +284,8 @@ namespace HSUS
                         count++;
                     }
                 }
+                SmFaceSkin_Data.UpdateAllHeadGroups();
+
                 Dictionary<int, ListTypeTexture> dictionary2 = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_face, true) : chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_face, true);
                 num = 0;
                 if (customInfo != null)
@@ -292,6 +328,8 @@ namespace HSUS
                         count++;
                     }
                 }
+                SmFaceSkin_Data.UpdateAllSkinGroups();
+
                 dictionary2 = chaInfo.Sex == 0 ? chaInfo.ListInfo.GetMaleTextureList(CharaListInfo.TypeMaleTexture.cm_t_detail_f, true) : chaInfo.ListInfo.GetFemaleTextureList(CharaListInfo.TypeFemaleTexture.cf_t_detail_f, true);
                 num = 0;
                 if (customInfo != null)
@@ -334,6 +372,7 @@ namespace HSUS
                         count++;
                     }
                 }
+                SmFaceSkin_Data.UpdateAllDetailGroups();
             }
             else
             {
@@ -377,7 +416,7 @@ namespace HSUS
                 }
                 if (__instance.inputDetail)
                 {
-                    __instance.inputDetail.text = __instance.ChangeTextFromFloat(customInfo.faceDetailWeight);
+                    __instance.inputDetail.text = (string)__instance.CallPrivate("ChangeTextFromFloat", customInfo.faceDetailWeight);
                 }
             }
             __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", false);

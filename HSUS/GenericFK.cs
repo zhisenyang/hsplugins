@@ -51,7 +51,15 @@ namespace Studio
                 string path = t.GetPathFrom(transform);
                 if (!_ociItem.itemInfo.bones.TryGetValue(path, out oIBoneInfo))
                 {
-                    oIBoneInfo = new OIBoneInfo(Studio.GetNewIndex());
+                    oIBoneInfo = new OIBoneInfo(Studio.GetNewIndex())
+                    {
+                        changeAmount =
+                        {
+                            pos = t.localPosition,
+                            rot = t.localEulerAngles,
+                            scale = t.localScale
+                        }
+                    };
                     _ociItem.itemInfo.bones.Add(path, oIBoneInfo);
                 }
                 GuideObject guideObject = Singleton<GuideObjectManager>.Instance.Add(t, oIBoneInfo.dicKey);
@@ -71,6 +79,20 @@ namespace Studio
                 ++i;
             });
             __instance.GetType().GetProperty("count", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).SetValue(__instance, i, null);
+            if (_isNew)
+            {
+                __instance.ExecuteDelayed(() =>
+                {
+                    _ociItem.ActiveFK(false);
+                });
+            }
+            else
+            {
+                __instance.ExecuteDelayed(() =>
+                {
+                    _ociItem.ActiveFK(_ociItem.itemFKCtrl.enabled);
+                });
+            }
         }
 
         private static void Recurse(Transform t, Action<Transform> action)

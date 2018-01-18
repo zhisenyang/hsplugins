@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using CustomMenu;
@@ -24,6 +25,7 @@ namespace HSUS
         public static int previousType = -1;
         public static RectTransform container;
         public static InputField searchBar;
+        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmClothes_F _originalComponent;
 
@@ -33,14 +35,16 @@ namespace HSUS
 
             _originalComponent = originalComponent;
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
+            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -64,6 +68,14 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
+            groups.Clear();
+        }
+        public static void UpdateAllGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groups)
+            {
+                group.UpdateLayout();
+            }
         }
 
         public static void SearchChanged(string arg0)
@@ -107,6 +119,7 @@ namespace HSUS
                     o.obj.SetActive(false);
             int count = 0;
             int selected = 0;
+            __instance.StartCoroutine(Routine(__instance));
 
             if (SmClothes_F_Data.objects.ContainsKey(nowSubMenuTypeId))
             {
@@ -317,6 +330,7 @@ namespace HSUS
             }
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
+            SmClothes_F_Data.UpdateAllGroups();
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
             __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", true);
             if (clothesInfoF != null)
@@ -392,7 +406,7 @@ namespace HSUS
                 }
                 if (__instance.inputIntensity)
                 {
-                    __instance.inputIntensity.text = __instance.ChangeTextFromFloat(value);
+                    __instance.inputIntensity.text = (string)__instance.CallPrivate("ChangeTextFromFloat", value);
                 }
                 if (__instance.sldSharpness[0])
                 {
@@ -400,7 +414,7 @@ namespace HSUS
                 }
                 if (__instance.inputSharpness[0])
                 {
-                    __instance.inputSharpness[0].text = __instance.ChangeTextFromFloat(value2);
+                    __instance.inputSharpness[0].text = (string)__instance.CallPrivate("ChangeTextFromFloat", value2);
                 }
                 if (__instance.sldSharpness[1])
                 {
@@ -408,7 +422,7 @@ namespace HSUS
                 }
                 if (__instance.inputSharpness[1])
                 {
-                    __instance.inputSharpness[1].text = __instance.ChangeTextFromFloat(value3);
+                    __instance.inputSharpness[1].text = (string)__instance.CallPrivate("ChangeTextFromFloat", value3);
                 }
             }
             __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", false);
@@ -417,6 +431,11 @@ namespace HSUS
             __instance.OnClickColorDiffuse(1);
             __instance.OnClickColorDiffuse(0);
             SmClothes_F_Data.previousType = nowSubMenuTypeId;
+        }
+
+        private static IEnumerator Routine(SmClothes_F __instance)
+        {
+            
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

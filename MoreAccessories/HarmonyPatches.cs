@@ -309,4 +309,22 @@ namespace MoreAccessories
             return true;
         }
     }
+
+    [HarmonyPatch(typeof(CustomControl), "Init", new[] { typeof(CharInfo), typeof(string), typeof(int), typeof(bool) })]
+    public class CustomControl_Init_Patches
+    {
+        public static void Prefix(CharInfo _chainfo, string _charaFile, int _modeCustom, bool _modeOverScene = false)
+        {
+            MoreAccessories.self.charaMakerCharInfo = _chainfo;
+        }
+    }
+
+    [HarmonyPatch(typeof(CustomControl), "ChangeCustomControl", new[] { typeof(CharInfo), typeof(string) })]
+    public class CustomControl_ChangeCustomControl_Patches
+    {
+        public static void Prefix(CharInfo _chainfo, string _charaFile)
+        {
+            MoreAccessories.self.charaMakerCharInfo = _chainfo;
+        }
+    }
 }

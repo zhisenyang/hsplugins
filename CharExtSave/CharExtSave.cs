@@ -1,9 +1,8 @@
 ﻿using IllusionPlugin;
 using Harmony;
 using System.Reflection;
-using System.IO;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Diagnostics;
 using System.Xml;
 
 namespace CharExtSave
@@ -21,10 +20,16 @@ namespace CharExtSave
             public ExtSaveReadHandler onRead;
             public ExtSaveWriteHandler onWrite;
         }
+        internal enum Binary
+        {
+            Neo,
+            Game,
+        }
         #endregion
 
         #region Private Variables
         internal static Dictionary<string, HandlerPair> _handlers = new Dictionary<string, HandlerPair>();
+        internal static Binary _binary = Binary.Neo;
         #endregion
 
         #region Public Accessors
@@ -36,6 +41,18 @@ namespace CharExtSave
         #region Unity Methods
         public void OnApplicationStart()
         {
+            switch (Process.GetCurrentProcess().ProcessName)
+            {
+                case "HoneySelect_32":
+                case "HoneySelect_64":
+                    _binary = Binary.Game;
+                    break;
+                case "StudioNEO_32":
+                case "StudioNEO_64":
+                    _binary = Binary.Neo;
+                    break;
+            }
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.charextsave");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }

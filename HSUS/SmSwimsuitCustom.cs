@@ -24,6 +24,7 @@ namespace HSUS
         public static int previousType;
         public static RectTransform container;
         public static InputField searchBar;
+        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmSwimsuit _originalComponent;
 
@@ -34,14 +35,16 @@ namespace HSUS
             _originalComponent = originalComponent;
 
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
+            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -65,6 +68,14 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
+            groups.Clear();
+        }
+        public static void UpdateAllGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groups)
+            {
+                group.UpdateLayout();
+            }
         }
 
         public static void SearchChanged(string arg0)
@@ -187,6 +198,7 @@ namespace HSUS
                     }
                 }
             }
+            SmSwimsuit_Data.UpdateAllGroups();
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
@@ -203,7 +215,7 @@ namespace HSUS
                 }
                 if (__instance.inputIntensity)
                 {
-                    __instance.inputIntensity.text = __instance.ChangeTextFromFloat(specularIntensity);
+                    __instance.inputIntensity.text = (string)__instance.CallPrivate("ChangeTextFromFloat", specularIntensity);
                 }
                 if (__instance.sldSharpness[0])
                 {
@@ -211,7 +223,7 @@ namespace HSUS
                 }
                 if (__instance.inputSharpness[0])
                 {
-                    __instance.inputSharpness[0].text = __instance.ChangeTextFromFloat(specularSharpness);
+                    __instance.inputSharpness[0].text = (string)__instance.CallPrivate("ChangeTextFromFloat", specularSharpness);
                 }
                 if (__instance.sldSharpness[1])
                 {
@@ -219,7 +231,7 @@ namespace HSUS
                 }
                 if (__instance.inputSharpness[1])
                 {
-                    __instance.inputSharpness[1].text = __instance.ChangeTextFromFloat(specularSharpness2);
+                    __instance.inputSharpness[1].text = (string)__instance.CallPrivate("ChangeTextFromFloat", specularSharpness2);
                 }
             }
             __instance.SetPrivateExplicit<SmSwimsuit>("nowChanging", false);

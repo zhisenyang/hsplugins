@@ -22,6 +22,7 @@ namespace HSUS
         public static List<SmCharaLoad.FileInfo> fileInfos;
         public static List<RectTransform> rectTransforms;
         public static InputField searchBar;
+        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmCharaLoad _originalComponent;
 
@@ -31,18 +32,20 @@ namespace HSUS
 
             _originalComponent = originalComponent;
             lastMenuType = (int)_originalComponent.GetPrivate("nowSubMenuTypeId");
-            fileInfos = (List<SmCharaLoad.FileInfo>)_originalComponent.GetPrivateExplicit<SmCharaLoad>("lstFileInfo");
-            rectTransforms = ((List<RectTransform>)_originalComponent.GetPrivateExplicit<SmCharaLoad>("lstRtfTgl"));
+            fileInfos = (List<SmCharaLoad.FileInfo>)_originalComponent.GetPrivate("lstFileInfo");
+            rectTransforms = ((List<RectTransform>)_originalComponent.GetPrivate("lstRtfTgl"));
 
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
+            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -70,9 +73,18 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
+            groups.Clear();
             created = false;
             fileInfos = null;
             rectTransforms = null;
+        }
+
+        public static void UpdateAllGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groups)
+            {
+                group.UpdateLayout();
+            }
         }
 
         public static void SearchChanged(string arg0)
@@ -103,7 +115,6 @@ namespace HSUS
         public static void Prefix(SmCharaLoad __instance)
         {
             SmCharaLoad_Data.searchBar.text = "";
-            SmCharaLoad_Data.SearchChanged("");
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             if (SmCharaLoad_Data.lastMenuType == nowSubMenuTypeId && SmCharaLoad_Data.created)
                 return;
@@ -166,6 +177,7 @@ namespace HSUS
             }
             foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
                 SmCharaLoad_Data.objects[fi].SetActive(!fi.noAccess);
+            SmCharaLoad_Data.UpdateAllGroups();
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
             SmCharaLoad_Data.lastMenuType = nowSubMenuTypeId;
         }
@@ -249,22 +261,9 @@ namespace HSUS
             {
                 fi.no = i;
                 ++i;
-            }
-            int num = 0;
-            foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
-            {
-                foreach (RectTransform rt in SmCharaLoad_Data.rectTransforms)
-                {
-                    if (rt.gameObject.activeSelf == false)
-                        continue;
-                    SmCharaLoad.FileInfoComponent component = rt.GetComponent<SmCharaLoad.FileInfoComponent>();
-                    if (component.info == fi)
-                    {
-                        rt.SetAsLastSibling();
-                        num++;
-                        break;
-                    }
-                }
+                GameObject go;
+                if (SmCharaLoad_Data.objects.TryGetValue(fi, out go))
+                    go.transform.SetAsLastSibling();
             }
         }
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -299,22 +298,9 @@ namespace HSUS
             {
                 fi.no = i;
                 ++i;
-            }
-            int num = 0;
-            foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
-            {
-                foreach (RectTransform rt in SmCharaLoad_Data.rectTransforms)
-                {
-                    if (rt.gameObject.activeSelf == false)
-                        continue;
-                    SmCharaLoad.FileInfoComponent component = rt.GetComponent<SmCharaLoad.FileInfoComponent>();
-                    if (component.info == fi)
-                    {
-                        rt.SetAsLastSibling();
-                        num++;
-                        break;
-                    }
-                }
+                GameObject go;
+                if (SmCharaLoad_Data.objects.TryGetValue(fi, out go))
+                    go.transform.SetAsLastSibling();
             }
         }
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

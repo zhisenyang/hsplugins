@@ -2,19 +2,23 @@
 using System.IO;
 using System.Xml;
 using System.Collections.Generic;
-using System.Text;
 using Harmony;
 
 namespace CharExtSave
 {
     [HarmonyPatch(typeof(CharFile))]
     [HarmonyPatch("SaveWithoutPNG")]
-    [HarmonyPatch(new Type[] { typeof(BinaryWriter) })]
+    [HarmonyPatch(new Type[] {typeof(BinaryWriter)})]
     public class CharFile_SaveWithoutPNG_Patches
     {
+        public static bool Prepare()
+        {
+            return CharExtSave._binary == CharExtSave.Binary.Game;
+        }
+
         public static void Postfix(CharFile __instance, BinaryWriter writer)
         {
-            
+
             UnityEngine.Debug.Log(CharExtSave.logPrefix + "Saving extended data for character...");
             using (XmlTextWriter xmlWriter = new XmlTextWriter(writer.BaseStream, System.Text.Encoding.UTF8))
             {
@@ -40,7 +44,7 @@ namespace CharExtSave
                                 UnityEngine.Debug.LogError(CharExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
                             }
                         }
-                        
+
                     }
                 }
                 xmlWriter.WriteEndElement();
@@ -51,12 +55,13 @@ namespace CharExtSave
 
     [HarmonyPatch(typeof(CharFile))]
     [HarmonyPatch("Load")]
-    [HarmonyPatch(new[] { typeof(BinaryReader), typeof(Boolean), typeof(Boolean) })]
+    [HarmonyPatch(new[] {typeof(BinaryReader), typeof(Boolean), typeof(Boolean)})]
     public class CharFile_Load_Patches
     {
         public static void Postfix(CharFile __instance, BinaryReader reader, Boolean noSetPNG, Boolean noLoadStatus)
         {
             UnityEngine.Debug.Log(CharExtSave.logPrefix + "Loading extended data for character...");
+            long cachedPosition = reader.BaseStream.Position;
             try
             {
                 XmlDocument doc = new XmlDocument();
@@ -89,6 +94,7 @@ namespace CharExtSave
                 UnityEngine.Debug.Log(CharExtSave.logPrefix + "No ext data in reader.");
                 foreach (KeyValuePair<string, CharExtSave.HandlerPair> kvp in CharExtSave._handlers)
                     kvp.Value.onRead(__instance, null);
+                reader.BaseStream.Seek(cachedPosition, SeekOrigin.Begin);
             }
         }
     }

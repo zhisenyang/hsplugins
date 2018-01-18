@@ -23,6 +23,7 @@ namespace HSUS
         public static int previousType;
         public static RectTransform container;
         public static InputField searchBar;
+        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmHair_F _originalComponent;
 
@@ -33,14 +34,16 @@ namespace HSUS
             _originalComponent = originalComponent;
 
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
+            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
+            groups.Add(group);
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -65,6 +68,14 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
+            groups.Clear();
+        }
+        public static void UpdateAllGroups()
+        {
+            foreach (OneTimeVerticalLayoutGroup group in groups)
+            {
+                group.UpdateLayout();
+            }
         }
 
         public static void SearchChanged(string arg0)
@@ -405,6 +416,7 @@ namespace HSUS
                     }
                 }
             }
+            SmHair_F_Data.UpdateAllGroups();
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
@@ -454,37 +466,21 @@ namespace HSUS
                         break;
                 }
                 if (__instance.sldIntensity)
-                {
                     __instance.sldIntensity.value = value;
-                }
                 if (__instance.inputIntensity)
-                {
-                    __instance.inputIntensity.text = __instance.ChangeTextFromFloat(value);
-                }
+                    __instance.inputIntensity.text = (string)__instance.CallPrivate("ChangeTextFromFloat", value);
                 if (__instance.sldSharpness)
-                {
                     __instance.sldSharpness.value = value2;
-                }
                 if (__instance.inputSharpness)
-                {
-                    __instance.inputSharpness.text = __instance.ChangeTextFromFloat(value2);
-                }
+                    __instance.inputSharpness.text = (string)__instance.CallPrivate("ChangeTextFromFloat", value2);
                 if (__instance.sldAcsIntensity)
-                {
                     __instance.sldAcsIntensity.value = value3;
-                }
                 if (__instance.inputAcsIntensity)
-                {
-                    __instance.inputAcsIntensity.text = __instance.ChangeTextFromFloat(value3);
-                }
+                    __instance.inputAcsIntensity.text = (string)__instance.CallPrivate("ChangeTextFromFloat", value3);
                 if (__instance.sldAcsSharpness)
-                {
                     __instance.sldAcsSharpness.value = value4;
-                }
                 if (__instance.inputAcsSharpness)
-                {
-                    __instance.inputAcsSharpness.text = __instance.ChangeTextFromFloat(value4);
-                }
+                    __instance.inputAcsSharpness.text = (string)__instance.CallPrivate("ChangeTextFromFloat", value4);
             }
             __instance.SetPrivateExplicit<SmHair_F>("nowChanging", false);
             __instance.OnClickAcsColorSpecular();

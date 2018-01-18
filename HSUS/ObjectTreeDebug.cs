@@ -25,7 +25,7 @@ namespace HSUS
 
         void Update()
         {
-            if (Input.GetKeyDown(KeyCode.RightControl))
+            if (Input.GetKeyDown(HSUS.self.debugShortcut))
                 this._debug = !this._debug;
         }
 
@@ -173,6 +173,12 @@ namespace HSUS
                         Toggle b = c as Toggle;
                         for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
                             GUILayout.Label(b.onValueChanged.GetPersistentTarget(i).GetType().FullName + "." + b.onValueChanged.GetPersistentMethodName(i));
+                        IList calls = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                        for (int i = 0; i < calls.Count; ++i)
+                        {
+                            UnityAction<bool> unityAction = ((UnityAction<bool>)calls[i].GetPrivate("Delegate"));
+                            GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
+                        }
                     }
                     else if (c is RectTransform)
                     {
@@ -181,7 +187,7 @@ namespace HSUS
                         GUILayout.Label("anchorMax " + rt.anchorMax);
                         GUILayout.Label("offsetMin " + rt.offsetMin);
                         GUILayout.Label("offsetMax " + rt.offsetMax);
-                        GUILayout.Label("sizeDelta " + rt.sizeDelta);
+                        GUILayout.Label("rect " + rt.rect);
                     }
                     GUILayout.EndHorizontal();
                 }
