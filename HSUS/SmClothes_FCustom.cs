@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection.Emit;
 using CustomMenu;
 using Harmony;
+using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
 using UnityEngine;
@@ -13,19 +14,24 @@ namespace HSUS
 {
     public static class SmClothes_F_Data
     {
+        public class TypeData
+        {
+            public GameObject parentObject;
+            public Dictionary<int, int> keyToObjectIndex = new Dictionary<int, int>();
+            public List<ObjectData> objects = new List<ObjectData>();
+        }
+
         public class ObjectData
         {
-            public int key;
             public Toggle toggle;
             public Text text;
             public GameObject obj;
         }
 
-        public static readonly Dictionary<int, List<ObjectData>> objects = new Dictionary<int, List<ObjectData>>();
+        public static readonly Dictionary<int, TypeData> objects = new Dictionary<int, TypeData>();
         public static int previousType = -1;
         public static RectTransform container;
         public static InputField searchBar;
-        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmClothes_F _originalComponent;
 
@@ -35,16 +41,14 @@ namespace HSUS
 
             _originalComponent = originalComponent;
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -68,14 +72,6 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
-            groups.Clear();
-        }
-        public static void UpdateAllGroups()
-        {
-            foreach (OneTimeVerticalLayoutGroup group in groups)
-            {
-                group.UpdateLayout();
-            }
         }
 
         public static void SearchChanged(string arg0)
@@ -83,7 +79,7 @@ namespace HSUS
             string search = searchBar.text.Trim();
             if (objects.ContainsKey((int)_originalComponent.GetPrivate("nowSubMenuTypeId")) == false)
                 return;
-            foreach (ObjectData objectData in objects[(int)_originalComponent.GetPrivate("nowSubMenuTypeId")])
+            foreach (ObjectData objectData in objects[(int)_originalComponent.GetPrivate("nowSubMenuTypeId")].objects)
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -110,16 +106,14 @@ namespace HSUS
             int nowSubMenuTypeId = (int) __instance.GetPrivate("nowSubMenuTypeId");
             CharFileInfoClothesFemale clothesInfoF = (CharFileInfoClothesFemale)__instance.GetPrivate("clothesInfoF");
             CharInfo chaInfo = (CharInfo) __instance.GetPrivate("chaInfo");
-            if (null == __instance.GetPrivate("chaInfo") || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
+            if (null == chaInfo || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
                 return;
             if (null != __instance.tglTab)
                 __instance.tglTab.isOn = true;
             if (SmClothes_F_Data.previousType != nowSubMenuTypeId && SmClothes_F_Data.objects.ContainsKey(SmClothes_F_Data.previousType))
-                foreach (SmClothes_F_Data.ObjectData o in SmClothes_F_Data.objects[SmClothes_F_Data.previousType])
-                    o.obj.SetActive(false);
+                SmClothes_F_Data.objects[SmClothes_F_Data.previousType].parentObject.gameObject.SetActive(false);
             int count = 0;
             int selected = 0;
-            __instance.StartCoroutine(Routine(__instance));
 
             if (SmClothes_F_Data.objects.ContainsKey(nowSubMenuTypeId))
             {
@@ -158,20 +152,13 @@ namespace HSUS
                             num = clothesInfoF.clothesId[6];
                             break;
                     }
-                count = SmClothes_F_Data.objects[nowSubMenuTypeId].Count;
-                for (int i = 0; i < SmClothes_F_Data.objects[nowSubMenuTypeId].Count; i++)
-                {
-                    SmClothes_F_Data.ObjectData o = SmClothes_F_Data.objects[nowSubMenuTypeId][i];
-                    o.obj.SetActive(true);
-                    if (o.key == num)
-                    {
-                        selected = i;
-                        o.toggle.isOn = true;
-                        o.toggle.onValueChanged.Invoke(true);
-                    }
-                    else if (o.toggle.isOn)
-                        o.toggle.isOn = false;
-                }
+                SmClothes_F_Data.TypeData td = SmClothes_F_Data.objects[nowSubMenuTypeId];
+                td.parentObject.SetActive(true);
+                selected = td.keyToObjectIndex[num];
+                SmClothes_F_Data.ObjectData o = td.objects[selected];
+                o.toggle.isOn = true;
+                o.toggle.onValueChanged.Invoke(true);
+                count = td.objects.Count;
             }
             else
             {
@@ -257,8 +244,14 @@ namespace HSUS
                         }
                         break;
                 }
-                List<SmClothes_F_Data.ObjectData> cd = new List<SmClothes_F_Data.ObjectData>();
-                SmClothes_F_Data.objects.Add(nowSubMenuTypeId, cd);
+                SmClothes_F_Data.TypeData td = new SmClothes_F_Data.TypeData();
+                td.parentObject = new GameObject("Type " + nowSubMenuTypeId, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter), typeof(ToggleGroup));
+                td.parentObject.transform.SetParent(__instance.objListTop.transform, false);
+                td.parentObject.transform.localScale = Vector3.one;
+                td.parentObject.transform.localPosition = Vector3.zero;
+                td.parentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                SmClothes_F_Data.objects.Add(nowSubMenuTypeId, td);
+                ToggleGroup group = td.parentObject.GetComponent<ToggleGroup>();
                 foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
                 {
                     bool flag = false;
@@ -266,73 +259,66 @@ namespace HSUS
                     {
                         flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
                     }
-                    if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0 || flag)
+                    if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) == 0 && !flag)
+                        continue;
+                    GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
+                    gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
+                    fbxTypeInfo.id = current.Key;
+                    fbxTypeInfo.typeName = current.Value.Name;
+                    fbxTypeInfo.info = current.Value;
+                    gameObject.transform.SetParent(td.parentObject.transform, false);
+                    RectTransform rectTransform = gameObject.transform as RectTransform;
+                    rectTransform.localScale = new Vector3(1f, 1f, 1f);
+                    rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
+                    Text component = rectTransform.FindChild("Label").GetComponent<Text>();
+                    component.text = fbxTypeInfo.typeName;
+                    __instance.CallPrivate("SetButtonClickHandler", gameObject);
+                    Toggle component2 = gameObject.GetComponent<Toggle>();
+                    td.keyToObjectIndex.Add(current.Key, count);
+                    td.objects.Add(new SmClothes_F_Data.ObjectData {obj = gameObject, toggle = component2, text = component});
+                    component2.onValueChanged.AddListener(v =>
                     {
-                        GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
-                        gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                        FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
-                        fbxTypeInfo.id = current.Key;
-                        fbxTypeInfo.typeName = current.Value.Name;
-                        fbxTypeInfo.info = current.Value;
-                        gameObject.transform.SetParent(__instance.objListTop.transform, false);
-                        RectTransform rectTransform = gameObject.transform as RectTransform;
-                        rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
-                        Text component = rectTransform.FindChild("Label").GetComponent<Text>();
-                        component.text = fbxTypeInfo.typeName;
-                        __instance.CallPrivateExplicit<SmClothes_F>("SetButtonClickHandler", gameObject);
-                        Toggle component2 = gameObject.GetComponent<Toggle>();
-                        cd.Add(new SmClothes_F_Data.ObjectData { key = current.Key, obj = gameObject, toggle = component2, text = component });
-                        component2.onValueChanged.AddListener(v =>
-                        {
-                            if (component2.isOn)
-                                UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
-                        });
-                        if (current.Key == num)
-                        {
-                            component2.isOn = true;
-                            selected = count;
-                        }
-                        ToggleGroup component3 = __instance.objListTop.GetComponent<ToggleGroup>();
-                        component2.group = component3;
-                        gameObject.SetActive(true);
-                        if (!flag)
-                        {
-                            int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
-                            Transform transform = rectTransform.FindChild("imgNew");
-                            if (transform && num4 == 1)
-                            {
-                                transform.gameObject.SetActive(true);
-                            }
-                        }
-                        SmClothes_F.IdTglInfo idTglInfo = new SmClothes_F.IdTglInfo();
-                        idTglInfo.coorde = int.Parse(current.Value.Etc[1]);
-                        idTglInfo.tgl = component2;
-                        GameObject gameObject2 = gameObject.transform.FindLoop("Background");
-                        if (gameObject2)
-                        {
-                            idTglInfo.imgBG = gameObject2.GetComponent<Image>();
-                        }
-                        gameObject2 = gameObject.transform.FindLoop("Checkmark");
-                        if (gameObject2)
-                        {
-                            idTglInfo.imgCheck = gameObject2.GetComponent<Image>();
-                        }
-                        gameObject2 = gameObject.transform.FindLoop("Label");
-                        if (gameObject2)
-                        {
-                            idTglInfo.text = gameObject2.GetComponent<Text>();
-                        }
-                        ((List<SmClothes_F.IdTglInfo>)__instance.GetPrivateExplicit<SmClothes_F>("lstIdTgl")).Add(idTglInfo);
-                        count++;
+                        if (component2.isOn)
+                            UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
+                    });
+                    if (current.Key == num)
+                    {
+                        component2.isOn = true;
+                        selected = count;
                     }
+                    component2.group = group;
+                    gameObject.SetActive(true);
+                    if (!flag)
+                    {
+                        int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
+                        Transform transform = rectTransform.FindChild("imgNew");
+                        if (transform && num4 == 1)
+                        {
+                            transform.gameObject.SetActive(true);
+                        }
+                    }
+                    SmClothes_F.IdTglInfo idTglInfo = new SmClothes_F.IdTglInfo();
+                    idTglInfo.coorde = int.Parse(current.Value.Etc[1]);
+                    idTglInfo.tgl = component2;
+                    GameObject gameObject2 = gameObject.transform.FindLoop("Background");
+                    if (gameObject2)
+                        idTglInfo.imgBG = gameObject2.GetComponent<Image>();
+                    gameObject2 = gameObject.transform.FindLoop("Checkmark");
+                    if (gameObject2)
+                        idTglInfo.imgCheck = gameObject2.GetComponent<Image>();
+                    gameObject2 = gameObject.transform.FindLoop("Label");
+                    if (gameObject2)
+                        idTglInfo.text = gameObject2.GetComponent<Text>();
+                    ((List<SmClothes_F.IdTglInfo>)__instance.GetPrivate("lstIdTgl")).Add(idTglInfo);
+                    count++;
                 }
             }
+
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
-            SmClothes_F_Data.UpdateAllGroups();
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);
-            __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", true);
+            __instance.SetPrivate("nowChanging", true);
             if (clothesInfoF != null)
             {
                 float value = 1f;
@@ -425,17 +411,12 @@ namespace HSUS
                     __instance.inputSharpness[1].text = (string)__instance.CallPrivate("ChangeTextFromFloat", value3);
                 }
             }
-            __instance.SetPrivateExplicit<SmClothes_F>("nowChanging", false);
+            __instance.SetPrivate("nowChanging", false);
             __instance.OnClickColorSpecular(1);
             __instance.OnClickColorSpecular(0);
             __instance.OnClickColorDiffuse(1);
             __instance.OnClickColorDiffuse(0);
             SmClothes_F_Data.previousType = nowSubMenuTypeId;
-        }
-
-        private static IEnumerator Routine(SmClothes_F __instance)
-        {
-            
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

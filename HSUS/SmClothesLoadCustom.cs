@@ -18,7 +18,6 @@ namespace HSUS
         public static RectTransform container;
         public static readonly Dictionary<SmClothesLoad.FileInfo, GameObject> objects = new Dictionary<SmClothesLoad.FileInfo, GameObject>();
         public static InputField searchBar;
-        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmClothesLoad _originalComponent;
         public static void Init(SmClothesLoad originalComponent)
@@ -28,16 +27,14 @@ namespace HSUS
             _originalComponent = originalComponent;
 
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -62,16 +59,7 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
-            groups.Clear();
             created = false;
-        }
-
-        public static void UpdateAllGroups()
-        {
-            foreach (OneTimeVerticalLayoutGroup group in groups)
-            {
-                group.UpdateLayout();
-            }
         }
 
         public static void SearchChanged(string arg0)
@@ -166,7 +154,6 @@ namespace HSUS
                     }
                 }
             }
-            SmClothesLoad_Data.UpdateAllGroups();
             if (SmClothesLoad_Data.searchBar != null)
             {
                 SmClothesLoad_Data.searchBar.text = "";

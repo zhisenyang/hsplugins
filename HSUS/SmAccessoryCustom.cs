@@ -25,7 +25,6 @@ namespace HSUS
         public static int lastId;
         public static RectTransform container;
         public static InputField searchBar;
-        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmAccessory _originalComponent;
 
@@ -35,16 +34,14 @@ namespace HSUS
 
             _originalComponent = originalComponent;
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -70,15 +67,6 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
-            groups.Clear();
-        }
-
-        public static void UpdateAllGroups()
-        {
-            foreach (OneTimeVerticalLayoutGroup group in groups)
-            {
-                group.UpdateLayout();
-            }
         }
 
         public static void SearchChanged(string arg0)
@@ -243,7 +231,6 @@ namespace HSUS
                 if (__instance.tab04)
                     __instance.tab04.gameObject.SetActive(false);
             }
-            SmAccessory_Data.UpdateAllGroups();
             __instance.SetPrivateExplicit<SmAccessory>("nowChanging", true);
             if (clothesInfo != null)
             {

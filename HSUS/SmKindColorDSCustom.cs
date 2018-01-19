@@ -23,7 +23,6 @@ namespace HSUS
         public static int previousType;
         public static RectTransform container;
         public static InputField searchBar;
-        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmKindColorDS _originalComponent;
         public static void Init(SmKindColorDS originalComponent)
@@ -32,16 +31,14 @@ namespace HSUS
             _originalComponent = originalComponent;
 
             SmKindColorDS_Data.container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            OneTimeVerticalLayoutGroup group = SmKindColorDS_Data.container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            VerticalLayoutGroup group = SmKindColorDS_Data.container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = SmKindColorDS_Data.container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -66,14 +63,6 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
-            groups.Clear();
-        }
-        public static void UpdateAllGroups()
-        {
-            foreach (OneTimeVerticalLayoutGroup group in groups)
-            {
-                group.UpdateLayout();
-            }
         }
 
         public static void SearchChanged(string arg0)
@@ -387,8 +376,6 @@ namespace HSUS
                     }
                 }
             }
-            SmKindColorDS_Data.UpdateAllGroups();
-
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
             __instance.rtfPanel.anchoredPosition = new Vector2(0f, y);

@@ -22,7 +22,6 @@ namespace HSUS
         public static List<SmCharaLoad.FileInfo> fileInfos;
         public static List<RectTransform> rectTransforms;
         public static InputField searchBar;
-        public static List<OneTimeVerticalLayoutGroup> groups = new List<OneTimeVerticalLayoutGroup>();
 
         private static SmCharaLoad _originalComponent;
 
@@ -36,16 +35,14 @@ namespace HSUS
             rectTransforms = ((List<RectTransform>)_originalComponent.GetPrivate("lstRtfTgl"));
 
             container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            OneTimeVerticalLayoutGroup group = container.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
             ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            group = _originalComponent.rtfPanel.gameObject.AddComponent<OneTimeVerticalLayoutGroup>();
-            groups.Add(group);
+            group = _originalComponent.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
@@ -73,18 +70,9 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
-            groups.Clear();
             created = false;
             fileInfos = null;
             rectTransforms = null;
-        }
-
-        public static void UpdateAllGroups()
-        {
-            foreach (OneTimeVerticalLayoutGroup group in groups)
-            {
-                group.UpdateLayout();
-            }
         }
 
         public static void SearchChanged(string arg0)
@@ -177,7 +165,6 @@ namespace HSUS
             }
             foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
                 SmCharaLoad_Data.objects[fi].SetActive(!fi.noAccess);
-            SmCharaLoad_Data.UpdateAllGroups();
             LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
             SmCharaLoad_Data.lastMenuType = nowSubMenuTypeId;
         }

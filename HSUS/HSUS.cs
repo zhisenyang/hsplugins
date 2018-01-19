@@ -2,7 +2,10 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 using CustomMenu;
@@ -44,6 +47,8 @@ namespace HSUS
         private HashSet<Canvas> _scaledCanvases = new HashSet<Canvas>();
         private Binary _binary;
         private Sprite _searchBarBackground;
+
+
         #endregion
 
         #region Public Accessors
@@ -152,6 +157,7 @@ namespace HSUS
                     }
                     try
                     {
+                        UnityEngine.Debug.Log(type.FullName);
                         List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
                         if (harmonyMethods != null && harmonyMethods.Count > 0)
                         {
@@ -168,6 +174,137 @@ namespace HSUS
             else
             {
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
+            }
+            List<string> assemblies = new List<string>()
+            {
+                "WideSliderManaged",
+                "ShortcutsHSParty",
+                "SBPRAnimationPlugin",
+                "PCAnimationPlugin",
+                "MoreAccessories",
+                "Kisama",
+                "HSUS",
+                "SkinTexMod",
+                "HSUncensor2SkinTexModAdapter",
+                "HSUncensor2",
+                "HSStudioNEOAddon",
+                "HSStudioInvisible",
+                "HSPENeo",
+                "HSPE",
+                "HoneyShot",
+                "HoneySelectLauncher.resources",
+                "HSStudioAddonPlugin",
+                "HaremAnimationPlugin",
+                "GgmodForHS_Studio",
+                "GgmodForHS_NEO",
+                "GgmodForHS",
+                "CMModForHS",
+                "CharExtSave",
+                "AdjustMod",
+                "HSStudioNEOExtSave",
+                "AdditionalBoneModifierStudioNEO",
+                "AdditionalBoneModifierStudio",
+                "AdditionalBoneModifier",
+                "UnityEngine.UI.Translation",
+                "UnityEngine.UI",
+                "Assembly-UnityScript",
+                "Assembly-CSharp",
+                "Assembly-CSharp-firstpass",
+                "UnityEngine"
+            };
+            string invalidChars = System.Text.RegularExpressions.Regex.Escape(new string(System.IO.Path.GetInvalidFileNameChars()));
+            string invalidRegStr = string.Format(@"([{0}]*\.+$)|([{0}]+)", invalidChars);
+
+            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                foreach (string s in assemblies)
+                {
+                    if (a.FullName.StartsWith(s))
+                    {
+
+                        try
+                        {
+                            foreach (Type type in a.GetTypes())
+                            {
+                                StringBuilder b = new StringBuilder();
+                                //b.Append("using UnityEngine;\n");
+								b.Append("using System.Collections.Generic;\n");
+								b.Append("using Harmony;\n");
+
+                                b.Append("namespace Profile\n");
+                                b.Append("{\n");
+
+                                int j = 0;
+
+                                if (type.GetCustomAttributes(true).Any(att => att is HarmonyAttribute || att.ToString().EndsWith("HarmonyPatch") || att is CompilerGeneratedAttribute) || type.IsGenericType || type.IsNested || type.FullName.StartsWith("Harmony"))
+                                    continue;
+                                foreach (MethodInfo methodInfo in type.GetMethods())
+                                {
+                                    if (methodInfo.IsGenericMethod)
+                                        continue;
+                                    StringBuilder param = new StringBuilder();
+                                    ParameterInfo[] parameters = methodInfo.GetParameters();
+                                    param.Append("new []{");
+                                    for (int i = 0; i < parameters.Length; i++)
+                                        param.Append("typeof(" + parameters[i].ParameterType.FullName.Replace("&", "") + ")" + (i != parameters.Length - 1 ? ", " : ""));
+                                    param.Append("}");
+
+                                    StringBuilder param2 = new StringBuilder();
+                                    for (int i = 0; i < parameters.Length; i++)
+                                        param2.Append(parameters[i].ParameterType.FullName.Replace("&", "") + " " + parameters[i].Name + (i != parameters.Length - 1 ? ", " : ""));
+                                    string n = type.FullName + "_" + methodInfo.Name + "_" + j;
+                                    b.Append("[HarmonyPatch(typeof(" + type.FullName + "), \"" + methodInfo.Name + "\"" + (parameters.Length != 0 ? param.ToString() : "") + ")]\n");
+                                    b.Append("public class " + type.FullName + "_" + methodInfo.Name + "_" + j + "_Patches\n");
+                                    b.Append("{\n");
+
+                                    b.Append("public static void Prefix(" + param2.ToString() + ")\n");
+                                    b.Append("{\n");
+                                    b.Append("System.Diagnostics.Stopwatch sw;\n");
+                                    b.Append("if (Profile.self._stopwatches.TryGetValue(\"" + n + "\", out sw) == false)\n");
+                                    b.Append("{\n");
+                                    b.Append("    sw = new System.Diagnostics.Stopwatch();\n");
+                                    b.Append("    Profile.self._stopwatches.Add(\"" + n + "\", sw);\n");
+                                    b.Append("}\n");
+                                    b.Append("sw.Start();\n");
+                                    b.Append("}\n");
+
+                                    b.Append("public static void Postfix(" + param2.ToString() + ")\n");
+                                    b.Append("{\n");
+                                    b.Append("System.Diagnostics.Stopwatch sw = Profile.self._stopwatches[\"" + n + "\"];\n");
+                                    b.Append("sw.Stop();\n");
+                                    b.Append("Dictionary<string, long> t;\n");
+                                    b.Append("if (Profile.self._times.TryGetValue(Time.frameCount, out t) == false)\n");
+                                    b.Append("{\n");
+                                    b.Append("    t = new Dictionary<string, long>();\n");
+                                    b.Append("    Profile.self._times.Add(Time.frameCount, t);\n");
+                                    b.Append("}\n");
+                                    b.Append("if (t.ContainsKey(\"" + n + "\"))\n");
+                                    b.Append("    t[\"" + n + "\"] += sw.ElapsedMilliseconds;\n");
+                                    b.Append("else\n");
+                                    b.Append("    t.Add(\"" + n + "\", sw.ElapsedMilliseconds);\n");
+                                    b.Append("sw.Reset();\n");
+                                    b.Append("}\n");
+
+                                    b.Append("}\n");
+                                    ++j;
+                                }
+
+                                b.Append("}\n");
+
+                    
+
+                                File.WriteAllText(@"C:\Users\Joan\hsplugins\Profile\Profile\" + System.Text.RegularExpressions.Regex.Replace(type.FullName, invalidRegStr, "_") + ".cs", b.ToString());
+
+                            }
+
+                        }
+                        catch (Exception e)
+                        {
+                            UnityEngine.Debug.Log("mabite " + e);
+                        }
+                        break;
+                    }
+                }
             }
         }
 
@@ -304,6 +441,7 @@ namespace HSUS
 
         public void OnUpdate()
         {
+
         }
         public void OnLateUpdate()
         {
