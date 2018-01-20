@@ -175,46 +175,47 @@ namespace HSUS
             {
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
             }
+            return;
             List<string> assemblies = new List<string>()
             {
-                "WideSliderManaged",
-                "ShortcutsHSParty",
-                "SBPRAnimationPlugin",
-                "PCAnimationPlugin",
-                "MoreAccessories",
-                "Kisama",
-                "HSUS",
-                "SkinTexMod",
-                "HSUncensor2SkinTexModAdapter",
-                "HSUncensor2",
-                "HSStudioNEOAddon",
-                "HSStudioInvisible",
-                "HSPENeo",
-                "HSPE",
-                "HoneyShot",
-                "HoneySelectLauncher.resources",
-                "HSStudioAddonPlugin",
-                "HaremAnimationPlugin",
-                "GgmodForHS_Studio",
-                "GgmodForHS_NEO",
-                "GgmodForHS",
-                "CMModForHS",
-                "CharExtSave",
-                "AdjustMod",
-                "HSStudioNEOExtSave",
-                "AdditionalBoneModifierStudioNEO",
-                "AdditionalBoneModifierStudio",
-                "AdditionalBoneModifier",
-                "UnityEngine.UI.Translation",
-                "UnityEngine.UI",
+                //"WideSliderManaged",
+                //"ShortcutsHSParty",
+                //"SBPRAnimationPlugin",
+                //"PCAnimationPlugin",
+                //"MoreAccessories",
+                //"Kisama",
+                //"HSUS",
+                //"SkinTexMod",
+                //"HSUncensor2SkinTexModAdapter",
+                //"HSUncensor2",
+                //"HSStudioNEOAddon",
+                //"HSStudioInvisible",
+                //"HSPENeo",
+                //"HSPE",
+                //"HoneyShot",
+                //"HSStudioAddonPlugin",
+                //"HaremAnimationPlugin",
+                //"GgmodForHS_Studio",
+                //"GgmodForHS_NEO",
+                //"GgmodForHS",
+                //"CMModForHS",
+                //"CharExtSave",
+                //"AdjustMod",
+                //"HSStudioNEOExtSave",
+                //"AdditionalBoneModifierStudioNEO",
+                //"AdditionalBoneModifierStudio",
+                //"AdditionalBoneModifier",
+                //"UnityEngine.UI.Translation",
+                //"UnityEngine.UI",
                 "Assembly-UnityScript",
                 "Assembly-CSharp",
                 "Assembly-CSharp-firstpass",
-                "UnityEngine"
+                //"UnityEngine"
             };
             string invalidChars = System.Text.RegularExpressions.Regex.Escape(new string(System.IO.Path.GetInvalidFileNameChars()));
             string invalidRegStr = string.Format(@"([{0}]*\.+$)|([{0}]+)", invalidChars);
 
+            int j = 0;
             foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
             {
                 foreach (string s in assemblies)
@@ -227,42 +228,50 @@ namespace HSUS
                             foreach (Type type in a.GetTypes())
                             {
                                 StringBuilder b = new StringBuilder();
-                                //b.Append("using UnityEngine;\n");
-								b.Append("using System.Collections.Generic;\n");
-								b.Append("using Harmony;\n");
+                                b.Append("extern alias tr;\n");
+                                b.Append("using System.Collections.Generic;\n");
+                                b.Append("using Harmony;\n");
+                                b.Append("using UnityEngine;\n");
+                                b.Append("using System.Diagnostics;\n");
 
                                 b.Append("namespace Profile\n");
                                 b.Append("{\n");
 
-                                int j = 0;
 
-                                if (type.GetCustomAttributes(true).Any(att => att is HarmonyAttribute || att.ToString().EndsWith("HarmonyPatch") || att is CompilerGeneratedAttribute) || type.IsGenericType || type.IsNested || type.FullName.StartsWith("Harmony"))
+                                if (type.GetCustomAttributes(true).Any(att => att is HarmonyAttribute || att.ToString().EndsWith("HarmonyPatch") || att is CompilerGeneratedAttribute) || type.IsGenericType || type.IsNested || type.IsVisible == false || type.IsNotPublic || type.FullName.StartsWith("Harmony"))
                                     continue;
                                 foreach (MethodInfo methodInfo in type.GetMethods())
                                 {
-                                    if (methodInfo.IsGenericMethod)
+                                    if (methodInfo.IsGenericMethod || methodInfo.GetCustomAttributes(true).Any(att => att is CompilerGeneratedAttribute))
                                         continue;
                                     StringBuilder param = new StringBuilder();
                                     ParameterInfo[] parameters = methodInfo.GetParameters();
+                                    if (parameters.Any(p => p.ParameterType.IsNestedPrivate || type.IsNotPublic || type.IsVisible == false))
+                                        continue;
                                     param.Append("new []{");
                                     for (int i = 0; i < parameters.Length; i++)
-                                        param.Append("typeof(" + parameters[i].ParameterType.FullName.Replace("&", "") + ")" + (i != parameters.Length - 1 ? ", " : ""));
+                                    {                                        
+                                        param.Append("typeof(" + this.GetTypeName(parameters[i].ParameterType, false).Replace("&", "") + ")" + (i != parameters.Length - 1 ? ", " : ""));
+                                    }
                                     param.Append("}");
 
                                     StringBuilder param2 = new StringBuilder();
                                     for (int i = 0; i < parameters.Length; i++)
-                                        param2.Append(parameters[i].ParameterType.FullName.Replace("&", "") + " " + parameters[i].Name + (i != parameters.Length - 1 ? ", " : ""));
-                                    string n = type.FullName + "_" + methodInfo.Name + "_" + j;
-                                    b.Append("[HarmonyPatch(typeof(" + type.FullName + "), \"" + methodInfo.Name + "\"" + (parameters.Length != 0 ? param.ToString() : "") + ")]\n");
-                                    b.Append("public class " + type.FullName + "_" + methodInfo.Name + "_" + j + "_Patches\n");
+                                    {
+                                        ParameterInfo inf = parameters[i];
+                                        param2.Append(this.GetTypeName(inf.ParameterType, true) + " " + (inf.Name.Equals("object") || inf.Name.Equals("default") ? "@":"") + inf.Name + (i != parameters.Length - 1 ? ", " : ""));
+                                    }
+                                    string n = type.FullName + "." + methodInfo.Name + "_" + j;
+                                    b.Append("[HarmonyPatch(typeof(" +(type.FullName.Contains("IniFile") || type.FullName.Contains(".Translation") ? "tr::": "") + (s.StartsWith("Assembly") || s.Equals("UnityEngine") ? "" : s + ".") + type.FullName + "), \"" + methodInfo.Name + "\"" + (parameters.Length != 0 ? ", " + param.ToString() : "") + ")]\n");
+                                    b.Append("public class " + type.Name + "_" + methodInfo.Name + "_" + j + "_Patches\n");
                                     b.Append("{\n");
 
                                     b.Append("public static void Prefix(" + param2.ToString() + ")\n");
                                     b.Append("{\n");
-                                    b.Append("System.Diagnostics.Stopwatch sw;\n");
+                                    b.Append("Stopwatch sw;\n");
                                     b.Append("if (Profile.self._stopwatches.TryGetValue(\"" + n + "\", out sw) == false)\n");
                                     b.Append("{\n");
-                                    b.Append("    sw = new System.Diagnostics.Stopwatch();\n");
+                                    b.Append("    sw = new Stopwatch();\n");
                                     b.Append("    Profile.self._stopwatches.Add(\"" + n + "\", sw);\n");
                                     b.Append("}\n");
                                     b.Append("sw.Start();\n");
@@ -270,18 +279,18 @@ namespace HSUS
 
                                     b.Append("public static void Postfix(" + param2.ToString() + ")\n");
                                     b.Append("{\n");
-                                    b.Append("System.Diagnostics.Stopwatch sw = Profile.self._stopwatches[\"" + n + "\"];\n");
+                                    b.Append("Stopwatch sw = Profile.self._stopwatches[\"" + n + "\"];\n");
                                     b.Append("sw.Stop();\n");
-                                    b.Append("Dictionary<string, long> t;\n");
-                                    b.Append("if (Profile.self._times.TryGetValue(Time.frameCount, out t) == false)\n");
+                                    b.Append("Dictionary<string, long> __t;\n");
+                                    b.Append("if (Profile.self._times.TryGetValue(Time.frameCount, out __t) == false)\n");
                                     b.Append("{\n");
-                                    b.Append("    t = new Dictionary<string, long>();\n");
-                                    b.Append("    Profile.self._times.Add(Time.frameCount, t);\n");
+                                    b.Append("    __t = new Dictionary<string, long>();\n");
+                                    b.Append("    Profile.self._times.Add(Time.frameCount, __t);\n");
                                     b.Append("}\n");
-                                    b.Append("if (t.ContainsKey(\"" + n + "\"))\n");
-                                    b.Append("    t[\"" + n + "\"] += sw.ElapsedMilliseconds;\n");
+                                    b.Append("if (__t.ContainsKey(\"" + n + "\"))\n");
+                                    b.Append("    __t[\"" + n + "\"] += sw.ElapsedMilliseconds;\n");
                                     b.Append("else\n");
-                                    b.Append("    t.Add(\"" + n + "\", sw.ElapsedMilliseconds);\n");
+                                    b.Append("    __t.Add(\"" + n + "\", sw.ElapsedMilliseconds);\n");
                                     b.Append("sw.Reset();\n");
                                     b.Append("}\n");
 
@@ -294,7 +303,6 @@ namespace HSUS
                     
 
                                 File.WriteAllText(@"C:\Users\Joan\hsplugins\Profile\Profile\" + System.Text.RegularExpressions.Regex.Replace(type.FullName, invalidRegStr, "_") + ".cs", b.ToString());
-
                             }
 
                         }
@@ -306,6 +314,37 @@ namespace HSUS
                     }
                 }
             }
+        }
+
+        private string GetTypeName(Type info, bool forSignature)
+        {
+            string paramName;
+            if (info.IsByRef)
+            {
+                paramName = (forSignature ? "ref ":"") + this.GetTypeName(info.GetElementType(), forSignature);
+            }
+            else if (info.IsArray)
+            {
+                paramName = this.GetTypeName(info.GetElementType(), forSignature) + "[]";
+            }
+            else if (info.IsGenericType||info.IsGenericTypeDefinition)
+            {
+                paramName = info.FullName;
+                int j;
+                if ((j = paramName.IndexOf('`')) >= 0)
+                    paramName = paramName.Remove(j);
+                paramName += "<";
+                Type[] args = info.GetGenericArguments();
+                for (int i = 0; i < args.Length; i++)
+                {
+                    Type t = info.GetGenericArguments()[i];
+                    paramName += this.GetTypeName(t, forSignature) + (i != args.Length - 1 ? ", " : "");
+                }
+                paramName += ">";
+            }
+            else
+                paramName = info.FullName;
+            return paramName.Replace("&", "").Replace('+', '.');
         }
 
         public void OnApplicationQuit()

@@ -1413,8 +1413,13 @@ namespace HSPE
 
         private void OnSceneLoad()
         {
+            this.OnSceneLoad(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath());
+        }
+
+        private void OnSceneLoad(string scenePath)
+        {
             this._lastObjectCount = 0;
-            string scenePath = Path.GetFileNameWithoutExtension(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath()) + ".sav";
+            scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
             if (File.Exists(path) == false)
@@ -1426,7 +1431,12 @@ namespace HSPE
 
         private void OnSceneImport()
         {
-            string scenePath = Path.GetFileNameWithoutExtension(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath()) + ".sav";
+            this.OnSceneImport(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath());
+        }
+
+        private void OnSceneImport(string scenePath)
+        {
+            scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
             if (File.Exists(path) == false)
@@ -1450,14 +1460,24 @@ namespace HSPE
 
         private void OnSceneDelete()
         {
-            string completePath = _pluginDir + _studioSavesDir + Path.GetFileNameWithoutExtension(this._selectedScenePath) + ".sav";
+            this.OnSceneDelete(this._selectedScenePath);
+        }
+
+        private void OnSceneDelete(string scenePath)
+        {
+            string completePath = _pluginDir + _studioSavesDir + Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             if (File.Exists(completePath))
                 File.Delete(completePath);
         }
 
         private void OnSceneSave()
         {
-            string saveFileName = Path.GetFileNameWithoutExtension(this.GetLastScenePath()) + ".sav";
+            this.OnSceneSave(this.GetLastScenePath());
+        }
+
+        private void OnSceneSave(string scenePath)
+        {
+            string saveFileName = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             string dir = _pluginDir + _studioSavesDir;
             if (Directory.Exists(dir) == false)
                 Directory.CreateDirectory(dir);
