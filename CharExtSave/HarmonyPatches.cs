@@ -44,7 +44,6 @@ namespace CharExtSave
                                 UnityEngine.Debug.LogError(CharExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
                             }
                         }
-
                     }
                 }
                 xmlWriter.WriteEndElement();

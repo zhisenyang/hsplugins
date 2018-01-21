@@ -51,6 +51,7 @@ namespace MoreAccessories
         private bool _ready = false;
         private readonly List<SlotData> _displayedSlots = new List<SlotData>();
         private int _level;
+        private Button _addButton;
         #endregion
 
         #region Public Accessors
@@ -58,7 +59,7 @@ namespace MoreAccessories
         public Dictionary<CharFile, CharAdditionalData> accessoriesByChar { get { return (this._accessoriesByChar); } }
         public CharAdditionalData charaMakerAdditionalData { get; private set; }
         public SubMenuItem smItem { get; } = new SubMenuItem();
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32"/*, "StudioNEO_32", "StudioNEO_64"*/ }; } }
+        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public string Name { get { return "MoreAccessories"; } }
         public string Version { get { return "1.0.0"; } }
         public List<SlotData> displayedSlots { get { return this._displayedSlots; } }
@@ -98,6 +99,8 @@ namespace MoreAccessories
                     break;
             }
             
+            UIUtility.Init();
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
@@ -107,7 +110,11 @@ namespace MoreAccessories
             this._level = level;
             if (this._binary == Binary.Game && level == 21)
             {
-                this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
+                UIUtility.SetCustomFont("mplus-1c-medium");
+                if (Manager.Game.Instance.customSceneInfo.isFemale)
+                    this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
+                else
+                    this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
 
                 Dictionary<CharFile, CharAdditionalData> newDic = new Dictionary<CharFile, CharAdditionalData>();
                 foreach (KeyValuePair<CharFile, CharAdditionalData> pair in this._accessoriesByChar)
@@ -123,7 +130,7 @@ namespace MoreAccessories
                     this._smControl = subMenuControl;
                     break;
                 }
-
+                
                 foreach (SmAccessory smAccessory in Resources.FindObjectsOfTypeAll<SmAccessory>())
                 {
                     GameObject obj = GameObject.Instantiate(smAccessory.gameObject);
@@ -142,6 +149,20 @@ namespace MoreAccessories
                     this.smItem.objTop = obj;
                     break;
                 }
+
+                Selectable template = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/TabMenu/Tab01").GetComponent<Selectable>();
+
+                this._addButton = UIUtility.CreateButton("AddAccessoriesButton", this._prefab.parent, "+ Add accessory");
+                this._addButton.transform.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
+                ((RectTransform)this._addButton.transform).pivot = new Vector2(0.5f, 1f);
+                this._addButton.gameObject.AddComponent<UI_TreeView>();
+                this._addButton.onClick.AddListener(this.AddSlot);
+                this._addButton.colors = template.colors;
+                ((Image)this._addButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
+                Text text = this._addButton.GetComponentInChildren<Text>();
+                text.resizeTextForBestFit = true;
+                text.resizeTextMaxSize = 200;
+                text.rectTransform.SetRect();
             }
             this._ready = true;
         }
@@ -156,7 +177,6 @@ namespace MoreAccessories
 
         public void OnUpdate()
         {
-            this.GUILogic();
         }
 
         public void OnLateUpdate()
@@ -169,15 +189,6 @@ namespace MoreAccessories
         #endregion
 
         #region Private Methods
-
-        private void GUILogic()
-        {
-            if (this._binary == Binary.Game && this._ready && this._level == 21 && Input.GetKeyDown(KeyCode.A))
-            {
-                this.AddSlot();
-            }
-        }
-
         internal void UpdateGUI()
         {
             if (this._binary != Binary.Game || this._level != 21 || this._ready == false || this._charaMakerCharInfo == null || this._prefab == null)
@@ -195,6 +206,9 @@ namespace MoreAccessories
                     obj.transform.SetParent(this._prefab.parent);
                     obj.transform.localPosition = Vector3.zero;
                     obj.transform.localScale = this._prefab.localScale;
+                    Transform selectRect = obj.transform.Find("MainSelectClothes");
+                    if (selectRect != null)
+                        GameObject.Destroy(selectRect.transform);
                     RectTransform rt = obj.transform as RectTransform;
                     rt.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
                     sd.button = obj.GetComponent<Button>();
@@ -215,6 +229,7 @@ namespace MoreAccessories
             for (; i < this.displayedSlots.Count; i++)
                 this.displayedSlots[i].treeView.SetUnused(true);
             this.CustomControl_UpdateAcsName();
+            this._addButton.transform.SetAsLastSibling();
             this._prefab.parent.GetComponent<UI_TreeView>().UpdateView();
         }
 
@@ -223,7 +238,10 @@ namespace MoreAccessories
             this._smControl.ChangeSubMenu(SubMenuControl.SubMenuType.SM_ClothesLoad.ToString());
             this._smControl.ExecuteDelayed(() =>
             {
-                this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform); //TODO faire mieux
+                if (Manager.Game.Instance.customSceneInfo.isFemale)
+                this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform);
+                else
+                    this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform);
             }, 2);
         }
 
@@ -361,7 +379,6 @@ namespace MoreAccessories
 
             if (node != null)
             {
-                UnityEngine.Debug.Log(charFile.charaFilePNG + " " + charFile.customInfo.name + " " + additionalData.rawAccessoriesInfos[CharDefine.CoordinateType.type00].Count);
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
                     switch (childNode.Name)
@@ -378,41 +395,66 @@ namespace MoreAccessories
                             }
                             foreach (XmlNode grandChildNode in childNode.ChildNodes)
                             {
-                                CharFileInfoClothes.Accessory accessory = new CharFileInfoClothes.Accessory();
-
-                                accessory.type = XmlConvert.ToInt32(grandChildNode.Attributes["type"].Value);
-                                accessory.id = XmlConvert.ToInt32(grandChildNode.Attributes["id"].Value);
-                                accessory.parentKey = grandChildNode.Attributes["parentKey"].Value;
-                                accessory.addPos.x = XmlConvert.ToSingle(grandChildNode.Attributes["addPosX"].Value);
-                                accessory.addPos.y = XmlConvert.ToSingle(grandChildNode.Attributes["addPosY"].Value);
-                                accessory.addPos.z = XmlConvert.ToSingle(grandChildNode.Attributes["addPosZ"].Value);
-                                accessory.addRot.x = XmlConvert.ToSingle(grandChildNode.Attributes["addRotX"].Value);
-                                accessory.addRot.y = XmlConvert.ToSingle(grandChildNode.Attributes["addRotY"].Value);
-                                accessory.addRot.z = XmlConvert.ToSingle(grandChildNode.Attributes["addRotZ"].Value);
-                                accessory.addScl.x = XmlConvert.ToSingle(grandChildNode.Attributes["addSclX"].Value);
-                                accessory.addScl.y = XmlConvert.ToSingle(grandChildNode.Attributes["addSclY"].Value);
-                                accessory.addScl.z = XmlConvert.ToSingle(grandChildNode.Attributes["addSclZ"].Value);
-
-                                accessory.color.hsvDiffuse.H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseH"].Value);
-                                accessory.color.hsvDiffuse.S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseS"].Value);
-                                accessory.color.hsvDiffuse.V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseV"].Value);
-                                accessory.color.alpha = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorAlpha"].Value);
-                                accessory.color.hsvSpecular.H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularH"].Value);
-                                accessory.color.hsvSpecular.S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularS"].Value);
-                                accessory.color.hsvSpecular.V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularV"].Value);
-                                accessory.color.specularIntensity = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorSpecularIntensity"].Value);
-                                accessory.color.specularSharpness = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorSpecularSharpness"].Value);
-
-                                accessory.color2.hsvDiffuse.H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseH"].Value);
-                                accessory.color2.hsvDiffuse.S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseS"].Value);
-                                accessory.color2.hsvDiffuse.V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseV"].Value);
-                                accessory.color2.alpha = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2Alpha"].Value);
-                                accessory.color2.hsvSpecular.H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularH"].Value);
-                                accessory.color2.hsvSpecular.S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularS"].Value);
-                                accessory.color2.hsvSpecular.V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularV"].Value);
-                                accessory.color2.specularIntensity = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2SpecularIntensity"].Value);
-                                accessory.color2.specularSharpness = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2SpecularSharpness"].Value);
-
+                                CharFileInfoClothes.Accessory accessory = new CharFileInfoClothes.Accessory
+                                {
+                                    type = XmlConvert.ToInt32(grandChildNode.Attributes["type"].Value),
+                                    id = XmlConvert.ToInt32(grandChildNode.Attributes["id"].Value),
+                                    parentKey = grandChildNode.Attributes["parentKey"].Value,
+                                    addPos =
+                                    {
+                                        x = XmlConvert.ToSingle(grandChildNode.Attributes["addPosX"].Value),
+                                        y = XmlConvert.ToSingle(grandChildNode.Attributes["addPosY"].Value),
+                                        z = XmlConvert.ToSingle(grandChildNode.Attributes["addPosZ"].Value)
+                                    },
+                                    addRot =
+                                    {
+                                        x = XmlConvert.ToSingle(grandChildNode.Attributes["addRotX"].Value),
+                                        y = XmlConvert.ToSingle(grandChildNode.Attributes["addRotY"].Value),
+                                        z = XmlConvert.ToSingle(grandChildNode.Attributes["addRotZ"].Value)
+                                    },
+                                    addScl =
+                                    {
+                                        x = XmlConvert.ToSingle(grandChildNode.Attributes["addSclX"].Value),
+                                        y = XmlConvert.ToSingle(grandChildNode.Attributes["addSclY"].Value),
+                                        z = XmlConvert.ToSingle(grandChildNode.Attributes["addSclZ"].Value)
+                                    },
+                                    color = new HSColorSet
+                                    {
+                                        hsvDiffuse =
+                                        {
+                                            H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseH"].Value),
+                                            S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseS"].Value),
+                                            V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVDiffuseV"].Value)
+                                        },
+                                        alpha = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorAlpha"].Value),
+                                        hsvSpecular =
+                                        {
+                                            H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularH"].Value),
+                                            S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularS"].Value),
+                                            V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorHSVSpecularV"].Value)
+                                        },
+                                        specularIntensity = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorSpecularIntensity"].Value),
+                                        specularSharpness = (float)XmlConvert.ToDouble(grandChildNode.Attributes["colorSpecularSharpness"].Value)
+                                    },
+                                    color2 = new HSColorSet
+                                    {
+                                        hsvDiffuse =
+                                        {
+                                            H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseH"].Value),
+                                            S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseS"].Value),
+                                            V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVDiffuseV"].Value)
+                                        },
+                                        alpha = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2Alpha"].Value),
+                                        hsvSpecular =
+                                        {
+                                            H = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularH"].Value),
+                                            S = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularS"].Value),
+                                            V = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2HSVSpecularV"].Value)
+                                        },
+                                        specularIntensity = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2SpecularIntensity"].Value),
+                                        specularSharpness = (float)XmlConvert.ToDouble(grandChildNode.Attributes["color2SpecularSharpness"].Value)
+                                    }
+                                };
                                 accessories2.Add(accessory);
                             }
                             break;

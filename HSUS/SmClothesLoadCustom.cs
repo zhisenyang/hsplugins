@@ -146,7 +146,7 @@ namespace HSUS
                 foreach (KeyValuePair<SmClothesLoad.FileInfo, GameObject> pair in new Dictionary<SmClothesLoad.FileInfo, GameObject>(SmClothesLoad_Data.objects))
                 {
                     int i;
-                    if ((i = lstFileInfo.IndexOf(pair.Key)) != -1)
+                    if ((i = lstFileInfo.IndexOf(pair.Key)) == -1)
                     {
                         lstRtfTgl.Remove(pair.Value.transform as RectTransform);
                         GameObject.Destroy(pair.Value);

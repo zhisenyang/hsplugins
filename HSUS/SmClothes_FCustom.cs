@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Reflection.Emit;
 using CustomMenu;
 using Harmony;
-using HSUS;
 using IllusionUtility.GetUtility;
 using UILib;
 using UnityEngine;
@@ -68,6 +67,8 @@ namespace HSUS
             searchBar.onValueChanged.AddListener(SearchChanged);
             foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
+
+            //HSUS.self.routines.StartCoroutine(CreateCachedLists());
         }
         private static void Reset()
         {
@@ -86,6 +87,174 @@ namespace HSUS
                 objectData.obj.SetActive(objectData.text.text.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
                 if (active && objectData.obj.activeSelf == false)
                     group.RegisterToggle(objectData.toggle);
+            }
+        }
+
+        private static IEnumerator CreateCachedLists()
+        {
+            CharFileInfoClothesFemale clothesInfoF = (CharFileInfoClothesFemale)_originalComponent.GetPrivate("clothesInfoF");
+            CharInfo chaInfo = (CharInfo)_originalComponent.GetPrivate("chaInfo");
+            if (null == chaInfo || null == _originalComponent.objListTop || null == _originalComponent.objLineBase || null == _originalComponent.rtfPanel)
+                yield break;
+
+            int count = 0;
+
+            SubMenuControl control = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu").GetComponent<SubMenuControl>();
+            for (int nowSubMenuTypeId = 0; nowSubMenuTypeId < control.smItem.Length; nowSubMenuTypeId++)
+            {
+                if (control.smItem[nowSubMenuTypeId].objTop != _originalComponent.gameObject)
+                    continue;
+                Dictionary<int, ListTypeFbx> dictionary = null;
+                int num = 0;
+                switch (nowSubMenuTypeId)
+                {
+                    case 57:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_top);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[0];
+                        }
+                        break;
+                    case 58:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bot);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[1];
+                        }
+                        break;
+                    case 59:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bra);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[2];
+                        }
+                        break;
+                    case 60:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shorts);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[3];
+                        }
+                        break;
+                    case 61:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_gloves);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[7];
+                        }
+                        break;
+                    case 62:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_panst);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[8];
+                        }
+                        break;
+                    case 63:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_socks);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[9];
+                        }
+                        break;
+                    case 64:
+                        dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shoes);
+                        if (clothesInfoF != null)
+                        {
+                            num = clothesInfoF.clothesId[10];
+                        }
+                        break;
+                    default:
+                        if (nowSubMenuTypeId != 76)
+                        {
+                            if (nowSubMenuTypeId == 77)
+                            {
+                                dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimbot);
+                                if (clothesInfoF != null)
+                                {
+                                    num = clothesInfoF.clothesId[6];
+                                }
+                            }
+                        }
+                        else
+                        {
+                            dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimtop);
+                            if (clothesInfoF != null)
+                            {
+                                num = clothesInfoF.clothesId[5];
+                            }
+                        }
+                        break;
+                }
+                SmClothes_F_Data.TypeData td = new SmClothes_F_Data.TypeData();
+                td.parentObject = new GameObject("Type " + nowSubMenuTypeId, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter), typeof(ToggleGroup));
+                td.parentObject.transform.SetParent(_originalComponent.objListTop.transform, false);
+                td.parentObject.transform.localScale = Vector3.one;
+                td.parentObject.transform.localPosition = Vector3.zero;
+                td.parentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                SmClothes_F_Data.objects.Add(nowSubMenuTypeId, td);
+                ToggleGroup group = td.parentObject.GetComponent<ToggleGroup>();
+                foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
+                {
+                    bool flag = false;
+                    if (chaInfo.customInfo.isConcierge)
+                    {
+                        flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
+                    }
+                    if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) == 0 && !flag)
+                        continue;
+                    GameObject gameObject = GameObject.Instantiate(_originalComponent.objLineBase);
+                    gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
+                    fbxTypeInfo.id = current.Key;
+                    fbxTypeInfo.typeName = current.Value.Name;
+                    fbxTypeInfo.info = current.Value;
+                    gameObject.transform.SetParent(td.parentObject.transform, false);
+                    RectTransform rectTransform = gameObject.transform as RectTransform;
+                    rectTransform.localScale = new Vector3(1f, 1f, 1f);
+                    rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
+                    Text component = rectTransform.FindChild("Label").GetComponent<Text>();
+                    component.text = fbxTypeInfo.typeName;
+                    _originalComponent.CallPrivate("SetButtonClickHandler", gameObject);
+                    Toggle component2 = gameObject.GetComponent<Toggle>();
+                    td.keyToObjectIndex.Add(current.Key, count);
+                    td.objects.Add(new SmClothes_F_Data.ObjectData { obj = gameObject, toggle = component2, text = component });
+                    component2.onValueChanged.AddListener(v =>
+                    {
+                        if (component2.isOn)
+                            UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
+                    });
+                    if (current.Key == num)
+                    {
+                        component2.isOn = true;
+                    }
+                    component2.group = group;
+                    gameObject.SetActive(true);
+                    if (!flag)
+                    {
+                        int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
+                        Transform transform = rectTransform.FindChild("imgNew");
+                        if (transform && num4 == 1)
+                        {
+                            transform.gameObject.SetActive(true);
+                        }
+                    }
+                    SmClothes_F.IdTglInfo idTglInfo = new SmClothes_F.IdTglInfo();
+                    idTglInfo.coorde = int.Parse(current.Value.Etc[1]);
+                    idTglInfo.tgl = component2;
+                    GameObject gameObject2 = gameObject.transform.FindLoop("Background");
+                    if (gameObject2)
+                        idTglInfo.imgBG = gameObject2.GetComponent<Image>();
+                    gameObject2 = gameObject.transform.FindLoop("Checkmark");
+                    if (gameObject2)
+                        idTglInfo.imgCheck = gameObject2.GetComponent<Image>();
+                    gameObject2 = gameObject.transform.FindLoop("Label");
+                    if (gameObject2)
+                        idTglInfo.text = gameObject2.GetComponent<Text>();
+                    ((List<SmClothes_F.IdTglInfo>)_originalComponent.GetPrivate("lstIdTgl")).Add(idTglInfo);
+                    count++;
+                    yield return null;
+                }
             }
         }
     }

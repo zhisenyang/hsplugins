@@ -13,8 +13,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MoreAccessories", "MoreAcce
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CharExtSave", "CharExtSave\CharExtSave.csproj", "{27695E5F-8D1E-41DC-A81C-1F0C1814627C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Profile", "Profile\Profile.csproj", "{EC683C60-93F8-4E6A-824C-5853069C0325}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,10 +39,6 @@ Global
 		{27695E5F-8D1E-41DC-A81C-1F0C1814627C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{27695E5F-8D1E-41DC-A81C-1F0C1814627C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{27695E5F-8D1E-41DC-A81C-1F0C1814627C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{EC683C60-93F8-4E6A-824C-5853069C0325}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EC683C60-93F8-4E6A-824C-5853069C0325}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EC683C60-93F8-4E6A-824C-5853069C0325}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EC683C60-93F8-4E6A-824C-5853069C0325}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

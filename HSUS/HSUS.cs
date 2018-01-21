@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
@@ -53,7 +52,7 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.2.1"; } }
+        public string Version { get { return "1.2.2"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
@@ -62,6 +61,7 @@ namespace HSUS
         public bool optimizeNeo { get { return this._optimizeNeo; } }
         public bool enableGenericFK { get { return this._enableGenericFK; } }
         public KeyCode debugShortcut { get { return this._debugShortcut; } }
+        public RoutinesComponent routines { get { return this._routines; } }
         #endregion
 
         #region Unity Methods
