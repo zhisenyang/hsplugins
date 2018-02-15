@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection.Emit;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
@@ -36,7 +35,9 @@ namespace MoreAccessories
                     additionalData.objAccessory.Add(null);
                 while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
                     additionalData.objAcsMove.Add(null);
-                MoreAccessories.self.UpdateGUI();
+                while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                    additionalData.showAccessory.Add(true);
+                MoreAccessories.self.UpdateMakerGUI();
             }
         }
 
@@ -251,7 +252,6 @@ namespace MoreAccessories
             gameObject.transform.SetLocalScale(data.clothesInfoAccessory[slotNo].addScl.x, data.clothesInfoAccessory[slotNo].addScl.y, data.clothesInfoAccessory[slotNo].addScl.z);
             return true;
         }
-
     }
 
     [HarmonyPatch(typeof(SubMenuControl), "ChangeSubMenu", new []{typeof(string)})]
@@ -327,4 +327,39 @@ namespace MoreAccessories
             MoreAccessories.self.charaMakerCharInfo = _chainfo;
         }
     }
+
+    [HarmonyPatch(typeof(CharClothes), "SetAccessoryStateAll", new []{typeof(bool)})]
+    public class CharClothes_SetAccessoryStateAll_Patches
+    {
+        public static void Prefix(CharClothes __instance, bool show)
+        {
+            CharFile chaFile = (CharFile)__instance.GetPrivate("chaFile");
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[chaFile];
+            for (int i = 0; i < additionalData.showAccessory.Count; i++)
+                additionalData.showAccessory[i] = show;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharFemaleBody), "UpdateVisible")]
+    public class CharFemaleBody_UpdateVisible_Patches
+    {
+        public static void Postfix(CharFemaleBody __instance)
+        {
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
+            for (int i = 0; i < additionalData.objAccessory.Count; i++)
+                additionalData.objAccessory[i]?.SetActive(additionalData.showAccessory[i]);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharMaleBody), "UpdateVisible")]
+    public class CharMaleBody_UpdateVisible_Patches
+    {
+        public static void Postfix(CharMaleBody __instance)
+        {
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
+            for (int i = 0; i < additionalData.objAccessory.Count; i++)
+                additionalData.objAccessory[i]?.SetActive(additionalData.showAccessory[i]);
+        }
+    }
+
 }

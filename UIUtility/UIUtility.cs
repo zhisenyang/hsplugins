@@ -382,6 +382,11 @@ namespace UILib
             self.offsetMax = new Vector2(offsetRight, offsetTop);
         }
 
+        public static void SetRect(this Transform self, Transform other)
+        {
+            SetRect(self as RectTransform, other as RectTransform);
+        }
+
         public static void SetRect(this Transform self, Vector2 anchorMin)
         {
             SetRect(self as RectTransform, anchorMin, Vector2.one, Vector2.zero, Vector2.zero);

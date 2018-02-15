@@ -15,7 +15,7 @@ namespace HSUS
         private Vector2 _scroll;
         private Vector2 _scroll2;
         private Vector2 _scroll3;
-        private readonly LinkedList<string> _lastlogs = new LinkedList<string>();
+        private readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
         private bool _debug;
 
         void OnEnable()
@@ -36,7 +36,7 @@ namespace HSUS
 
         private void HandleLog(string condition, string stackTrace, LogType type)
         {
-            this._lastlogs.AddLast(type + " " + condition);
+            this._lastlogs.AddLast(new KeyValuePair<LogType, string>(type, type + " " + condition));
             if (this._lastlogs.Count == 101)
                 this._lastlogs.RemoveFirst();
             this._scroll3.y += 999999;
@@ -194,12 +194,24 @@ namespace HSUS
             }
             GUILayout.EndScrollView();
             this._scroll3 = GUILayout.BeginScrollView(this._scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 4f));
-            foreach (string lastlog in this._lastlogs)
+            foreach (KeyValuePair<LogType, string> lastlog in this._lastlogs)
             {
+                Color c = GUI.color;
+                switch (lastlog.Key)
+                {
+                    case LogType.Error:
+                    case LogType.Exception:
+                        GUI.color = Color.red;
+                        break;
+                    case LogType.Warning:
+                        GUI.color = Color.yellow;
+                        break;
+                }
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(lastlog);
+                GUILayout.Label(lastlog.Value);
+                GUI.color = c;
                 if (GUILayout.Button("Copy to clipboard", GUILayout.ExpandWidth(false)))
-                    GUIUtility.systemCopyBuffer = lastlog;
+                    GUIUtility.systemCopyBuffer = lastlog.Value;
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();

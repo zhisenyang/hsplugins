@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using HSUS;
 using Studio;
 using UILib;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -137,7 +139,7 @@ namespace StudioFileCheck
                         StudioNode component = gameObject.GetComponent<StudioNode>();
                         component.active = true;
                         int no = item.Key;
-                        component.addOnClick = delegate { __instance.OnSelect(no); };
+                        component.addOnClick = () => { Studio.Studio.Instance.AddItem(no); };
                         component.text = item.Value.name;
                         component.textColor = ((!(item.Value.isColor & item.Value.isColor2)) ? ((!(item.Value.isColor | item.Value.isColor2)) ? Color.white : Color.red) : Color.cyan);
                         if (item.Value.isColor || item.Value.isColor2)

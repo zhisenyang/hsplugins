@@ -249,7 +249,7 @@ namespace HSPE
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
                 {
                     Studio.OCIChar selected = info as Studio.OCIChar;
-                    this._manualBoneTarget = selected?.charInfo.gameObject.GetComponent<ManualBoneController>();
+                    this._manualBoneTarget = selected != null ? selected.charInfo.gameObject.GetComponent<ManualBoneController>() : null;
                 }
             }
             else

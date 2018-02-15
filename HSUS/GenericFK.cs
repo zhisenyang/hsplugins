@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -18,14 +19,11 @@ namespace Studio
 
         public static void Postfix(OCIItem __result, OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition)
         {
-            if (__result.itemFKCtrl != null)
+            if (__result.itemFKCtrl != null || __result.objectItem.transform.childCount <= 0)
                 return;
-            if (__result.objectItem.transform.childCount > 0)
-            {
-                __result.itemFKCtrl = __result.objectItem.AddComponent<ItemFKCtrl>();
-                __result.itemFKCtrl.InitBone(__result, null, _addInfo);
-                __result.dynamicBones = __result.objectItem.GetComponentsInChildren<DynamicBone>();
-            }
+            __result.itemFKCtrl = __result.objectItem.AddComponent<ItemFKCtrl>();
+            __result.itemFKCtrl.InitBone(__result, null, _addInfo);
+            __result.dynamicBones = __result.objectItem.GetComponentsInChildren<DynamicBone>(true);
         }
     }
 
@@ -37,9 +35,55 @@ namespace Studio
             return HSUS.HSUS.self.enableGenericFK;
         }
 
-        public static void Prefix(ItemFKCtrl __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew)
+        public static bool Prefix(ItemFKCtrl __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew)
         {
+            if (_loadInfo != null && _loadInfo.bones.Count > 0)
+                return true;
             Transform transform = _ociItem.objectItem.transform;
+            HashSet<Transform> activeBones = new HashSet<Transform>();
+            Renderer[] children = transform.GetComponentsInChildren<Renderer>(true);
+            for (int index = 0; index < children.Length; index++)
+            {
+                Renderer renderer = children[index];
+                SkinnedMeshRenderer skinnedMeshRenderer;
+                if ((skinnedMeshRenderer = renderer as SkinnedMeshRenderer) != null)
+                {
+                    Mesh mesh = skinnedMeshRenderer.sharedMesh;
+                    for (int j = 0; j < mesh.boneWeights.Length; j++)
+                    {
+                        BoneWeight weight = mesh.boneWeights[j];
+                        Transform bone;
+                        if (weight.boneIndex0 >= 0)
+                        {
+                            bone = skinnedMeshRenderer.bones[weight.boneIndex0];
+                            if (activeBones.Contains(bone) == false)
+                                activeBones.Add(bone);
+                        }
+                        if (weight.boneIndex1 >= 0)
+                        {
+                            bone = skinnedMeshRenderer.bones[weight.boneIndex1];
+                            if (activeBones.Contains(bone) == false)
+                                activeBones.Add(bone);
+                        }
+                        if (weight.boneIndex2 >= 0)
+                        {
+                            bone = skinnedMeshRenderer.bones[weight.boneIndex2];
+                            if (activeBones.Contains(bone) == false)
+                                activeBones.Add(bone);
+                        }
+                        if (weight.boneIndex3 >= 0)
+                        {
+                            bone = skinnedMeshRenderer.bones[weight.boneIndex3];
+                            if (activeBones.Contains(bone) == false)
+                                activeBones.Add(bone);
+                        }
+                    }
+                }
+                else if (renderer is MeshRenderer)
+                {
+                    activeBones.Add(renderer.transform);
+                }
+            }
             _ociItem.listBones = new List<OCIChar.BoneInfo>();
             object listBones = __instance.GetPrivate("listBones");
             Type type = listBones.GetType().GetGenericArguments()[0];
@@ -47,6 +91,8 @@ namespace Studio
             int i = 0;
             Recurse(transform, t =>
             {
+                if (t.gameObject.isStatic || activeBones.Contains(t) == false)
+                    return;
                 OIBoneInfo oIBoneInfo = null;
                 string path = t.GetPathFrom(transform);
                 if (!_ociItem.itemInfo.bones.TryGetValue(path, out oIBoneInfo))
@@ -93,7 +139,9 @@ namespace Studio
                     _ociItem.ActiveFK(_ociItem.itemFKCtrl.enabled);
                 });
             }
+            return false;
         }
+
 
         private static void Recurse(Transform t, Action<Transform> action)
         {
@@ -102,6 +150,30 @@ namespace Studio
                 action(t.GetChild(i));
                 Recurse(t.GetChild(i), action);
             }
+        }
+        public static void Postfix(ItemFKCtrl __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew)
+        {
+            IList listBones = (IList)__instance.GetPrivate("listBones");
+            if (listBones.Count > 0)
+            {
+                FieldInfo fi = listBones[0].GetType().GetField("changeAmount", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                MethodInfo mi = listBones[0].GetType().GetMethod("Update", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                foreach (object bone in listBones)
+                {
+                    ChangeAmount ca = (ChangeAmount)fi.GetValue(bone);
+                    ca.onChangeRot = (Action)Delegate.CreateDelegate(typeof(Action), bone, mi);
+                    ca.onChangeRot();
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(ItemFKCtrl), "LateUpdate")]
+    public class ItemFKCtrl_LateUpdate_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.enableGenericFK;
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

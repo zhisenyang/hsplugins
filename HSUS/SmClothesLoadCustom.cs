@@ -135,7 +135,7 @@ namespace HSUS
                     rectTransform.anchoredPosition = new Vector3(0f, (float)(-24.0 * num2), 0f);
                     Text component2 = rectTransform.FindChild("Label").GetComponent<Text>();
                     component2.text = fileInfoComponent.info.comment;
-                    __instance.SetButtonClickHandler(gameObject);
+                    __instance.CallPrivate("SetButtonClickHandler", gameObject);
                     gameObject.SetActive(true);
                     lstRtfTgl.Add(rectTransform);
                     num2++;

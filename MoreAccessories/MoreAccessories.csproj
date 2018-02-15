@@ -91,9 +91,9 @@
     <Content Include="ILMergeOrder.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CharExtSave\CharExtSave.csproj">
+    <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
-      <Name>CharExtSave</Name>
+      <Name>HSExtSave</Name>
       <Private>False</Private>
       <SpecificVersion>True</SpecificVersion>
     </ProjectReference>

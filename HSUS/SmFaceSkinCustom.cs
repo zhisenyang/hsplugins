@@ -368,19 +368,15 @@ namespace HSUS
                         objectData.toggle.isOn = false;
                 }
             }
-            __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", true);
+            __instance.SetPrivate("nowChanging", true);
             if (customInfo != null)
             {
                 if (__instance.sldDetail)
-                {
                     __instance.sldDetail.value = customInfo.faceDetailWeight;
-                }
                 if (__instance.inputDetail)
-                {
                     __instance.inputDetail.text = (string)__instance.CallPrivate("ChangeTextFromFloat", customInfo.faceDetailWeight);
-                }
             }
-            __instance.SetPrivateExplicit<SmFaceSkin>("nowChanging", false);
+            __instance.SetPrivate("nowChanging", false);
             SmFaceSkin_Data.created = true;
         }
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

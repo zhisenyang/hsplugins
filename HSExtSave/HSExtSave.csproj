@@ -8,8 +8,8 @@
     <ProjectGuid>{27695E5F-8D1E-41DC-A81C-1F0C1814627C}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CharExtSave</RootNamespace>
-    <AssemblyName>CharExtSave</AssemblyName>
+    <RootNamespace>HSExtSave</RootNamespace>
+    <AssemblyName>HSExtSave</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
@@ -34,7 +34,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="CharExtSave.cs" />
+    <Compile Include="HSExtSave.cs" />
     <Compile Include="HarmonyPatches.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
