@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
+using Studio;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -347,7 +349,7 @@ namespace MoreAccessories
         {
             MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
             for (int i = 0; i < additionalData.objAccessory.Count; i++)
-                additionalData.objAccessory[i]?.SetActive(additionalData.showAccessory[i]);
+                additionalData.objAccessory[i]?.SetActive(__instance.chaInfo.visibleAll && additionalData.showAccessory[i]);
         }
     }
 
@@ -358,8 +360,50 @@ namespace MoreAccessories
         {
             MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
             for (int i = 0; i < additionalData.objAccessory.Count; i++)
-                additionalData.objAccessory[i]?.SetActive(additionalData.showAccessory[i]);
+                additionalData.objAccessory[i]?.SetActive(__instance.chaInfo.visibleAll && additionalData.showAccessory[i]);
         }
     }
 
+    [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
+    public class Studio_Duplicate_Patches
+    {
+        private static SortedList<int, CharFile> _toDuplicate;
+
+        public static void Prefix(Studio.Studio __instance)
+        {
+            _toDuplicate = new SortedList<int, CharFile>();
+            TreeNodeObject[] selectNodes = __instance.treeNodeCtrl.selectNodes;
+            for (int i = 0; i < selectNodes.Length; i++)
+            {
+                ObjectCtrlInfo objectCtrlInfo = null;
+                if (__instance.dicInfo.TryGetValue(selectNodes[i], out objectCtrlInfo))
+                {
+                    objectCtrlInfo.OnSavePreprocessing();
+                    OICharInfo charInfo = objectCtrlInfo.objectInfo as OICharInfo;
+                    if (charInfo != null)
+                    {
+                        _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, charInfo.charFile);
+                    }
+                }
+            }
+        }
+
+        public static void Postfix(Studio.Studio __instance)
+        {
+            Dictionary<CharFile, CharInfo> charFileToInfo = new Dictionary<CharFile, CharInfo>();
+            foreach (CharInfo charInfo in Resources.FindObjectsOfTypeAll<CharInfo>())
+            {
+                if (charFileToInfo.ContainsKey(charInfo.chaFile) == false)
+                    charFileToInfo.Add(charInfo.chaFile, charInfo);
+            }
+            IEnumerator<KeyValuePair<int, CharFile>> enumerator = _toDuplicate.GetEnumerator();
+            foreach (KeyValuePair<int, ObjectInfo> keyValuePair in new SortedDictionary<int, ObjectInfo>(__instance.sceneInfo.dicImport))
+            {
+                OICharInfo dest = keyValuePair.Value as OICharInfo;
+                if (dest != null && enumerator.MoveNext())
+                    MoreAccessories.self.DuplicateCharacter(charFileToInfo[enumerator.Current.Value], charFileToInfo[dest.charFile]);
+            }
+            enumerator.Dispose();
+        }
+    }
 }

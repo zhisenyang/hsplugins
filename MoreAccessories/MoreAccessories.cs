@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -114,7 +113,7 @@ namespace MoreAccessories
                     break;
             }
 
-            HSExtSave.HSExtSave.RegisterHandler("moreAccessories", this.OnCharaLoad, this.OnCharaSave, this.OnSceneLoad, null, this.OnSceneSave, null, null);
+            HSExtSave.HSExtSave.RegisterHandler("moreAccessories", this.OnCharaLoad, this.OnCharaSave, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
 
             UIUtility.Init();
 
@@ -360,9 +359,9 @@ namespace MoreAccessories
                     this._displayedStudioSlots.Add(slot);
                 }
                 slot.slot.gameObject.SetActive(true);
-                slot.onButton.interactable = accessory != null;
+                slot.onButton.interactable = accessory != null && accessory.type != -1;
                 slot.onButton.image.color = slot.onButton.interactable && additionalData.showAccessory[i] ? Color.green : Color.white;
-                slot.offButton.interactable = accessory != null;
+                slot.offButton.interactable = accessory != null && accessory.type != -1;
                 slot.offButton.image.color = slot.onButton.interactable && !additionalData.showAccessory[i] ? Color.green : Color.white;
             }
             for (; i < this._displayedStudioSlots.Count; ++i)
@@ -429,6 +428,50 @@ namespace MoreAccessories
                 str2 = CharDefine.AccessoryTypeName[accessory.type + 1] + ":" + str2;
             str1 = str2.Substring(0, Mathf.Min(limit, str2.Length));
             return str1;
+        }
+
+        internal void DuplicateCharacter(CharInfo source, CharInfo destination)
+        {
+            CharAdditionalData sourceAdditionalData;
+            if (this._accessoriesByChar.TryGetValue(source.chaFile, out sourceAdditionalData) == false)
+            {
+                return;
+            }
+            CharAdditionalData destinationAdditionalData;
+            if (this._accessoriesByChar.TryGetValue(destination.chaFile, out destinationAdditionalData) == false)
+            {
+                destinationAdditionalData = new CharAdditionalData();
+                this._accessoriesByChar.Add(destination.chaFile, destinationAdditionalData);
+            }
+
+            foreach (KeyValuePair<CharDefine.CoordinateType, List<CharFileInfoClothes.Accessory>> accessories in sourceAdditionalData.rawAccessoriesInfos)
+            {
+                List<CharFileInfoClothes.Accessory> accessories2;
+                if (destinationAdditionalData.rawAccessoriesInfos.TryGetValue(accessories.Key, out accessories2))
+                    accessories2.Clear();
+                else
+                {
+                    accessories2 = new List<CharFileInfoClothes.Accessory>();
+                    destinationAdditionalData.rawAccessoriesInfos.Add(accessories.Key, accessories2);
+                }
+
+                foreach (CharFileInfoClothes.Accessory accessory in accessories.Value)
+                {
+                    CharFileInfoClothes.Accessory newAccessory = new CharFileInfoClothes.Accessory();
+                    newAccessory.Copy(accessory);
+                    accessories2.Add(newAccessory);
+                }
+            }
+            destinationAdditionalData.showAccessory.AddRange(sourceAdditionalData.showAccessory);
+            while (destinationAdditionalData.infoAccessory.Count < destinationAdditionalData.clothesInfoAccessory.Count)
+                destinationAdditionalData.infoAccessory.Add(null);
+            while (destinationAdditionalData.objAccessory.Count < destinationAdditionalData.clothesInfoAccessory.Count)
+                destinationAdditionalData.objAccessory.Add(null);
+            while (destinationAdditionalData.objAcsMove.Count < destinationAdditionalData.clothesInfoAccessory.Count)
+                destinationAdditionalData.objAcsMove.Add(null);
+            CharBody_ChangeAccessory_Patches.Postfix(destination.chaBody, true);
+
+            this.UpdateStudioUI();
         }
 
         private void AddSlot()
@@ -692,6 +735,37 @@ namespace MoreAccessories
                 }
             }, 3);
         }
+
+        private void OnSceneImport(string path, XmlNode n)
+        {
+            if (n == null)
+                return;
+            XmlNode node = n.CloneNode(true);
+            int max = -1;
+            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            {
+                if (pair.Key > max)
+                    max = pair.Key;
+            }
+            this._routines.ExecuteDelayed(() =>
+            {
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > max).ToList();
+
+                int i = 0;
+                foreach (XmlNode childNode in node.ChildNodes)
+                {
+                    Studio.OCIChar ociChar = null;
+                    while (i < dic.Count && (ociChar = dic[i].Value as Studio.OCIChar) == null)
+                        ++i;
+                    if (i == dic.Count)
+                        break;
+                    this.OnCharaLoadGeneric(ociChar.charInfo.chaFile, childNode, true);
+                    ociChar.charBody.ChangeAccessory();
+                    ++i;
+                }
+            }, 3);
+        }
+
         #endregion
 
     }

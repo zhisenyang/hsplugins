@@ -44,6 +44,10 @@ namespace HSExtSave
                                 kvp.Value.onCharWrite(__instance, xmlWriter2);
                                 xmlWriter2.WriteEndElement();
 
+                                // Checking if xml is well formed
+                                XmlDocument xmlDoc = new XmlDocument();
+                                xmlDoc.LoadXml(stringWriter.ToString());
+
                                 xmlWriter.WriteRaw(stringWriter.ToString());
                             }
                             catch (Exception e)
@@ -196,22 +200,143 @@ namespace HSExtSave
                 if (set == false && inst.opcode == OpCodes.Call && instructionsList[i + 1].opcode == OpCodes.Leave)
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_1);
-                    yield return new CodeInstruction(OpCodes.Ldloc_0);
+                    yield return new CodeInstruction(OpCodes.Ldloc_1);
+                    yield return new CodeInstruction(OpCodes.Ldloc_3);
                     yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Import_Patches).GetMethod(nameof(Injected)));
                     set = true;
                 }
             }
         }
 
-        public static void Injected(string path, FileStream stream)
+        public static void Injected(string path, BinaryReader binaryReader, Version version)
         {
-            stream.Read(new byte[12], 0, 12);
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for scene...");
-            long cachedPosition = stream.Position;
+            //Reading useless data
+            binaryReader.ReadInt32();
+            if (version.CompareTo(new Version(1, 0, 3)) >= 0)
+            {
+                binaryReader.ReadSingle(); binaryReader.ReadSingle(); binaryReader.ReadSingle();
+                binaryReader.ReadSingle(); binaryReader.ReadSingle(); binaryReader.ReadSingle();
+                binaryReader.ReadSingle(); binaryReader.ReadSingle(); binaryReader.ReadSingle();
+            }
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            int version2 = binaryReader.ReadInt32();
+
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadBoolean();
+
+            int num = binaryReader.ReadInt32();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            if (num == 1)
+            {
+                binaryReader.ReadSingle();
+            }
+            else
+            {
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+            }
+            binaryReader.ReadSingle();
+            for (int j = 0; j < 10; j++)
+            {
+                num = binaryReader.ReadInt32();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                if (num == 1)
+                {
+                    binaryReader.ReadSingle();
+                }
+                else
+                {
+                    binaryReader.ReadSingle();
+                    binaryReader.ReadSingle();
+                    binaryReader.ReadSingle();
+                }
+                binaryReader.ReadSingle();
+            }
+
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+            binaryReader.ReadDouble();
+
+            binaryReader.ReadSingle();
+            if (version.CompareTo(new Version(0, 1, 3)) >= 0)
+            {
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+            }
+            if (version.CompareTo(new Version(1, 0, 1)) >= 0)
+            {
+                binaryReader.ReadBoolean();
+            }
+            binaryReader.ReadInt32();
+            binaryReader.ReadInt32();
+            binaryReader.ReadBoolean();
+
+            binaryReader.ReadInt32();
+            binaryReader.ReadInt32();
+            binaryReader.ReadBoolean();
+
+            binaryReader.ReadInt32();
+            binaryReader.ReadString();
+            binaryReader.ReadBoolean();
+            if (version.CompareTo(new Version(1, 0, 3)) >= 0)
+            {
+                binaryReader.ReadString();
+            }
+
+            binaryReader.BaseStream.Read(new byte[12], 0, 12);
+
+            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for scene (import)...");
+            long cachedPosition = binaryReader.BaseStream.Position;
+            //byte[] buffer = new byte[4096];
+            //int count = stream.Read(buffer, 0, 4096);
+            //byte[] b = new byte[count];
+            //Array.Copy(buffer, b,count);
+            //UnityEngine.Debug.Log(System.Text.Encoding.UTF8.GetString(b));
+            //UnityEngine.Debug.Log(count);
+            //File.WriteAllBytes("./bite.txt", b);
+            //stream.Seek(cachedPosition, SeekOrigin.Begin);
+
             try
             {
                 XmlDocument doc = new XmlDocument();
-                doc.Load(stream);
+                doc.Load(binaryReader.BaseStream);
 
                 foreach (XmlNode node in doc.ChildNodes)
                 {
@@ -241,7 +366,7 @@ namespace HSExtSave
                 foreach (KeyValuePair<string, HSExtSave.HandlerGroup> kvp in HSExtSave._handlers)
                     if (kvp.Value.onSceneReadImport != null)
                         kvp.Value.onSceneReadImport(path, null);
-                stream.Seek(cachedPosition, SeekOrigin.Begin);
+                binaryReader.BaseStream.Seek(cachedPosition, SeekOrigin.Begin);
             }
         }
     }
@@ -290,6 +415,10 @@ namespace HSExtSave
                                 xmlWriter2.WriteStartElement(kvp.Key);
                                 kvp.Value.onSceneWrite(path, xmlWriter2);
                                 xmlWriter2.WriteEndElement();
+
+                                // Checking if xml is well formed
+                                XmlDocument xmlDoc = new XmlDocument();
+                                xmlDoc.LoadXml(stringWriter.ToString());
 
                                 xmlWriter.WriteRaw(stringWriter.ToString());
                             }
@@ -428,6 +557,10 @@ namespace HSExtSave
                                 xmlWriter2.WriteStartElement(kvp.Key);
                                 kvp.Value.onClothesWrite(__instance, xmlWriter2);
                                 xmlWriter2.WriteEndElement();
+
+                                // Checking if xml is well formed
+                                XmlDocument xmlDoc = new XmlDocument();
+                                xmlDoc.LoadXml(stringWriter.ToString());
 
                                 xmlWriter.WriteRaw(stringWriter.ToString());
                             }
