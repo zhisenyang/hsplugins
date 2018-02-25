@@ -19,7 +19,7 @@ namespace Studio
 
         public static void Postfix(OCIItem __result, OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition)
         {
-            if (__result.itemFKCtrl != null || __result.objectItem.transform.childCount <= 0)
+            if (__result == null || __result.itemFKCtrl != null || __result.objectItem == null || __result.objectItem.transform.childCount <= 0)
                 return;
             __result.itemFKCtrl = __result.objectItem.AddComponent<ItemFKCtrl>();
             __result.itemFKCtrl.InitBone(__result, null, _addInfo);
@@ -48,51 +48,26 @@ namespace Studio
                 SkinnedMeshRenderer skinnedMeshRenderer;
                 if ((skinnedMeshRenderer = renderer as SkinnedMeshRenderer) != null)
                 {
-                    Mesh mesh = skinnedMeshRenderer.sharedMesh;
-                    for (int j = 0; j < mesh.boneWeights.Length; j++)
+                    foreach (Transform bone in skinnedMeshRenderer.bones)
                     {
-                        BoneWeight weight = mesh.boneWeights[j];
-                        Transform bone;
-                        if (weight.boneIndex0 >= 0)
-                        {
-                            bone = skinnedMeshRenderer.bones[weight.boneIndex0];
-                            if (activeBones.Contains(bone) == false)
-                                activeBones.Add(bone);
-                        }
-                        if (weight.boneIndex1 >= 0)
-                        {
-                            bone = skinnedMeshRenderer.bones[weight.boneIndex1];
-                            if (activeBones.Contains(bone) == false)
-                                activeBones.Add(bone);
-                        }
-                        if (weight.boneIndex2 >= 0)
-                        {
-                            bone = skinnedMeshRenderer.bones[weight.boneIndex2];
-                            if (activeBones.Contains(bone) == false)
-                                activeBones.Add(bone);
-                        }
-                        if (weight.boneIndex3 >= 0)
-                        {
-                            bone = skinnedMeshRenderer.bones[weight.boneIndex3];
-                            if (activeBones.Contains(bone) == false)
-                                activeBones.Add(bone);
-                        }
+                        if (bone.gameObject.isStatic || activeBones.Contains(bone) || bone == transform)
+                            continue;
+                        activeBones.Add(bone);
                     }
                 }
                 else if (renderer is MeshRenderer)
                 {
-                    activeBones.Add(renderer.transform);
+                    if (renderer.gameObject.isStatic == false && activeBones.Contains(renderer.transform) == false && renderer.transform != transform)
+                        activeBones.Add(renderer.transform);
                 }
             }
             _ociItem.listBones = new List<OCIChar.BoneInfo>();
-            object listBones = __instance.GetPrivate("listBones");
+            IList listBones = (IList)__instance.GetPrivate("listBones");
             Type type = listBones.GetType().GetGenericArguments()[0];
             ConstructorInfo ctor = type.GetConstructor(new[] { typeof(GameObject), typeof(ChangeAmount), typeof(bool) });
             int i = 0;
-            Recurse(transform, t =>
+            foreach (Transform t in activeBones)
             {
-                if (t.gameObject.isStatic || activeBones.Contains(t) == false)
-                    return;
                 OIBoneInfo oIBoneInfo = null;
                 string path = t.GetPathFrom(transform);
                 if (!_ociItem.itemInfo.bones.TryGetValue(path, out oIBoneInfo))
@@ -121,9 +96,9 @@ namespace Studio
                 guideObject.SetActive(false, true);
 
                 object instance = ctor.Invoke(new object[] { t.gameObject, oIBoneInfo.changeAmount, _isNew });
-                listBones.CallPrivate("Add", instance);
+                listBones.Add(instance);
                 ++i;
-            });
+            }
             __instance.GetType().GetProperty("count", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).SetValue(__instance, i, null);
             if (_isNew)
             {
@@ -142,15 +117,6 @@ namespace Studio
             return false;
         }
 
-
-        private static void Recurse(Transform t, Action<Transform> action)
-        {
-            for (int i = 0; i < t.childCount; i++)
-            {
-                action(t.GetChild(i));
-                Recurse(t.GetChild(i), action);
-            }
-        }
         public static void Postfix(ItemFKCtrl __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew)
         {
             IList listBones = (IList)__instance.GetPrivate("listBones");

@@ -4,12 +4,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Xml;
 using RootMotion.FinalIK;
+using Studio;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -28,7 +28,7 @@ namespace HSPE
         public event Action onPostUpdate;
         #endregion
 
-        #region Private Constants
+        #region Constants
         private const string _config = "configNEO.xml";
         private const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
@@ -99,7 +99,6 @@ namespace HSPE
         private readonly List<Vector3> _lastBendGoalsPositions = new List<Vector3>();
         private readonly Dictionary<string, KeyCode> _nameToKeyCode = new Dictionary<string, KeyCode>();
         private KeyCode _mainWindowKeyCode = KeyCode.H;
-        private string _selectedScenePath;
         private int _lastObjectCount = 0;
         private int _lastIndex = 0;
         private Vector2 _delta;
@@ -160,9 +159,6 @@ namespace HSPE
         protected virtual void Awake()
         {
             self = this;
-            GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/04_System/Viewport/Content/Load").GetComponent<Button>().onClick.AddListener(this.LoadCanvasCreated);
-            GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/04_System/Viewport/Content/Save").GetComponent<Button>().onClick.AddListener(this.OnSceneSave);
-            GameObject.Find("StudioScene").transform.FindChild("Canvas Object List/Image Bar/Button Duplicate").GetComponent<Button>().onClick.AddListener(this.OnDuplicate);
 
             CustomIK ik = new CustomIK();
             CustomIKSolver ikSolver = new CustomIKSolver();
@@ -219,9 +215,11 @@ namespace HSPE
                 }
             }
 
-            Action<Studio.TreeNodeObject, Studio.TreeNodeObject> oldDelegate = Studio.Studio.Instance.treeNodeCtrl.onParentage;
+            Action<TreeNodeObject, TreeNodeObject> oldDelegate = Studio.Studio.Instance.treeNodeCtrl.onParentage;
             Studio.Studio.Instance.treeNodeCtrl.onParentage = (parent, node) => this.onParentage?.Invoke(parent, node);
             this.onParentage += oldDelegate;
+
+            HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
         }
 
         protected virtual void Start()
@@ -257,12 +255,6 @@ namespace HSPE
             if (last != this._manualBoneTarget)
                 this.OnTargetChange(last);
             this.GUILogic();
-        }
-
-        protected virtual void LateUpdate()
-        {
-            if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.S))
-                this.StartCoroutine(this.OnSceneSavedShortcut());
         }
 
         protected virtual void OnGUI()
@@ -347,30 +339,43 @@ namespace HSPE
         #region GUI
         private void SpawnGUI()
         {
+            string oldResourcesDir = _pluginDir + "Resources\\";
+            if (Directory.Exists(oldResourcesDir))
+                Directory.Delete(oldResourcesDir, true);
 
-            byte[] bytes = File.ReadAllBytes(_pluginDir + "Resources\\Icon.png");
-            Texture2D texture = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-            texture.filterMode = FilterMode.Trilinear;
-            texture.LoadImage(bytes);
-
-            RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
-            Button hspeButton = GameObject.Instantiate(original.gameObject).GetComponent<Button>();
-            RectTransform hspeButtonRectTransform = hspeButton.transform as RectTransform;
-            hspeButton.transform.SetParent(original.parent, true);
-            hspeButton.transform.localScale = original.localScale;
-            hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
-            hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
-            this._hspeButtonImage = hspeButton.targetGraphic as Image;
-            this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
-            hspeButton.onClick = new Button.ButtonClickedEvent();
-            hspeButton.onClick.AddListener(() =>
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSPEResources);
+            Texture2D texture = null;
+            foreach (Texture2D t in bundle.LoadAllAssets<Texture2D>())
             {
-                this._isVisible = !this._isVisible;
-                this._ui.gameObject.SetActive(this._isVisible);
-                this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
-            });
-            this._hspeButtonImage.color = Color.white;
+                switch (t.name)
+                {
+                    case "Icon":
+                        texture = t;
+                        break;
+                }
+            }
 
+            bundle.Unload(false);
+
+            {
+                RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
+                Button hspeButton = Instantiate(original.gameObject).GetComponent<Button>();
+                RectTransform hspeButtonRectTransform = hspeButton.transform as RectTransform;
+                hspeButton.transform.SetParent(original.parent, true);
+                hspeButton.transform.localScale = original.localScale;
+                hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
+                hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
+                this._hspeButtonImage = hspeButton.targetGraphic as Image;
+                this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
+                hspeButton.onClick = new Button.ButtonClickedEvent();
+                hspeButton.onClick.AddListener(() =>
+                {
+                    this._isVisible = !this._isVisible;
+                    this._ui.gameObject.SetActive(this._isVisible);
+                    this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
+                });
+                this._hspeButtonImage.color = Color.white;
+            }
 
             this._ui = UIUtility.CreateNewUISystem("HSPE");
             this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
@@ -1311,6 +1316,13 @@ namespace HSPE
         {
             Studio.Studio.Instance.cameraCtrl.noCtrlCondition = this.CameraControllerCondition;
         }
+
+        public void OnDuplicate(OCIChar source, OCIChar destination)
+        {
+            ManualBoneController destinationController = destination.charInfo.gameObject.AddComponent<ManualBoneController>();
+            destinationController.chara = destination;
+            destinationController.LoadFrom(source.charInfo.gameObject.GetComponent<ManualBoneController>());
+        }
         #endregion
 
         #region Private Methods
@@ -1319,20 +1331,10 @@ namespace HSPE
             this.onPostUpdate?.Invoke();
         }
 
-        private IEnumerator OnSceneSavedShortcut()
-        {
-            if ((DateTime.Now - Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png").Max(f => File.GetLastWriteTime(f))).TotalSeconds > 1.5f)
-            {
-                int count = Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png").Length;
-                yield return new WaitUntil(() => count != Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png").Length);
-            }
-            this.OnSceneSave();
-        }
-
         private void OnObjectAdded()
         {
             int i = 0;
-            foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in Studio.Studio.Instance.dicObjectCtrl)
+            foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in Studio.Studio.Instance.dicObjectCtrl)
             {
                 if (kvp.Key >= this._lastIndex)
                 {
@@ -1368,20 +1370,7 @@ namespace HSPE
             }
         }
 
-        private void OnDuplicate()
-        {
-            Studio.TreeNodeObject[] selectedNodes = Studio.Studio.Instance.treeNodeCtrl.selectNodes;
-            foreach (Studio.TreeNodeObject obj in selectedNodes)
-            {
-                Studio.ObjectCtrlInfo info;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(obj, out info))
-                {
-                    this._charactersAddedByCopy = true;
-                    this._copySources.Add((info as Studio.OCIChar).charInfo.gameObject.GetComponent<ManualBoneController>());
-                }
-            }
 
-        }
 
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
@@ -1391,176 +1380,109 @@ namespace HSPE
         #endregion
 
         #region Saves
-        private void LoadCanvasCreated()
-        {
-            this.StartCoroutine(this.LoadCanvasCreated_Routine());
-        }
-
-        private IEnumerator LoadCanvasCreated_Routine()
-        {
-            yield return null;
-            yield return null;
-            yield return null;
-            yield return null;
-            yield return null;
-            yield return null;
-            yield return null;
-            yield return null;
-            GameObject.Find("SceneLoadScene").transform.FindChild("Canvas Load Work/Button Load").GetComponent<Button>().onClick.AddListener(this.OnSceneLoad);
-            GameObject.Find("SceneLoadScene").transform.FindChild("Canvas Load Work/Button Import").GetComponent<Button>().onClick.AddListener(this.OnSceneImport);
-            GameObject.Find("SceneLoadScene").transform.FindChild("Canvas Load Work/Button Delete").GetComponent<Button>().onClick.AddListener(this.OnSceneMayDelete);
-        }
-
-        private void OnSceneLoad()
-        {
-            this.OnSceneLoad(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath());
-        }
-
-        private void OnSceneLoad(string scenePath)
+        private void OnSceneLoad(string scenePath, XmlNode node)
         {
             this._lastObjectCount = 0;
             scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
-            if (File.Exists(path) == false)
-                return;
-            XmlDocument doc = new XmlDocument();
-            doc.Load(path);
-            this.LoadDefaultVersion(doc);
+            if (File.Exists(path))
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.Load(path);
+                node = doc;
+            }
+            if (node != null)
+                node = node.FirstChild;
+            this.LoadDefaultVersion(node);
         }
 
-        private void OnSceneImport()
-        {
-            this.OnSceneImport(FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath());
-        }
-
-        private void OnSceneImport(string scenePath)
+        private void OnSceneImport(string scenePath, XmlNode node)
         {
             scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
-            if (File.Exists(path) == false)
-                return;
-            XmlDocument doc = new XmlDocument();
-            doc.Load(path);
-            this.LoadDefaultVersion(doc, this._lastIndex);
-        }
-
-        private void OnSceneMayDelete()
-        {
-            this.StartCoroutine(this.OnSceneMayDelete_Routine());
-        }
-
-        private IEnumerator OnSceneMayDelete_Routine()
-        {
-            yield return null;
-            this._selectedScenePath = FindObjectOfType<Studio.SceneLoadScene>().GetChosenScenePath();
-            GameObject.Find("CheckScene").transform.FindChild("Canvas/Panel/Yes").GetComponent<Button>().onClick.AddListener(this.OnSceneDelete);
-        }
-
-        private void OnSceneDelete()
-        {
-            this.OnSceneDelete(this._selectedScenePath);
-        }
-
-        private void OnSceneDelete(string scenePath)
-        {
-            string completePath = _pluginDir + _studioSavesDir + Path.GetFileNameWithoutExtension(scenePath) + ".sav";
-            if (File.Exists(completePath))
-                File.Delete(completePath);
-        }
-
-        private void OnSceneSave()
-        {
-            this.OnSceneSave(this.GetLastScenePath());
-        }
-
-        private void OnSceneSave(string scenePath)
-        {
-            string saveFileName = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
-            string dir = _pluginDir + _studioSavesDir;
-            if (Directory.Exists(dir) == false)
-                Directory.CreateDirectory(dir);
-            int written = 0;
-            string path = dir + saveFileName;
-            using (FileStream fileStream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            if (File.Exists(path))
             {
-                using (XmlTextWriter xmlWriter = new XmlTextWriter(fileStream, Encoding.UTF8))
+                XmlDocument doc = new XmlDocument();
+                doc.Load(path);
+                node = doc;
+            }
+            if (node != null)
+                node = node.FirstChild;
+            int max = -1;
+            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            {
+                if (pair.Key > max)
+                    max = pair.Key;
+            }
+            this.LoadDefaultVersion(node, max);
+        }
+
+        private void OnSceneSave(string scenePath, XmlTextWriter xmlWriter)
+        {
+            int written = 0;
+            xmlWriter.WriteStartElement("root");
+            xmlWriter.WriteAttributeString("version", HSPE.VersionNum);
+            SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
+            {
+                OCIChar ociChar = kvp.Value as OCIChar;
+                if (ociChar != null)
                 {
-                    xmlWriter.Formatting = Formatting.Indented;
-                    xmlWriter.WriteStartElement("root");
-                    xmlWriter.WriteAttributeString("version", HSPE.VersionNum);
-                    SortedDictionary<int, Studio.ObjectCtrlInfo> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
-                    foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in dic)
+                    xmlWriter.WriteStartElement("characterInfo");
+                    xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
+                    xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
+                    ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
+                    if (controller.optimizeIK == false)
                     {
-                        Studio.OCIChar ociChar = kvp.Value as Studio.OCIChar;
-                        if (ociChar != null)
-                        {
-                            xmlWriter.WriteStartElement("characterInfo");
-                            xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
-                            xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
-                            ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
-                            if (controller.optimizeIK == false)
-                            {
-                                xmlWriter.WriteAttributeString("optimizeIK", XmlConvert.ToString(controller.optimizeIK));
-                                written++;
-                            }
-                            written += controller.SaveXml(xmlWriter);
-                            xmlWriter.WriteEndElement();
-                        }
+                        xmlWriter.WriteAttributeString("optimizeIK", XmlConvert.ToString(controller.optimizeIK));
+                        written++;
                     }
+                    written += controller.SaveXml(xmlWriter);
                     xmlWriter.WriteEndElement();
                 }
             }
-            if (written == 0)
-                File.Delete(path);
+            xmlWriter.WriteEndElement();
         }
 
-        private string GetLastScenePath()
+        private void LoadDefaultVersion(XmlNode node, int lastIndex = -1)
         {
-            List<KeyValuePair<DateTime, string>> list = (from s in Directory.GetFiles(UserData.Create("studioneo/scene"), "*.png")
-                                                         select new KeyValuePair<DateTime, string>(File.GetLastWriteTime(s), s)).ToList();
-            CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
-            Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
-            list.Sort((a, b) => b.Key.CompareTo(a.Key));
-            Thread.CurrentThread.CurrentCulture = currentCulture;
-            return (from v in list
-                    select v.Value).ToList()[0];
-        }
-
-        private void LoadDefaultVersion(XmlDocument xmlDoc, int lastIndex = 0)
-        {
-            if (xmlDoc.DocumentElement == null || xmlDoc.DocumentElement.Name != "root")
+            if (node == null || node.Name != "root")
                 return;
-            string v = xmlDoc.DocumentElement.GetAttribute("version");
-            SortedDictionary<int, Studio.ObjectCtrlInfo> sortedCharaDic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
-
-            foreach (XmlNode node in xmlDoc.DocumentElement.ChildNodes)
+            string v = node.Attributes["version"].Value;
+            node = node.CloneNode(true);
+            this.ExecuteDelayed(() =>
             {
-                switch (node.Name)
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
+                int i = 0;
+                foreach (XmlNode childNode in node.ChildNodes)
                 {
-                    case "characterInfo":
-                        foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> kvp in sortedCharaDic)
-                        {
-                            if (kvp.Key >= lastIndex)
+                    switch (childNode.Name)
+                    {
+                        case "characterInfo":
+
+                            OCIChar ociChar = null;
+                            while (i < dic.Count && (ociChar = dic[i].Value as OCIChar) == null)
+                                ++i;
+                            if (i == dic.Count)
+                                break;
+                            ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
+                            if (controller == null)
                             {
-                                Studio.OCIChar ociChar = kvp.Value as Studio.OCIChar;
-                                if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<ManualBoneController>() == null)
-                                {
-                                    ManualBoneController controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
-                                    if (node.Attributes?["optimizeIK"] != null)
-                                        controller.optimizeIK = XmlConvert.ToBoolean(node.Attributes["optimizeIK"].Value);
-                                    else
-                                        controller.optimizeIK = true;
-                                    controller.chara = ociChar;
-                                    controller.ScheduleLoad(node, v);
-                                    break;
-                                }
+                                controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
+                                controller.chara = ociChar;
                             }
-                        }
-                        break;
+                            if (childNode.Attributes?["optimizeIK"] != null)
+                                controller.optimizeIK = XmlConvert.ToBoolean(childNode.Attributes["optimizeIK"].Value);
+                            else
+                                controller.optimizeIK = true;
+                            controller.ScheduleLoad(childNode, v);
+                            ++i;
+                            break;
+                    }
                 }
-            }
+            });
         }
         #endregion
     }

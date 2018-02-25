@@ -97,12 +97,6 @@ public static class Extensions
         return self;
     }
 
-    public static string GetChosenScenePath(this Studio.SceneLoadScene self)
-    {
-        List<string> listPath = (List<string>)typeof(Studio.SceneLoadScene).GetField("listPath", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self);
-        return listPath[(int)typeof(Studio.SceneLoadScene).GetField("select", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(self)];
-    }
-
     public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
     {
         return self.StartCoroutine(ExecuteDelayed_Routine(action));

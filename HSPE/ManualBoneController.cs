@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Security.Permissions;
 using System.Xml;
 using RootMotion.FinalIK;
 using Studio;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace HSPE
 {
@@ -191,8 +187,7 @@ namespace HSPE
         private Vector3 _lastDynamicBoneGravity;
         private DynamicBone _draggedDynamicBone;
         private Vector2 _shortcutsScroll;
-        //private DynamicBone _leftButtCheek;
-        //private DynamicBone _rightButtCheek;
+        private Material _purpleMat;
         #endregion
 
         #region Public Accessors
@@ -251,6 +246,7 @@ namespace HSPE
             this._yMat = new Material(Shader.Find("Unlit/Color")) { color = this._greenColor };
             this._zMat = new Material(Shader.Find("Unlit/Color")) { color = this._blueColor };
             this._colliderMat = new Material(Shader.Find("Unlit/Color")) { color = Color.Lerp(this._greenColor, Color.white, 0.5f) };
+            this._purpleMat = new Material(Shader.Find("Unlit/Color")) { color = Color.magenta };
             this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.GetComponent<CameraGL>();
             if (this._cam == null)
                 this._cam = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraGL>();
@@ -276,48 +272,6 @@ namespace HSPE
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
                 this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
                 this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
-
-                //this._leftButtCheek = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02").gameObject.AddComponent<DynamicBone>();
-                //this._leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
-                //this._leftButtCheek.m_Exclusions = new List<Transform>();
-                //this._leftButtCheek.m_notRolls = new List<Transform>();
-                //this._leftButtCheek.SetWeight(1f);
-                //this._leftButtCheek.m_DistantDisable = false;
-                //this._leftButtCheek.m_Root = this._leftButtCheek.transform.Find("cf_J_SiriDam_L/cf_J_SiriDam01_L");
-                //this._leftButtCheek.m_Damping = 1f;
-                //this._leftButtCheek.m_Elasticity = 0.85f;
-                //this._leftButtCheek.m_Stiffness = 0f;
-                //this._leftButtCheek.m_DampingDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._leftButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._leftButtCheek.m_StiffnessDistrib = AnimationCurve.EaseInOut(0f, 1f, 1f, 0.95f);
-                //this._leftButtCheek.m_Inert = 0f;
-                //this._leftButtCheek.m_InertDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._leftButtCheek.m_Radius = 0f;
-                //this._leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._leftButtCheek.m_EndOffset = new Vector3(0f, -0.01f, 0f);
-                //this._leftButtCheek.m_Gravity = Vector3.zero;
-                ////this._leftButtCheek.m_Force = new Vector3(0f, -0.01f, 0f);
-
-                //this._rightButtCheek = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02").gameObject.AddComponent<DynamicBone>();
-                //this._rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
-                //this._rightButtCheek.m_Exclusions = new List<Transform>();
-                //this._rightButtCheek.m_notRolls = new List<Transform>();
-                //this._rightButtCheek.SetWeight(1f);
-                //this._rightButtCheek.m_DistantDisable = false;
-                //this._rightButtCheek.m_Root = this._rightButtCheek.transform.Find("cf_J_SiriDam_R/cf_J_SiriDam01_R");
-                //this._rightButtCheek.m_Damping = 1f;
-                //this._rightButtCheek.m_Elasticity = 0.85f;
-                //this._rightButtCheek.m_Stiffness = 0f;
-                //this._rightButtCheek.m_DampingDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._rightButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._rightButtCheek.m_StiffnessDistrib = AnimationCurve.EaseInOut(0f, 1f, 1f, 0.95f);
-                //this._rightButtCheek.m_Inert = 0f;
-                //this._rightButtCheek.m_InertDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._rightButtCheek.m_Radius = 0f;
-                //this._rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0f, 1f, 1f, 1f);
-                //this._rightButtCheek.m_EndOffset = new Vector3(0f, -0.01f, 0f);
-                //this._rightButtCheek.m_Gravity = Vector3.zero;
-                ////this._rightButtCheek.m_Force = new Vector3(0f, -0.01f, 0f);
             }
             else
             {
@@ -383,6 +337,10 @@ namespace HSPE
             if (toAdd != null)
                 foreach (DynamicBone db in toAdd)
                     this._dynamicBones.Add(db);
+        }
+
+        void LateUpdate()
+        {
             this.DynamicBoneDraggingLogic();
         }
 
@@ -413,95 +371,104 @@ namespace HSPE
         {
             if (other == null)
                 return;
-            foreach (GameObject openedBone in other._openedBones)
+            this.ExecuteDelayed(() =>
             {
-                Transform obj = this.transform.FindChild(openedBone.transform.GetPathFrom(other.transform));
-                if (obj != null)
-                    this._openedBones.Add(obj.gameObject);
-            }
-            foreach (GameObject ignoredObject in other._ignoredObjects)
-            {
-                Transform obj = this.transform.FindChild(ignoredObject.transform.GetPathFrom(other.transform));
-                if (obj != null)
-                    this._ignoredObjects.Add(obj.gameObject);
-            }
-            foreach (KeyValuePair<GameObject, TransformData> kvp in other._dirtyBones)
-            {
-                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
-                if (obj != null)
-                    this._dirtyBones.Add(obj.gameObject, new TransformData(kvp.Value));
-            }
-            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyBoobs)
-            {
-                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
-                if (obj != null)
+                foreach (GameObject openedBone in other._openedBones)
                 {
-                    DynamicBone_Ver02 db = obj.GetComponent<DynamicBone_Ver02>();
-                    if (kvp.Value.originalForce.hasValue)
-                        db.Force = kvp.Key.Force;
-                    if (kvp.Value.originalGravity.hasValue)
-                        db.Gravity = kvp.Key.Gravity;
-                    this._dirtyBoobs.Add(db, new BoobData(kvp.Value));
+                    Transform obj = this.transform.FindChild(openedBone.transform.GetPathFrom(other.transform));
+                    if (obj != null)
+                        this._openedBones.Add(obj.gameObject);
                 }
-            }
-            foreach (KeyValuePair<DynamicBoneCollider, ColliderData> kvp in other._dirtyColliders)
-            {
-                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
-                if (obj != null)
+                foreach (GameObject ignoredObject in other._ignoredObjects)
                 {
-                    DynamicBoneCollider col = obj.GetComponent<DynamicBoneCollider>();
-                    if (kvp.Value.originalCenter.hasValue)
-                        col.m_Center = kvp.Key.m_Center;
-                    if (kvp.Value.originalBound.hasValue)
-                        col.m_Bound = kvp.Key.m_Bound;
-                    if (kvp.Value.originalDirection.hasValue)
-                        col.m_Direction = kvp.Key.m_Direction;
-                    if (kvp.Value.originalHeight.hasValue)
-                        col.m_Height = kvp.Key.m_Height;
-                    if (kvp.Value.originalRadius.hasValue)
-                        col.m_Radius = kvp.Key.m_Radius;
-                    this._dirtyColliders.Add(col, new ColliderData(kvp.Value));
+                    Transform obj = this.transform.FindChild(ignoredObject.transform.GetPathFrom(other.transform));
+                    if (obj != null)
+                        this._ignoredObjects.Add(obj.gameObject);
+                }
+                foreach (KeyValuePair<GameObject, TransformData> kvp in other._dirtyBones)
+                {
+                    Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                    if (obj != null)
+                        this._dirtyBones.Add(obj.gameObject, new TransformData(kvp.Value));
+                }
+                CharFemale charFemale = this.chara.charInfo as CharFemale;
+                CharFemale otherFemale = other.chara.charInfo as CharFemale;
+                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyBoobs)
+                {
+                    DynamicBone_Ver02 db = null;
+                    if (otherFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL) == kvp.Key)
+                        db = charFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
+                    else if (otherFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR) == kvp.Key)
+                        db = charFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
 
+                    if (db != null)
+                    {
+                        if (kvp.Value.originalForce.hasValue)
+                            db.Force = kvp.Key.Force;
+                        if (kvp.Value.originalGravity.hasValue)
+                            db.Gravity = kvp.Key.Gravity;
+                        this._dirtyBoobs.Add(db, new BoobData(kvp.Value));
+                    }
                 }
-            }
-            foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in other._dirtyDynamicBones)
-            {
-                Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
-                if (obj != null)
+                foreach (KeyValuePair<DynamicBoneCollider, ColliderData> kvp in other._dirtyColliders)
                 {
-                    DynamicBone db = obj.GetComponent<DynamicBone>();
-                    if (kvp.Value.originalForce.hasValue)
-                        db.m_Force = kvp.Key.m_Force;
-                    if (kvp.Value.originalFreezeAxis.hasValue)
-                        db.m_FreezeAxis = kvp.Key.m_FreezeAxis;
-                    if (kvp.Value.originalGravity.hasValue)
-                        db.m_Gravity = kvp.Key.m_Gravity;
-                    if (kvp.Value.originalWeight.hasValue)
-                        db.SetWeight(kvp.Key.GetWeight());
-                    this._dirtyDynamicBones.Add(db, new DynamicBoneData(kvp.Value));
+                    Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                    if (obj != null)
+                    {
+                        DynamicBoneCollider col = obj.GetComponent<DynamicBoneCollider>();
+                        if (kvp.Value.originalCenter.hasValue)
+                            col.m_Center = kvp.Key.m_Center;
+                        if (kvp.Value.originalBound.hasValue)
+                            col.m_Bound = kvp.Key.m_Bound;
+                        if (kvp.Value.originalDirection.hasValue)
+                            col.m_Direction = kvp.Key.m_Direction;
+                        if (kvp.Value.originalHeight.hasValue)
+                            col.m_Height = kvp.Key.m_Height;
+                        if (kvp.Value.originalRadius.hasValue)
+                            col.m_Radius = kvp.Key.m_Radius;
+                        this._dirtyColliders.Add(col, new ColliderData(kvp.Value));
 
+                    }
                 }
-            }
-            if (other._boneTarget != null)
-            {
-                Transform t = this.transform.FindChild(other._boneTarget.GetPathFrom(other.transform));
-                if (t != null)
-                    this._boneTarget = t;
-            }
-            if (other._colliderTarget != null)
-            {
-                Transform t = this.transform.FindChild(other._colliderTarget.transform.GetPathFrom(other.transform));
-                if (t != null)
-                    this._colliderTarget = t.GetComponent<DynamicBoneCollider>();
-            }
-            if (other._dynamicBoneTarget != null)
-            {
-                Transform t = this.transform.FindChild(other._dynamicBoneTarget.transform.GetPathFrom(other.transform));
-                if (t != null)
-                    this._dynamicBoneTarget = t.GetComponent<DynamicBone>();
-            }
-            this._dynamicBonesScroll = other._dynamicBonesScroll;
-            this._boneEditionScroll = other._boneEditionScroll;
+                foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in other._dirtyDynamicBones)
+                {
+                    DynamicBone db = null;
+                    foreach (DynamicBone bone in this._dynamicBones)
+                    {
+                        if (kvp.Key.m_Root != null && bone.m_Root != null)
+                        {
+                            if (kvp.Key.m_Root.name.Equals(bone.m_Root.name) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if (kvp.Key.name.Equals(bone.name) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
+                        }
+                    }
+                    if (db != null)
+                    {
+                        if (kvp.Value.originalForce.hasValue)
+                            db.m_Force = kvp.Key.m_Force;
+                        if (kvp.Value.originalFreezeAxis.hasValue)
+                            db.m_FreezeAxis = kvp.Key.m_FreezeAxis;
+                        if (kvp.Value.originalGravity.hasValue)
+                            db.m_Gravity = kvp.Key.m_Gravity;
+                        if (kvp.Value.originalWeight.hasValue)
+                            db.SetWeight(kvp.Key.GetWeight());
+                        this._dirtyDynamicBones.Add(db, new DynamicBoneData(kvp.Value));
+
+                    }
+                }
+                this._dynamicBonesScroll = other._dynamicBonesScroll;
+                this._boneEditionScroll = other._boneEditionScroll;
+            }, 2);
         }
 
         public void StartDrag(DragType dragType)
@@ -725,7 +692,7 @@ namespace HSPE
                     this._selectedTab = (SelectedTab)i;
             Color c = GUI.color;
             GUI.color = this._redColor;
-            if (GUILayout.Button("Close"))
+            if (GUILayout.Button("Close", GUILayout.ExpandWidth(false)))
                 this.drawAdvancedMode = false;
             GUI.color = c;
             GUILayout.EndHorizontal();
@@ -1299,6 +1266,55 @@ namespace HSPE
                         this.SetBoneNotDirtyIf(this._twinBoneTarget.gameObject);
                     }
                 }
+
+                if (GUILayout.Button("Default") && this._boneTarget != null)
+                {
+                    this.SetBoneDirty(this._boneTarget.gameObject);
+                    TransformData td = this._dirtyBones[this._boneTarget.gameObject];
+                    td.position = Vector3.zero;
+                    if (!td.originalPosition.hasValue)
+                        td.originalPosition = this._boneTarget.localPosition;
+
+                    Quaternion symmetricalRotation = Quaternion.identity;
+                    if (fkBoneInfo != null && fkBoneInfo.active)
+                    {
+                        if (this._lastShouldSaveValue == false)
+                            this._oldFKRotationValue = fkBoneInfo.guideObject.changeAmount.rot;
+                        fkBoneInfo.guideObject.changeAmount.rot = Vector3.zero;
+
+                        if (this._symmetricalEdition && fkTwinBoneInfo != null && fkTwinBoneInfo.active)
+                        {
+                            if (this._lastShouldSaveValue == false)
+                                this._oldFKTwinRotationValue = fkTwinBoneInfo.guideObject.changeAmount.rot;
+                            fkTwinBoneInfo.guideObject.changeAmount.rot = symmetricalRotation.eulerAngles;
+                        }
+                    }
+
+                    td.rotation = Quaternion.identity;
+                    if (!td.originalRotation.hasValue)
+                        td.originalRotation = this._boneTarget.localRotation;
+
+                    td.scale = Vector3.one;
+                    if (!td.originalScale.hasValue)
+                        td.originalScale = this._boneTarget.localScale;
+
+                    if (this._symmetricalEdition && this._twinBoneTarget != null)
+                    {
+                        this.SetBoneDirty(this._twinBoneTarget.gameObject);
+                        td = this._dirtyBones[this._twinBoneTarget.gameObject];
+                        td.position = Vector3.zero;
+                        if (!td.originalPosition.hasValue)
+                            td.originalPosition = this._twinBoneTarget.localPosition;
+
+                        td.rotation = symmetricalRotation;
+                        if (!td.originalRotation.hasValue)
+                            td.originalRotation = this._twinBoneTarget.localRotation;
+
+                        td.scale = Vector3.one;
+                        if (!td.originalScale.hasValue)
+                            td.originalScale = this._twinBoneTarget.localScale;
+                    }
+                }
                 GUILayout.EndHorizontal();
 
                 GUILayout.BeginVertical(GUI.skin.box);
@@ -1681,6 +1697,8 @@ namespace HSPE
         #region Private Methods
         private void DynamicBoneDraggingLogic()
         {
+            if (this.drawAdvancedMode == false)
+                return;
             if (Input.GetMouseButtonDown(0))
             {
                 float distanceFromCamera = float.PositiveInfinity;
@@ -1724,6 +1742,7 @@ namespace HSPE
                             this._dragDynamicBoneStartPosition = raycastPos;
                             this._lastDynamicBoneGravity = db.m_Force;
                             this._draggedDynamicBone = db;
+                            this._dynamicBoneTarget = db;
                         }
                     }
                     MainWindow.self.SetNoControlCondition();
@@ -1764,10 +1783,6 @@ namespace HSPE
 
         private void OnPostUpdate()
         {
-            //this._leftButtCheek.CallPrivate("Update");
-            //this._rightButtCheek.CallPrivate("Update");
-            //this._leftButtCheek.CallPrivate("LateUpdate");
-            //this._rightButtCheek.CallPrivate("LateUpdate");
             bool shouldClean = false;
             foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
             {
@@ -2189,12 +2204,18 @@ namespace HSPE
                         origin = end.position;
 
                         GL.Begin(GL.LINES);
-                        this._colliderMat.SetPass(0);
+                        if (db == this._dynamicBoneTarget)
+                            this._purpleMat.SetPass(0);
+                        else
+                            this._colliderMat.SetPass(0);
                         this.DrawVector(origin, final);
                         GL.End();
 
                         GL.Begin(GL.LINES);
-                        this._yMat.SetPass(0);
+                        if (db == this._dynamicBoneTarget)
+                            this._purpleMat.SetPass(0);
+                        else
+                            this._yMat.SetPass(0);
                         this.DrawCircle(end.position, _dynamicBonesDragRadius, this._cam.transform.rotation);
                         GL.End();
                     }
@@ -2204,7 +2225,7 @@ namespace HSPE
             GL.PopMatrix();
         }
 
-        private void DrawVector(Vector3 start, Vector3 end, float scale = 20f)
+        private void DrawVector(Vector3 start, Vector3 end)
         {
             Vector3 dir = end - start;
             Quaternion rot = Quaternion.AngleAxis(15f, Vector3.ProjectOnPlane(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position - end, -dir));
@@ -2337,6 +2358,8 @@ namespace HSPE
                 xmlWriter.WriteStartElement("advancedObjects");
                 foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
                 {
+                    if (kvp.Key == null)
+                        continue;
                     Transform t = kvp.Key.transform.parent;
                     string n = kvp.Key.transform.name;
                     while (t != this.transform)
@@ -2353,8 +2376,8 @@ namespace HSPE
                         xmlWriter.WriteAttributeString("posY", XmlConvert.ToString(kvp.Value.position.value.y));
                         xmlWriter.WriteAttributeString("posZ", XmlConvert.ToString(kvp.Value.position.value.z));
                     }
-
-                    if (kvp.Value.rotation.hasValue && (!this.chara.oiCharInfo.enableFK || !this._fkObjects.ContainsKey(kvp.Key)))
+                    OCIChar.BoneInfo info;
+                    if (kvp.Value.rotation.hasValue && (!this.chara.oiCharInfo.enableFK || !this._fkObjects.TryGetValue(kvp.Key, out info) || info.active == false))
                     {
                         xmlWriter.WriteAttributeString("rotW", XmlConvert.ToString(kvp.Value.rotation.value.w));
                         xmlWriter.WriteAttributeString("rotX", XmlConvert.ToString(kvp.Value.rotation.value.x));
@@ -2470,6 +2493,7 @@ namespace HSPE
             yield return null;
             yield return null;
             yield return null;
+            UnityEngine.Debug.Log("test " + this.chara.charInfo.customInfo.name);
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
             if (objects != null)
             {

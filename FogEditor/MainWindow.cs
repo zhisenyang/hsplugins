@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Xml;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
 
@@ -42,6 +43,8 @@ namespace FogEditor
         #region Unity Methods
         void Start()
         {
+            HSExtSave.HSExtSave.RegisterHandler("fogEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
+
             this._fog = Camera.main.GetComponent<GlobalFog>();
             this._fogModeValues = (FogMode[])Enum.GetValues(typeof(FogMode));
             this._defaultColor = RenderSettings.fogColor;
@@ -226,25 +229,26 @@ namespace FogEditor
                 this._search = GUILayout.TextField(this._search);
                 GUILayout.EndHorizontal();
                 this._scroll = GUILayout.BeginScrollView(this._scroll, GUILayout.Height(200));
-                foreach (Renderer renderer in Resources.FindObjectsOfTypeAll<Renderer>())
-                {
-                    foreach (Material material in renderer.materials)
+                if (Studio.Studio.Instance.treeNodeCtrl.selectNode != null)
+                    foreach (Renderer renderer in Studio.Studio.Instance.dicInfo[Studio.Studio.Instance.treeNodeCtrl.selectNode].guideObject.transformTarget.GetComponentsInChildren<Renderer>(true))
                     {
-                        if (material.name.IndexOf(this._search) == -1)
-                            continue;
-                        Color c = GUI.color;
-                        bool isMaterialDirty = this._dirtyMaterials.ContainsKey(material);
-                        if (material == this._selectedMat)
-                            GUI.color = Color.cyan;
-                        else if (isMaterialDirty)
-                            GUI.color = Color.magenta;
-                        if (GUILayout.Button(renderer.gameObject.name + "/" + material.name + (isMaterialDirty ? "*" : "")))
+                        foreach (Material material in renderer.materials)
                         {
-                            this._selectedMat = material;
+                            if (material.name.IndexOf(this._search) == -1)
+                                continue;
+                            Color c = GUI.color;
+                            bool isMaterialDirty = this._dirtyMaterials.ContainsKey(material);
+                            if (material == this._selectedMat)
+                                GUI.color = Color.cyan;
+                            else if (isMaterialDirty)
+                                GUI.color = Color.magenta;
+                            if (GUILayout.Button(renderer.gameObject.name + "/" + material.name + (isMaterialDirty ? "*" : "")))
+                            {
+                                this._selectedMat = material;
+                            }
+                            GUI.color = c;
                         }
-                        GUI.color = c;
                     }
-                }
 
                 GUILayout.EndScrollView();
                 GUILayout.BeginHorizontal();
@@ -282,6 +286,111 @@ namespace FogEditor
             if (renderQueue != mat.renderQueue && this._dirtyMaterials.ContainsKey(mat) == false)
                 this._dirtyMaterials.Add(mat, mat.renderQueue);
             mat.renderQueue = renderQueue;
+        }
+
+        private void OnSceneLoad(string path, XmlNode node)
+        {
+            if (node == null)
+                return;
+            foreach (XmlNode childNode in node.ChildNodes)
+            {
+                switch (childNode.Name)
+                {
+                    case "color":
+                        RenderSettings.fogColor = new Color(
+                            XmlConvert.ToSingle(childNode.Attributes["r"].Value),
+                            XmlConvert.ToSingle(childNode.Attributes["g"].Value),
+                            XmlConvert.ToSingle(childNode.Attributes["b"].Value)
+                            );
+                        break;
+                    case "excludeFarPixels":
+                        this._fog.excludeFarPixels = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "distanceFog":
+                        this._fog.distanceFog = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "distanceFogMode":
+                        RenderSettings.fogMode = (FogMode)XmlConvert.ToInt32(childNode.Attributes["mode"].Value);
+                        break;
+                    case "useRadialDistance":
+                        this._fog.useRadialDistance = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "distanceFogStartDistance":
+                        RenderSettings.fogStartDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                    case "distanceFogEndDistance":
+                        RenderSettings.fogEndDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                    case "distanceFogDensity":
+                        RenderSettings.fogDensity = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                    case "heightFog":
+                        this._fog.heightFog = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "height":
+                        this._fog.height = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                    case "heightDensity":
+                        this._fog.heightDensity = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                    case "heightFogStartDistance":
+                        this._fog.startDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                        break;
+                }
+            }
+        }
+
+        private void OnSceneSave(string path, XmlTextWriter writer)
+        {
+            writer.WriteStartElement("color");
+            writer.WriteAttributeString("r", XmlConvert.ToString(RenderSettings.fogColor.r));
+            writer.WriteAttributeString("g", XmlConvert.ToString(RenderSettings.fogColor.g));
+            writer.WriteAttributeString("b", XmlConvert.ToString(RenderSettings.fogColor.b));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("excludeFarPixels");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.excludeFarPixels));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("distanceFog");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.distanceFog));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("distanceFogMode");
+            writer.WriteAttributeString("mode", XmlConvert.ToString((int)RenderSettings.fogMode));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("useRadialDistance");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.useRadialDistance));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("distanceFogStartDistance");
+            writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogStartDistance));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("distanceFogEndDistance");
+            writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogEndDistance));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("distanceFogDensity");
+            writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogDensity));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("heightFog");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.heightFog));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("height");
+            writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.height));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("heightDensity");
+            writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.heightDensity));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("heightFogStartDistance");
+            writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.startDistance));
+            writer.WriteEndElement();
         }
         #endregion
     }

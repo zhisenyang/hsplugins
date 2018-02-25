@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 using CustomMenu;
@@ -40,14 +38,15 @@ namespace HSUS
         private bool _optimizeNeo = true;
         private bool _enableGenericFK = true;
         private KeyCode _debugShortcut = KeyCode.RightControl;
+        private bool _improvedTransformOperations = true;
+        private bool _autoJointCorrection = true;
 
         private GameObject _go;
         private RoutinesComponent _routines;
         private HashSet<Canvas> _scaledCanvases = new HashSet<Canvas>();
         private Binary _binary;
         private Sprite _searchBarBackground;
-
-
+        private float _lastCleanup;
         #endregion
 
         #region Public Accessors
@@ -61,6 +60,8 @@ namespace HSUS
         public bool optimizeNeo { get { return this._optimizeNeo; } }
         public bool enableGenericFK { get { return this._enableGenericFK; } }
         public KeyCode debugShortcut { get { return this._debugShortcut; } }
+        public bool improvedTransformOperations { get { return this._improvedTransformOperations; } }
+        public bool autoJointCorrection { get { return this._autoJointCorrection; } }
         public RoutinesComponent routines { get { return this._routines; } }
         #endregion
 
@@ -142,6 +143,14 @@ namespace HSUS
                                 this._debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
                         }
                         break;
+                    case "improvedTransformOperations":
+                        if (node.Attributes["enabled"] != null)
+                            this._improvedTransformOperations = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "autoJointCorrection":
+                        if (node.Attributes["enabled"] != null)
+                            this._autoJointCorrection = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
                 }
             }
             UIUtility.Init();
@@ -157,7 +166,6 @@ namespace HSUS
                     }
                     try
                     {
-                        UnityEngine.Debug.Log(type.FullName);
                         List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
                         if (harmonyMethods != null && harmonyMethods.Count > 0)
                         {
@@ -257,6 +265,18 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+                    {
+                        xmlWriter.WriteStartElement("improvedTransformOperations");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._improvedTransformOperations));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("autoJointCorrection");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._autoJointCorrection));
+                        xmlWriter.WriteEndElement();
+                    }
+
                     xmlWriter.WriteEndElement();
                 }
             }
@@ -310,7 +330,11 @@ namespace HSUS
 
         public void OnUpdate()
         {
-
+            if (Time.unscaledTime - this._lastCleanup > 30f)
+            {
+                Resources.UnloadUnusedAssets();
+                this._lastCleanup = Time.unscaledTime;
+            }
         }
         public void OnLateUpdate()
         {
@@ -569,6 +593,42 @@ namespace HSUS
         #endregion
     }
 
+    [HarmonyPatch(typeof(SetRenderQueue), "Awake")]
+    public class SetRenderQueue_Awake_Patches
+    {
+        public static bool Prefix(SetRenderQueue __instance)
+        {
+            Renderer renderer = __instance.GetComponent<Renderer>();
+            int[] queues = (int[])__instance.GetPrivate("m_queues");
+            if (renderer != null)
+            {
+                Material[] materials = renderer.materials;
+                int num = 0;
+                while (num < materials.Length && num < queues.Length)
+                {
+                    materials[num].renderQueue = queues[num];
+                    num++;
+                }
+            }
+            else
+            {
+                __instance.ExecuteDelayed(() =>
+                {
+                    renderer = __instance.GetComponent<Renderer>();
+                    if (renderer == null)
+                        return;
+                    Material[] materials = renderer.materials;
+                    int num = 0;
+                    while (num < materials.Length && num < queues.Length)
+                    {
+                        materials[num].renderQueue = queues[num];
+                        num++;
+                    }
+                }, 3);
+            }
+            return false;
+        }
+    }
     //[HarmonyPatch(typeof(HsvColor), "ToRgb", new[]{typeof(HsvColor)
     //})]
     //public class Testetetetetet

@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using HSUS;
 using Studio;
 using UILib;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -161,4 +159,60 @@ namespace StudioFileCheck
             yield return new CodeInstruction(OpCodes.Ret);
         }
     }
+
+    [HarmonyPatch(typeof(BackgroundList), "InitList")]
+    public class BackgroundList_InitList_Patches
+    {
+        private static InputField _searchBar;
+        private static RectTransform _parent;
+
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+
+        public static void Postfix(BackgroundList __instance)
+        {
+            _parent = (RectTransform)((RectTransform)__instance.GetPrivate("transformRoot")).parent.parent;
+
+            _searchBar = UIUtility.CreateInputField("Search Bar", _parent, "Search...");
+            Image image = _searchBar.GetComponent<Image>();
+            image.color = UIUtility.grayColor;
+            //image.sprite = null;
+            RectTransform rt = _searchBar.transform as RectTransform;
+            rt.localPosition = Vector3.zero;
+            rt.localScale = Vector3.one;
+            rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, -21f), new Vector2(0f, 1f));
+            _searchBar.onValueChanged.AddListener(s => SearchChanged(__instance));
+            foreach (Text t in _searchBar.GetComponentsInChildren<Text>())
+                t.color = Color.white;
+        }
+
+        private static void SearchChanged(BackgroundList instance)
+        {
+            Dictionary<int, StudioNode> dicNode = (Dictionary<int, StudioNode>)instance.GetPrivate("dicNode");
+            string search = _searchBar.text.Trim();
+            foreach (KeyValuePair<int, StudioNode> pair in dicNode)
+            {
+                pair.Value.active = pair.Value.textUI.text.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1;
+            }
+            LayoutRebuilder.MarkLayoutForRebuild(_parent);
+        }
+    }
+
+    [HarmonyPatch(typeof(OICharInfo), new []{typeof(CharFile), typeof(int)})]
+    public class OICharInfo_Ctor_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.autoJointCorrection;
+        }
+
+        public static void Postfix(OICharInfo __instance, CharFile _charFile, int _key)
+        {
+            for (int i = 0; i < __instance.expression.Length; i++)
+                __instance.expression[i] = true;
+        }
+    }
+
 }

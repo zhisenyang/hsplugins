@@ -17,6 +17,7 @@ namespace HSUS
         private Vector2 _scroll3;
         private readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
         private bool _debug;
+        private Rect _rect = new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f);
 
         void OnEnable()
         {
@@ -81,7 +82,11 @@ namespace HSUS
         {
             if (this._debug == false)
                 return;
-            GUILayout.BeginArea(new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f));
+            this._rect = GUILayout.Window(0, this._rect, this.WindowFunc, "Debug Console");
+        }
+
+        private void WindowFunc(int id)
+        {
             GUILayout.BeginHorizontal();
             this._scroll = GUILayout.BeginScrollView(this._scroll, GUI.skin.box, GUILayout.ExpandHeight(true), GUILayout.MinWidth(300));
             foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
@@ -150,7 +155,7 @@ namespace HSUS
                     {
                         Text text = c as Text;
                         GUILayout.Label(text.text + " " + text.font + " " + text.fontStyle + " " + text.fontSize + " " + text.alignment + " " + text.alignByGeometry + " " + text.resizeTextForBestFit + " " + text.color);
-                        
+
                     }
                     else if (c is RawImage)
                         GUILayout.Label(((RawImage)c).mainTexture);
@@ -165,7 +170,7 @@ namespace HSUS
                         for (int i = 0; i < calls.Count; ++i)
                         {
                             UnityAction unityAction = ((UnityAction)calls[i].GetPrivate("Delegate"));
-                            GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);                            
+                            GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
                         }
                     }
                     else if (c is Toggle)
@@ -224,7 +229,7 @@ namespace HSUS
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            GUI.DragWindow();
         }
     }
 }

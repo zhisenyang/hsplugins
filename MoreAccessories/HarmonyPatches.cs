@@ -306,7 +306,7 @@ namespace MoreAccessories
                 }
                 return false;
             }
-            if (__instance.nowSubMenuTypeStr.StartsWith("SM_MoreAccessories_"))
+            //if (__instance.nowSubMenuTypeStr.StartsWith("SM_MoreAccessories_"))
                 MoreAccessories.self.smItem.objTop.SetActive(false);
             return true;
         }

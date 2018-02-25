@@ -76,6 +76,7 @@ namespace HSExtSave
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(reader.BaseStream);
+                HashSet<HSExtSave.HandlerGroup> calledHandlers = new HashSet<HSExtSave.HandlerGroup>();
 
                 foreach (XmlNode node in doc.ChildNodes)
                 {
@@ -88,7 +89,10 @@ namespace HSExtSave
                                 {
                                     HSExtSave.HandlerGroup group;
                                     if (HSExtSave._handlers.TryGetValue(child.Name, out group) && group.onCharRead != null)
+                                    {
                                         group.onCharRead(__instance, child);
+                                        calledHandlers.Add(group);
+                                    }
                                 }
                                 catch (Exception e)
                                 {
@@ -98,6 +102,12 @@ namespace HSExtSave
                             break;
                     }
                 }
+                foreach (KeyValuePair<string, HSExtSave.HandlerGroup> handler in HSExtSave._handlers)
+                {
+                    if (handler.Value.onCharRead != null && calledHandlers.Contains(handler.Value) == false)
+                        handler.Value.onCharRead(__instance, null);
+                }
+
             }
             catch (XmlException)
             {
@@ -151,6 +161,7 @@ namespace HSExtSave
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(stream);
+                HashSet<HSExtSave.HandlerGroup> calledHandlers = new HashSet<HSExtSave.HandlerGroup>();
 
                 foreach (XmlNode node in doc.ChildNodes)
                 {
@@ -163,7 +174,10 @@ namespace HSExtSave
                                 {
                                     HSExtSave.HandlerGroup group;
                                     if (HSExtSave._handlers.TryGetValue(child.Name, out group) && group.onSceneReadLoad != null)
+                                    {
                                         group.onSceneReadLoad(path, child);
+                                        calledHandlers.Add(group);
+                                    }
                                 }
                                 catch (Exception e)
                                 {
@@ -172,6 +186,11 @@ namespace HSExtSave
                             }
                             break;
                     }
+                }
+                foreach (KeyValuePair<string, HSExtSave.HandlerGroup> handler in HSExtSave._handlers)
+                {
+                    if (handler.Value.onSceneReadLoad != null && calledHandlers.Contains(handler.Value) == false)
+                        handler.Value.onSceneReadLoad(path, null);
                 }
             }
             catch (XmlException)
@@ -337,6 +356,7 @@ namespace HSExtSave
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(binaryReader.BaseStream);
+                HashSet<HSExtSave.HandlerGroup> calledHandlers = new HashSet<HSExtSave.HandlerGroup>();
 
                 foreach (XmlNode node in doc.ChildNodes)
                 {
@@ -349,7 +369,10 @@ namespace HSExtSave
                                 {
                                     HSExtSave.HandlerGroup group;
                                     if (HSExtSave._handlers.TryGetValue(child.Name, out group) && group.onSceneReadImport != null)
+                                    {
                                         group.onSceneReadImport(path, child);
+                                        calledHandlers.Add(group);
+                                    }
                                 }
                                 catch (Exception e)
                                 {
@@ -359,6 +382,12 @@ namespace HSExtSave
                             break;
                     }
                 }
+                foreach (KeyValuePair<string, HSExtSave.HandlerGroup> handler in HSExtSave._handlers)
+                {
+                    if (handler.Value.onSceneReadImport != null && calledHandlers.Contains(handler.Value) == false)
+                        handler.Value.onSceneReadImport(path, null);
+                }
+
             }
             catch (XmlException)
             {
@@ -498,6 +527,7 @@ namespace HSExtSave
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(br.BaseStream);
+                HashSet<HSExtSave.HandlerGroup> calledHandlers = new HashSet<HSExtSave.HandlerGroup>();
 
                 foreach (XmlNode node in doc.ChildNodes)
                 {
@@ -510,7 +540,10 @@ namespace HSExtSave
                                 {
                                     HSExtSave.HandlerGroup group;
                                     if (HSExtSave._handlers.TryGetValue(child.Name, out group) && group.onClothesRead != null)
+                                    {
                                         group.onClothesRead(__instance, child);
+                                        calledHandlers.Add(group);
+                                    }
                                 }
                                 catch (Exception e)
                                 {
@@ -520,6 +553,12 @@ namespace HSExtSave
                             break;
                     }
                 }
+                foreach (KeyValuePair<string, HSExtSave.HandlerGroup> handler in HSExtSave._handlers)
+                {
+                    if (handler.Value.onClothesRead != null && calledHandlers.Contains(handler.Value) == false)
+                        handler.Value.onClothesRead(__instance, null);
+                }
+
             }
             catch (XmlException)
             {

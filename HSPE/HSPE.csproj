@@ -39,13 +39,25 @@
     <Compile Include="Commands.cs" />
     <Compile Include="EditableValue.cs" />
     <Compile Include="Extensions.cs" />
+    <Compile Include="HarmonyPatches.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="ManualBoneController.cs" />
     <Compile Include="PointerDownHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HSPE.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
+      <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
+      <Name>HSExtSave</Name>
+      <Private>False</Private>
+      <SpecificVersion>True</SpecificVersion>
+    </ProjectReference>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">
       <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
       <Name>UIUtility</Name>
@@ -57,12 +69,15 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
-    <None Include="Resources\Icon.png" />
+    <None Include="Resources\hsperesources.unity3d" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ILMergeOrder.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
+    </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
@@ -100,11 +115,15 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"
-if not exist "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\HSPE\Resources" mkdir "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\HSPE\Resources"
-xcopy /Y /E "$(ProjectDir)Resources" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\HSPE\Resources"</PostBuildEvent>
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

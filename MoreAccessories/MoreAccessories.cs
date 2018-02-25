@@ -63,10 +63,11 @@ namespace MoreAccessories
         private bool _ready = false;
         private readonly List<MakerSlotData> _displayedMakerSlots = new List<MakerSlotData>();
         private int _level;
-        private Button _addButton;
+        private RectTransform _addButtons;
         private RoutinesComponent _routines;
         private Studio.OCIChar _selectedStudioCharacter;
         private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
+        private StudioSlotData _toggleAll;
         #endregion
 
         #region Public Accessors
@@ -209,17 +210,30 @@ namespace MoreAccessories
 
                     Selectable template = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/TabMenu/Tab01").GetComponent<Selectable>();
 
-                    this._addButton = UIUtility.CreateButton("AddAccessoriesButton", this._prefab.parent, "+ Add accessory");
-                    this._addButton.transform.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
-                    ((RectTransform)this._addButton.transform).pivot = new Vector2(0.5f, 1f);
-                    this._addButton.gameObject.AddComponent<UI_TreeView>();
-                    this._addButton.onClick.AddListener(this.AddSlot);
-                    this._addButton.colors = template.colors;
-                    ((Image)this._addButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
-                    Text text = this._addButton.GetComponentInChildren<Text>();
+                    this._addButtons = UIUtility.CreateNewUIObject(this._prefab.parent, "AddAccessories");
+                    this._addButtons.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
+                    this._addButtons.pivot = new Vector2(0.5f, 1f);
+                    this._addButtons.gameObject.AddComponent<UI_TreeView>();
+
+                    Button addButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "+ Add accessory");
+                    addButton.transform.SetRect(Vector2.zero, new Vector2(0.70f, 1f), Vector2.zero, Vector2.zero);
+                    addButton.onClick.AddListener(this.AddSlot);
+                    addButton.colors = template.colors;
+                    ((Image)addButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
+                    Text text = addButton.GetComponentInChildren<Text>();
                     text.resizeTextForBestFit = true;
                     text.resizeTextMaxSize = 200;
-                    text.rectTransform.SetRect();
+                    text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
+
+                    Button addTenButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "Add 10");
+                    addTenButton.transform.SetRect(new Vector2(0.70f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+                    addTenButton.onClick.AddListener(this.AddTenSlots);
+                    addTenButton.colors = template.colors;
+                    ((Image)addTenButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
+                    text = addTenButton.GetComponentInChildren<Text>();
+                    text.resizeTextForBestFit = true;
+                    text.resizeTextMaxSize = 200;
+                    text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
                 }
             }
             else
@@ -228,6 +242,33 @@ namespace MoreAccessories
                 {
                     Transform accList = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/01_State/Viewport/Content/Slot");
                     this._prefab = accList.Find("Slot10") as RectTransform;
+
+                    MPCharCtrl ctrl = ((MPCharCtrl)Studio.Studio.Instance.rootButtonCtrl.GetPrivate("manipulate").GetPrivate("m_ManipulatePanelCtrl").GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
+
+                    this._toggleAll = new StudioSlotData();
+                    this._toggleAll.slot = (RectTransform)GameObject.Instantiate(this._prefab.gameObject).transform;
+                    this._toggleAll.name = this._toggleAll.slot.GetComponentInChildren<Text>();
+                    this._toggleAll.onButton = this._toggleAll.slot.GetChild(1).GetComponent<Button>();
+                    this._toggleAll.offButton = this._toggleAll.slot.GetChild(2).GetComponent<Button>();
+                    this._toggleAll.name.text = "All";
+                    this._toggleAll.slot.SetParent(this._prefab.parent);
+                    this._toggleAll.slot.localPosition = Vector3.zero;
+                    this._toggleAll.slot.localScale = Vector3.one;
+                    this._toggleAll.onButton.onClick = new Button.ButtonClickedEvent();
+                    this._toggleAll.onButton.onClick.AddListener(() =>
+                    {
+                        this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(true);
+                        ctrl.UpdateInfo();
+                        this.UpdateStudioUI();
+                    });
+                    this._toggleAll.offButton.onClick = new Button.ButtonClickedEvent();
+                    this._toggleAll.offButton.onClick.AddListener(() =>
+                    {
+                        this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(false);
+                        ctrl.UpdateInfo();
+                        this.UpdateStudioUI();
+                    });
+                    this._toggleAll.slot.SetAsLastSibling();
                 }
             }
             this._ready = true;
@@ -312,7 +353,7 @@ namespace MoreAccessories
             for (; i < this.displayedMakerSlots.Count; i++)
                 this.displayedMakerSlots[i].treeView.SetUnused(true);
             this.CustomControl_UpdateAcsName();
-            this._addButton.transform.SetAsLastSibling();
+            this._addButtons.SetAsLastSibling();
             this._prefab.parent.GetComponent<UI_TreeView>().UpdateView();
         }
 
@@ -366,6 +407,7 @@ namespace MoreAccessories
             }
             for (; i < this._displayedStudioSlots.Count; ++i)
                 this._displayedStudioSlots[i].slot.gameObject.SetActive(false);
+            this._toggleAll.slot.SetAsLastSibling();
         }
 
         internal void UIFallbackToCoordList()
@@ -489,6 +531,29 @@ namespace MoreAccessories
             while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
                 additionalData.showAccessory.Add(this._charaMakerCharInfo.statusInfo.showAccessory[0]);
             CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this._charaMakerCharInfo.chaBody, additionalData, additionalData.clothesInfoAccessory.Count - 1, -1, -1, "", true);
+            this.UpdateMakerGUI();
+        }
+
+        private void AddTenSlots()
+        {
+            if (this._binary != Binary.Game || this._level != 21 || this._ready == false || this._charaMakerCharInfo == null)
+                return;
+            CharAdditionalData additionalData = this._accessoriesByChar[this._charaMakerCharInfo.chaFile];
+            for (int i = 0; i < 10; i++)
+                additionalData.clothesInfoAccessory.Add(new CharFileInfoClothes.Accessory());
+            while (additionalData.infoAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.infoAccessory.Add(null);
+            while (additionalData.objAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAccessory.Add(null);
+            while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAcsMove.Add(null);
+            while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.showAccessory.Add(this._charaMakerCharInfo.statusInfo.showAccessory[0]);
+            for (int i = 0; i < 10; i++)
+            {
+                int idx = additionalData.clothesInfoAccessory.Count - 10 + i;
+                CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this._charaMakerCharInfo.chaBody, additionalData, idx, -1, -1, "", true);
+            }
             this.UpdateMakerGUI();
         }
 

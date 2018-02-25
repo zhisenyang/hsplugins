@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Harmony;
 using IllusionPlugin;
 using UILib;
 using UnityEngine;
@@ -30,6 +31,9 @@ namespace HSPE
 
         public void OnApplicationStart()
         {
+            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hspe");
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
+
             UIUtility.Init();
         }
 

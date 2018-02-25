@@ -38,7 +38,8 @@
     <Compile Include="Extensions.cs" />
     <Compile Include="GenericFK.cs" />
     <Compile Include="HSUS.cs" />
-    <Compile Include="NEOFasterLoading.cs" />
+    <Compile Include="ImprovedTransformOperations.cs" />
+    <Compile Include="OptimizeNEO.cs" />
     <Compile Include="ObjectTreeDebug.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RoutinesComponent.cs" />
