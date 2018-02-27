@@ -6,7 +6,7 @@ namespace FogEditor
     public class FogEditor : IEnhancedPlugin
     {
         public string Name { get { return "FogEditor"; } }
-        public string Version { get { return "1.0.0"; } }
+        public string Version { get { return "1.1.0"; } }
 
         public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
 

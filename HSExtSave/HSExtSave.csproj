@@ -39,10 +39,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
+    <Reference Include="0Harmony, Version=1.0.9.1, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
       <Private>True</Private>
-      <Aliases>global</Aliases>
     </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>

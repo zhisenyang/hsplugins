@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Xml;
 using UnityEngine;
+using UnityEngine.Assertions.Must;
 using UnityStandardAssets.ImageEffects;
 
 namespace FogEditor
@@ -38,6 +39,7 @@ namespace FogEditor
         private string _search = "";
         private bool _advancedMode;
         private Dictionary<Material, int> _dirtyMaterials = new Dictionary<Material, int>();
+        private Material _material;
         #endregion
 
         #region Unity Methods
@@ -45,6 +47,7 @@ namespace FogEditor
         {
             HSExtSave.HSExtSave.RegisterHandler("fogEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
 
+            this._material = new Material(Shader.Find("Hidden/Internal-Colored"));
             this._fog = Camera.main.GetComponent<GlobalFog>();
             this._fogModeValues = (FogMode[])Enum.GetValues(typeof(FogMode));
             this._defaultColor = RenderSettings.fogColor;
@@ -65,6 +68,24 @@ namespace FogEditor
         {
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.F))
                 this._enabled = !this._enabled;
+            Dictionary<Material, int> newDic = null;
+            foreach (KeyValuePair<Material, int> pair in this._dirtyMaterials)
+            {
+                if (pair.Key == null)
+                {
+                    newDic = new Dictionary<Material, int>();
+                    break;
+                }
+            }
+            if (newDic != null)
+            {
+                foreach (KeyValuePair<Material, int> pair in this._dirtyMaterials)
+                {
+                    if (pair.Key != null)
+                        newDic.Add(pair.Key, pair.Value);
+                }
+                this._dirtyMaterials = newDic;
+            }
         }
 
         void OnGUI()
@@ -82,41 +103,9 @@ namespace FogEditor
         #region Private Methods
         private void WindowFunction(int id)
         {
+            string res;
+            string input;
             GUILayout.BeginVertical("Global Fog Parameters", GUI.skin.window);
-
-            {
-                Color c = RenderSettings.fogColor;
-
-                GUILayout.Label("Color:");
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("R", GUILayout.ExpandWidth(false));
-                c.r = GUILayout.HorizontalSlider(c.r, 0f, 1f);
-                GUILayout.Label(c.r.ToString("0.000"), GUILayout.ExpandWidth(false));
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("G", GUILayout.ExpandWidth(false));
-                c.g = GUILayout.HorizontalSlider(c.g, 0f, 1f);
-                GUILayout.Label(c.g.ToString("0.000"), GUILayout.ExpandWidth(false));
-                GUILayout.EndHorizontal();
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("B", GUILayout.ExpandWidth(false));
-                c.b = GUILayout.HorizontalSlider(c.b, 0f, 1f);
-                GUILayout.Label(c.b.ToString("0.000"), GUILayout.ExpandWidth(false));
-                GUILayout.EndHorizontal();
-
-                RenderSettings.fogColor = c;
-            }
-
-            this._fog.excludeFarPixels = GUILayout.Toggle(this._fog.excludeFarPixels, "Exclude Far Pixels");
-
-
-            GUILayout.EndVertical();
-
-            GUILayout.BeginVertical("Distance Fog Parameters", GUI.skin.window);
-
-            this._fog.distanceFog = GUILayout.Toggle(this._fog.distanceFog, "Enabled");
 
             {
                 GUILayout.BeginHorizontal();
@@ -128,16 +117,96 @@ namespace FogEditor
                 }
                 GUILayout.EndHorizontal();
             }
+            GUILayout.BeginHorizontal("Color", GUI.skin.window);
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+            {
+                Color c = RenderSettings.fogColor;
 
-            this._fog.useRadialDistance = GUILayout.Toggle(this._fog.useRadialDistance, "Use Radial Distance");
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("R", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
+                c.r = GUILayout.HorizontalSlider(c.r, 0f, 1f);
+                input = c.r.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(40));
+                if (res.Equals(input) == false)
+                    c.r = float.Parse(res);
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("G", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
+                c.g = GUILayout.HorizontalSlider(c.g, 0f, 1f);
+                input = c.g.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(40));
+                if (res.Equals(input) == false)
+                    c.g = float.Parse(res);
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("B", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
+                c.b = GUILayout.HorizontalSlider(c.b, 0f, 1f);
+                input = c.b.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(40));
+                if (res.Equals(input) == false)
+                    c.b = float.Parse(res);
+                GUILayout.EndHorizontal();
+
+                RenderSettings.fogColor = c;
+            }
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(false), GUILayout.MaxWidth(69));
+            GUILayout.FlexibleSpace();
+
+            Rect layoutRectangle = GUILayoutUtility.GetRect(68, 68, 68, 68, GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true));
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                GUI.BeginClip(layoutRectangle);
+                GL.PushMatrix();
+
+                GL.Clear(true, false, Color.black);
+                this._material.SetPass(0);
+
+                GL.Begin(GL.QUADS);
+                GL.Color(RenderSettings.fogColor);
+                GL.Vertex3(0, 0, 0);
+                GL.Vertex3(layoutRectangle.width, 0, 0);
+                GL.Vertex3(layoutRectangle.width, layoutRectangle.height, 0);
+                GL.Vertex3(0, layoutRectangle.height, 0);
+                GL.End();
+
+                GL.PopMatrix();
+                GUI.EndClip();
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+
+            {
+                GUI.enabled = RenderSettings.fogMode != FogMode.Linear;
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Density", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
+                RenderSettings.fogDensity = GUILayout.HorizontalSlider(RenderSettings.fogDensity, 0f, 20f);
+                input = RenderSettings.fogDensity.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    RenderSettings.fogDensity = float.Parse(res);
+                GUILayout.EndHorizontal();
+
+                GUI.enabled = true;
+            }
 
             {
                 GUI.enabled = RenderSettings.fogMode == FogMode.Linear;
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Start Distance", GUILayout.ExpandWidth(false));
+                GUILayout.Label("Start Range", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
                 RenderSettings.fogStartDistance = GUILayout.HorizontalSlider(RenderSettings.fogStartDistance, 0.001f, 299f);
-                GUILayout.Label(RenderSettings.fogStartDistance.ToString("000.000"), GUILayout.ExpandWidth(false));
+                input = RenderSettings.fogStartDistance.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    RenderSettings.fogStartDistance = float.Parse(res);
                 GUILayout.EndHorizontal();
                 if (RenderSettings.fogStartDistance > RenderSettings.fogEndDistance)
                     RenderSettings.fogEndDistance = RenderSettings.fogStartDistance + 1;
@@ -149,9 +218,12 @@ namespace FogEditor
                 GUI.enabled = RenderSettings.fogMode == FogMode.Linear;
 
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("End Distance", GUILayout.ExpandWidth(false));
+                GUILayout.Label("End Range", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
                 RenderSettings.fogEndDistance = GUILayout.HorizontalSlider(RenderSettings.fogEndDistance, 1.001f, 300f);
-                GUILayout.Label(RenderSettings.fogEndDistance.ToString("000.000"), GUILayout.ExpandWidth(false));
+                input = RenderSettings.fogEndDistance.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    RenderSettings.fogEndDistance = float.Parse(res);
                 GUILayout.EndHorizontal();
                 if (RenderSettings.fogEndDistance < RenderSettings.fogStartDistance)
                     RenderSettings.fogStartDistance = RenderSettings.fogEndDistance - 1;
@@ -160,16 +232,29 @@ namespace FogEditor
             }
 
             {
-                GUI.enabled = RenderSettings.fogMode != FogMode.Linear;
-
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Density", GUILayout.ExpandWidth(false));
-                RenderSettings.fogDensity = GUILayout.HorizontalSlider(RenderSettings.fogDensity, 0f, 1f);
-                GUILayout.Label(RenderSettings.fogDensity.ToString("0.000"), GUILayout.ExpandWidth(false));
+                GUILayout.Label("Start Distance", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
+                this._fog.startDistance = GUILayout.HorizontalSlider(this._fog.startDistance, 0.001f, 100f);
+                input = this._fog.startDistance.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    this._fog.startDistance = float.Parse(res);
                 GUILayout.EndHorizontal();
-
-                GUI.enabled = true;
             }
+
+            this._fog.excludeFarPixels = GUILayout.Toggle(this._fog.excludeFarPixels, "Exclude Far Pixels");
+
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical("Distance Fog Parameters", GUI.skin.window);
+
+            this._fog.distanceFog = GUILayout.Toggle(this._fog.distanceFog, "Enabled");
+
+            GUI.enabled = this._fog.distanceFog;
+
+            this._fog.useRadialDistance = GUILayout.Toggle(this._fog.useRadialDistance, "Use Radial Distance");
+
+            GUI.enabled = true;
 
             GUILayout.EndVertical();
 
@@ -177,23 +262,31 @@ namespace FogEditor
 
             this._fog.heightFog = GUILayout.Toggle(this._fog.heightFog, "Enabled");
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Height", GUILayout.ExpandWidth(false));
-            this._fog.height = GUILayout.HorizontalSlider(this._fog.height, 0f, 30f);
-            GUILayout.Label(this._fog.height.ToString("00.000"), GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
+            GUI.enabled = this._fog.heightFog;
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Density", GUILayout.ExpandWidth(false));
-            this._fog.heightDensity = GUILayout.HorizontalSlider(this._fog.heightDensity, 0.001f, 9.999f);
-            GUILayout.Label(this._fog.heightDensity.ToString("0.000"), GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Height", GUILayout.ExpandWidth(false), GUILayout.MinWidth(50));
+                this._fog.height = GUILayout.HorizontalSlider(this._fog.height, 0f, 30f);
+                input = this._fog.height.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    this._fog.height = float.Parse(res);
+                GUILayout.EndHorizontal();
+            }
+            
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Density", GUILayout.ExpandWidth(false), GUILayout.MinWidth(50));
+                this._fog.heightDensity = GUILayout.HorizontalSlider(this._fog.heightDensity, 0.001f, 20f);
+                input = this._fog.heightDensity.ToString();
+                res = GUILayout.TextField(input, GUILayout.Width(60));
+                if (res.Equals(input) == false)
+                    this._fog.heightDensity = float.Parse(res);
+                GUILayout.EndHorizontal();
+            }
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Start Distance", GUILayout.ExpandWidth(false));
-            this._fog.startDistance = GUILayout.HorizontalSlider(this._fog.startDistance, 0.001f, 100f);
-            GUILayout.Label(this._fog.startDistance.ToString("000.000"), GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
+            GUI.enabled = true;
 
             GUILayout.EndVertical();
 
@@ -234,7 +327,7 @@ namespace FogEditor
                     {
                         foreach (Material material in renderer.materials)
                         {
-                            if (material.name.IndexOf(this._search) == -1)
+                            if (renderer.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1 && material.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1)
                                 continue;
                             Color c = GUI.color;
                             bool isMaterialDirty = this._dirtyMaterials.ContainsKey(material);
@@ -272,6 +365,7 @@ namespace FogEditor
                     GUILayout.Label("Render Queue:", GUILayout.ExpandWidth(false));
                     GUILayout.HorizontalSlider(-1, -1, 5000);
                     GUILayout.Label("-1", GUILayout.ExpandWidth(false));
+                    GUILayout.Button("-1000", GUILayout.ExpandWidth(false));
                     GUILayout.Button("Reset", GUILayout.ExpandWidth(false));
                     GUI.enabled = true;
                 }
@@ -309,18 +403,22 @@ namespace FogEditor
                     case "distanceFog":
                         this._fog.distanceFog = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                         break;
+                    case "fogMode":
                     case "distanceFogMode":
                         RenderSettings.fogMode = (FogMode)XmlConvert.ToInt32(childNode.Attributes["mode"].Value);
                         break;
                     case "useRadialDistance":
                         this._fog.useRadialDistance = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                         break;
+                    case "startRange":
                     case "distanceFogStartDistance":
                         RenderSettings.fogStartDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
+                    case "endRange":
                     case "distanceFogEndDistance":
                         RenderSettings.fogEndDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
+                    case "globalFogDensity":
                     case "distanceFogDensity":
                         RenderSettings.fogDensity = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
@@ -333,6 +431,7 @@ namespace FogEditor
                     case "heightDensity":
                         this._fog.heightDensity = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
+                    case "startDistance":
                     case "heightFogStartDistance":
                         this._fog.startDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
@@ -356,7 +455,7 @@ namespace FogEditor
             writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.distanceFog));
             writer.WriteEndElement();
 
-            writer.WriteStartElement("distanceFogMode");
+            writer.WriteStartElement("fogMode");
             writer.WriteAttributeString("mode", XmlConvert.ToString((int)RenderSettings.fogMode));
             writer.WriteEndElement();
 
@@ -364,15 +463,15 @@ namespace FogEditor
             writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.useRadialDistance));
             writer.WriteEndElement();
 
-            writer.WriteStartElement("distanceFogStartDistance");
+            writer.WriteStartElement("startRange");
             writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogStartDistance));
             writer.WriteEndElement();
 
-            writer.WriteStartElement("distanceFogEndDistance");
+            writer.WriteStartElement("endRange");
             writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogEndDistance));
             writer.WriteEndElement();
 
-            writer.WriteStartElement("distanceFogDensity");
+            writer.WriteStartElement("globalFogDensity");
             writer.WriteAttributeString("value", XmlConvert.ToString(RenderSettings.fogDensity));
             writer.WriteEndElement();
 
@@ -388,7 +487,7 @@ namespace FogEditor
             writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.heightDensity));
             writer.WriteEndElement();
 
-            writer.WriteStartElement("heightFogStartDistance");
+            writer.WriteStartElement("startDistance");
             writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.startDistance));
             writer.WriteEndElement();
         }

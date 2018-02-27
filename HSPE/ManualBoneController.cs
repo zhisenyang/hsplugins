@@ -337,10 +337,6 @@ namespace HSPE
             if (toAdd != null)
                 foreach (DynamicBone db in toAdd)
                     this._dynamicBones.Add(db);
-        }
-
-        void LateUpdate()
-        {
             this.DynamicBoneDraggingLogic();
         }
 

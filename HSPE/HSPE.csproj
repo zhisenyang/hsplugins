@@ -56,7 +56,6 @@
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
       <Name>HSExtSave</Name>
       <Private>False</Private>
-      <SpecificVersion>True</SpecificVersion>
     </ProjectReference>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">
       <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>

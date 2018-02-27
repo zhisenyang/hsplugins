@@ -171,7 +171,7 @@ namespace StudioFileCheck
             return HSUS.HSUS.self.optimizeNeo;
         }
 
-        public static void Postfix(BackgroundList __instance)
+        public static void Postfix(object __instance)
         {
             _parent = (RectTransform)((RectTransform)__instance.GetPrivate("transformRoot")).parent.parent;
 
@@ -188,7 +188,7 @@ namespace StudioFileCheck
                 t.color = Color.white;
         }
 
-        private static void SearchChanged(BackgroundList instance)
+        private static void SearchChanged(object instance)
         {
             Dictionary<int, StudioNode> dicNode = (Dictionary<int, StudioNode>)instance.GetPrivate("dicNode");
             string search = _searchBar.text.Trim();

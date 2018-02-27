@@ -4,8 +4,6 @@
 // MVID: 62AE9985-56CF-46BD-982F-B15D5A0C4B01
 // Assembly location: C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins\ShortcutsHS.dll
 
-using System;
-using System.Collections.Generic;
 using System.Reflection;
 using Harmony;
 using IllusionPlugin;
@@ -16,7 +14,7 @@ namespace HSPE
 {
     public class HSPE : IEnhancedPlugin
     {
-        public static string VersionNum { get { return "2.3.0"; } }
+        public static string VersionNum { get { return "2.4.0"; } }
 
         public string Name { get { return "HSPE"; } }
 

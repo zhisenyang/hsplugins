@@ -44,7 +44,7 @@ namespace HSExtSave
         #region Public Accessors
         public static string logPrefix { get { return "HSExtSave: "; } }
         public string Name { get { return "HSExtSave"; } }
-        public string Version { get { return "1.0.1"; } }
+        public string Version { get { return "1.0.0"; } }
         public string[] Filter { get { return new[] {"StudioNEO_64", "StudioNEO_32", "HoneySelect_64", "HoneySelect_32"}; } }
         #endregion
 
