@@ -1,0 +1,140 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>BegoneThot</RootNamespace>
+    <AssemblyName>BegoneThot</AssemblyName>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+    <WarningLevel>4</WarningLevel>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>BEGONE THOT.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <Page Include="MainWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="BundleLibrary\Half.cs" />
+    <Compile Include="BundleLibrary\HalfHelper.cs" />
+    <Compile Include="BundleLibrary\Lz4\Lz4DecoderStream.cs" />
+    <Compile Include="BundleLibrary\SevenZip\CoderPropID.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZMA\Base.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZMA\Decoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZMA\SevenZipHelper.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZ\BinTree.cs" />
+    <Compile Include="BundleLibrary\SevenZip\CRC.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZ\IInWindowStream.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZ\IMatchFinder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZ\InWindow.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\LZ\OutWindow.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\BitDecoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\BitEncoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\BitTreeDecoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\BitTreeEncoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\Decoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\Compression\RangeCoder\Encoder.cs" />
+    <Compile Include="BundleLibrary\SevenZip\DataErrorException.cs" />
+    <Compile Include="BundleLibrary\SevenZip\ICodeProgress.cs" />
+    <Compile Include="BundleLibrary\SevenZip\InvalidParamException.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\AssetPreloadData.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\AssetsFile.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\BuildSettings.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\BundleFile.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\ClassMember.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\EndianBinaryReader.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\EndianType.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\GameObject.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\PPtr.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\PPtrHelpers.cs" />
+    <Compile Include="BundleLibrary\Unity_Studio\Transform.cs" />
+    <Compile Include="ItemEntry.cs" />
+    <Compile Include="MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <None Include="app.config" />
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="BEGONE THOT.ico" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\HiR_Neo_1.2.2\"</PostBuildEvent>
+  </PropertyGroup>
+</Project>

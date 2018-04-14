@@ -143,6 +143,7 @@ namespace HSPE
         private Toggle _optimizeIKToggle;
         private bool _windowMoving;
         private Image _hspeButtonImage;
+        private int _randomId;
         #endregion
 
         #region Public Accessors
@@ -220,6 +221,8 @@ namespace HSPE
             this.onParentage += oldDelegate;
 
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
+            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
+
         }
 
         protected virtual void Start()
@@ -266,7 +269,7 @@ namespace HSPE
                 {
                     for (int i = 0; i < 3; ++i)
                         GUI.Box(this._advancedModeRect, "");
-                    this._advancedModeRect = GUILayout.Window(50, this._advancedModeRect, this._manualBoneTarget.AdvancedModeWindow, "Advanced mode");
+                    this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._manualBoneTarget.AdvancedModeWindow, "Advanced mode");
                     if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._manualBoneTarget.colliderEditEnabled && this._manualBoneTarget.colliderEditRect.Contains(Event.current.mousePosition)))
                         this._mouseInAdvMode = true;
                     else

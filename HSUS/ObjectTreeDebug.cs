@@ -15,31 +15,38 @@ namespace HSUS
         private Vector2 _scroll;
         private Vector2 _scroll2;
         private Vector2 _scroll3;
-        private readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
-        private bool _debug;
+        private static readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
+        private static bool _debug;
         private Rect _rect = new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f);
+        private int _randomId;
 
-        void OnEnable()
+        void Awake()
         {
             Application.logMessageReceived += this.HandleLog;
+            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
+            for (int i = 0; i < 32; i++)
+            {
+                string n = LayerMask.LayerToName(i);
+                UnityEngine.Debug.Log("Layer " + i + " " + n);
+            }
         }
 
         void Update()
         {
             if (Input.GetKeyDown(HSUS.self.debugShortcut))
-                this._debug = !this._debug;
+                _debug = !_debug;
         }
 
-        void OnDisable()
+        void OnDestroy()
         {
             Application.logMessageReceived -= this.HandleLog;
         }
 
         private void HandleLog(string condition, string stackTrace, LogType type)
         {
-            this._lastlogs.AddLast(new KeyValuePair<LogType, string>(type, type + " " + condition));
-            if (this._lastlogs.Count == 101)
-                this._lastlogs.RemoveFirst();
+            _lastlogs.AddLast(new KeyValuePair<LogType, string>(type, type + " " + condition));
+            if (_lastlogs.Count == 101)
+                _lastlogs.RemoveFirst();
             this._scroll3.y += 999999;
         }
 
@@ -80,9 +87,9 @@ namespace HSUS
 
         void OnGUI()
         {
-            if (this._debug == false)
+            if (_debug == false)
                 return;
-            this._rect = GUILayout.Window(0, this._rect, this.WindowFunc, "Debug Console");
+            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console");
         }
 
         private void WindowFunc(int id)
@@ -109,6 +116,7 @@ namespace HSUS
                 if (GUILayout.Button("Copy to clipboard", GUILayout.ExpandWidth(false)))
                     GUIUtility.systemCopyBuffer = n;
                 GUILayout.EndHorizontal();
+                GUILayout.Label("Layer: " + LayerMask.LayerToName(this._target.gameObject.layer) + " " + this._target.gameObject.layer);
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
                     if (c == null)
@@ -199,7 +207,7 @@ namespace HSUS
             }
             GUILayout.EndScrollView();
             this._scroll3 = GUILayout.BeginScrollView(this._scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 4f));
-            foreach (KeyValuePair<LogType, string> lastlog in this._lastlogs)
+            foreach (KeyValuePair<LogType, string> lastlog in _lastlogs)
             {
                 Color c = GUI.color;
                 switch (lastlog.Key)
@@ -221,9 +229,19 @@ namespace HSUS
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Clear logs", GUILayout.ExpandWidth(false)))
-                this._lastlogs.Clear();
+            if (GUILayout.Button("Clear AssetBundle Cache"))
+            {
+                foreach (KeyValuePair<string, AssetBundleManager.BundlePack> pair in AssetBundleManager.ManifestBundlePack)
+                {
+                    foreach (KeyValuePair<string, LoadedAssetBundle> bundle in new Dictionary<string, LoadedAssetBundle>(pair.Value.LoadedAssetBundles))
+                    {
+                        AssetBundleManager.UnloadAssetBundle(bundle.Key, true, pair.Key);
+                    }
+                }
+            }
             GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Clear logs", GUILayout.ExpandWidth(false)))
+                _lastlogs.Clear();
             if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
                 System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.dataPath, "output_log.txt"));
             GUILayout.EndHorizontal();

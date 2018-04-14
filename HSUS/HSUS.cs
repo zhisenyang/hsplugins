@@ -51,7 +51,7 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.3.0"; } }
+        public string Version { get { return "1.3.1"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }

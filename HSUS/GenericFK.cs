@@ -50,15 +50,26 @@ namespace Studio
                 {
                     foreach (Transform bone in skinnedMeshRenderer.bones)
                     {
-                        if (bone.gameObject.isStatic || activeBones.Contains(bone) || bone == transform)
+                        if (bone == null || activeBones.Contains(bone) || bone == transform)
                             continue;
                         activeBones.Add(bone);
                     }
                 }
                 else if (renderer is MeshRenderer)
                 {
-                    if (renderer.gameObject.isStatic == false && activeBones.Contains(renderer.transform) == false && renderer.transform != transform)
-                        activeBones.Add(renderer.transform);
+                    if (activeBones.Contains(renderer.transform) == false)
+                    {
+                        if (renderer.name.Substring(0, renderer.name.Length - 1).EndsWith("MeshPart") == false)
+                        {
+                            if (renderer.transform != transform)
+                                activeBones.Add(renderer.transform);
+                        }
+                        else if (activeBones.Contains(renderer.transform.parent) == false)
+                        {
+                            if (renderer.transform.parent != transform)
+                                activeBones.Add(renderer.transform.parent);
+                        }
+                    }
                 }
             }
             _ociItem.listBones = new List<OCIChar.BoneInfo>();

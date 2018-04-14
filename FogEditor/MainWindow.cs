@@ -40,6 +40,7 @@ namespace FogEditor
         private bool _advancedMode;
         private Dictionary<Material, int> _dirtyMaterials = new Dictionary<Material, int>();
         private Material _material;
+        private int _randomId;
         #endregion
 
         #region Unity Methods
@@ -62,6 +63,8 @@ namespace FogEditor
             this._defaultHeightFogHeight = this._fog.height;
             this._defaultHeightFogHeightDensity = this._fog.heightDensity;
             this._defaultHeightFogStartDistance = this._fog.startDistance;
+
+            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
         }
 
         void Update()
@@ -92,7 +95,7 @@ namespace FogEditor
         {
             if (!this._enabled)
                 return;
-            this._windowRect = GUILayout.Window(0, this._windowRect, this.WindowFunction, "Fog Editor");
+            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Fog Editor");
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             if (this._mouseInWindow)
                 Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._enabled;

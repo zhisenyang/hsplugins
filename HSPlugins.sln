@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.14
+VisualStudioVersion = 15.0.27130.2036
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HSPE", "HSPE\HSPE.csproj", "{B6448057-F9C2-4E9C-8E18-09C556CFCB46}"
 EndProject
@@ -14,6 +14,12 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HSExtSave", "HSExtSave\HSExtSave.csproj", "{27695E5F-8D1E-41DC-A81C-1F0C1814627C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FogEditor", "FogEditor\FogEditor.csproj", "{AA7D625F-C599-4B63-81BB-97D4B1F938DF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RendererEditor", "RendererEditor\RendererEditor.csproj", "{A7B48165-66A9-49C6-9C99-B24CDFA9501C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BegoneThot", "BegoneThot\BegoneThot.csproj", "{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SB3UDebug", "SB3UDebug\SB3UDebug.csproj", "{6A31E40C-1041-4E54-9081-653C350B66A8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +51,18 @@ Global
 		{AA7D625F-C599-4B63-81BB-97D4B1F938DF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AA7D625F-C599-4B63-81BB-97D4B1F938DF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AA7D625F-C599-4B63-81BB-97D4B1F938DF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A7B48165-66A9-49C6-9C99-B24CDFA9501C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A7B48165-66A9-49C6-9C99-B24CDFA9501C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A7B48165-66A9-49C6-9C99-B24CDFA9501C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A7B48165-66A9-49C6-9C99-B24CDFA9501C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8B1DBDF6-BB98-46C5-A4EA-DAA5D899BE59}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6A31E40C-1041-4E54-9081-653C350B66A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A31E40C-1041-4E54-9081-653C350B66A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A31E40C-1041-4E54-9081-653C350B66A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A31E40C-1041-4E54-9081-653C350B66A8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
