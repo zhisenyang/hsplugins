@@ -152,7 +152,7 @@ namespace HSPE
         public Dictionary<string, string> boneAliases { get; } = new Dictionary<string, string>();
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
         public IKExecutionOrder ikExecutionOrder { get { return this._ikExecutionOrder; } }
-        public float uiScale { get; private set; }
+        public float uiScale { get; private set; } = 1f;
         #endregion
 
         #region Unity Methods

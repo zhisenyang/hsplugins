@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
@@ -23,6 +24,7 @@ namespace HSPE
             BonesPosition = 0,
             BoobsEditor,
             DynamicBonesEditor,
+            BlendShapes,
             Count
         }
 
@@ -111,6 +113,27 @@ namespace HSPE
             }
         }
 
+        private class SkinnedMeshRendererData
+        {
+            public Dictionary<int, BlendShapeData> dirtyBlendShapes = new Dictionary<int, BlendShapeData>();
+
+            public SkinnedMeshRendererData() { }
+
+            public SkinnedMeshRendererData(SkinnedMeshRendererData other)
+            {
+                foreach (KeyValuePair<int, BlendShapeData> kvp in other.dirtyBlendShapes)
+                {
+                    this.dirtyBlendShapes.Add(kvp.Key, new BlendShapeData(){weight = kvp.Value.weight, originalWeight = kvp.Value.originalWeight});
+                }
+            }
+        }
+
+        private class BlendShapeData
+        {
+            public float weight;
+            public float originalWeight;
+        }
+
         private delegate void TabDelegate();
         #endregion
 
@@ -127,6 +150,20 @@ namespace HSPE
         #region Private Variables
         private const float _boobsDragRadius = 0.05f;
         private const float _dynamicBonesDragRadius = 0.025f;
+        private static readonly Dictionary<string, string> _skinnedMeshAliases = new Dictionary<string, string>()
+        {
+            {"cf_O_head",  "Eyes/Mouth"},
+            {"cf_O_ha",  "Teeth"},
+            {"cf_O_matuge",  "Eyelashes"},
+            {"cf_O_mayuge",  "Eyebrows"},
+            {"cf_O_sita",  "Tongue"},
+
+            {"cm_O_head",  "Eyes/Mouth"},
+            {"cm_O_ha",  "Teeth"},
+            {"cm_O_mayuge",  "Eyebrows"},
+            {"cm_O_sita",  "Tongue"},
+            {"O_hige00",  "Jaw"},
+        };
 
         private FullBodyBipedIK _body;
         private CameraGL _cam;
@@ -147,6 +184,7 @@ namespace HSPE
         private readonly Dictionary<GameObject, OCIChar.BoneInfo> _fkObjects = new Dictionary<GameObject, OCIChar.BoneInfo>();
         private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
         private List<DynamicBone> _dynamicBones = new List<DynamicBone>();
+        private List<SkinnedMeshRenderer> _skinnedMeshRenderers = new List<SkinnedMeshRenderer>();
         private CoordType _boneEditionCoordType = CoordType.Rotation;
         private Vector2 _boneEditionScroll;
         private float _inc = 1f;
@@ -155,6 +193,10 @@ namespace HSPE
         private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyBoobs = new Dictionary<DynamicBone_Ver02, BoobData>(2);
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
         private readonly Dictionary<DynamicBone, DynamicBoneData> _dirtyDynamicBones = new Dictionary<DynamicBone, DynamicBoneData>();
+        private readonly Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData> _dirtySkinnedMeshRenderers = new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData>();
+        private readonly HashSet<SkinnedMeshRenderer> _eyesSkinnedMeshRenderers = new HashSet<SkinnedMeshRenderer>();
+        private readonly HashSet<SkinnedMeshRenderer> _mouthSkinnedMeshRenderers = new HashSet<SkinnedMeshRenderer>();
+        private int _eyesShapesCount = Int32.MaxValue;
 
         private bool _isFemale = false;
         private float _cachedSpineStiffness;
@@ -188,6 +230,9 @@ namespace HSPE
         private DynamicBone _draggedDynamicBone;
         private Vector2 _shortcutsScroll;
         private Material _purpleMat;
+        private SkinnedMeshRenderer _skinnedMeshTarget;
+        private Vector2 _skinnedMeshRenderersScroll;
+        private Vector2 _blendShapesScroll;
         #endregion
 
         #region Public Accessors
@@ -227,6 +272,7 @@ namespace HSPE
             this._tabFunctions.Add(SelectedTab.BonesPosition, this.BonesPosition);
             this._tabFunctions.Add(SelectedTab.BoobsEditor, this.BoobsEditor);
             this._tabFunctions.Add(SelectedTab.DynamicBonesEditor, this.DynamicBonesEditor);
+            this._tabFunctions.Add(SelectedTab.BlendShapes, this.BlendShapes);
             this._effectorToIndex.Add(FullBodyBipedEffector.Body, 0);
             this._effectorToIndex.Add(FullBodyBipedEffector.LeftShoulder, 1);
             this._chainToIndex.Add(FullBodyBipedChain.LeftArm, 2);
@@ -254,6 +300,7 @@ namespace HSPE
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
             this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
+            this._skinnedMeshRenderers = this.GetComponentsInChildren<SkinnedMeshRenderer>(true).ToList();
             MainWindow.self.onParentage += this.OnParentage;
             MainWindow.self.onPostUpdate += this.OnPostUpdate;
         }
@@ -265,6 +312,19 @@ namespace HSPE
 
             if (this._isFemale)
             {
+                foreach (FBSTargetInfo target in this.chara.charBody.eyesCtrl.FBSTarget)
+                {
+                    SkinnedMeshRenderer renderer = target.GetSkinnedMeshRenderer();
+                    if (this._eyesSkinnedMeshRenderers.Contains(renderer) == false)
+                        this._eyesSkinnedMeshRenderers.Add(renderer);
+                    if (renderer.sharedMesh.blendShapeCount < this._eyesShapesCount)
+                        this._eyesShapesCount = renderer.sharedMesh.blendShapeCount;
+                }
+                foreach (FBSTargetInfo target in this.chara.charBody.mouthCtrl.FBSTarget)
+                {
+                    if (this._mouthSkinnedMeshRenderers.Contains(target.GetSkinnedMeshRenderer()) == false)
+                        this._mouthSkinnedMeshRenderers.Add(target.GetSkinnedMeshRenderer());
+                }
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
@@ -307,37 +367,74 @@ namespace HSPE
             else
                 this._repeatTimer = 0f;
             this._repeatCalled = false;
-            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
-            List<DynamicBone> toDelete = null;
-            foreach (DynamicBone db in this._dynamicBones)
-                if (dynamicBones.Contains(db) == false)
-                {
-                    if (toDelete == null)
-                        toDelete = new List<DynamicBone>();
-                    toDelete.Add(db);
-                }
-            if (toDelete != null)
+
             {
-                foreach (DynamicBone db in toDelete)
+                DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
+                List<DynamicBone> toDelete = null;
+                foreach (DynamicBone db in this._dynamicBones)
+                    if (dynamicBones.Contains(db) == false)
+                    {
+                        if (toDelete == null)
+                            toDelete = new List<DynamicBone>();
+                        toDelete.Add(db);
+                    }
+                if (toDelete != null)
                 {
-                    if (this._dirtyDynamicBones.ContainsKey(db))
-                        this._dirtyDynamicBones.Remove(db);
-                    this._dynamicBones.Remove(db);
+                    foreach (DynamicBone db in toDelete)
+                    {
+                        if (this._dirtyDynamicBones.ContainsKey(db))
+                            this._dirtyDynamicBones.Remove(db);
+                        this._dynamicBones.Remove(db);
+                    }
+                    this._dynamicBoneTarget = null;
                 }
-                this._dynamicBoneTarget = null;
+                List<DynamicBone> toAdd = null;
+                foreach (DynamicBone db in dynamicBones)
+                    if (this._dynamicBones.Contains(db) == false)
+                    {
+                        if (toAdd == null)
+                            toAdd = new List<DynamicBone>();
+                        toAdd.Add(db);
+                    }
+                if (toAdd != null)
+                    foreach (DynamicBone db in toAdd)
+                        this._dynamicBones.Add(db);
+                this.DynamicBoneDraggingLogic();
             }
-            List<DynamicBone> toAdd = null;
-            foreach (DynamicBone db in dynamicBones)
-                if (this._dynamicBones.Contains(db) == false)
+
+            {
+                SkinnedMeshRenderer[] skinnedMeshRenderers = this.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                List<SkinnedMeshRenderer> toDelete = null;
+                foreach (SkinnedMeshRenderer r in this._skinnedMeshRenderers)
+                    if (skinnedMeshRenderers.Contains(r) == false)
+                    {
+                        if (toDelete == null)
+                            toDelete = new List<SkinnedMeshRenderer>();
+                        toDelete.Add(r);
+                    }
+                if (toDelete != null)
                 {
-                    if (toAdd == null)
-                        toAdd = new List<DynamicBone>();
-                    toAdd.Add(db);
+                    foreach (SkinnedMeshRenderer r
+                        in toDelete)
+                    {
+                        if (this._dirtySkinnedMeshRenderers.ContainsKey(r))
+                            this._dirtySkinnedMeshRenderers.Remove(r);
+                        this._skinnedMeshRenderers.Remove(r);
+                    }
+                    this._dynamicBoneTarget = null;
                 }
-            if (toAdd != null)
-                foreach (DynamicBone db in toAdd)
-                    this._dynamicBones.Add(db);
-            this.DynamicBoneDraggingLogic();
+                List<SkinnedMeshRenderer> toAdd = null;
+                foreach (SkinnedMeshRenderer r in skinnedMeshRenderers)
+                    if (this._skinnedMeshRenderers.Contains(r) == false)
+                    {
+                        if (toAdd == null)
+                            toAdd = new List<SkinnedMeshRenderer>();
+                        toAdd.Add(r);
+                    }
+                if (toAdd != null)
+                    foreach (SkinnedMeshRenderer r in toAdd)
+                        this._skinnedMeshRenderers.Add(r);
+            }
         }
 
         void OnDestroy()
@@ -462,8 +559,21 @@ namespace HSPE
 
                     }
                 }
+
+                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in other._dirtySkinnedMeshRenderers)
+                {
+                    Transform obj = this.transform.FindChild(kvp.Key.transform.GetPathFrom(other.transform));
+                    if (obj != null)
+                    {
+                        SkinnedMeshRenderer renderer = obj.GetComponent<SkinnedMeshRenderer>();
+                        this._dirtySkinnedMeshRenderers.Add(renderer, new SkinnedMeshRendererData(kvp.Value));
+                    }
+                }
                 this._dynamicBonesScroll = other._dynamicBonesScroll;
                 this._boneEditionScroll = other._boneEditionScroll;
+                this._blendShapesScroll = other._blendShapesScroll;
+                this._skinnedMeshRenderersScroll = other._skinnedMeshRenderersScroll;
+                this._shortcutsScroll = other._shortcutsScroll;
             }, 2);
         }
 
@@ -1517,6 +1627,113 @@ namespace HSPE
             GUILayout.EndHorizontal();
         }
 
+        private void BlendShapes()
+        {
+            Color c = GUI.color;
+            GUILayout.BeginHorizontal();
+
+            GUILayout.BeginVertical(GUILayout.ExpandWidth(false));
+
+            this._skinnedMeshRenderersScroll = GUILayout.BeginScrollView(this._skinnedMeshRenderersScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
+            foreach (SkinnedMeshRenderer r in this._skinnedMeshRenderers)
+            {
+                if (r.sharedMesh.blendShapeCount == 0)
+                    continue;
+                if (this._dirtySkinnedMeshRenderers.ContainsKey(r))
+                    GUI.color = Color.magenta;
+                if (ReferenceEquals(r, this._skinnedMeshTarget))
+                    GUI.color = Color.cyan;
+                string dName;
+                if (_skinnedMeshAliases.TryGetValue(r.name, out dName) == false)
+                    dName = r.name;
+                if (GUILayout.Button(dName + (this._dirtySkinnedMeshRenderers.ContainsKey(r) ? "*" : "")))
+                    this._skinnedMeshTarget = r;
+                GUI.color = c;
+            }
+            GUILayout.EndScrollView();
+
+            GUI.color = Color.red;
+            if (this._skinnedMeshTarget != null && GUILayout.Button("Reset"))
+                this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
+            GUI.color = c;
+
+            GUILayout.EndVertical();
+
+            this._blendShapesScroll = GUILayout.BeginScrollView(this._blendShapesScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
+            if (this._skinnedMeshTarget != null)
+            {
+                SkinnedMeshRendererData data = null;
+                this._dirtySkinnedMeshRenderers.TryGetValue(this._skinnedMeshTarget, out data);
+                bool eyesSkinnedMesh = this._eyesSkinnedMeshRenderers.Contains(this._skinnedMeshTarget);
+                bool mouthSkinnedMeth = this._mouthSkinnedMeshRenderers.Contains(this._skinnedMeshTarget);
+                for (int i = 0; i < this._skinnedMeshTarget.sharedMesh.blendShapeCount; ++i)
+                {
+                    if (eyesSkinnedMesh && mouthSkinnedMeth)
+                    {
+                        if (i == 0)
+                            GUILayout.Label("Eyes");
+                        else if (i == this._eyesShapesCount)
+                            GUILayout.Label("Mouth");
+                    }
+
+                    GUILayout.BeginHorizontal();
+                    float blendShapeWeight;
+
+                    BlendShapeData bsData;
+                    if (data != null && data.dirtyBlendShapes.TryGetValue(i, out bsData))
+                    {
+                        blendShapeWeight = bsData.weight;
+                        GUI.color = Color.magenta;
+                    }
+                    else
+                        blendShapeWeight = this._skinnedMeshTarget.GetBlendShapeWeight(i);
+                    if (eyesSkinnedMesh || mouthSkinnedMeth)
+                    {
+                        int realI = i;
+                        if (realI >= this._eyesShapesCount)
+                            realI -= this._eyesShapesCount;
+                        realI /= 2;
+                        GUILayout.Label(string.Format("{0}{1}", realI, i % 2 == 0 ? " (closed)" : " (opened)"), GUILayout.ExpandWidth(false));
+                    }
+                    else
+                        GUILayout.Label(i.ToString(), GUILayout.ExpandWidth(false));
+                    int newBlendShapeWeight = Mathf.RoundToInt(GUILayout.HorizontalSlider(blendShapeWeight, 0f, 100f));
+                    if (Mathf.Approximately(newBlendShapeWeight, blendShapeWeight) == false)
+                    {
+                        data = this.SetMeshRendererDirty(this._skinnedMeshTarget);
+                        if (data.dirtyBlendShapes.TryGetValue(i, out bsData) == false)
+                        {
+                            bsData = new BlendShapeData();
+                            bsData.originalWeight = blendShapeWeight;
+                            data.dirtyBlendShapes.Add(i, bsData);
+                        }
+                        bsData.weight = newBlendShapeWeight;
+                    }
+                    GUILayout.Label(newBlendShapeWeight.ToString("000"), GUILayout.ExpandWidth(false));
+
+                    GUI.color = Color.red;
+
+                    if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && data != null && data.dirtyBlendShapes.TryGetValue(i, out bsData))
+                    {
+                        this._skinnedMeshTarget.SetBlendShapeWeight(i, bsData.originalWeight);
+                        data.dirtyBlendShapes.Remove(i);
+                        if (data.dirtyBlendShapes.Count == 0)
+                            this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
+                    }
+                    GUILayout.EndHorizontal();
+                    GUI.color = c;
+                }
+
+            }
+            else
+            {
+                GUILayout.FlexibleSpace();
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.EndHorizontal();
+        }
+
         private void DisplaySingleBoob(DynamicBone_Ver02 boob)
         {
             GUILayout.BeginVertical();
@@ -1809,6 +2026,13 @@ namespace HSPE
                 if (kvp.Value.force.hasValue)
                     kvp.Key.Force = kvp.Value.force;
             }
+            foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
+            {
+                foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
+                {
+                    kvp.Key.SetBlendShapeWeight(weight.Key, weight.Value.weight);
+                }
+            }
         }
 
         private Transform GetTwinBone(Transform bone)
@@ -2033,6 +2257,30 @@ namespace HSPE
         private bool IsDynamicBoneDirty(DynamicBone bone)
         {
             return this._dirtyDynamicBones.ContainsKey(bone);
+        }
+
+        private void SetMeshRendererNotDirty(SkinnedMeshRenderer renderer)
+        {
+            if (this._dirtySkinnedMeshRenderers.ContainsKey(renderer))
+            {
+                SkinnedMeshRendererData data = this._dirtySkinnedMeshRenderers[renderer];
+                foreach (KeyValuePair<int, BlendShapeData> kvp in data.dirtyBlendShapes)
+                {
+                    renderer.SetBlendShapeWeight(kvp.Key, kvp.Value.originalWeight);
+                }
+                this._dirtySkinnedMeshRenderers.Remove(renderer);
+            }
+        }
+
+        private SkinnedMeshRendererData SetMeshRendererDirty(SkinnedMeshRenderer bone)
+        {
+            SkinnedMeshRendererData data;
+            if (this._dirtySkinnedMeshRenderers.TryGetValue(bone, out data) == false)
+            {
+                data = new SkinnedMeshRendererData();
+                this._dirtySkinnedMeshRenderers.Add(bone, data);
+            }
+            return data;
         }
 
         private void DrawGizmos()
@@ -2481,6 +2729,27 @@ namespace HSPE
                 }
                 xmlWriter.WriteEndElement();
             }
+            if (this._dirtySkinnedMeshRenderers.Count != 0)
+            {
+                xmlWriter.WriteStartElement("skinnedMeshes");
+                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
+                {
+                    xmlWriter.WriteStartElement("skinnedMesh");
+                    xmlWriter.WriteAttributeString("name", kvp.Key.transform.GetPathFrom(this.transform));
+
+                    foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
+                    {
+                        xmlWriter.WriteStartElement("blendShape");
+                        xmlWriter.WriteAttributeString("index", XmlConvert.ToString(weight.Key));
+                        xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(weight.Value.weight));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    xmlWriter.WriteEndElement();
+                    ++written;
+                }
+                xmlWriter.WriteEndElement();
+            }
             return written;
         }
 
@@ -2652,7 +2921,6 @@ namespace HSPE
                         continue;
                     DynamicBoneData data = new DynamicBoneData();
 
-
                     if (node.Attributes["weight"] != null)
                     {
                         float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
@@ -2685,6 +2953,24 @@ namespace HSPE
                     }
                     if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue)
                         this._dirtyDynamicBones.Add(db, data);
+                }
+            }
+            XmlNode skinnedMeshesNode = xmlNode.FindChildNode("skinnedMeshes");
+            if (skinnedMeshesNode != null)
+            {
+                foreach (XmlNode node in skinnedMeshesNode.ChildNodes)
+                {
+                    SkinnedMeshRenderer renderer = this.transform.FindChild(node.Attributes["name"].Value).GetComponent<SkinnedMeshRenderer>();
+                    SkinnedMeshRendererData data = new SkinnedMeshRendererData();
+                    foreach (XmlNode childNode in node.ChildNodes)
+                    {
+                        int index = XmlConvert.ToInt32(childNode.Attributes["index"].Value);
+                        BlendShapeData bsData = new BlendShapeData();
+                        bsData.originalWeight = renderer.GetBlendShapeWeight(index);
+                        bsData.weight = XmlConvert.ToSingle(childNode.Attributes["weight"].Value);
+                        data.dirtyBlendShapes.Add(index, bsData);
+                    }
+                    this._dirtySkinnedMeshRenderers.Add(renderer, data);
                 }
             }
         }

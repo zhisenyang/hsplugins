@@ -186,5 +186,18 @@ namespace MoreAccessories
                 yield return null;
             action();
         }
+
+        public static Transform FindDescendant(this Transform self, string name)
+        {
+            if (self.name.Equals(name))
+                return self;
+            foreach (Transform t in self)
+            {
+                Transform res = t.FindDescendant(name);
+                if (res != null)
+                    return res;
+            }
+            return null;
+        }
     }
 }

@@ -226,8 +226,15 @@ namespace MoreAccessories
             }
             try
             {
-                CharReference.RefObjKey key = (CharReference.RefObjKey)(int)Enum.Parse(typeof(CharReference.RefObjKey), parentStr);
-                GameObject referenceInfo = charBody.chaInfo.GetReferenceInfo(key);
+                GameObject referenceInfo;
+                Transform parentTransform = charBody.transform.Find(parentStr);
+                if (parentTransform != null)
+                    referenceInfo = parentTransform.gameObject;
+                else
+                {
+                    CharReference.RefObjKey key = (CharReference.RefObjKey)(int)Enum.Parse(typeof(CharReference.RefObjKey), parentStr);
+                    referenceInfo = charBody.chaInfo.GetReferenceInfo(key);                    
+                }
                 if (null == referenceInfo)
                 {
                     return false;

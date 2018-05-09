@@ -1,15 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using CustomMenu;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
+using UILib;
 using UnityEngine;
 using UnityEngine.UI;
+using Vectrosity;
 
 namespace MoreAccessories
 {
     public class SmMoreAccessories : SubMenuBase
     {
+        #region Private Types
+        private class CopySlot
+        {
+            public Toggle toggle;
+            public Text text;
+        }
+
+        private class ObjectData
+        {
+            public int key;
+            public Toggle toggle;
+            public Text text;
+            public GameObject obj;
+        }
+        #endregion
+
         #region Protected Variables
         protected readonly float[] movePosValue = {
             0.1f,
@@ -39,7 +58,9 @@ namespace MoreAccessories
         protected Toggle[] tglType = new Toggle[13];
         protected int acsType;
         protected Toggle[] tglParent = new Toggle[29];
+        protected List<Toggle> additionalTglParent = new List<Toggle>();
         protected Dictionary<string, int> dictParentKey = new Dictionary<string, int>();
+        protected Dictionary<string, int> dictAdditionalParentKey = new Dictionary<string, int>();
         protected string[] strParentKey = {
             "AP_Head",
             "AP_Megane",
@@ -71,8 +92,6 @@ namespace MoreAccessories
             "AP_Ankle_L",
             "AP_Ankle_R"
         };
-        protected Text[] txtDstCopy = new Text[10];
-        protected Text[] txtSrcCopy = new Text[10];
         protected List<GameObject> lstTagColor = new List<GameObject>();
         protected bool initEnd;
         protected bool flagMovePos;
@@ -112,9 +131,19 @@ namespace MoreAccessories
         public InputField inputSclX;
         public InputField inputSclY;
         public InputField inputSclZ;
-        public Toggle[] tglDstCopy;
-        public Toggle[] tglSrcCopy;
         public Toggle tglReversal;
+        #endregion
+
+        #region Private Variables
+        private readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
+        private int _lastType;
+        private int _lastId;
+        private RectTransform _container;
+        private InputField _searchBar;
+        private readonly List<CopySlot> _dstCopy = new List<CopySlot>();
+        private readonly List<CopySlot> _srcCopy = new List<CopySlot>();
+        private Toggle _debugParentToggle;
+        private List<VectorLine> _debugVectorLines = new List<VectorLine>();
         #endregion
 
         #region Public Accessors
@@ -126,6 +155,7 @@ namespace MoreAccessories
         {
             if (this.initEnd)
                 MoreAccessories.self.CustomControl_UpdateAcsName();
+            this.DebugParentChanged(true);
         }
 
         public new virtual void Start()
@@ -176,6 +206,22 @@ namespace MoreAccessories
                         this.loopTimeCnt -= 0.05f;
                     }
                 }
+            }
+        }
+
+        void LateUpdate()
+        {
+            foreach (VectorLine line in this._debugVectorLines)
+            {
+                line.Draw();
+            }
+        }
+
+        void OnDisable()
+        {
+            foreach (VectorLine line in this._debugVectorLines)
+            {
+                line.active = false;
             }
         }
         #endregion
@@ -239,7 +285,6 @@ namespace MoreAccessories
             this.inputRotZ.onEndEdit = new InputField.SubmitEvent();
             this.inputRotZ.onEndEdit.AddListener((s) => this.OnInputEndRot(2));
 
-
             this.inputSclX = this.transform.Find(original.inputSclX.transform.GetListPathFrom(original.transform)).GetComponent<InputField>();
             this.inputSclX.onEndEdit = new InputField.SubmitEvent();
             this.inputSclX.onEndEdit.AddListener((s) => this.OnInputEndScl(0));
@@ -253,13 +298,38 @@ namespace MoreAccessories
             this.inputSclZ.onEndEdit.AddListener((s) => this.OnInputEndScl(2));
 
 
-            this.tglDstCopy = new Toggle[original.tglDstCopy.Length];
-            for (int i = 0; i < this.tglDstCopy.Length; i++)
-                this.tglDstCopy[i] = this.transform.Find(original.tglDstCopy[i].transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
+            for (int i = 0; i < original.tglDstCopy.Length; i++)
+            {
+                CopySlot slot = new CopySlot();
+                slot.toggle = this.transform.Find(original.tglDstCopy[i].transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
+                slot.text = slot.toggle.GetComponentInChildren<Text>();
+                slot.text.text = "アクセサリ" + (i + 1).ToString("00");
+                slot.toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                this._dstCopy.Add(slot);
+            }
+            VerticalLayoutGroup group = this._dstCopy[0].toggle.transform.parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            this.tglSrcCopy = new Toggle[original.tglSrcCopy.Length];
-            for (int i = 0; i < this.tglSrcCopy.Length; i++)
-                this.tglSrcCopy[i] = this.transform.Find(original.tglSrcCopy[i].transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
+            group = group.transform.parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            for (int i = 0; i < original.tglSrcCopy.Length; i++)
+            {
+                CopySlot slot = new CopySlot();
+                slot.toggle = this.transform.Find(original.tglSrcCopy[i].transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
+                slot.text = slot.toggle.GetComponentInChildren<Text>();
+                slot.text.text = "アクセサリ" + (i + 1).ToString("00");
+                slot.toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                this._srcCopy.Add(slot);
+            }
+            group = this._srcCopy[0].toggle.transform.parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            group = group.transform.parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             this.tglReversal = this.transform.Find(original.tglReversal.transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
 
@@ -270,10 +340,171 @@ namespace MoreAccessories
             this.SetChangeValueSharpnessHandler(this.sldSharpness[1], 1);
             this.SetInputEndSharpnessHandler(this.inputSharpness[0], 0);
             this.SetInputEndSharpnessHandler(this.inputSharpness[1], 1);
+
+            this._container = this.transform.FindDescendant("ListTop").transform as RectTransform;
+            group = this._container.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.childForceExpandHeight = false;
+            ContentSizeFitter fitter = this._container.gameObject.AddComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            this.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            group = this.rtfPanel.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.childForceExpandHeight = false;
+
+            RectTransform rt = this.transform.FindChild("TabControl/TabItem02") as RectTransform;
+            this._debugParentToggle = UIUtility.CreateToggle("Debug Parent Toggle", rt, "Debug Position");
+            this._debugParentToggle.transform.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -224f), new Vector2(214f, -204f));
+            this._debugParentToggle.onValueChanged.AddListener(this.DebugParentChanged);
+            this._debugParentToggle.isOn = false;
+            Text t = this._debugParentToggle.GetComponentInChildren<Text>();
+            t.alignment = TextAnchor.MiddleLeft;
+            t.color = Color.white;
+
+            foreach (Sprite s in Resources.FindObjectsOfTypeAll<Sprite>())
+            {
+                switch (s.name)
+                {
+                    case "toggle_b":
+                        this._debugParentToggle.transform.Find("Background").GetComponent<Image>().sprite = s;
+                        break;
+                    case "toggle_c":
+                        (this._debugParentToggle.graphic as Image).sprite = s;
+                        break;
+                }
+            }
+
+            {
+                float size = 0.012f;
+                Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
+                    topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
+                    bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
+                    bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
+                    topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
+                    topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
+                    bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
+                    bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topLeftForward, topRightForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topRightForward, bottomRightForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomRightForward, bottomLeftForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomLeftForward, topLeftForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topRightBack));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topRightBack, bottomRightBack));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomLeftBack));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, topLeftBack));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topLeftForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, topRightBack, topRightForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
+
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.red, Vector3.zero, Vector3.right * size * 2));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.green, Vector3.zero, Vector3.up * size * 2));
+                this._debugVectorLines.Add(VectorLine.SetLine(Color.Lerp(Color.blue, Color.cyan, 0.5f), Vector3.zero, Vector3.forward * size * 2));
+
+                foreach (VectorLine line in this._debugVectorLines)
+                {
+                    line.lineWidth = 2f;
+                    line.active = false;
+                }
+            }
+
         }
 
         public virtual void Init()
         {
+            Type type = Type.GetType("HSUS.HSUS,HSUS");
+            if (type != null && (bool)type.GetProperty("optimizeCharaMaker").GetValue(type.GetProperty("self").GetValue(null, null), null))
+            {
+                RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
+                rt.offsetMax += new Vector2(0f, -24f);
+                float newY = rt.offsetMax.y;
+                rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
+                rt.offsetMax += new Vector2(0f, -24f);
+
+                this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
+                this._searchBar.GetComponent<Image>().sprite = (Sprite)type.GetProperty("searchBarBackground").GetValue(type.GetProperty("self").GetValue(null, null), null);
+                foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
+
+                rt = this._searchBar.transform as RectTransform;
+                rt.localPosition = Vector3.zero;
+                rt.localScale = Vector3.one;
+                rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
+                this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
+                this._searchBar.onValueChanged.AddListener(this.SearchChanged);
+            }
+
+            {
+                RectTransform parentCategory = this.transform.FindChild("TabControl/TabItem02/ParentCategory") as RectTransform;
+                RectTransform defaultContainer = UIUtility.CreateNewUIObject(parentCategory, "Default Container");
+                defaultContainer.SetRect(0f, 1f, 1f, 1f, 0f, -196f, -4f, 0f);
+                defaultContainer.gameObject.AddComponent<LayoutElement>().preferredHeight = 196f;
+                int i = 0;
+                while (parentCategory.childCount != 1)
+                {
+                    Transform child = parentCategory.GetChild(i);
+                    if (child != defaultContainer)
+                    {
+                        child.SetParent(defaultContainer, true);
+                        child.localPosition -= new Vector3(8f, 0f);
+                    }
+                    else
+                        ++i;
+                }
+
+                ScrollRect scrollRect = UIUtility.CreateScrollView("ScrollView", parentCategory);
+                scrollRect.transform.SetRect(defaultContainer);
+                Destroy(scrollRect.GetComponent<Image>());
+                scrollRect.scrollSensitivity *= 30f;
+
+                foreach (Sprite s in Resources.FindObjectsOfTypeAll<Sprite>())
+                {
+                    switch (s.name)
+                    {
+                        case "rect_all":
+                            scrollRect.verticalScrollbar.GetComponent<Image>().sprite = s;
+                            break;
+                        case "scl_handle":
+                            scrollRect.verticalScrollbar.handleRect.GetComponent<Image>().sprite = s;
+                            break;
+                    }
+                }
+
+                defaultContainer.SetParent(scrollRect.content, true);
+                VerticalLayoutGroup group = scrollRect.content.gameObject.AddComponent<VerticalLayoutGroup>();
+                group.childForceExpandWidth = true;
+                group.childForceExpandHeight = false;
+                group.padding = new RectOffset(8, 0, 0, 0);
+                group.spacing = 2f;
+                scrollRect.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+                RawImage separator = UIUtility.CreateRawImage("Separator", scrollRect.content);
+                separator.gameObject.AddComponent<LayoutElement>().preferredHeight = 2f;
+
+                string[] moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths;
+
+                for (int index = 0; index < moreAttachPointsPaths.Length; index++)
+                {
+                    string path = moreAttachPointsPaths[index];
+                    Toggle toggle = GameObject.Instantiate(defaultContainer.GetChild(0).gameObject).GetComponent<Toggle>();
+                    toggle.transform.SetParent(scrollRect.content);
+                    toggle.isOn = false;
+                    string n = this.chaBody.transform.Find(path).name;
+                    //if (n.StartsWith("cf_J_"))
+                        n = n.Substring(5);
+                    toggle.GetComponentInChildren<Text>().text = n;
+                    toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
+                    toggle.transform.localScale *= 1.5f;
+                    toggle.onValueChanged = new Toggle.ToggleEvent();
+                    int index1 = index;
+                    toggle.onValueChanged.AddListener((b) => this.OnChangeAccessoryParent(index1 + 29));
+                    this.additionalTglParent.Add(toggle);
+                    this.dictAdditionalParentKey.Add(path, index1 + 29);
+                }
+            }
+
+
             for (int i = 0; i < this.strParentKey.Length; i++)
                 this.dictParentKey[this.strParentKey[i]] = i;
             GameObject gameObject = this.transform.FindLoop("TypeCategory");
@@ -298,49 +529,83 @@ namespace MoreAccessories
                         this.tglParent[k] = gameObject4.GetComponent<Toggle>();
                 }
             }
-            for (int l = 0; l < 10; l++)
-            {
-                Transform transform = this.tglDstCopy[l].transform.FindChild("Label");
-                if (transform)
-                {
-                    this.txtDstCopy[l] = transform.GetComponent<Text>();
-                    this.txtDstCopy[l].text = "アクセサリ" + (l + 1).ToString("00");
-                }
-                transform = this.tglSrcCopy[l].transform.FindChild("Label");
-                if (transform)
-                {
-                    this.txtSrcCopy[l] = transform.GetComponent<Text>();
-                    this.txtSrcCopy[l].text = "アクセサリ" + (l + 1).ToString("00");
-                }
-            }
             this.initEnd = true;
         }
 
 
         public virtual void OnEnableSetListAccessoryName()
         {
-            for (int i = 0; i < 10; i++)
+            int count = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory.Count + 10;
+            for (int i = 0; i < count; i++)
             {
-                string acsName = this.customControl.GetAcsName(i, 10, true, false);
-                if (this.txtDstCopy[i])
-                    this.txtDstCopy[i].text = acsName;
-                if (this.txtSrcCopy[i])
-                    this.txtSrcCopy[i].text = acsName;
+                string acsName;
+                if (i < 10)
+                    acsName = this.customControl.GetAcsName(i, 14, true, false);
+                else
+                    acsName = MoreAccessories.self.CustomControl_GetAcsName(i - 10, 14, true, false);
+                this._dstCopy[i].text.text = acsName;
+                this._srcCopy[i].text.text = acsName;
             }
+        }
+
+        public void UpdateUI()
+        {
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.charaMakerAdditionalData;
+            int i;
+            for (i = 0; i < additionalData.clothesInfoAccessory.Count + 10; i++)
+            {
+                CopySlot dst;
+                CopySlot src;
+                if (i < this._dstCopy.Count)
+                {
+                    dst = this._dstCopy[i];
+                    src = this._srcCopy[i];
+                    dst.toggle.gameObject.SetActive(true);
+                    src.toggle.gameObject.SetActive(true);
+                }
+                else
+                {
+                    dst = new CopySlot();
+                    dst.toggle = Instantiate(this._dstCopy[0].toggle.gameObject).GetComponent<Toggle>();
+                    dst.toggle.transform.SetParent(this._dstCopy[0].toggle.transform.parent, false);
+                    dst.toggle.transform.SetAsLastSibling();
+                    dst.toggle.isOn = false;
+                    dst.text = dst.toggle.GetComponentInChildren<Text>();
+                    dst.text.text = "アクセサリ" + (i + 1).ToString("00");
+                    dst.toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    this._dstCopy.Add(dst);
+
+                    src = new CopySlot();
+                    src.toggle = Instantiate(this._srcCopy[0].toggle.gameObject).GetComponent<Toggle>();
+                    src.toggle.transform.SetParent(this._srcCopy[0].toggle.transform.parent, false);
+                    src.toggle.transform.SetAsLastSibling();
+                    src.toggle.isOn = false;
+                    src.text = src.toggle.GetComponentInChildren<Text>();
+                    src.text.text = "アクセサリ" + (i + 1).ToString("00");
+                    src.toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    this._srcCopy.Add(src);
+                }
+            }
+            for (; i < this._dstCopy.Count; i++)
+            {
+                this._dstCopy[i].toggle.gameObject.SetActive(false);
+                this._srcCopy[i].toggle.gameObject.SetActive(false);
+            }
+            this.OnEnableSetListAccessoryName();
         }
 
         public virtual int CheckDstSelectNo()
         {
-            for (int i = 0; i < this.tglDstCopy.Length; i++)
-                if (this.tglDstCopy[i].isOn)
+            for (int i = 0; i < this._dstCopy.Count; i++)
+                if (this._dstCopy[i].toggle.isOn)
                     return i;
             return 0;
         }
 
         public virtual int CheckSrcSelectNo()
         {
-            for (int i = 0; i < this.tglSrcCopy.Length; i++)
-                if (this.tglSrcCopy[i].isOn)
+            for (int i = 0; i < this._srcCopy.Count; i++)
+                if (this._srcCopy[i].toggle.isOn)
                     return i;
             return 0;
         }
@@ -349,88 +614,101 @@ namespace MoreAccessories
         {
             int num = this.CheckDstSelectNo();
             int num2 = this.CheckSrcSelectNo();
-            if (num != num2)
+            if (num == num2)
+                return;
+            CharFileInfoClothes.Accessory src;
+            if (num2 < 10)
+                src = this.clothesInfo.accessory[num2];
+            else
+                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+            CharFileInfoClothes.Accessory dst;
+            if (num < 10)
+                dst = this.clothesInfo.accessory[num];
+            else
+                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+            dst.Copy(src);
+            if (this.tglReversal.isOn)
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2]);
-                if (this.tglReversal.isOn)
+                switch (dst.parentKey)
                 {
-                    switch (MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey)
-                    {
-                        case "AP_Earring_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Earring_R";
-                            break;
-                        case "AP_Earring_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Earring_L";
-                            break;
-                        case "AP_Tikubi_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Tikubi_R";
-                            break;
-                        case "AP_Tikubi_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Tikubi_L";
-                            break;
-                        case "AP_Shoulder_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Shoulder_R";
-                            break;
-                        case "AP_Shoulder_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Shoulder_L";
-                            break;
-                        case "AP_Arm_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Arm_R";
-                            break;
-                        case "AP_Arm_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Arm_L";
-                            break;
-                        case "AP_Wrist_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Wrist_R";
-                            break;
-                        case "AP_Wrist_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Wrist_L";
-                            break;
-                        case "AP_Hand_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Hand_R";
-                            break;
-                        case "AP_Hand_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Hand_L";
-                            break;
-                        case "AP_Index_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Index_R";
-                            break;
-                        case "AP_Index_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Index_L";
-                            break;
-                        case "AP_Middle_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Middle_R";
-                            break;
-                        case "AP_Middle_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Middle_L";
-                            break;
-                        case "AP_Ring_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Ring_R";
-                            break;
-                        case "AP_Ring_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Ring_L";
-                            break;
-                        case "AP_Leg_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Leg_R";
-                            break;
-                        case "AP_Leg_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Leg_L";
-                            break;
-                        case "AP_Ankle_L":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Ankle_R";
-                            break;
-                        case "AP_Ankle_R":
-                            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey = "AP_Ankle_L";
-                            break;
-                    }
+                    case "AP_Earring_L":
+                        dst.parentKey = "AP_Earring_R";
+                        break;
+                    case "AP_Earring_R":
+                        dst.parentKey = "AP_Earring_L";
+                        break;
+                    case "AP_Tikubi_L":
+                        dst.parentKey = "AP_Tikubi_R";
+                        break;
+                    case "AP_Tikubi_R":
+                        dst.parentKey = "AP_Tikubi_L";
+                        break;
+                    case "AP_Shoulder_L":
+                        dst.parentKey = "AP_Shoulder_R";
+                        break;
+                    case "AP_Shoulder_R":
+                        dst.parentKey = "AP_Shoulder_L";
+                        break;
+                    case "AP_Arm_L":
+                        dst.parentKey = "AP_Arm_R";
+                        break;
+                    case "AP_Arm_R":
+                        dst.parentKey = "AP_Arm_L";
+                        break;
+                    case "AP_Wrist_L":
+                        dst.parentKey = "AP_Wrist_R";
+                        break;
+                    case "AP_Wrist_R":
+                        dst.parentKey = "AP_Wrist_L";
+                        break;
+                    case "AP_Hand_L":
+                        dst.parentKey = "AP_Hand_R";
+                        break;
+                    case "AP_Hand_R":
+                        dst.parentKey = "AP_Hand_L";
+                        break;
+                    case "AP_Index_L":
+                        dst.parentKey = "AP_Index_R";
+                        break;
+                    case "AP_Index_R":
+                        dst.parentKey = "AP_Index_L";
+                        break;
+                    case "AP_Middle_L":
+                        dst.parentKey = "AP_Middle_R";
+                        break;
+                    case "AP_Middle_R":
+                        dst.parentKey = "AP_Middle_L";
+                        break;
+                    case "AP_Ring_L":
+                        dst.parentKey = "AP_Ring_R";
+                        break;
+                    case "AP_Ring_R":
+                        dst.parentKey = "AP_Ring_L";
+                        break;
+                    case "AP_Leg_L":
+                        dst.parentKey = "AP_Leg_R";
+                        break;
+                    case "AP_Leg_R":
+                        dst.parentKey = "AP_Leg_L";
+                        break;
+                    case "AP_Ankle_L":
+                        dst.parentKey = "AP_Ankle_R";
+                        break;
+                    case "AP_Ankle_R":
+                        dst.parentKey = "AP_Ankle_L";
+                        break;
                 }
-                CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaInfo.chaBody, MoreAccessories.self.charaMakerAdditionalData, num, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].type, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].id, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].parentKey, true);
-                MoreAccessories.self.CustomControl_UpdateAcsName();
-                this.OnEnableSetListAccessoryName();
-                this.UpdateCharaInfoSub();
-                
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
             }
+            if (num < 10)
+                this.chaInfo.chaBody.ChangeAccessory(num, dst.type, dst.id, dst.parentKey, true);
+            else
+                CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaInfo.chaBody, MoreAccessories.self.charaMakerAdditionalData, num - 10, dst.type, dst.id, dst.parentKey, true);
+
+            MoreAccessories.self.CustomControl_UpdateAcsName();
+            this.OnEnableSetListAccessoryName();
+            this.UpdateCharaInfoSub();
+                
+            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
         }
 
         public virtual void OnCopyCorrect()
@@ -439,11 +717,23 @@ namespace MoreAccessories
             int num2 = this.CheckSrcSelectNo();
             if (num == num2)
                 return;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addPos;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addRot;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addScl;
+
+            CharFileInfoClothes.Accessory src;
+            if (num2 < 10)
+                src = this.clothesInfo.accessory[num2];
+            else
+                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+            CharFileInfoClothes.Accessory dst;
+            if (num < 10)
+                dst = this.clothesInfo.accessory[num];
+            else
+                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+
+            dst.addPos = src.addPos;
+            dst.addRot = src.addRot;
+            dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
         }
 
         public virtual void OnCopyCorrectReversalLR()
@@ -452,13 +742,26 @@ namespace MoreAccessories
             int num2 = this.CheckSrcSelectNo();
             if (num == num2)
                 return;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addPos;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addRot;
-            if (MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot.y >= 360.0)
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot.y -= 360f;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addScl;
+
+            CharFileInfoClothes.Accessory src;
+            if (num2 < 10)
+                src = this.clothesInfo.accessory[num2];
+            else
+                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+            CharFileInfoClothes.Accessory dst;
+            if (num < 10)
+                dst = this.clothesInfo.accessory[num];
+            else
+                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+
+            dst.addPos = src.addPos;
+            dst.addRot = src.addRot + new Vector3(0f, 180f, 0f);
+            if (dst.addRot.y >= 360.0)
+                dst.addRot.y -= 360f;
+            dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+
+            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
         }
 
         public virtual void OnCopyCorrectReversalTB()
@@ -467,18 +770,30 @@ namespace MoreAccessories
             int num2 = this.CheckSrcSelectNo();
             if (num == num2)
                 return;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addPos;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addRot;
-            if (MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot.x >= 360.0)
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addRot.x -= 360f;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2].addScl;
+
+            CharFileInfoClothes.Accessory src;
+            if (num2 < 10)
+                src = this.clothesInfo.accessory[num2];
+            else
+                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+            CharFileInfoClothes.Accessory dst;
+            if (num < 10)
+                dst = this.clothesInfo.accessory[num];
+            else
+                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+
+            dst.addPos = src.addPos;
+            dst.addRot = src.addRot + new Vector3(180f, 0f, 0f);
+            if (dst.addRot.x >= 360.0)
+                dst.addRot.x -= 360f;
+            dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
         }
 
         public virtual int GetParentIndexFromParentKey(string key)
         {
-            return !this.dictParentKey.ContainsKey(key) ? 0 : this.dictParentKey[key];
+            return this.dictParentKey.TryGetValue(key, out int ret) ? ret : (this.dictAdditionalParentKey.TryGetValue(key, out ret) ? ret : 0);
         }
 
         public virtual int GetSlotNoFromSubMenuSelect()
@@ -505,6 +820,7 @@ namespace MoreAccessories
             this.UpdateShowTab();
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
             MoreAccessories.self.CustomControl_UpdateAcsName();
+            this.UpdateDebugParentLines();
         }
 
         public virtual void UpdateOnEnableSelectParent()
@@ -514,12 +830,18 @@ namespace MoreAccessories
             this.nowTglAllSet = true;
             for (int i = 0; i < this.tglParent.Length; i++)
                 this.tglParent[i].isOn = false;
+            foreach (Toggle toggle in this.additionalTglParent)
+                toggle.isOn = false;
             this.nowTglAllSet = false;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             int parentIndexFromParentKey = this.GetParentIndexFromParentKey(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey);
             this.updateVisualOnly = true;
-            this.tglParent[parentIndexFromParentKey].isOn = true;
+            if (parentIndexFromParentKey < 29)
+                this.tglParent[parentIndexFromParentKey].isOn = true;
+            else
+                this.additionalTglParent[parentIndexFromParentKey - 29].isOn = true;
             this.updateVisualOnly = false;
+            this.UpdateDebugParentLines();
         }
 
         public virtual void OnChangeAccessoryParentDefault()
@@ -529,28 +851,41 @@ namespace MoreAccessories
             this.nowTglAllSet = true;
             for (int i = 0; i < this.tglParent.Length; i++)
                 this.tglParent[i].isOn = false;
+            foreach (Toggle toggle in this.additionalTglParent)
+                toggle.isOn = false;
             this.nowTglAllSet = false;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             int id = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id;
             string accessoryDefaultParentStr = this.chaClothes.GetAccessoryDefaultParentStr(this.acsType, id);
             int parentIndexFromParentKey = this.GetParentIndexFromParentKey(accessoryDefaultParentStr);
             this.tglParent[parentIndexFromParentKey].isOn = true;
+            this.UpdateDebugParentLines();
         }
 
         public virtual void OnChangeAccessoryParent(int newParent)
         {
             if (this.nowTglAllSet || this.updateVisualOnly || this.initFlags || null == this.chaInfo || null == this.grpParent)
                 return;
-            Toggle toggle = this.tglParent[newParent];
+            Toggle toggle;
+            if (newParent < 29)
+                toggle = this.tglParent[newParent];
+            else
+                toggle = this.additionalTglParent[newParent - 29];
             if (null == toggle || !toggle.isOn)
                 return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             string parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
-            if (parentKey == this.strParentKey[newParent])
+            string newParentKey;
+            if (newParent < 29)
+                newParentKey = this.strParentKey[newParent];
+            else
+                newParentKey = (Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths)[newParent - 29];
+            if (parentKey == newParentKey)
                 return;
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryParent(this.chaBody, MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect, this.strParentKey[newParent]);
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryParent(this.chaBody, MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect, newParentKey);
+            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
+            this.UpdateDebugParentLines();
         }
 
         public virtual void OnChangeIndex(GameObject objClick, bool value)
@@ -711,7 +1046,7 @@ namespace MoreAccessories
         public virtual void OnClickIntensity()
         {
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            float num = ((this.chaInfo.Sex != 0) ? this.defClothesInfoF.accessory[slotNoFromSubMenuSelect].color.specularIntensity : this.defClothesInfoM.accessory[slotNoFromSubMenuSelect].color.specularIntensity);
+            float num = this.chaInfo.Sex != 0 ? this.defClothesInfoF.accessory[slotNoFromSubMenuSelect].color.specularIntensity : this.defClothesInfoM.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
             MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = num;
             MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = num;
             CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
@@ -893,7 +1228,6 @@ namespace MoreAccessories
 
         public virtual void OnClickPos(int index)
         {
-            UnityEngine.Debug.Log("position clicked " + System.Environment.StackTrace);
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             float num = (float)(this.movePosValue[this.modePos] * 0.0099999997764825821);
             switch (index)
@@ -1074,7 +1408,7 @@ namespace MoreAccessories
             switch (index)
             {
                 case 0:
-                    float num = (float)((string.Empty != this.inputPosX.text) ? ((float)double.Parse(this.inputPosX.text) * 0.0099999997764825821) : 0.0);
+                    float num = (float)(string.Empty != this.inputPosX.text ? (float)double.Parse(this.inputPosX.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
                     float value = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
@@ -1083,7 +1417,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 1:
-                    float num2 = (float)((string.Empty != this.inputPosY.text) ? ((float)double.Parse(this.inputPosY.text) * 0.0099999997764825821) : 0.0);
+                    float num2 = (float)(string.Empty != this.inputPosY.text ? (float)double.Parse(this.inputPosY.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
                     float value2 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
@@ -1092,7 +1426,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 2:
-                    float num3 = (float)((string.Empty != this.inputPosZ.text) ? ((float)double.Parse(this.inputPosZ.text) * 0.0099999997764825821) : 0.0);
+                    float num3 = (float)(string.Empty != this.inputPosZ.text ? (float)double.Parse(this.inputPosZ.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
                     float value3 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
@@ -1112,7 +1446,7 @@ namespace MoreAccessories
             switch (index)
             {
                 case 0:
-                    float num = (float)((string.Empty != this.inputRotX.text) ? ((float)double.Parse(this.inputRotX.text)) : 0.0);
+                    float num = (float)(string.Empty != this.inputRotX.text ? (float)double.Parse(this.inputRotX.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
                     float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
@@ -1121,7 +1455,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 1:
-                    float num2 = (float)((string.Empty != this.inputRotY.text) ? ((float)double.Parse(this.inputRotY.text)) : 0.0);
+                    float num2 = (float)(string.Empty != this.inputRotY.text ? (float)double.Parse(this.inputRotY.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
                     float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
@@ -1130,7 +1464,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 2:
-                    float num3 = (float)((string.Empty != this.inputRotZ.text) ? ((float)double.Parse(this.inputRotZ.text)) : 0.0);
+                    float num3 = (float)(string.Empty != this.inputRotZ.text ? (float)double.Parse(this.inputRotZ.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
                     float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
@@ -1150,7 +1484,7 @@ namespace MoreAccessories
             switch (index)
             {
                 case 0:
-                    float num = (float)((string.Empty != this.inputSclX.text) ? ((float)double.Parse(this.inputSclX.text)) : 0.0);
+                    float num = (float)(string.Empty != this.inputSclX.text ? (float)double.Parse(this.inputSclX.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
                     float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
@@ -1159,7 +1493,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 1:
-                    float num2 = (float)((string.Empty != this.inputSclY.text) ? ((float)double.Parse(this.inputSclY.text)) : 0.0);
+                    float num2 = (float)(string.Empty != this.inputSclY.text ? (float)double.Parse(this.inputSclY.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
                     float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
@@ -1168,7 +1502,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
                 case 2:
-                    float num3 = (float)((string.Empty != this.inputSclZ.text) ? ((float)double.Parse(this.inputSclZ.text)) : 0.0);
+                    float num3 = (float)(string.Empty != this.inputSclZ.text ? (float)double.Parse(this.inputSclZ.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
                     float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
@@ -1315,7 +1649,6 @@ namespace MoreAccessories
                 this.tab03.gameObject.SetActive(false);
             if (this.tab04)
                 this.tab04.gameObject.SetActive(false);
-            this.tab05.gameObject.SetActive(false); //TODO enlever pour la copie
             bool flag = false;
             
             GameObject exists = MoreAccessories.self.charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
@@ -1334,7 +1667,7 @@ namespace MoreAccessories
             this.lstTagColor.Clear();
             this.lstTagColor = CharBody_ChangeAccessory_Patches.CharInfo_GetTagInfo(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
             if (this.tab04)
-                this.tab04.gameObject.SetActive((byte)((this.lstTagColor.Count != 0) ? 1 : 0) != 0);
+                this.tab04.gameObject.SetActive((byte)(this.lstTagColor.Count != 0 ? 1 : 0) != 0);
             bool active = ColorChange.CheckChangeSubColor(this.lstTagColor);
             if (this.objSubColor)
                 this.objSubColor.SetActive(active);
@@ -1359,111 +1692,135 @@ namespace MoreAccessories
             this.ChangeAccessoryTypeList(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
             this.UpdateShowTab();
             this.MoveInfoAllSet();
+            this.UpdateDebugParentLines();
             this.initFlags = false;
         }
 
         public virtual void ChangeAccessoryTypeList(int newType, int newId)
         {
             this.acsType = newType;
-            if (null == this.chaInfo || null == this.objListTop || null == this.objLineBase || null == this.rtfPanel)
+            if (null == this.chaInfo)
                 return;
-            for (int num = this.objListTop.transform.childCount - 1; num >= 0; num--)
-            {
-                Transform child = this.objListTop.transform.GetChild(num);
-                Destroy(child.gameObject);
-            }
-            Dictionary<int, ListTypeFbx> dictionary = null;
+            if (null == this.objListTop)
+                return;
+            if (null == this.objLineBase)
+                return;
+            if (null == this.rtfPanel)
+                return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
+            int count = 0;
+            int selectedIndex = 0;
+            if (this._lastType != this.nowSubMenuTypeId && this._objects.ContainsKey(this._lastType))
+                foreach (ObjectData o in this._objects[this._lastType])
+                    o.obj.SetActive(false);
             if (newType != -1)
             {
-                CharaListInfo.TypeAccessoryFbx typeAccessoryFbx = (CharaListInfo.TypeAccessoryFbx)(int)Enum.ToObject(typeof(CharaListInfo.TypeAccessoryFbx), newType);
-                dictionary = this.chaInfo.ListInfo.GetAccessoryFbxList(typeAccessoryFbx);
-            }
-            int num2 = 0;
-            int num3 = 0;
-            if (dictionary != null)
-            {
-                Dictionary<int, ListTypeFbx>.Enumerator enumerator = dictionary.GetEnumerator();
-                try
+                if (this._objects.ContainsKey(newType))
                 {
-                    while (enumerator.MoveNext())
+                    foreach (ObjectData o in this._objects[newType])
                     {
-                        KeyValuePair<int, ListTypeFbx> current = enumerator.Current;
+                        o.obj.SetActive(true);
+                        if (count == 0)
+                            this.firstIndex = o.key;
+                        if (newId == -1)
+                            o.toggle.isOn = count == 0;
+                        else if (o.key == newId)
+                            o.toggle.isOn = true;
+                        else
+                            o.toggle.isOn = false;
+                        if (o.toggle.isOn)
+                        {
+                            selectedIndex = count;
+                            o.toggle.onValueChanged.Invoke(true);
+                        }
+                        ++count;
+                    }
+                }
+                else
+                {
+                    this._objects.Add(newType, new List<ObjectData>());
+                    List<ObjectData> objects = this._objects[newType];
+                    Dictionary<int, ListTypeFbx> dictionary = null;
+                    CharaListInfo.TypeAccessoryFbx type = (CharaListInfo.TypeAccessoryFbx)(int)Enum.ToObject(typeof(CharaListInfo.TypeAccessoryFbx), newType);
+                    dictionary = this.chaInfo.ListInfo.GetAccessoryFbxList(type, true);
+
+                    foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
+                    {
                         bool flag = false;
                         if (this.chaInfo.customInfo.isConcierge)
+                        {
                             flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
+                        }
                         if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0 || flag)
                         {
                             if (this.chaInfo.Sex == 0)
                             {
-                                if ("0" != current.Value.PrefabM)
-                                    goto IL_01ad;
+                                if ("0" == current.Value.PrefabM)
+                                    continue;
                             }
-                            else if ("0" != current.Value.PrefabF)
-                                goto IL_01ad;
-                        }
-                        continue;
-                        IL_01ad:
-                        if (num2 == 0)
-                            this.firstIndex = current.Key;
-                        GameObject gameObject = Instantiate(this.objLineBase);
-                        FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
-                        fbxTypeInfo.id = current.Key;
-                        fbxTypeInfo.typeName = current.Value.Name;
-                        fbxTypeInfo.info = current.Value;
-                        gameObject.transform.SetParent(this.objListTop.transform, false);
-                        RectTransform rectTransform = gameObject.transform as RectTransform;
-                        rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                        rectTransform.anchoredPosition = new Vector3(0f, (float)(-24.0 * num2), 0f);
-                        RectTransform obj = rectTransform;
-                        Vector2 sizeDelta = rectTransform.sizeDelta;
-                        obj.sizeDelta = new Vector2(0f, sizeDelta.y);
-                        Text component = rectTransform.FindChild("Label").GetComponent<Text>();
-                        component.text = fbxTypeInfo.typeName;
-                        this.SetButtonClickHandler(gameObject);
-                        Toggle component2 = gameObject.GetComponent<Toggle>();
-                        if (newId == -1)
-                        {
-                            if (current.Key == this.firstIndex)
+                            else if ("0" == current.Value.PrefabF)
+                                continue;
+                            if (count == 0)
+                                this.firstIndex = current.Key;
+                            GameObject gameObject = Instantiate(this.objLineBase);
+                            gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                            FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
+                            fbxTypeInfo.id = current.Key;
+                            fbxTypeInfo.typeName = current.Value.Name;
+                            fbxTypeInfo.info = current.Value;
+                            gameObject.transform.SetParent(this.objListTop.transform, false);
+                            RectTransform rectTransform = gameObject.transform as RectTransform;
+                            rectTransform.localScale = new Vector3(1f, 1f, 1f);
+                            rectTransform.sizeDelta = new Vector2(this._container.rect.width, 24f);
+                            Text component = rectTransform.FindChild("Label").GetComponent<Text>();
+                            component.text = fbxTypeInfo.typeName;
+                            this.SetButtonClickHandler(gameObject);
+                            Toggle component2 = gameObject.GetComponent<Toggle>();
+                            objects.Add(new ObjectData { obj = gameObject, key = current.Key, toggle = component2, text = component });
+                            component2.onValueChanged.AddListener(v =>
+                            {
+                                if (component2.isOn)
+                                    UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
+                            });
+                            if (newId == -1)
+                            {
+                                if (count == 0)
+                                    component2.isOn = true;
+                            }
+                            else if (current.Key == newId)
                                 component2.isOn = true;
+                            if (component2.isOn)
+                                selectedIndex = count;
+                            ToggleGroup component3 = this.objListTop.GetComponent<ToggleGroup>();
+                            component2.group = component3;
+                            gameObject.SetActive(true);
+                            if (!flag)
+                            {
+                                int num3 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
+                                Transform transform = rectTransform.FindChild("imgNew");
+                                if (transform && num3 == 1)
+                                    transform.gameObject.SetActive(true);
+                            }
+                            count++;
                         }
-                        else if (current.Key == newId)
-                            component2.isOn = true;
-                        if (component2.isOn)
-                            num3 = num2;
-                        ToggleGroup component3 = this.objListTop.GetComponent<ToggleGroup>();
-                        component2.group = component3;
-                        gameObject.SetActive(true);
-                        if (!flag)
-                        {
-                            int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
-                            Transform transform = rectTransform.FindChild("imgNew");
-                            if (transform && num4 == 1)
-                                transform.gameObject.SetActive(true);
-                        }
-                        num2++;
                     }
                 }
-                finally
-                {
-                    ((IDisposable)enumerator).Dispose();
-                }
-                RectTransform obj2 = this.rtfPanel;
-                Vector2 sizeDelta2 = this.rtfPanel.sizeDelta;
-                obj2.sizeDelta = new Vector2(sizeDelta2.x, (float)(24.0 * num2));
-                float b = (float)(24.0 * num2 - 168.0);
-                float y = Mathf.Min((float)(24.0 * num3), b);
+                float b = 24f * count - 168f;
+                float y = Mathf.Min(24f * selectedIndex, b);
                 this.rtfPanel.anchoredPosition = new Vector2(0f, y);
+
                 if (this.tab02)
+                {
                     this.tab02.gameObject.SetActive(true);
+                }
                 if (this.tab03)
+                {
                     this.tab03.gameObject.SetActive(true);
+                }
             }
             else
             {
-                RectTransform obj3 = this.rtfPanel;
-                Vector2 sizeDelta3 = this.rtfPanel.sizeDelta;
-                obj3.sizeDelta = new Vector2(sizeDelta3.x, 0f);
+                this.rtfPanel.sizeDelta = new Vector2(this.rtfPanel.sizeDelta.x, 0f);
                 this.rtfPanel.anchoredPosition = new Vector2(0f, 0f);
                 if (this.tab02)
                     this.tab02.gameObject.SetActive(false);
@@ -1475,27 +1832,29 @@ namespace MoreAccessories
             this.nowChanging = true;
             if (this.clothesInfo != null)
             {
-                float specularIntensity = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
-                float specularSharpness = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
-                float specularSharpness2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
+                float specularIntensity = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
+                float specularSharpness = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularSharpness;
+                float specularSharpness2 = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color2.specularSharpness;
                 if (this.sldIntensity)
                     this.sldIntensity.value = specularIntensity;
                 if (this.inputIntensity)
-                    this.inputIntensity.text = this.ChangeTextFromFloat(specularIntensity);
+                    this.inputIntensity.text = (string)this.CallPrivate("ChangeTextFromFloat", specularIntensity);
                 if (this.sldSharpness[0])
                     this.sldSharpness[0].value = specularSharpness;
                 if (this.inputSharpness[0])
-                    this.inputSharpness[0].text = this.ChangeTextFromFloat(specularSharpness);
+                    this.inputSharpness[0].text = (string)this.CallPrivate("ChangeTextFromFloat", specularSharpness);
                 if (this.sldSharpness[1])
                     this.sldSharpness[1].value = specularSharpness2;
                 if (this.inputSharpness[1])
-                    this.inputSharpness[1].text = this.ChangeTextFromFloat(specularSharpness2);
+                    this.inputSharpness[1].text = (string)this.CallPrivate("ChangeTextFromFloat", specularSharpness2);
             }
             this.nowChanging = false;
             this.OnClickColorSpecular(1);
             this.OnClickColorSpecular(0);
             this.OnClickColorDiffuse(1);
             this.OnClickColorDiffuse(0);
+            this._lastType = newType;
+            this._lastId = newId;
         }
 
         public override void UpdateCharaInfoSub()
@@ -1557,6 +1916,44 @@ namespace MoreAccessories
         #endregion
 
         #region Private Methods
+        private void UpdateDebugParentLines()
+        {
+            int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
+            GameObject obj = MoreAccessories.self.charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
+            
+            Transform t = null;
+            if (obj != null)
+                t = obj.transform;
+            foreach (VectorLine line in this._debugVectorLines)
+            {
+                line.drawTransform = t;
+                line.Draw();
+            }
+        }
+
+        private void DebugParentChanged(bool b)
+        {
+            foreach (VectorLine line in this._debugVectorLines)
+            {
+                line.active = this._debugParentToggle.isOn;
+                line.Draw();
+            }
+        }
+
+        private void SearchChanged(string arg0)
+        {
+            string search = this._searchBar.text.Trim();
+            if (this._objects.ContainsKey(this._lastType) == false)
+                return;
+            foreach (ObjectData objectData in this._objects[this._lastType])
+            {
+                bool active = objectData.obj.activeSelf;
+                ToggleGroup group = objectData.toggle.group;
+                objectData.obj.SetActive(objectData.text.text.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
+                if (active && objectData.obj.activeSelf == false)
+                    group.RegisterToggle(objectData.toggle);
+            }
+        }
         private bool CharClothes_ResetAccessoryMove(int slotNo, int type = 7)
         {
             bool flag = true;
@@ -1643,10 +2040,18 @@ namespace MoreAccessories
 
         private bool CharClothes_UpdateAccessoryMoveFromInfo(int slotNo)
         {
-            GameObject gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo];
+            GameObject gameObject;
+            if (slotNo < 10)
+                gameObject = this.chaInfo.chaBody.objAcsMove[slotNo];
+            else
+                gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo - 10];
             if (null == gameObject)
                 return false;
-            CharFileInfoClothes.Accessory accessory = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo];
+            CharFileInfoClothes.Accessory accessory;
+            if (slotNo < 10)
+                accessory = this.clothesInfo.accessory[slotNo];
+            else
+                accessory = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo - 10];
             gameObject.transform.SetLocalPosition(accessory.addPos.x, accessory.addPos.y, accessory.addPos.z);
             gameObject.transform.SetLocalRotation(accessory.addRot.x, accessory.addRot.y, accessory.addRot.z);
             gameObject.transform.SetLocalScale(accessory.addScl.x, accessory.addScl.y, accessory.addScl.z);

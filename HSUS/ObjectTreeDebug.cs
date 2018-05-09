@@ -24,11 +24,6 @@ namespace HSUS
         {
             Application.logMessageReceived += this.HandleLog;
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
-            for (int i = 0; i < 32; i++)
-            {
-                string n = LayerMask.LayerToName(i);
-                UnityEngine.Debug.Log("Layer " + i + " " + n);
-            }
         }
 
         void Update()

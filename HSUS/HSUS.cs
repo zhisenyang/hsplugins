@@ -183,6 +183,8 @@ namespace HSUS
             {
                 harmony.PatchAll(Assembly.GetExecutingAssembly());
             }
+
+            QualitySettings.pixelLightCount = 16; //TODO A ENLEVER!!!
         }
 
         public void OnApplicationQuit()
@@ -534,6 +536,7 @@ namespace HSUS
 
                 }, 20);
         }
+
         public void LoadCustomDefault(string path)
         {
             CustomControl customControl = Resources.FindObjectsOfTypeAll<CustomControl>()[0];
@@ -629,19 +632,23 @@ namespace HSUS
             return false;
         }
     }
-    //[HarmonyPatch(typeof(HsvColor), "ToRgb", new[]{typeof(HsvColor)
-    //})]
+    //[HarmonyPatch(typeof(HSColorSet), "SetSpecularRGB", new[] { typeof(Color) })]
     //public class Testetetetetet
     //{
-    //    public static void Prefix(HsvColor hsv)
+    //    public static void Prefix(Color rgb)
     //    {
-    //        float num = (float)(hsv.H / 60.0);
-    //        int num2 = (int)Math.Floor((double)num) % 6;
-    //        float num3 = num - (float)Math.Floor((double)num);
-    //        float num4 = (float)(hsv.V * (1.0 - hsv.S));
-    //        float num5 = (float)(hsv.V * (1.0 - hsv.S * num3));
-    //        float num6 = (float)(hsv.V * (1.0 - hsv.S * (1.0 - num3)));
-    //        UnityEngine.Debug.Log("mabiiiiiiiiiiiiiiiite" + num + " " + num2 + " " + num3 + " " + num4 + " " + num5 + " " + num6);
+    //        UnityEngine.Debug.Log("rgb " + rgb);
+    //    }
+    //}
+
+    //[HarmonyPatch(typeof(ColorChange), "SetHSColor", new[] { typeof(Material), typeof(HSColorSet), typeof(bool), typeof(bool), typeof(HSColorSet), typeof(bool), typeof(bool) })]
+    //public class gfdsgfds
+    //{
+    //    public static void Prefix(Material mat, global::HSColorSet color, bool chgDif = true, bool chgSpe = true, global::HSColorSet color2 = null, bool chgDif2 = true, bool chgSpe2 = true)
+    //    {
+    //        UnityEngine.Debug.Log("spec color id " + Manager.Character.Instance._SpecColor + " " + mat.HasProperty(Manager.Character.Instance._SpecColor) + " " + Shader.PropertyToID("_SpecColor") + " " + mat.HasProperty("_SpecColor") + " " + mat.shader + " " + mat.GetColor("_SpecColor"));
+            
+    //        UnityEngine.Debug.Log(mat + " " + (color != null ? color.rgbDiffuse + " " + color.rgbSpecular + " " + color.rgbaDiffuse : "") + " " + chgDif + " " + chgSpe + " " + (color2 != null ? color2.rgbDiffuse + " " + color2.rgbSpecular + " " + color2.rgbaDiffuse : "") + " " + chgDif2 + " " + chgSpe2);
     //    }
     //}
 }

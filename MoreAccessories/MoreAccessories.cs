@@ -1,7 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 using CustomMenu;
 using Harmony;
@@ -30,6 +32,8 @@ namespace MoreAccessories
             public Button onButton;
             public Button offButton;
         }
+
+        private delegate bool TranslationDelegate(ref string text);
         #endregion
 
         #region Public Types
@@ -68,6 +72,316 @@ namespace MoreAccessories
         private Studio.OCIChar _selectedStudioCharacter;
         private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
         private StudioSlotData _toggleAll;
+        private TranslationDelegate _translationMethod;
+        private readonly string[] _femaleMoreAttachPointsPaths = 
+        {
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00/cf_J_sk_00_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00/cf_J_sk_00_01/cf_J_sk_00_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00/cf_J_sk_00_01/cf_J_sk_00_02/cf_J_sk_00_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00/cf_J_sk_00_01/cf_J_sk_00_02/cf_J_sk_00_03/cf_J_sk_00_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00/cf_J_sk_00_01/cf_J_sk_00_02/cf_J_sk_00_03/cf_J_sk_00_04/cf_J_sk_00_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00/cf_J_sk_01_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00/cf_J_sk_01_01/cf_J_sk_01_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00/cf_J_sk_01_01/cf_J_sk_01_02/cf_J_sk_01_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00/cf_J_sk_01_01/cf_J_sk_01_02/cf_J_sk_01_03/cf_J_sk_01_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_01_00_dam/cf_J_sk_01_00/cf_J_sk_01_01/cf_J_sk_01_02/cf_J_sk_01_03/cf_J_sk_01_04/cf_J_sk_01_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00/cf_J_sk_02_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00/cf_J_sk_02_01/cf_J_sk_02_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00/cf_J_sk_02_01/cf_J_sk_02_02/cf_J_sk_02_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00/cf_J_sk_02_01/cf_J_sk_02_02/cf_J_sk_02_03/cf_J_sk_02_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_02_00_dam/cf_J_sk_02_00/cf_J_sk_02_01/cf_J_sk_02_02/cf_J_sk_02_03/cf_J_sk_02_04/cf_J_sk_02_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00/cf_J_sk_06_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00/cf_J_sk_06_01/cf_J_sk_06_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00/cf_J_sk_06_01/cf_J_sk_06_02/cf_J_sk_06_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00/cf_J_sk_06_01/cf_J_sk_06_02/cf_J_sk_06_03/cf_J_sk_06_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_06_00_dam/cf_J_sk_06_00/cf_J_sk_06_01/cf_J_sk_06_02/cf_J_sk_06_03/cf_J_sk_06_04/cf_J_sk_06_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00/cf_J_sk_07_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00/cf_J_sk_07_01/cf_J_sk_07_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00/cf_J_sk_07_01/cf_J_sk_07_02/cf_J_sk_07_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00/cf_J_sk_07_01/cf_J_sk_07_02/cf_J_sk_07_03/cf_J_sk_07_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_07_00_dam/cf_J_sk_07_00/cf_J_sk_07_01/cf_J_sk_07_02/cf_J_sk_07_03/cf_J_sk_07_04/cf_J_sk_07_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03/cf_J_sk_03_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03/cf_J_sk_03_04/cf_J_sk_03_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01/cf_J_sk_04_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01/cf_J_sk_04_02/cf_J_sk_04_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01/cf_J_sk_04_02/cf_J_sk_04_03/cf_J_sk_04_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01/cf_J_sk_04_02/cf_J_sk_04_03/cf_J_sk_04_04/cf_J_sk_04_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00/cf_J_sk_05_01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00/cf_J_sk_05_01/cf_J_sk_05_02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00/cf_J_sk_05_01/cf_J_sk_05_02/cf_J_sk_05_03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00/cf_J_sk_05_01/cf_J_sk_05_02/cf_J_sk_05_03/cf_J_sk_05_04",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_05_00_dam/cf_J_sk_05_00/cf_J_sk_05_01/cf_J_sk_05_02/cf_J_sk_05_03/cf_J_sk_05_04/cf_J_sk_05_05",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s/cf_J_Ana",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s/cf_J_Kokan",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s/cf_J_Kosi03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegKnee_dam_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L/cf_J_LegLow03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L/cf_J_LegLowRoll_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L/cf_J_LegLowRoll_L/cf_J_Foot01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L/cf_J_LegLowRoll_L/cf_J_Foot01_L/cf_J_Foot02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegLow01_L/cf_J_LegLowRoll_L/cf_J_Foot01_L/cf_J_Foot02_L/cf_J_Toes01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegUp01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegUp02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegUp03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_L/cf_J_LegUp03_L/cf_J_LegUp03_s_L/cf_J_LegKnee_back_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegKnee_dam_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R/cf_J_LegLow03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R/cf_J_LegLowRoll_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R/cf_J_LegLowRoll_R/cf_J_Foot01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R/cf_J_LegLowRoll_R/cf_J_Foot01_R/cf_J_Foot02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegLow01_R/cf_J_LegLowRoll_R/cf_J_Foot01_R/cf_J_Foot02_R/cf_J_Toes01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegUp01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegUp02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegUp03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_LegUp00_R/cf_J_LegUp03_R/cf_J_LegUp03_s_R/cf_J_LegKnee_back_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_L/cf_J_SiriDam01_L/cf_J_Siri_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_R/cf_J_SiriDam01_R/cf_J_Siri_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_LegUpDam_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_LegUpDam_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L/cf_J_Mune00_L/cf_J_Mune00_s_L/cf_J_Mune00_d_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L/cf_J_Mune00_L/cf_J_Mune00_s_L/cf_J_Mune00_d_L/cf_J_Mune01_L/cf_J_Mune01_s_L/cf_J_Mune01_t_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L/cf_J_Mune00_L/cf_J_Mune00_s_L/cf_J_Mune00_d_L/cf_J_Mune01_L/cf_J_Mune01_s_L/cf_J_Mune01_t_L/cf_J_Mune02_L/cf_J_Mune02_s_L/cf_J_Mune02_t_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L/cf_J_Mune00_L/cf_J_Mune00_s_L/cf_J_Mune00_d_L/cf_J_Mune01_L/cf_J_Mune01_s_L/cf_J_Mune01_t_L/cf_J_Mune02_L/cf_J_Mune02_s_L/cf_J_Mune02_t_L/cf_J_Mune03_L/cf_J_Mune03_s_L/cf_J_Mune04_s_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_L/cf_J_Mune00_L/cf_J_Mune00_s_L/cf_J_Mune00_d_L/cf_J_Mune01_L/cf_J_Mune01_s_L/cf_J_Mune01_t_L/cf_J_Mune02_L/cf_J_Mune02_s_L/cf_J_Mune02_t_L/cf_J_Mune03_L/cf_J_Mune03_s_L/cf_J_Mune04_s_L/cf_J_Mune_Nip01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R/cf_J_Mune00_R/cf_J_Mune00_s_R/cf_J_Mune00_d_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R/cf_J_Mune00_R/cf_J_Mune00_s_R/cf_J_Mune00_d_R/cf_J_Mune01_R/cf_J_Mune01_s_R/cf_J_Mune01_t_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R/cf_J_Mune00_R/cf_J_Mune00_s_R/cf_J_Mune00_d_R/cf_J_Mune01_R/cf_J_Mune01_s_R/cf_J_Mune01_t_R/cf_J_Mune02_R/cf_J_Mune02_s_R/cf_J_Mune02_t_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R/cf_J_Mune00_R/cf_J_Mune00_s_R/cf_J_Mune00_d_R/cf_J_Mune01_R/cf_J_Mune01_s_R/cf_J_Mune01_t_R/cf_J_Mune02_R/cf_J_Mune02_s_R/cf_J_Mune02_t_R/cf_J_Mune03_R/cf_J_Mune03_s_R/cf_J_Mune04_s_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Mune00/cf_J_Mune00_t_R/cf_J_Mune00_R/cf_J_Mune00_s_R/cf_J_Mune00_d_R/cf_J_Mune01_R/cf_J_Mune01_s_R/cf_J_Mune01_t_R/cf_J_Mune02_R/cf_J_Mune02_s_R/cf_J_Mune02_t_R/cf_J_Mune03_R/cf_J_Mune03_s_R/cf_J_Mune04_s_R/cf_J_Mune_Nip01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_CheekLow_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_CheekLow_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_CheekUp_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_CheekUp_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_Chin_rs",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_Chin_rs/cf_J_ChinTip_s",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_FaceLow_s/cf_J_ChinLow",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_MouthBase_tr/cf_J_MouthBase_s/cf_J_MouthMove/cf_J_Mouth_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_MouthBase_tr/cf_J_MouthBase_s/cf_J_MouthMove/cf_J_Mouth_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_MouthBase_tr/cf_J_MouthBase_s/cf_J_MouthMove/cf_J_MouthLow",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_MouthBase_tr/cf_J_MouthBase_s/cf_J_MouthMove/cf_J_Mouthup",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceLowBase/cf_J_MouthBase_tr/cf_J_MouthCavity",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_Eye_r_L/cf_J_Eye01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_Eye_r_L/cf_J_Eye02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_Eye_r_L/cf_J_Eye03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_Eye_r_L/cf_J_Eye04_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_EyePos_rz_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_L/cf_J_Eye_s_L/cf_J_EyePos_rz_L/cf_J_look_L/cf_J_eye_rs_L/cf_J_pupil_s_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_Eye_r_R/cf_J_Eye01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_Eye_r_R/cf_J_Eye02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_Eye_r_R/cf_J_Eye03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_Eye_r_R/cf_J_Eye04_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_EyePos_rz_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Eye_t_R/cf_J_Eye_s_R/cf_J_EyePos_rz_R/cf_J_look_R/cf_J_eye_rs_R/cf_J_pupil_s_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_L/cf_J_MayuMid_s_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_L/cf_J_MayuTip_s_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_R/cf_J_MayuMid_s_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_Neck/cf_J_Head/cf_J_Head_s/p_cf_head_bone/cf_J_FaceRoot/cf_J_FaceBase/cf_J_FaceUp_ty/cf_J_FaceUp_tz/cf_J_Mayu_R/cf_J_MayuTip_s_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmElbo_dam_01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_ArmLow02_dam_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Index01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Index01_L/cf_J_Hand_Index02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Index01_L/cf_J_Hand_Index02_L/cf_J_Hand_Index03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Little01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Little01_L/cf_J_Hand_Little02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Little01_L/cf_J_Hand_Little02_L/cf_J_Hand_Little03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Middle01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Middle01_L/cf_J_Hand_Middle02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Middle01_L/cf_J_Hand_Middle02_L/cf_J_Hand_Middle03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Ring01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Ring01_L/cf_J_Hand_Ring02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Ring01_L/cf_J_Hand_Ring02_L/cf_J_Hand_Ring03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Thumb01_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Thumb01_L/cf_J_Hand_Thumb02_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmLow01_L/cf_J_Hand_L/cf_J_Hand_s_L/cf_J_Hand_Thumb01_L/cf_J_Hand_Thumb02_L/cf_J_Hand_Thumb03_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmUp01_dam_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_L/cf_J_Shoulder_L/cf_J_ArmUp00_L/cf_J_ArmUp03_dam_L",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmElbo_dam_01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_ArmLow02_dam_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Index01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Index01_R/cf_J_Hand_Index02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Index01_R/cf_J_Hand_Index02_R/cf_J_Hand_Index03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Little01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Little01_R/cf_J_Hand_Little02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Little01_R/cf_J_Hand_Little02_R/cf_J_Hand_Little03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Middle01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Middle01_R/cf_J_Hand_Middle02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Middle01_R/cf_J_Hand_Middle02_R/cf_J_Hand_Middle03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Ring01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Ring01_R/cf_J_Hand_Ring02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Ring01_R/cf_J_Hand_Ring02_R/cf_J_Hand_Ring03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Thumb01_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Thumb01_R/cf_J_Hand_Thumb02_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Thumb01_R/cf_J_Hand_Thumb02_R/cf_J_Hand_Thumb03_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmUp01_dam_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmUp03_dam_R",
+            "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_SpineSk00_dam"
+        };
+        private readonly string[] _maleMoreAttachPointsPaths =
+        {
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top/cm_J_dan100_00/cm_J_dan101_00/cm_J_dan109_00",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top/cm_J_dan_f_top",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top/cm_J_dan_f_top/cm_J_dan_f_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top/cm_J_dan_f_top/cm_J_dan_f_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kosi02_s/cm_J_Ana",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegKnee_dam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L/cm_J_Foot01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L/cm_J_Foot01_L/cm_J_Foot02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L/cm_J_Foot01_L/cm_J_Foot02_L/cm_J_Toes01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L/cm_J_LegLow02_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegLow01_L/cm_J_LegLow03_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegUp01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegUp02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegUp03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_L/cm_J_LegUp03_L/cm_J_LegUp03_s_L/cm_J_LegKnee_back_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegKnee_dam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R/cm_J_Foot02_R",
+                "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R/cm_J_Foot02_R/cm_J_Toes01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_LegLow02_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_LegLow03_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegUp01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegUp02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegUp03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegUp03_R/cm_J_LegUp03_s_R/cm_J_LegKnee_back_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_LegUpDam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_LegUpDam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03",
+                "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/cm_J_Tang_S_00/cm_J_Tang_S_01_at",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/cm_J_Tang_S_00/cm_J_Tang_S_01_at/cm_J_Tang_S_02_at",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/cm_J_Tang_S_00/cm_J_Tang_S_01_at/cm_J_Tang_S_02_at/cm_J_Tang_S_04",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/cm_J_Tang_S_00/cm_J_Tang_S_01_at/cm_J_Tang_S_02_at/cm_J_Tang_S_04/cm_J_Tang_S_06",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/cm_J_Tang_S_00/cm_J_Tang_S_01_at/cm_J_Tang_S_02_at/cm_J_Tang_S_04/cm_J_Tang_S_06/cm_J_Tang_S_08",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_CheekLow_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_CheekLow_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_CheekUp_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_CheekUp_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_Chin_rs",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_Chin_rs/cm_J_ChinTip_s",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_FaceLow_s/cm_J_ChinLow",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthBase_s/cm_J_MouthMove",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthBase_s/cm_J_MouthMove/cm_J_Mouth_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthBase_s/cm_J_MouthMove/cm_J_Mouth_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthBase_s/cm_J_MouthMove/cm_J_MouthLow",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthBase_s/cm_J_MouthMove/cm_J_Mouthup",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceLowBase/cm_J_MouthBase_tr/cm_J_MouthCavity",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L/cm_J_Eye_s_L/cm_J_Eye_r_L/cm_J_Eye01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L/cm_J_Eye_s_L/cm_J_Eye_r_L/cm_J_Eye02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L/cm_J_Eye_s_L/cm_J_Eye_r_L/cm_J_Eye03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L/cm_J_Eye_s_L/cm_J_Eye_r_L/cm_J_Eye04_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_L/cm_J_Eye_s_L/cm_J_EyePos_rz_L/cm_J_look_L/cm_J_eye_rs_L/cm_J_pupil_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R/cm_J_Eye_s_R/cm_J_Eye_r_R/cm_J_Eye01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R/cm_J_Eye_s_R/cm_J_Eye_r_R/cm_J_Eye02_R",
+                "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R/cm_J_Eye_s_R/cm_J_Eye_r_R/cm_J_Eye03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R/cm_J_Eye_s_R/cm_J_Eye_r_R/cm_J_Eye04_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Eye_t_R/cm_J_Eye_s_R/cm_J_EyePos_rz_R/cm_J_look_R/cm_J_eye_rs_R/cm_J_pupil_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_C",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_L/cm_J_MayuMid_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_L/cm_J_MayuTip_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_R/cm_J_MayuMid_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_Neck/cm_J_Head/cm_J_Head_s/p_cm_head_bone/cm_J_FaceRoot/cm_J_FaceBase/cm_J_FaceUp_ty/cm_J_FaceUp_tz/cm_J_Mayu_R/cm_J_MayuTip_s_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmElbo_dam_02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_ArmLow02_dam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Index01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Index01_L/cm_J_Hand_Index02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Index01_L/cm_J_Hand_Index02_L/cm_J_Hand_Index03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L/cm_J_Hand_Little02_L",
+                "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L/cm_J_Hand_Little02_L/cm_J_Hand_Little03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L/cm_J_Hand_Middle02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L/cm_J_Hand_Middle02_L/cm_J_Hand_Middle03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Ring01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Ring01_L/cm_J_Hand_Ring02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Ring01_L/cm_J_Hand_Ring02_L/cm_J_Hand_Ring03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Thumb01_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Thumb01_L/cm_J_Hand_Thumb02_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Thumb01_L/cm_J_Hand_Thumb02_L/cm_J_Hand_Thumb03_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmUp02_dam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmUp03_dam_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_Shoulder02_s_L",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmElbo_dam_02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_ArmLow02_dam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Index01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Index01_R/cm_J_Hand_Index02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Index01_R/cm_J_Hand_Index02_R/cm_J_Hand_Index03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Little01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Little01_R/cm_J_Hand_Little02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Little01_R/cm_J_Hand_Little02_R/cm_J_Hand_Little03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Middle01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Middle01_R/cm_J_Hand_Middle02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Middle01_R/cm_J_Hand_Middle02_R/cm_J_Hand_Middle03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Ring01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Ring01_R/cm_J_Hand_Ring02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Ring01_R/cm_J_Hand_Ring02_R/cm_J_Hand_Ring03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Thumb01_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Thumb01_R/cm_J_Hand_Thumb02_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmLow01_R/cm_J_Hand_R/cm_J_Hand_s_R/cm_J_Hand_Thumb01_R/cm_J_Hand_Thumb02_R/cm_J_Hand_Thumb03_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmUp02_dam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmUp03_dam_R",
+            "BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_Shoulder02_s_R"
+        };
         #endregion
 
         #region Public Accessors
@@ -95,6 +409,8 @@ namespace MoreAccessories
                 this.charaMakerAdditionalData = additionalData;
             }
         }
+        public string[] femaleMoreAttachPointsPaths { get { return this._femaleMoreAttachPointsPaths; } }
+        public string[] maleMoreAttachPointsPaths { get { return this._maleMoreAttachPointsPaths; } }
         #endregion
 
         #region Unity Methods
@@ -120,6 +436,16 @@ namespace MoreAccessories
 
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
+
+            Type t = Type.GetType("UnityEngine.UI.Translation.TextTranslator,UnityEngine.UI.Translation");
+            if (t != null)
+            {
+                MethodInfo info = t.GetMethod("Translate", BindingFlags.Public | BindingFlags.Static);
+                if (info != null)
+                {
+                    this._translationMethod = (TranslationDelegate)Delegate.CreateDelegate(typeof(TranslationDelegate), info);
+                }
+            }
         }
 
         public void OnLevelWasLoaded(int level)
@@ -128,44 +454,6 @@ namespace MoreAccessories
             this._level = level;
             if (this._binary == Binary.Game)
             {
-                //if (level == 15)
-                //{
-                //    HScene hScene = GameObject.FindObjectOfType<HScene>();
-                //    CharFemale[] females = (CharFemale[])hScene.GetPrivate("chaFemales");
-                //    CharAdditionalData additionalData;
-                //    UnityEngine.Debug.Log("bite1");
-                //    if (this._accessoriesByChar.TryGetValue(females[0].chaFile, out additionalData) && additionalData.rawAccessoriesInfos != null && additionalData.rawAccessoriesInfos.Count > 0 && additionalData.rawAccessoriesInfos.First().Value.Count > 0)
-                //    {
-                //        UnityEngine.Debug.Log("bite");
-                //        GameObject accList = GameObject.Find("Canvas").transform.Find("AccessoryCategory/tglOnePlayer/AccessoryCharacterCategory/AccessoryMenu").gameObject;
-                //        GameObject button = GameObject.Instantiate(accList.transform.GetChild(accList.transform.childCount - 1).gameObject);
-                //        button.transform.SetParent(accList.transform);
-                //        button.gameObject.SetActive(true);
-                //        Button b = button.GetComponent<Button>();
-                //        b.onClick = new Button.ButtonClickedEvent();
-                //        b.onClick.AddListener(() =>
-                //        {
-                //            CharClothes_SetAccessoryStateAll_Patches.Prefix(females[0].femaleClothes, additionalData.showAccessory.Count <= 0 || !additionalData.showAccessory[0]);
-                //        });
-
-                //    }
-                //    if (this._accessoriesByChar.TryGetValue(females[1].chaFile, out additionalData) && additionalData.rawAccessoriesInfos != null && additionalData.rawAccessoriesInfos.Count > 0 && additionalData.rawAccessoriesInfos.First().Value.Count > 0)
-                //    {
-                //        UnityEngine.Debug.Log("bite2");
-
-                //        GameObject accList = GameObject.Find("Canvas").transform.Find("AccessoryCategory/tglTwoPlayer/AccessoryCharacterCategory/AccessoryMenu").gameObject;
-                //        GameObject button = GameObject.Instantiate(accList.transform.GetChild(accList.transform.childCount - 1).gameObject);
-                //        button.transform.SetParent(accList.transform);
-                //        button.gameObject.SetActive(true);
-                //        Button b = button.GetComponent<Button>();
-                //        b.onClick = new Button.ButtonClickedEvent();
-                //        b.onClick.AddListener(() =>
-                //        {
-                //            CharClothes_SetAccessoryStateAll_Patches.Prefix(females[1].femaleClothes, additionalData.showAccessory.Count <= 0 || !additionalData.showAccessory[0]);
-                //        });
-
-                //    }
-                //}
                 if (level == 21)
                 {
                     UIUtility.SetCustomFont("mplus-1c-medium");
@@ -301,6 +589,27 @@ namespace MoreAccessories
                     }
                 }
             }
+            if (Input.GetKeyDown(KeyCode.A))
+            {StringBuilder sb = new StringBuilder();
+                List<GameObject> values = ((Dictionary<int, GameObject>)this._charaMakerCharInfo.GetPrivate("dictRefObj")).Values.ToList();
+                this.Recurse(this._charaMakerCharInfo.chaBody.transform, (t) =>
+                {
+                    if (t != this._charaMakerCharInfo.chaBody.transform && t.gameObject.activeInHierarchy && values.Contains(t.gameObject) == false)
+                    {
+                        sb.AppendLine(t.GetPathFrom(this._charaMakerCharInfo.chaBody.transform));
+                    }
+                });
+                UnityEngine.Debug.Log(sb.ToString());
+            }
+        }
+
+        private void Recurse(Transform t, Action<Transform> action)
+        {
+            action(t);
+            for (int i = 0; i < t.childCount; i++)
+            {
+                this.Recurse(t.GetChild(i), action);
+            }
         }
 
         public void OnLateUpdate()
@@ -355,6 +664,7 @@ namespace MoreAccessories
             this.CustomControl_UpdateAcsName();
             this._addButtons.SetAsLastSibling();
             this._prefab.parent.GetComponent<UI_TreeView>().UpdateView();
+            this._smMoreAccessories.UpdateUI();
         }
 
         internal void UpdateStudioUI()
@@ -447,10 +757,9 @@ namespace MoreAccessories
                 }
                 else
                 {
-                    Dictionary<int, ListTypeFbx> accessoryFbxList = this._charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type, true);
+                    Dictionary<int, ListTypeFbx> accessoryFbxList = this._charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type);
                     ListTypeFbx listTypeFbx = null;
-                    accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx);
-                    str2 = listTypeFbx == null ? "なし" : listTypeFbx.Name;
+                    str2 = accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx) ? listTypeFbx.Name : "None";
                 }
             }
             else if (accessory.type == -1)
@@ -459,11 +768,12 @@ namespace MoreAccessories
             }
             else
             {
-                Dictionary<int, ListTypeFbx> accessoryFbxList = this._charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type, true);
+                Dictionary<int, ListTypeFbx> accessoryFbxList = this._charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type);
                 ListTypeFbx listTypeFbx = null;
-                accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx);
-                str2 = listTypeFbx == null ? "None" : listTypeFbx.Name;
+                str2 = accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx) ? listTypeFbx.Name : "None";
             }
+            if (this._translationMethod != null)
+                this._translationMethod(ref str2);
             if (addNo)
                 str2 = (slotNo + 11).ToString("00") + " " + str2;
             if (addType)
