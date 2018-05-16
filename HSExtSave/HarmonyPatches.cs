@@ -465,25 +465,14 @@ namespace HSExtSave
     }
 
 
-    [HarmonyPatch(typeof(CharFileInfoClothesFemale), "LoadSub", new[] { typeof(BinaryReader), typeof(int), typeof(int) })]
+    [HarmonyPatch(typeof(CharFileInfoClothes), "Load", new[] { typeof(BinaryReader), typeof(bool) })]
     public class CharFileInfoClothesFemale_LoadSub_Patches
     {
-        public static void Postfix(CharFileInfoClothesFemale __instance, BinaryReader br, int clothesVer, int colorVer)
+        public static void Postfix(CharFileInfoClothes __instance, BinaryReader br, bool noSetPng = false)
         {
             CharFileInfoClothes_Extensions.Load(__instance, br);
         }
     }
-
-
-    [HarmonyPatch(typeof(CharFileInfoClothesMale), "LoadSub", new[] { typeof(BinaryReader), typeof(int), typeof(int) })]
-    public class CharFileInfoClothesMale_LoadSub_Patches
-    {
-        public static void Postfix(CharFileInfoClothesMale __instance, BinaryReader br, int clothesVer, int colorVer)
-        {
-            CharFileInfoClothes_Extensions.Load(__instance, br);
-        }
-    }
-
 
     [HarmonyPatch(typeof(CharFileInfoClothes), "Save", new[] { typeof(string) })]
     public class CharFileInfoClothesMale_Save_Patches
@@ -523,6 +512,7 @@ namespace HSExtSave
         {
             UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for coordinate...");
             long cachedPosition = br.BaseStream.Position;
+            //br.ReadInt64();
             try
             {
                 XmlDocument doc = new XmlDocument();

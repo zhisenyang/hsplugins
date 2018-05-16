@@ -82,6 +82,7 @@
     </Reference>
     <Reference Include="Vectrosity">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>

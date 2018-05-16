@@ -143,7 +143,7 @@ namespace MoreAccessories
         private readonly List<CopySlot> _dstCopy = new List<CopySlot>();
         private readonly List<CopySlot> _srcCopy = new List<CopySlot>();
         private Toggle _debugParentToggle;
-        private List<VectorLine> _debugVectorLines = new List<VectorLine>();
+        private readonly List<VectorLine> _debugVectorLines = new List<VectorLine>();
         #endregion
 
         #region Public Accessors
@@ -482,17 +482,17 @@ namespace MoreAccessories
                 RawImage separator = UIUtility.CreateRawImage("Separator", scrollRect.content);
                 separator.gameObject.AddComponent<LayoutElement>().preferredHeight = 2f;
 
-                string[] moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths;
-
-                for (int index = 0; index < moreAttachPointsPaths.Length; index++)
+                List<string> moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths;
+                Dictionary<string, string> moreAttachPointsAliases = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsAliases : MoreAccessories.self.maleMoreAttachPointsAliases;
+                for (int index = 0; index < moreAttachPointsPaths.Count; index++)
                 {
                     string path = moreAttachPointsPaths[index];
                     Toggle toggle = GameObject.Instantiate(defaultContainer.GetChild(0).gameObject).GetComponent<Toggle>();
                     toggle.transform.SetParent(scrollRect.content);
                     toggle.isOn = false;
-                    string n = this.chaBody.transform.Find(path).name;
-                    //if (n.StartsWith("cf_J_"))
-                        n = n.Substring(5);
+                    string n = moreAttachPointsAliases[path];
+                    if (n.Length == 0)
+                        n = this.chaBody.transform.Find(path).name;
                     toggle.GetComponentInChildren<Text>().text = n;
                     toggle.gameObject.AddComponent<LayoutElement>().preferredHeight = 20f;
                     toggle.transform.localScale *= 1.5f;
@@ -1832,21 +1832,21 @@ namespace MoreAccessories
             this.nowChanging = true;
             if (this.clothesInfo != null)
             {
-                float specularIntensity = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
-                float specularSharpness = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularSharpness;
-                float specularSharpness2 = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color2.specularSharpness;
+                float specularIntensity = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
+                float specularSharpness = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
+                float specularSharpness2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
                 if (this.sldIntensity)
                     this.sldIntensity.value = specularIntensity;
                 if (this.inputIntensity)
-                    this.inputIntensity.text = (string)this.CallPrivate("ChangeTextFromFloat", specularIntensity);
+                    this.inputIntensity.text = this.ChangeTextFromFloat(specularIntensity);
                 if (this.sldSharpness[0])
                     this.sldSharpness[0].value = specularSharpness;
                 if (this.inputSharpness[0])
-                    this.inputSharpness[0].text = (string)this.CallPrivate("ChangeTextFromFloat", specularSharpness);
+                    this.inputSharpness[0].text = this.ChangeTextFromFloat(specularSharpness);
                 if (this.sldSharpness[1])
                     this.sldSharpness[1].value = specularSharpness2;
                 if (this.inputSharpness[1])
-                    this.inputSharpness[1].text = (string)this.CallPrivate("ChangeTextFromFloat", specularSharpness2);
+                    this.inputSharpness[1].text = this.ChangeTextFromFloat(specularSharpness2);
             }
             this.nowChanging = false;
             this.OnClickColorSpecular(1);
@@ -1927,7 +1927,6 @@ namespace MoreAccessories
             foreach (VectorLine line in this._debugVectorLines)
             {
                 line.drawTransform = t;
-                line.Draw();
             }
         }
 
