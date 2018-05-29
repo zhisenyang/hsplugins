@@ -8,6 +8,7 @@ using System.Xml;
 using CustomMenu;
 using Harmony;
 using IllusionPlugin;
+using Studio;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -51,7 +52,7 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.3.1"; } }
+        public string Version { get { return "1.3.2"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
@@ -306,11 +307,6 @@ namespace HSUS
                 this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
             if (this._improveNeoUI && this._binary == Binary.Neo && level == 3)
             {
-                foreach (Studio.ItemGroupList gr in Resources.FindObjectsOfTypeAll<Studio.ItemGroupList>())
-                {
-                    UnityEngine.Debug.Log(gr.transform.GetPathFrom(null));
-                    break;
-                }
                 RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
                 rt.offsetMax += new Vector2(60f, 0f);
                 rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
@@ -547,7 +543,7 @@ namespace HSUS
             bool flag2 = false;
             if (customControl.modeCustom == 0)
             {
-                customControl.chainfo.chaFile.Load(path, false, true);
+                customControl.chainfo.chaFile.Load(path);
                 customControl.chainfo.chaFile.ChangeCoordinateType(customControl.chainfo.statusInfo.coordinateType);
                 if (customControl.chainfo.chaFile.customInfo.isConcierge)
                 {
@@ -567,13 +563,13 @@ namespace HSUS
             if (customControl.chainfo.Sex == 0)
             {
                 CharMale charMale = customControl.chainfo as CharMale;
-                charMale.Reload(false, false, false);
+                charMale.Reload();
                 charMale.maleStatusInfo.visibleSon = false;
             }
             else
             {
                 CharFemale charFemale = customControl.chainfo as CharFemale;
-                charFemale.Reload(false, false, false);
+                charFemale.Reload();
                 charFemale.UpdateBustSoftnessAndGravity();
             }
             if (flag)
@@ -630,6 +626,26 @@ namespace HSUS
                 }, 3);
             }
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(StartScene), "Start")]
+    public class StartScene_Start_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeNeo;
+        }
+        public static bool Prefix(System.Object __instance)
+        {
+            if (__instance as StartScene)
+            {
+                Studio.Info.Instance.LoadExcelData();
+                Manager.Scene.Instance.SetFadeColor(Color.black);
+                Manager.Scene.Instance.LoadReserv("Studio", true);
+                return false;
+            }
+            return true;
         }
     }
     //[HarmonyPatch(typeof(HSColorSet), "SetSpecularRGB", new[] { typeof(Color) })]

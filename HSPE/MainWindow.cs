@@ -91,7 +91,7 @@ namespace HSPE
         #endregion
 
         #region Private Variables
-        private ManualBoneController _manualBoneTarget;
+        private PoseController _poseTarget;
         private readonly List<FullBodyBipedEffector> _boneTargets = new List<FullBodyBipedEffector>();
         private readonly List<Vector3> _lastBonesPositions = new List<Vector3>();
         private readonly List<Quaternion> _lastBonesRotations = new List<Quaternion>();
@@ -133,8 +133,7 @@ namespace HSPE
         private readonly Text[] _bendGoalsTexts = new Text[4];
         private readonly Button[] _positionButtons = new Button[3];
         private readonly Button[] _rotationButtons = new Button[3];
-        private bool _charactersAddedByCopy = false;
-        private readonly List<ManualBoneController> _copySources = new List<ManualBoneController>();
+        private readonly List<PoseController> _copySources = new List<PoseController>();
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
         private KeyCode[] _possibleKeyCodes;
@@ -153,6 +152,8 @@ namespace HSPE
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
         public IKExecutionOrder ikExecutionOrder { get { return this._ikExecutionOrder; } }
         public float uiScale { get; private set; } = 1f;
+        public Texture2D vectorEndCap { get; private set; }
+        public Texture2D vectorMiddle { get; private set; }
         #endregion
 
         #region Unity Methods
@@ -242,7 +243,7 @@ namespace HSPE
             this._lastObjectCount = Studio.Studio.Instance.dicObjectCtrl.Count;
 
 
-            ManualBoneController last = this._manualBoneTarget;
+            PoseController last = this._poseTarget;
             Studio.TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
             if (treeNodeObject != null)
             {
@@ -250,12 +251,12 @@ namespace HSPE
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
                 {
                     Studio.OCIChar selected = info as Studio.OCIChar;
-                    this._manualBoneTarget = selected != null ? selected.charInfo.gameObject.GetComponent<ManualBoneController>() : null;
+                    this._poseTarget = selected != null ? selected.charInfo.gameObject.GetComponent<PoseController>() : null;
                 }
             }
             else
-                this._manualBoneTarget = null;
-            if (last != this._manualBoneTarget)
+                this._poseTarget = null;
+            if (last != this._poseTarget)
                 this.OnTargetChange(last);
             this.GUILogic();
         }
@@ -263,14 +264,14 @@ namespace HSPE
         protected virtual void OnGUI()
         {
             GUIUtility.ScaleAroundPivot(Vector2.one * (this.uiScale * this.resolutionRatio), new Vector2(Screen.width, Screen.height));
-            if (this._manualBoneTarget != null)
+            if (this._poseTarget != null)
             {
-                if (this._manualBoneTarget.drawAdvancedMode)
+                if (this._poseTarget.drawAdvancedMode)
                 {
                     for (int i = 0; i < 3; ++i)
                         GUI.Box(this._advancedModeRect, "");
-                    this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._manualBoneTarget.AdvancedModeWindow, "Advanced mode");
-                    if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._manualBoneTarget.colliderEditEnabled && this._manualBoneTarget.colliderEditRect.Contains(Event.current.mousePosition)))
+                    this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
+                    if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._poseTarget.colliderEditEnabled && this._poseTarget.colliderEditRect.Contains(Event.current.mousePosition)))
                         this._mouseInAdvMode = true;
                     else
                         this._mouseInAdvMode = false;
@@ -354,6 +355,12 @@ namespace HSPE
                 {
                     case "Icon":
                         texture = t;
+                        break;
+                    case "VectorEndCap":
+                        this.vectorEndCap = t;
+                        break;
+                    case "VectorMiddle":
+                        this.vectorMiddle = t;
                         break;
                 }
             }
@@ -717,8 +724,8 @@ namespace HSPE
                             copyLeftArmButton.colors = cb;
                             copyLeftArmButton.onClick.AddListener(() =>
                             {
-                                if (this._manualBoneTarget != null)
-                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
+                                if (this._poseTarget != null)
+                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
                             });
                             buttonRT = copyLeftArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -32.5f), new Vector2(-1.25f, -0f));
@@ -730,8 +737,8 @@ namespace HSPE
                             copyRightArmButton.colors = cb;
                             copyRightArmButton.onClick.AddListener(() =>
                             {
-                                if (this._manualBoneTarget != null)
-                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
+                                if (this._poseTarget != null)
+                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
                             });
                             buttonRT = copyRightArmButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -32.5f), new Vector2(-0f, -0f));
@@ -743,8 +750,8 @@ namespace HSPE
                             copyLeftLegButton.colors = cb;
                             copyLeftLegButton.onClick.AddListener(() =>
                             {
-                                if (this._manualBoneTarget != null)
-                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
+                                if (this._poseTarget != null)
+                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
                             });
                             buttonRT = copyLeftLegButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62.5f), new Vector2(-1.25f, -32.5f));
@@ -756,8 +763,8 @@ namespace HSPE
                             copyRightLegButton.colors = cb;
                             copyRightLegButton.onClick.AddListener(() =>
                             {
-                                if (this._manualBoneTarget != null)
-                                    this._manualBoneTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
+                                if (this._poseTarget != null)
+                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
                             });
                             buttonRT = copyRightLegButton.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -62.5f), new Vector2(-0f, -32.5f));
@@ -850,8 +857,8 @@ namespace HSPE
                             this._optimizeIKToggle = UIUtility.AddCheckboxToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK"));
                             this._optimizeIKToggle.onValueChanged.AddListener((b) =>
                             {
-                                if (this._manualBoneTarget != null)
-                                    this._manualBoneTarget.optimizeIK = this._optimizeIKToggle.isOn;
+                                if (this._poseTarget != null)
+                                    this._poseTarget.optimizeIK = this._optimizeIKToggle.isOn;
                             });
                             buttonRT = this._optimizeIKToggle.transform as RectTransform;
                             buttonRT.SetRect(new Vector2(0.4444f, 0f), new Vector2(0.4444f, 1f), Vector2.zero, new Vector2(20f, 0f));
@@ -1147,8 +1154,8 @@ namespace HSPE
 
         private void ToggleAdvancedMode()
         {
-            if (this._manualBoneTarget != null)
-                this._manualBoneTarget.drawAdvancedMode = !this._manualBoneTarget.drawAdvancedMode;
+            if (this._poseTarget != null)
+                this._poseTarget.drawAdvancedMode = !this._poseTarget.drawAdvancedMode;
         }
 
         private void GUILogic()
@@ -1162,7 +1169,7 @@ namespace HSPE
 
             if (Input.GetMouseButtonDown(0))
             {
-                if (this._manualBoneTarget != null && this._manualBoneTarget.drawAdvancedMode && this._mouseInAdvMode)
+                if (this._poseTarget != null && this._poseTarget.drawAdvancedMode && this._mouseInAdvMode)
                     this.SetNoControlCondition();
             }
 
@@ -1180,14 +1187,14 @@ namespace HSPE
             if (this._isVisible == false)
                 return;
 
-            if (this._manualBoneTarget != null)
+            if (this._poseTarget != null)
             {
                 this.ResetBoneButtons();
                 bool shouldReset = false;
                 for (int i = 0; i < this._boneTargets.Count; i++)
                 {
                     FullBodyBipedEffector bone = this._boneTargets[i];
-                    if (this._manualBoneTarget.IsPartEnabled(bone) == false)
+                    if (this._poseTarget.IsPartEnabled(bone) == false)
                     {
                         this._boneTargets.RemoveAt(i);
                         --i;
@@ -1198,7 +1205,7 @@ namespace HSPE
                 for (int i = 0; i < this._bendGoalTargets.Count; i++)
                 {
                     FullBodyBipedChain bendGoal = this._bendGoalTargets[i];
-                    if (this._manualBoneTarget.IsPartEnabled(bendGoal) == false)
+                    if (this._poseTarget.IsPartEnabled(bendGoal) == false)
                     {
                         this._bendGoalTargets.RemoveAt(i);
                         --i;
@@ -1214,19 +1221,19 @@ namespace HSPE
                 }
 
                 for (int i = 0; i < this._effectorsButtons.Length; i++)
-                    this._effectorsButtons[i].interactable = this._manualBoneTarget.IsPartEnabled((FullBodyBipedEffector)i);
+                    this._effectorsButtons[i].interactable = this._poseTarget.IsPartEnabled((FullBodyBipedEffector)i);
 
                 for (int i = 0; i < this._bendGoalsButtons.Length; i++)
-                    this._bendGoalsButtons[i].interactable = this._manualBoneTarget.IsPartEnabled((FullBodyBipedChain)i);
+                    this._bendGoalsButtons[i].interactable = this._poseTarget.IsPartEnabled((FullBodyBipedChain)i);
             }
 
             if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
             {
                 this._delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
-                if (this._manualBoneTarget != null)
+                if (this._poseTarget != null)
                 {
-                    if (this._manualBoneTarget.currentDragType == ManualBoneController.DragType.None)
-                        this._manualBoneTarget.StartDrag(this._xMove || this._yMove || this._zMove ? ManualBoneController.DragType.Position : ManualBoneController.DragType.Rotation);
+                    if (this._poseTarget.currentDragType == PoseController.DragType.None)
+                        this._poseTarget.StartDrag(this._xMove || this._yMove || this._zMove ? PoseController.DragType.Position : PoseController.DragType.Rotation);
                     for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
                         bool changePosition = false;
@@ -1264,9 +1271,9 @@ namespace HSPE
                             changeRotation = true;
                         }
                         if (changePosition)
-                            this._manualBoneTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition, this._positionOperationWorld);
+                            this._poseTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition, this._positionOperationWorld);
                         if (changeRotation)
-                            this._manualBoneTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
+                            this._poseTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
                     }
                     for (int i = 0; i < this._bendGoalTargets.Count; ++i)
                     {
@@ -1277,24 +1284,24 @@ namespace HSPE
                             newPosition.y += this._delta.y * this._intensityValue;
                         if (this._zMove)
                             newPosition.z += this._delta.y * this._intensityValue;
-                        this._manualBoneTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition, this._positionOperationWorld);
+                        this._poseTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition, this._positionOperationWorld);
                     }
                 }
             }
             else
             {
                 this._delta = Vector2.zero;
-                if (this._manualBoneTarget != null)
+                if (this._poseTarget != null)
                 {
-                    if (this._manualBoneTarget.currentDragType != ManualBoneController.DragType.None)
-                        this._manualBoneTarget.StopDrag();
+                    if (this._poseTarget.currentDragType != PoseController.DragType.None)
+                        this._poseTarget.StopDrag();
                     for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
-                        this._lastBonesPositions[i] = this._manualBoneTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
-                        this._lastBonesRotations[i] = this._manualBoneTarget.GetBoneTargetRotation(this._boneTargets[i]);
+                        this._lastBonesPositions[i] = this._poseTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
+                        this._lastBonesRotations[i] = this._poseTarget.GetBoneTargetRotation(this._boneTargets[i]);
                     }
                     for (int i = 0; i < this._bendGoalTargets.Count; ++i)
-                        this._lastBendGoalsPositions[i] = this._manualBoneTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
+                        this._lastBendGoalsPositions[i] = this._poseTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
                 }
             }
 
@@ -1322,9 +1329,8 @@ namespace HSPE
 
         public void OnDuplicate(OCIChar source, OCIChar destination)
         {
-            ManualBoneController destinationController = destination.charInfo.gameObject.AddComponent<ManualBoneController>();
-            destinationController.chara = destination;
-            destinationController.LoadFrom(source.charInfo.gameObject.GetComponent<ManualBoneController>());
+            PoseController destinationController = destination.charInfo.gameObject.AddComponent<PoseController>();
+            destinationController.LoadFrom(source.charInfo.gameObject.GetComponent<PoseController>());
         }
         #endregion
 
@@ -1336,38 +1342,29 @@ namespace HSPE
 
         private void OnObjectAdded()
         {
-            int i = 0;
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in Studio.Studio.Instance.dicObjectCtrl)
             {
                 if (kvp.Key >= this._lastIndex)
                 {
                     Studio.OCIChar ociChar = kvp.Value as Studio.OCIChar;
-                    if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<ManualBoneController>() == null)
-                    {
-                        ManualBoneController controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
-                        controller.chara = ociChar;
-                        if (this._charactersAddedByCopy && i < this._copySources.Count)
-                        {
-                            controller.LoadFrom(this._copySources[i]);
-                            ++i;
-                        }
-                    }
+                    if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<PoseController>() == null)
+                        ociChar.charInfo.gameObject.AddComponent<PoseController>();
                 }
             }
         }
 
-        private void OnTargetChange(ManualBoneController last)
+        private void OnTargetChange(PoseController last)
         {
             if (last != null)
                 last.drawAdvancedMode = false;
-            if (this._manualBoneTarget == null)
+            if (this._poseTarget == null)
             {
                 this._nothingText.gameObject.SetActive(true);
                 this._controls.gameObject.SetActive(false);
             }
             else
             {
-                this._optimizeIKToggle.isOn = this._manualBoneTarget.optimizeIK;
+                this._optimizeIKToggle.isOn = this._poseTarget.optimizeIK;
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
             }
@@ -1378,7 +1375,7 @@ namespace HSPE
         [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
-            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving || (this._manualBoneTarget != null && this._manualBoneTarget.isDraggingDynamicBone);
+            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving || (this._poseTarget != null && this._poseTarget.isDraggingDynamicBone);
         }
         #endregion
 
@@ -1436,7 +1433,7 @@ namespace HSPE
                     xmlWriter.WriteStartElement("characterInfo");
                     xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
                     xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
-                    ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
+                    PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
                     if (controller.optimizeIK == false)
                     {
                         xmlWriter.WriteAttributeString("optimizeIK", XmlConvert.ToString(controller.optimizeIK));
@@ -1470,12 +1467,9 @@ namespace HSPE
                                 ++i;
                             if (i == dic.Count)
                                 break;
-                            ManualBoneController controller = ociChar.charInfo.gameObject.GetComponent<ManualBoneController>();
+                            PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
                             if (controller == null)
-                            {
-                                controller = ociChar.charInfo.gameObject.AddComponent<ManualBoneController>();
-                                controller.chara = ociChar;
-                            }
+                                controller = ociChar.charInfo.gameObject.AddComponent<PoseController>();
                             if (childNode.Attributes?["optimizeIK"] != null)
                                 controller.optimizeIK = XmlConvert.ToBoolean(childNode.Attributes["optimizeIK"].Value);
                             else
