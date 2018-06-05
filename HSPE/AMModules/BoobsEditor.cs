@@ -185,11 +185,6 @@ namespace HSPE.AMModules
         #endregion
 
         #region Unity Methods
-        void Awake()
-        {
-            MainWindow.self.onPostUpdate += this.OnPostUpdate;
-        }
-
         void Start()
         {
             this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
@@ -203,15 +198,24 @@ namespace HSPE.AMModules
         {
             base.Update();
             this.DynamicBoneDraggingLogic();
-        }
-
-        void OnDestroy()
-        {
-            MainWindow.self.onPostUpdate -= this.OnPostUpdate;
+            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
+            {
+                if (kvp.Value.gravity.hasValue)
+                    kvp.Key.Gravity = kvp.Value.gravity;
+                if (kvp.Value.force.hasValue)
+                    kvp.Key.Force = kvp.Value.force;
+            }
+            if (!this.isEnabled || !this.drawAdvancedMode)
+                return;
+            this._debugLines.Draw(this._leftBoob, this._rightBoob);
         }
         #endregion
 
         #region Public Methods
+        public override void CharBodyPostLateUpdate()
+        {
+        }
+
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
@@ -465,20 +469,6 @@ namespace HSPE.AMModules
             {
                 this.isDraggingDynamicBone = false;
             }
-        }
-
-        private void OnPostUpdate()
-        {
-            foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
-            {
-                if (kvp.Value.gravity.hasValue)
-                    kvp.Key.Gravity = kvp.Value.gravity;
-                if (kvp.Value.force.hasValue)
-                    kvp.Key.Force = kvp.Value.force;
-            }
-            if (!this.isEnabled || !this.drawAdvancedMode)
-                return;
-            this._debugLines.Draw(this._leftBoob, this._rightBoob);
         }
 
         private void CheckGizmosEnabled()

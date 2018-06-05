@@ -59,6 +59,9 @@ namespace HSPE.AMModules
         private int _eyesShapesCount = Int32.MaxValue;
         private SkinnedMeshRenderer _skinnedMeshTarget;
         private bool _isFemale;
+        private bool _linkEyesAndEyelashes = true;
+        private SkinnedMeshRenderer _eyesMouthRenderer;
+        private SkinnedMeshRenderer _eyelashesRenderer;
         #endregion
 
         #region Public Fields
@@ -71,7 +74,6 @@ namespace HSPE.AMModules
         void Awake()
         {
             this._skinnedMeshRenderers = this.GetComponentsInChildren<SkinnedMeshRenderer>(true).ToList();
-            MainWindow.self.onPostUpdate += this.OnPostUpdate;
         }
 
         void Start()
@@ -86,6 +88,15 @@ namespace HSPE.AMModules
                         this._eyesSkinnedMeshRenderers.Add(renderer);
                     if (renderer.sharedMesh.blendShapeCount < this._eyesShapesCount)
                         this._eyesShapesCount = renderer.sharedMesh.blendShapeCount;
+                    switch (renderer.name)
+                    {
+                        case "cf_O_head":
+                            this._eyesMouthRenderer = renderer;
+                            break;
+                        case "cf_O_matuge":
+                            this._eyelashesRenderer = renderer;
+                            break;
+                    }
                 }
                 foreach (FBSTargetInfo target in this.chara.charBody.mouthCtrl.FBSTarget)
                 {
@@ -93,6 +104,7 @@ namespace HSPE.AMModules
                         this._mouthSkinnedMeshRenderers.Add(target.GetSkinnedMeshRenderer());
                 }
             }
+            this._skinnedMeshTarget = this._skinnedMeshRenderers.First(s => s.sharedMesh.blendShapeCount > 0);
         }
 
         protected override void Update()
@@ -109,14 +121,13 @@ namespace HSPE.AMModules
                 }
             if (toDelete != null)
             {
-                foreach (SkinnedMeshRenderer r
-                    in toDelete)
+                foreach (SkinnedMeshRenderer r in toDelete)
                 {
                     if (this._dirtySkinnedMeshRenderers.ContainsKey(r))
                         this._dirtySkinnedMeshRenderers.Remove(r);
                     this._skinnedMeshRenderers.Remove(r);
                 }
-                this._skinnedMeshTarget = null;
+                this._skinnedMeshTarget = this._skinnedMeshRenderers.First(s => s.sharedMesh.blendShapeCount > 0);
             }
             List<SkinnedMeshRenderer> toAdd = null;
             foreach (SkinnedMeshRenderer r in skinnedMeshRenderers)
@@ -131,13 +142,23 @@ namespace HSPE.AMModules
                     this._skinnedMeshRenderers.Add(r);
         }
 
-        void OnDestroy()
+        void LateUpdate()
         {
-            MainWindow.self.onPostUpdate -= this.OnPostUpdate;
+            foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
+            {
+                foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
+                {
+                    kvp.Key.SetBlendShapeWeight(weight.Key, weight.Value.weight);
+                }
+            }
         }
         #endregion
 
         #region Public Methods
+        public override void CharBodyPostLateUpdate()
+        {
+        }
+
         public override void GUILogic()
         {
             Color c = GUI.color;
@@ -165,8 +186,22 @@ namespace HSPE.AMModules
 
             GUI.color = Color.red;
             if (this._skinnedMeshTarget != null && GUILayout.Button("Reset"))
+            {
                 this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
+                if (this._isFemale && this._linkEyesAndEyelashes)
+                {
+                    SkinnedMeshRenderer other = null;
+                    if (this._skinnedMeshTarget == this._eyesMouthRenderer)
+                        other = this._eyelashesRenderer;
+                    else if (this._skinnedMeshTarget == this._eyelashesRenderer)
+                        other = this._eyesMouthRenderer;
+                    if (other != null)
+                        this.SetMeshRendererNotDirty(other);
+                }
+            }
             GUI.color = c;
+            if (this._isFemale)
+                this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes and eyelashes");
 
             GUILayout.EndVertical();
 
@@ -176,10 +211,10 @@ namespace HSPE.AMModules
                 SkinnedMeshRendererData data = null;
                 this._dirtySkinnedMeshRenderers.TryGetValue(this._skinnedMeshTarget, out data);
                 bool eyesSkinnedMesh = this._eyesSkinnedMeshRenderers.Contains(this._skinnedMeshTarget);
-                bool mouthSkinnedMeth = this._mouthSkinnedMeshRenderers.Contains(this._skinnedMeshTarget);
+                bool mouthSkinnedMesh = this._mouthSkinnedMeshRenderers.Contains(this._skinnedMeshTarget);
                 for (int i = 0; i < this._skinnedMeshTarget.sharedMesh.blendShapeCount; ++i)
                 {
-                    if (eyesSkinnedMesh && mouthSkinnedMeth)
+                    if (eyesSkinnedMesh && mouthSkinnedMesh)
                     {
                         if (i == 0)
                             GUILayout.Label("Eyes");
@@ -198,13 +233,13 @@ namespace HSPE.AMModules
                     }
                     else
                         blendShapeWeight = this._skinnedMeshTarget.GetBlendShapeWeight(i);
-                    if (eyesSkinnedMesh || mouthSkinnedMeth)
+                    if (eyesSkinnedMesh || mouthSkinnedMesh)
                     {
                         int realI = i;
                         if (realI >= this._eyesShapesCount)
                             realI -= this._eyesShapesCount;
                         realI /= 2;
-                        GUILayout.Label(string.Format("{0}{1}", realI, i % 2 == 0 ? " (closed)" : " (opened)"), GUILayout.ExpandWidth(false));
+                        GUILayout.Label(string.Format("{0}{1}", realI, i % 2 == 0 ? " (closed)\t" : " (opened)\t"), GUILayout.ExpandWidth(false));
                     }
                     else
                         GUILayout.Label(i.ToString(), GUILayout.ExpandWidth(false));
@@ -219,6 +254,27 @@ namespace HSPE.AMModules
                             data.dirtyBlendShapes.Add(i, bsData);
                         }
                         bsData.weight = newBlendShapeWeight;
+                        if (this._isFemale && this._linkEyesAndEyelashes)
+                        {
+                            SkinnedMeshRenderer other = null;
+                            if (this._skinnedMeshTarget == this._eyesMouthRenderer)
+                                other = this._eyelashesRenderer;
+                            else if (this._skinnedMeshTarget == this._eyelashesRenderer)
+                                other = this._eyesMouthRenderer;
+
+                            if (other != null)
+                            {
+                                data = this.SetMeshRendererDirty(other);
+                                if (data.dirtyBlendShapes.TryGetValue(i, out bsData) == false)
+                                {
+                                    bsData = new BlendShapeData();
+                                    bsData.originalWeight = blendShapeWeight;
+                                    data.dirtyBlendShapes.Add(i, bsData);
+                                }
+                                bsData.weight = newBlendShapeWeight;
+                            }
+                        }
+
                     }
                     GUILayout.Label(newBlendShapeWeight.ToString("000"), GUILayout.ExpandWidth(false));
 
@@ -230,15 +286,29 @@ namespace HSPE.AMModules
                         data.dirtyBlendShapes.Remove(i);
                         if (data.dirtyBlendShapes.Count == 0)
                             this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
+
+                        if (this._isFemale && this._linkEyesAndEyelashes)
+                        {
+                            SkinnedMeshRenderer other = null;
+                            if (this._skinnedMeshTarget == this._eyesMouthRenderer)
+                                other = this._eyelashesRenderer;
+                            else if (this._skinnedMeshTarget == this._eyelashesRenderer)
+                                other = this._eyesMouthRenderer;
+
+                            if (other != null && this._dirtySkinnedMeshRenderers.TryGetValue(other, out data) && data.dirtyBlendShapes.TryGetValue(i, out bsData))
+                            {
+                                other.SetBlendShapeWeight(i, bsData.originalWeight);
+                                data.dirtyBlendShapes.Remove(i);
+                                if (data.dirtyBlendShapes.Count == 0)
+                                    this.SetMeshRendererNotDirty(other);
+                            }
+                        }
+
                     }
                     GUILayout.EndHorizontal();
                     GUI.color = c;
                 }
 
-            }
-            else
-            {
-                GUILayout.FlexibleSpace();
             }
             GUILayout.EndScrollView();
 
@@ -336,17 +406,6 @@ namespace HSPE.AMModules
                 this._dirtySkinnedMeshRenderers.Add(bone, data);
             }
             return data;
-        }
-
-        private void OnPostUpdate()
-        {
-            foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
-            {
-                foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
-                {
-                    kvp.Key.SetBlendShapeWeight(weight.Key, weight.Value.weight);
-                }
-            }
         }
         #endregion
     }

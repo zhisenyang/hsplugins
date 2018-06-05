@@ -197,6 +197,7 @@ namespace HSPE.AMModules
                     line.active = active;
             }
         }
+
         private enum CoordType
         {
             Position,
@@ -213,7 +214,9 @@ namespace HSPE.AMModules
             public EditableValue<Quaternion> originalRotation;
             public EditableValue<Vector3> originalScale;
 
-            public TransformData() { }
+            public TransformData()
+            {
+            }
 
             public TransformData(TransformData other)
             {
@@ -234,7 +237,9 @@ namespace HSPE.AMModules
             public EditableValue<DynamicBoneCollider.Direction> originalDirection;
             public EditableValue<DynamicBoneCollider.Bound> originalBound;
 
-            public ColliderData() { }
+            public ColliderData()
+            {
+            }
 
             public ColliderData(ColliderData other)
             {
@@ -296,6 +301,7 @@ namespace HSPE.AMModules
                 this.CheckGizmosEnabled();
             }
         }
+        public Dictionary<GameObject, OCIChar.BoneInfo> fkObjects { get { return this._fkObjects; } }
         #endregion
 
         #region Unity Methods
@@ -303,7 +309,6 @@ namespace HSPE.AMModules
         {
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
-            MainWindow.self.onPostUpdate += this.OnPostUpdate;
             MainWindow.self.onParentage += this.OnParentage;
 
             {
@@ -329,9 +334,15 @@ namespace HSPE.AMModules
                 this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
                 this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
 
-                this._cubeDebugLines.Add(VectorLine.SetLine(AdvancedModeModule._redColor, Vector3.zero, Vector3.right * size * 2));
-                this._cubeDebugLines.Add(VectorLine.SetLine(AdvancedModeModule._greenColor, Vector3.zero, Vector3.up * size * 2));
-                this._cubeDebugLines.Add(VectorLine.SetLine(AdvancedModeModule._blueColor, Vector3.zero, Vector3.forward * size * 2));
+                VectorLine l = VectorLine.SetLine(AdvancedModeModule._redColor, Vector3.zero, Vector3.right * size * 2);
+                l.endCap = "vector";
+                this._cubeDebugLines.Add(l);
+                l = VectorLine.SetLine(AdvancedModeModule._greenColor, Vector3.zero, Vector3.up * size * 2);
+                l.endCap = "vector";
+                this._cubeDebugLines.Add(l);
+                l = VectorLine.SetLine(AdvancedModeModule._blueColor, Vector3.zero, Vector3.forward * size * 2);
+                l.endCap = "vector";
+                this._cubeDebugLines.Add(l);
 
                 foreach (VectorLine line in this._cubeDebugLines)
                 {
@@ -364,8 +375,11 @@ namespace HSPE.AMModules
                 this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_FaceRoot"), "Face");
             }
             foreach (OCIChar.BoneInfo bone in this.chara.listBones)
+            {
                 this._fkObjects.Add(bone.guideObject.transformTarget.gameObject, bone);
+            }
         }
+
         void OnGUI()
         {
             GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow.self.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
@@ -380,12 +394,49 @@ namespace HSPE.AMModules
 
         void OnDestroy()
         {
-            MainWindow.self.onPostUpdate -= this.OnPostUpdate;
             MainWindow.self.onParentage -= this.OnParentage;
         }
         #endregion
 
         #region Public Methods
+        public override void IKSolverOnPostUpdate()
+        {
+            if (this.chara.oiCharInfo.enableFK == false)
+            {
+                this.ApplyBoneManualCorrection();
+                this.DrawGizmos();                
+            }
+        }
+
+        public override void FKCtrlOnPostLateUpdate()
+        {
+            this.ApplyBoneManualCorrection();
+            this.DrawGizmos();
+        }
+
+        public override void CharBodyPreLateUpdate()
+        {
+            if (this.chara.oiCharInfo.enableIK == false && this.chara.oiCharInfo.enableFK == false)
+            {
+                this.ApplyBoneManualCorrection();
+                this.DrawGizmos();                
+            }
+        }
+
+        public Transform GetTwinBone(Transform bone)
+        {
+            if (bone.name.EndsWith("_L"))
+                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_R");
+            if (bone.name.EndsWith("_R"))
+                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_L");
+            if (bone.parent.name.EndsWith("_L"))
+                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_R").GetChild(bone.GetSiblingIndex());
+            if (bone.parent.name.EndsWith("_R"))
+                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L").GetChild(bone.GetSiblingIndex());
+            return null;
+        }
+
+
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
@@ -786,40 +837,12 @@ namespace HSPE.AMModules
                 this._symmetricalEdition = GUILayout.Toggle(this._symmetricalEdition, "Symmetrical");
 
                 GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Reset Pos.") && this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
-                {
-                    this._dirtyBones[this._boneTarget.gameObject].position.Reset();
-                    this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-
-                    if (this._symmetricalEdition && this._twinBoneTarget != null)
-                    {
-                        this._dirtyBones[this._twinBoneTarget.gameObject].position.Reset();
-                        this.SetBoneNotDirtyIf(this._twinBoneTarget.gameObject);
-                    }
-                }
-                if ((fkBoneInfo == null || fkBoneInfo.active == false) && GUILayout.Button("Reset Rot.") && this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
-                {
-                    this._dirtyBones[this._boneTarget.gameObject].rotation.Reset();
-                    this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-
-                    if (this._symmetricalEdition && this._twinBoneTarget != null)
-                    {
-                        this._dirtyBones[this._twinBoneTarget.gameObject].rotation.Reset();
-                        this.SetBoneNotDirtyIf(this._twinBoneTarget.gameObject);
-                    }
-                }
-
-                if (GUILayout.Button("Reset Scale") && this._boneTarget != null && this.IsBoneDirty(this._boneTarget.gameObject))
-                {
-                    this._dirtyBones[this._boneTarget.gameObject].scale.Reset();
-                    this.SetBoneNotDirtyIf(this._boneTarget.gameObject);
-
-                    if (this._symmetricalEdition && this._twinBoneTarget != null)
-                    {
-                        this._dirtyBones[this._twinBoneTarget.gameObject].scale.Reset();
-                        this.SetBoneNotDirtyIf(this._twinBoneTarget.gameObject);
-                    }
-                }
+                if (GUILayout.Button("Reset Pos.") && this._boneTarget != null)
+                    this.ResetBonePos(this._boneTarget, this._twinBoneTarget, Event.current.control);
+                if ((fkBoneInfo == null || fkBoneInfo.active == false) && GUILayout.Button("Reset Rot.") && this._boneTarget != null)
+                    this.ResetBoneRot(this._boneTarget, this._twinBoneTarget, Event.current.control);
+                if (GUILayout.Button("Reset Scale") && this._boneTarget != null)
+                    this.ResetBoneScale(this._boneTarget, this._twinBoneTarget, Event.current.control);
 
                 if (GUILayout.Button("Default") && this._boneTarget != null)
                 {
@@ -1169,6 +1192,94 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
+        private void ResetBonePos(Transform bone, Transform twinBone = null, bool withChildren = false)
+        {
+            TransformData data;
+            if (this._dirtyBones.TryGetValue(bone.gameObject, out data))
+            {
+                data.position.Reset();
+                this.SetBoneNotDirtyIf(bone.gameObject);
+            }
+            if (this._symmetricalEdition && twinBone != null && this._dirtyBones.TryGetValue(twinBone.gameObject, out data))
+            {
+                data.position.Reset();
+                this.SetBoneNotDirtyIf(twinBone.gameObject);
+            }
+            if (withChildren)
+            {
+                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                {
+                    if (pair.Key.transform.IsChildOf(bone))
+                    {
+                        Transform childBone = pair.Key.transform;
+                        Transform twinChildBone = this.GetTwinBone(childBone);
+                        if (twinChildBone == childBone)
+                            twinChildBone = null;
+                        this.ResetBonePos(childBone, twinChildBone, false);
+                    }
+                }
+            }
+        }
+
+        private void ResetBoneRot(Transform bone, Transform twinBone = null, bool withChildren = false)
+        {
+            TransformData data;
+            if ((!this.chara.oiCharInfo.enableFK || !this._fkObjects.ContainsKey(bone.gameObject)) && this._dirtyBones.TryGetValue(bone.gameObject, out data))
+            {
+                data.rotation.Reset();
+                this.SetBoneNotDirtyIf(bone.gameObject);
+            }
+            if (this._symmetricalEdition && twinBone != null && (!this.chara.oiCharInfo.enableFK || !this._fkObjects.ContainsKey(twinBone.gameObject)) && this._dirtyBones.TryGetValue(twinBone.gameObject, out data))
+            {
+                data.rotation.Reset();
+                this.SetBoneNotDirtyIf(twinBone.gameObject);
+            }
+            if (withChildren)
+            {
+                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                {
+                    if (pair.Key.transform.IsChildOf(bone))
+                    {
+                        Transform childBone = pair.Key.transform;
+                        Transform twinChildBone = this.GetTwinBone(childBone);
+                        if (twinChildBone == childBone)
+                            twinChildBone = null;
+                        this.ResetBoneRot(childBone, twinChildBone, false);
+                    }
+                }
+            }
+        }
+
+        private void ResetBoneScale(Transform bone, Transform twinBone, bool withChildren = false)
+        {
+            TransformData data;
+            if (this._dirtyBones.TryGetValue(bone.gameObject, out data))
+            {
+                data.scale.Reset();
+                this.SetBoneNotDirtyIf(bone.gameObject);
+            }
+            if (this._symmetricalEdition && twinBone != null && this._dirtyBones.TryGetValue(twinBone.gameObject, out data))
+            {
+                data.scale.Reset();
+                this.SetBoneNotDirtyIf(twinBone.gameObject);
+            }
+            if (withChildren)
+            {
+                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                {
+                    if (pair.Key.transform.IsChildOf(bone))
+                    {
+                        Transform childBone = pair.Key.transform;
+                        Transform twinChildBone = this.GetTwinBone(childBone);
+                        if (twinChildBone == childBone)
+                            twinChildBone = null;
+                        this.ResetBoneScale(childBone, twinChildBone, false);
+                    }
+                }
+            }
+
+        }
+
         private void DisplayObjectTree(GameObject go, int indent)
         {
             if (this._ignoredObjects.Contains(go))
@@ -1278,19 +1389,6 @@ namespace HSPE.AMModules
             this._boneEditionScroll = scroll;
         }
 
-        private Transform GetTwinBone(Transform bone)
-        {
-            if (bone.name.EndsWith("_L"))
-                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_R");
-            if (bone.name.EndsWith("_R"))
-                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_L");
-            if (bone.parent.name.EndsWith("_L"))
-                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_R").GetChild(bone.GetSiblingIndex());
-            if (bone.parent.name.EndsWith("_R"))
-                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L").GetChild(bone.GetSiblingIndex());
-            return null;
-        }
-
         private bool GetScrollPosition(GameObject root, GameObject go, int indent, ref Vector2 scrollPosition)
         {
             if (this._ignoredObjects.Contains(go))
@@ -1397,41 +1495,6 @@ namespace HSPE.AMModules
             GUI.DragWindow();
         }
 
-        private void OnPostUpdate()
-        {
-            bool shouldClean = false;
-            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
-            {
-                if (kvp.Key == null)
-                {
-                    shouldClean = true;
-                    continue;
-                }
-                if (kvp.Value.scale.hasValue)
-                    kvp.Key.transform.localScale = kvp.Value.scale;
-                if (kvp.Value.rotation.hasValue)
-                    kvp.Key.transform.localRotation = kvp.Value.rotation;
-                if (kvp.Value.position.hasValue)
-                    kvp.Key.transform.localPosition = kvp.Value.position;
-            }
-            if (shouldClean)
-            {
-                Dictionary<GameObject, TransformData> newDirtyBones = new Dictionary<GameObject, TransformData>();
-                foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
-                    if (kvp.Key != null)
-                        newDirtyBones.Add(kvp.Key, kvp.Value);
-                this._dirtyBones = newDirtyBones;
-            }
-            if (!this.isEnabled || !this.drawAdvancedMode)
-                return;
-            foreach (VectorLine line in this._cubeDebugLines)
-            {
-                line.Draw();
-            }
-            if (this._colliderTarget != null)
-                this._colliderDebugLines.Draw(this._colliderTarget);
-        }
-
         private void OnParentage(TreeNodeObject parent, TreeNodeObject child)
         {
             if (parent == null)
@@ -1491,6 +1554,43 @@ namespace HSPE.AMModules
                 }
                 this._dirtyColliders.Remove(collider);
             }
+        }
+
+        private void ApplyBoneManualCorrection()
+        {
+            bool shouldClean = false;
+            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+            {
+                if (kvp.Key == null)
+                {
+                    shouldClean = true;
+                    continue;
+                }
+                if (kvp.Value.scale.hasValue)
+                    kvp.Key.transform.localScale = kvp.Value.scale;
+                if (kvp.Value.rotation.hasValue)
+                    kvp.Key.transform.localRotation = kvp.Value.rotation;
+                if (kvp.Value.position.hasValue)
+                    kvp.Key.transform.localPosition = kvp.Value.position;
+            }
+            if (shouldClean)
+            {
+                Dictionary<GameObject, TransformData> newDirtyBones = new Dictionary<GameObject, TransformData>();
+                foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+                    if (kvp.Key != null)
+                        newDirtyBones.Add(kvp.Key, kvp.Value);
+                this._dirtyBones = newDirtyBones;
+            }
+        }
+
+        private void DrawGizmos()
+        {
+            if (!this.isEnabled || !this.drawAdvancedMode)
+                return;
+            foreach (VectorLine line in this._cubeDebugLines)
+                line.Draw();
+            if (this._colliderTarget != null)
+                this._colliderDebugLines.Draw(this._colliderTarget);
         }
 
         private void UpdateGizmosParent()

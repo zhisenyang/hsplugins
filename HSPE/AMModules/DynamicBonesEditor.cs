@@ -207,7 +207,7 @@ namespace HSPE.AMModules
         void Awake()
         {
             this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
-            MainWindow.self.onPostUpdate += this.OnPostUpdate;
+            this._dynamicBoneTarget = this._dynamicBones.First(d => d.m_Root != null);
         }
 
         protected override void Update()
@@ -230,7 +230,7 @@ namespace HSPE.AMModules
                         this._dirtyDynamicBones.Remove(db);
                     this._dynamicBones.Remove(db);
                 }
-                this._dynamicBoneTarget = null;
+                this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
             }
             List<DynamicBone> toAdd = null;
             foreach (DynamicBone db in dynamicBones)
@@ -249,17 +249,13 @@ namespace HSPE.AMModules
             this._debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget);
 
         }
-
-        void OnDestroy()
-        {
-            MainWindow.self.onPostUpdate -= this.OnPostUpdate;
-        }
         #endregion
 
         #region Public Methods
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical();
             this._dynamicBonesScroll = GUILayout.BeginScrollView(this._dynamicBonesScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
             foreach (DynamicBone db in this._dynamicBones)
             {
@@ -279,6 +275,12 @@ namespace HSPE.AMModules
                 GUI.color = c;
             }
             GUILayout.EndScrollView();
+
+            if (GUILayout.Button("Reset All") && this._dynamicBoneTarget != null)
+                while (this._dirtyDynamicBones.Count != 0)
+                    this.SetDynamicBoneNotDirty(this._dirtyDynamicBones.First().Key);
+
+            GUILayout.EndVertical();
 
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.ExpandWidth(true));
             GUILayout.BeginHorizontal();
@@ -607,13 +609,6 @@ namespace HSPE.AMModules
             }
         }
 
-        void LateUpdate()
-        {
-
-        }
-        private void OnPostUpdate()
-        {
-        }
         private void CheckGizmosEnabled()
         {
             this._debugLines.SetActive(this.isEnabled && this.drawAdvancedMode);

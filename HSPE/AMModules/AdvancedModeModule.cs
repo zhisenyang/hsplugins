@@ -56,6 +56,14 @@ namespace HSPE.AMModules
         public abstract void LoadXml(XmlNode xmlNode);
         #endregion
 
+        #region Public Methods
+        public virtual void IKSolverOnPreRead() { }
+        public virtual void IKSolverOnPostUpdate() { }
+        public virtual void FKCtrlOnPostLateUpdate() { }
+        public virtual void CharBodyPreLateUpdate() { }
+        public virtual void CharBodyPostLateUpdate() { }
+        #endregion
+
         #region Protected Methods
         protected bool RepeatControl()
         {

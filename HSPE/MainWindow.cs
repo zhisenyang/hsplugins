@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -24,70 +25,13 @@ namespace HSPE
         #endregion
 
         #region Events
-        public event Action<Studio.TreeNodeObject, Studio.TreeNodeObject> onParentage;
-        public event Action onPostUpdate;
+        public event Action<TreeNodeObject, TreeNodeObject> onParentage;
         #endregion
 
         #region Constants
         private const string _config = "configNEO.xml";
         private const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
-        #endregion
-
-        #region IK Hack
-        public class CustomIK : IK
-        {
-            public CustomIKSolver solver;
-
-            public override IKSolver GetIKSolver()
-            {
-                return this.solver;
-            }
-
-            protected override void OpenUserManual()
-            {
-                throw new NotImplementedException();
-            }
-
-            protected override void OpenScriptReference()
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        public class CustomIKSolver : IKSolver
-        {
-            public override bool IsValid(ref string message)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override Point[] GetPoints()
-            {
-                throw new NotImplementedException();
-            }
-
-            public override Point GetPoint(Transform transform)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override void FixTransforms()
-            {
-            }
-
-            public override void StoreDefaultLocalState()
-            {
-            }
-
-            protected override void OnInitiate()
-            {
-            }
-
-            protected override void OnUpdate()
-            {
-            }
-        }
         #endregion
 
         #region Private Variables
@@ -118,12 +62,12 @@ namespace HSPE
                     new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
                     new Rect(Screen.width - 950, Screen.height - 410, 950, 410)
         };
+        private float _mainWindowSize = 1f;
         private int _advancedModeWindowSize = 0;
         private Canvas _ui;
-        private Text _nothingText;
-        private RectTransform _controls;
-        private RectTransform _bones;
-        private Scrollbar _movementIntensity;
+        private GameObject _nothingText;
+        private Transform _controls;
+        private Slider _movementIntensity;
         private Text _intensityValueText;
         private RectTransform _optionsWindow;
         private float _intensityValue = 1f;
@@ -133,16 +77,23 @@ namespace HSPE
         private readonly Text[] _bendGoalsTexts = new Text[4];
         private readonly Button[] _positionButtons = new Button[3];
         private readonly Button[] _rotationButtons = new Button[3];
-        private readonly List<PoseController> _copySources = new List<PoseController>();
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
         private KeyCode[] _possibleKeyCodes;
-        private IKExecutionOrder _ikExecutionOrder;
         private bool _positionOperationWorld = true;
         private Toggle _optimizeIKToggle;
         private bool _windowMoving;
         private Image _hspeButtonImage;
         private int _randomId;
+        private Toggle _crotchCorrectionToggle;
+        private Toggle _leftFootCorrectionToggle;
+        private Toggle _rightFootCorrectionToggle;
+        private Toggle _crotchCorrectionByDefaultToggle;
+        private Toggle _anklesCorrectionByDefaultToggle;
+        private bool _crotchCorrectionByDefault;
+        private bool _anklesCorrectionByDefault;
+        private int _lastScreenWidth = Screen.width;
+        private int _lastScreenHeight = Screen.height;
         #endregion
 
         #region Public Accessors
@@ -150,26 +101,17 @@ namespace HSPE
         public Dictionary<string, string> maleShortcuts { get; } = new Dictionary<string, string>();
         public Dictionary<string, string> boneAliases { get; } = new Dictionary<string, string>();
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
-        public IKExecutionOrder ikExecutionOrder { get { return this._ikExecutionOrder; } }
         public float uiScale { get; private set; } = 1f;
         public Texture2D vectorEndCap { get; private set; }
         public Texture2D vectorMiddle { get; private set; }
+        public bool crotchCorrectionByDefault { get { return this._crotchCorrectionByDefaultToggle.isOn; } }
+        public bool anklesCorrectionByDefault { get { return this._anklesCorrectionByDefaultToggle.isOn; } }
         #endregion
 
         #region Unity Methods
-
         protected virtual void Awake()
         {
             self = this;
-
-            CustomIK ik = new CustomIK();
-            CustomIKSolver ikSolver = new CustomIKSolver();
-            ik.solver = ikSolver;
-            ikSolver.SetPrivate("firstInitiation", false);
-            ikSolver.SetPrivateProperty("initiated", true);
-            ikSolver.OnPostUpdate = this.CallPostUpdate;
-            this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
-            this._ikExecutionOrder.IKComponents = new IK[1] { ik };
 
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
@@ -187,9 +129,9 @@ namespace HSPE
             {
                 switch (node.Name)
                 {
-                    case "uiScale":
+                    case "mainWindowSize":
                         if (node.Attributes["value"] != null)
-                            this.uiScale = Mathf.Clamp(XmlConvert.ToSingle(node.Attributes["value"].Value), 0.5f, 2f);
+                            this._mainWindowSize = XmlConvert.ToSingle(node.Attributes["value"].Value);
                         break;
                     case "mainWindowShortcut":
                         if (node.Attributes["value"] != null && this._nameToKeyCode.ContainsKey(node.Attributes["value"].Value))
@@ -214,6 +156,14 @@ namespace HSPE
                             if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
                                 this.boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
                         break;
+                    case "crotchCorrectionByDefault":
+                        if (node.Attributes["value"] != null)
+                            this._crotchCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
+                        break;
+                    case "anklesCorrectionByDefault":
+                        if (node.Attributes["value"] != null)
+                            this._anklesCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
+                        break;
                 }
             }
 
@@ -228,11 +178,22 @@ namespace HSPE
 
         protected virtual void Start()
         {
+            Type type = Type.GetType("HSUS.HSUS,HSUS");
+            if (type != null)
+                this.uiScale = (float)type.GetField("_neoUIScale", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(type.GetProperty("self").GetValue(null, null));
+            UnityEngine.Debug.LogError(this.uiScale);
             this.SpawnGUI();
+            this._crotchCorrectionByDefaultToggle.isOn = this._crotchCorrectionByDefault;
+            this._anklesCorrectionByDefaultToggle.isOn = this._anklesCorrectionByDefault;
         }
 
         protected virtual void Update()
         {
+            if (this._lastScreenWidth != Screen.width || this._lastScreenHeight != Screen.height)
+                this.OnWindowResize();
+            this._lastScreenWidth = Screen.width;
+            this._lastScreenHeight = Screen.height;
+
             int objectCount = Studio.Studio.Instance.dicObjectCtrl.Count;
             if (objectCount != this._lastObjectCount)
             {
@@ -244,13 +205,13 @@ namespace HSPE
 
 
             PoseController last = this._poseTarget;
-            Studio.TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
+            TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
             if (treeNodeObject != null)
             {
-                Studio.ObjectCtrlInfo info;
+                ObjectCtrlInfo info;
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
                 {
-                    Studio.OCIChar selected = info as Studio.OCIChar;
+                    OCIChar selected = info as OCIChar;
                     this._poseTarget = selected != null ? selected.charInfo.gameObject.GetComponent<PoseController>() : null;
                 }
             }
@@ -294,8 +255,8 @@ namespace HSPE
                     xmlWriter.WriteStartElement("root");
                     xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
 
-                    xmlWriter.WriteStartElement("uiScale");
-                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this.uiScale));
+                    xmlWriter.WriteStartElement("mainWindowSize");
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._mainWindowSize));
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("mainWindowShortcut");
@@ -334,6 +295,14 @@ namespace HSPE
                     }
                     xmlWriter.WriteEndElement();
 
+                    xmlWriter.WriteStartElement("crotchCorrectionByDefault");
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._crotchCorrectionByDefaultToggle.isOn));
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("anklesCorrectionByDefault");
+                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._anklesCorrectionByDefaultToggle.isOn));
+                    xmlWriter.WriteEndElement();
+
                     xmlWriter.WriteEndElement();
                 }
             }
@@ -349,23 +318,21 @@ namespace HSPE
 
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSPEResources);
             Texture2D texture = null;
-            foreach (Texture2D t in bundle.LoadAllAssets<Texture2D>())
+            foreach (Texture2D tex in bundle.LoadAllAssets<Texture2D>())
             {
-                switch (t.name)
+                switch (tex.name)
                 {
                     case "Icon":
-                        texture = t;
+                        texture = tex;
                         break;
                     case "VectorEndCap":
-                        this.vectorEndCap = t;
+                        this.vectorEndCap = tex;
                         break;
                     case "VectorMiddle":
-                        this.vectorMiddle = t;
+                        this.vectorMiddle = tex;
                         break;
                 }
             }
-
-            bundle.Unload(false);
 
             {
                 RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
@@ -387,659 +354,450 @@ namespace HSPE
                 this._hspeButtonImage.color = Color.white;
             }
 
-            this._ui = UIUtility.CreateNewUISystem("HSPE");
-            this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
+            this._ui = Instantiate(bundle.LoadAsset<GameObject>("HSPECanvas")).GetComponent<Canvas>();
+            bundle.Unload(false);
 
+            RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
+            Transform topContainer = bg.Find("Top Container");
+            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, bg as RectTransform, false);
+            mw.onPointerDown += this.OnWindowStartDrag;
+            mw.onDrag += this.OnWindowDrag;
+            mw.onPointerUp += this.OnWindowEndDrag;
+
+            this._nothingText = this._ui.transform.Find("BG/Nothing Text").gameObject;
+            this._nothingText.gameObject.SetActive(false);
+            this._controls = this._ui.transform.Find("BG/Controls");
+
+            Button rightShoulder = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Shoulder Button").GetComponent<Button>();
+            rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
+            Text t = rightShoulder.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
+            this._effectorsTexts[(int)FullBodyBipedEffector.RightShoulder] = t;
+
+            Button leftShoulder = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Shoulder Button").GetComponent<Button>();
+            leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
+            t = leftShoulder.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
+            this._effectorsTexts[(int)FullBodyBipedEffector.LeftShoulder] = t;
+
+            Button rightArmBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Arm Bend Goal Button").GetComponent<Button>();
+            rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
+            t = rightArmBendGoal.GetComponentInChildren<Text>();
+            this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
+            this._bendGoalsTexts[(int)FullBodyBipedChain.RightArm] = t;
+
+            Button leftArmBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Arm Bend Goal Button").GetComponent<Button>();
+            leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
+            t = leftArmBendGoal.GetComponentInChildren<Text>();
+            this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
+            this._bendGoalsTexts[(int)FullBodyBipedChain.LeftArm] = t;
+
+            Button rightHand = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Hand Button").GetComponent<Button>();
+            rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
+            t = rightHand.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
+            this._effectorsTexts[(int)FullBodyBipedEffector.RightHand] = t;
+
+            Button leftHand = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Hand Button").GetComponent<Button>();
+            leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
+            t = leftHand.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
+            this._effectorsTexts[(int)FullBodyBipedEffector.LeftHand] = t;
+
+            Button body = this._ui.transform.Find("BG/Controls/Bones Buttons/Body Button").GetComponent<Button>();
+            body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
+            t = body.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
+            this._effectorsTexts[(int)FullBodyBipedEffector.Body] = t;
+
+            Button rightThigh = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Thigh Button").GetComponent<Button>();
+            rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
+            t = rightThigh.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
+            this._effectorsTexts[(int)FullBodyBipedEffector.RightThigh] = t;
+
+            Button leftThigh = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Thigh Button").GetComponent<Button>();
+            leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
+            t = leftThigh.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
+            this._effectorsTexts[(int)FullBodyBipedEffector.LeftThigh] = t;
+
+            Button rightLegBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Leg Bend Goal Button").GetComponent<Button>();
+            rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
+            t = rightLegBendGoal.GetComponentInChildren<Text>();
+            this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
+            this._bendGoalsTexts[(int)FullBodyBipedChain.RightLeg] = t;
+
+            Button leftLegBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Leg Bend Goal Button").GetComponent<Button>();
+            leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
+            t = leftLegBendGoal.GetComponentInChildren<Text>();
+            this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
+            this._bendGoalsTexts[(int)FullBodyBipedChain.LeftLeg] = t;
+
+            Button rightFoot = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Foot Button").GetComponent<Button>();
+            rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
+            t = rightFoot.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
+            this._effectorsTexts[(int)FullBodyBipedEffector.RightFoot] = t;
+
+            Button leftFoot = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Foot Button").GetComponent<Button>();
+            leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
+            t = leftFoot.GetComponentInChildren<Text>();
+            this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
+            this._effectorsTexts[(int)FullBodyBipedEffector.LeftFoot] = t;
+
+            Button xMoveButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/X Move Button").GetComponent<Button>();
+            xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
-                Image bg = UIUtility.CreatePanel("BG", this._ui.transform);
-                bg.raycastTarget = false;
-                bg.color = UIUtility.whiteColor;
-                bg.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(3f, 3f), new Vector2(300f, 470f));
-                bg.rectTransform.anchoredPosition = new Vector2(276f, 363f);
-
+                if (eventData.button == PointerEventData.InputButton.Left)
                 {
-                    Image topContainer = UIUtility.CreatePanel("Top Container", bg.rectTransform);
-                    topContainer.color = UIUtility.grayColor;
-                    topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
-                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, bg.rectTransform, false);
-                    mw.onPointerDown += this.OnWindowStartDrag;
-                    mw.onDrag += this.OnWindowDrag;
-                    mw.onPointerUp += this.OnWindowEndDrag;
-
-                    Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "HSPE");
-                    titleText.alignment = TextAnchor.MiddleCenter;
-                    titleText.fontStyle = FontStyle.Bold;
-                    titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
-                    titleText.color = Color.white;
-
-                    titleText.GetComponent<Outline>().effectDistance = new Vector2(2f, 2f);
+                    this._xMove = true;
+                    this.SetNoControlCondition();
                 }
+            };
+            this._positionButtons[0] = xMoveButton;
 
-                this._nothingText = this.CreateCustomText("Nothing Text", bg.transform, "There is no character selected. Please select a character to begin pose edition.");
-                this._nothingText.alignment = TextAnchor.MiddleCenter;
-                this._nothingText.fontSize = 16;
-                this._nothingText.resizeTextForBestFit = false;
-                this._nothingText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -25f));
-                this._nothingText.gameObject.SetActive(false);
-
+            Button yMoveButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/Y Move Button").GetComponent<Button>();
+            yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                if (eventData.button == PointerEventData.InputButton.Left)
                 {
-                    this._controls = UIUtility.CreateNewUIObject(bg.transform, "Controls");
-                    this._controls.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -5f));
-
-                    {
-                        this._bones = UIUtility.CreateNewUIObject(this._controls, "Bones");
-                        this._bones.SetRect(Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -24f));
-
-                        Button rightShoulder = this.CreateCustomButton("Right Shoulder Button", this._bones, "R. Shoulder");
-                        rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
-                        ColorBlock cb = rightShoulder.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        rightShoulder.colors = cb;
-                        Text t = rightShoulder.GetComponentInChildren<Text>();
-                        RectTransform buttonRT = rightShoulder.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -35f), Vector2.zero);
-                        this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.RightShoulder] = t;
-
-                        Button leftShoulder = this.CreateCustomButton("Left Shoulder Button", this._bones, "L. Shoulder");
-                        cb = leftShoulder.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        leftShoulder.colors = cb;
-                        leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
-                        t = leftShoulder.GetComponentInChildren<Text>();
-                        buttonRT = leftShoulder.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -35f), Vector2.zero);
-                        this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.LeftShoulder] = t;
-
-                        Button rightArmBendGoal = this.CreateCustomButton("Right Arm Bend Goal Button", this._bones, "R. Elbow Dir.");
-                        cb = rightArmBendGoal.colors;
-                        cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
-                        rightArmBendGoal.colors = cb;
-                        rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
-                        t = rightArmBendGoal.GetComponentInChildren<Text>();
-                        buttonRT = rightArmBendGoal.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
-                        this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
-                        this._bendGoalsTexts[(int)FullBodyBipedChain.RightArm] = t;
-
-                        Button leftArmBendGoal = this.CreateCustomButton("Left Arm Bend Goal Button", this._bones, "L. Elbow Dir.");
-                        cb = leftArmBendGoal.colors;
-                        cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
-                        leftArmBendGoal.colors = cb;
-                        leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
-                        t = leftArmBendGoal.GetComponentInChildren<Text>();
-                        buttonRT = leftArmBendGoal.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -70f), new Vector2(0f, -35f));
-                        this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
-                        this._bendGoalsTexts[(int)FullBodyBipedChain.LeftArm] = t;
-
-                        Button rightHand = this.CreateCustomButton("Right Hand Button", this._bones, "R. Hand");
-                        cb = rightHand.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        rightHand.colors = cb;
-                        rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
-                        t = rightHand.GetComponentInChildren<Text>();
-                        buttonRT = rightHand.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -105f), new Vector2(0f, -70f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.RightHand] = t;
-
-                        Button leftHand = this.CreateCustomButton("Left Hand Button", this._bones, "L. Hand");
-                        cb = leftHand.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        leftHand.colors = cb;
-                        leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
-                        t = leftHand.GetComponentInChildren<Text>();
-                        buttonRT = leftHand.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -105f), new Vector2(0f, -70f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.LeftHand] = t;
-
-                        Button body = this.CreateCustomButton("Body Button", this._bones, "Body");
-                        cb = body.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        body.colors = cb;
-                        body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
-                        t = body.GetComponentInChildren<Text>();
-                        buttonRT = body.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.375f, 1f), new Vector2(0.625f, 1f), new Vector2(0f, -140f), new Vector2(0f, -105f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.Body] = t;
-
-                        Button rightThigh = this.CreateCustomButton("Right Thigh Button", this._bones, "R. Thigh");
-                        cb = rightThigh.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        rightThigh.colors = cb;
-                        rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
-                        t = rightThigh.GetComponentInChildren<Text>();
-                        buttonRT = rightThigh.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.25f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.RightThigh] = t;
-
-                        Button leftThigh = this.CreateCustomButton("Left Thigh Button", this._bones, "L. Thigh");
-                        cb = leftThigh.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        leftThigh.colors = cb;
-                        leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
-                        t = leftThigh.GetComponentInChildren<Text>();
-                        buttonRT = leftThigh.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.5f, 1f), new Vector2(0.75f, 1f), new Vector2(0f, -175f), new Vector2(0f, -140f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.LeftThigh] = t;
-
-                        Button rightLegBendGoal = this.CreateCustomButton("Right Leg Bend Goal Button", this._bones, "R. Knee Dir.");
-                        cb = rightLegBendGoal.colors;
-                        cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
-                        rightLegBendGoal.colors = cb;
-                        rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
-                        t = rightLegBendGoal.GetComponentInChildren<Text>();
-                        buttonRT = rightLegBendGoal.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.125f, 1f), new Vector2(0.375f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
-                        this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
-                        this._bendGoalsTexts[(int)FullBodyBipedChain.RightLeg] = t;
-
-                        Button leftLegBendGoal = this.CreateCustomButton("Left Leg Bend Goal Button", this._bones, "L. Knee Dir.");
-                        cb = leftLegBendGoal.colors;
-                        cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.65f);
-                        leftLegBendGoal.colors = cb;
-                        leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
-                        t = leftLegBendGoal.GetComponentInChildren<Text>();
-                        buttonRT = leftLegBendGoal.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.625f, 1f), new Vector2(0.875f, 1f), new Vector2(0f, -210f), new Vector2(0f, -175f));
-                        this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
-                        this._bendGoalsTexts[(int)FullBodyBipedChain.LeftLeg] = t;
-
-                        Button rightFoot = this.CreateCustomButton("Right Foot Button", this._bones, "R. Foot");
-                        cb = rightFoot.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        rightFoot.colors = cb;
-                        rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
-                        t = rightFoot.GetComponentInChildren<Text>();
-                        buttonRT = rightFoot.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.25f, 1f), new Vector2(0f, -245f), new Vector2(0f, -210f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.RightFoot] = t;
-
-                        Button leftFoot = this.CreateCustomButton("Left Foot Button", this._bones, "L. Foot");
-                        cb = leftFoot.colors;
-                        cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                        cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.65f);
-                        leftFoot.colors = cb;
-                        leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
-                        t = leftFoot.GetComponentInChildren<Text>();
-                        buttonRT = leftFoot.transform as RectTransform;
-                        buttonRT.SetRect(new Vector2(0.75f, 1f), Vector2.one, new Vector2(0f, -245f), new Vector2(0f, -210f));
-                        this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
-                        this._effectorsTexts[(int)FullBodyBipedEffector.LeftFoot] = t;
-
-                        {
-                            RectTransform buttons = UIUtility.CreateNewUIObject(this._bones, "Buttons");
-                            buttons.SetRect(Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 65f), new Vector2(0f, -245f));
-
-                            Button xMoveButton = this.CreateCustomButton("X Move Button", buttons, "↑\nX\n↓");
-                            cb = xMoveButton.colors;
-                            cb.normalColor = Color.red;
-                            cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                            xMoveButton.colors = cb;
-                            t = xMoveButton.GetComponentInChildren<Text>();
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._xMove = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = xMoveButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0f, 0.333f), new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
-                            this._positionButtons[0] = xMoveButton;
-
-                            Button yMoveButton = this.CreateCustomButton("Y Move Button", buttons, "↑\nY\n↓");
-                            cb = yMoveButton.colors;
-                            cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
-                            cb.normalColor = Color.green;
-                            yMoveButton.colors = cb;
-                            t = yMoveButton.GetComponentInChildren<Text>();
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            yMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._yMove = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = yMoveButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.333f, 0.333f), new Vector2(0.666f, 1f), Vector2.zero, Vector2.zero);
-                            this._positionButtons[1] = yMoveButton;
-
-                            Button zMoveButton = this.CreateCustomButton("Z Move Button", buttons, "↑\nZ\n↓");
-                            cb = zMoveButton.colors;
-                            cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                            cb.normalColor = Color.blue;
-                            zMoveButton.colors = cb;
-                            t = zMoveButton.GetComponentInChildren<Text>();
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._zMove = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = zMoveButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.666f, 0.333f), Vector2.one, Vector2.zero, Vector2.zero);
-                            this._positionButtons[2] = zMoveButton;
-
-                            Button rotXButton = this.CreateCustomButton("Rot X Button", buttons, "←   →\nRot X");
-                            cb = rotXButton.colors;
-                            cb.highlightedColor = Color.Lerp(Color.red, Color.white, 0.5f);
-                            cb.normalColor = Color.red;
-                            rotXButton.colors = cb;
-                            t = rotXButton.GetComponentInChildren<Text>();
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._xRot = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = rotXButton.transform as RectTransform;
-                            buttonRT.SetRect(Vector2.zero, new Vector2(0.333f, 0.333f), Vector2.zero, Vector2.zero);
-                            this._rotationButtons[0] = rotXButton;
-
-                            Button rotYButton = this.CreateCustomButton("Rot Y Button", buttons, "←   →\nRot Y");
-                            cb = rotYButton.colors;
-                            cb.highlightedColor = Color.Lerp(Color.green, Color.white, 0.5f);
-                            cb.normalColor = Color.green;
-                            rotYButton.colors = cb;
-                            t = rotYButton.GetComponentInChildren<Text>();
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._yRot = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = rotYButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.333f, 0f), new Vector2(0.666f, 0.333f), Vector2.zero, Vector2.zero);
-                            this._rotationButtons[1] = rotYButton;
-
-                            Button rotZButton = this.CreateCustomButton("Rot Z Button", buttons, "←   →\nRot Z");
-                            cb = rotZButton.colors;
-                            cb.highlightedColor = Color.Lerp(Color.blue, Color.white, 0.5f);
-                            cb.normalColor = Color.blue;
-                            rotZButton.colors = cb;
-                            t = rotZButton.GetComponentInChildren<Text>();
-
-                            t.resizeTextMaxSize = (int)(t.fontSize * 1.2f);
-                            rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
-                            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                if (eventData.button == PointerEventData.InputButton.Left)
-                                {
-                                    this._zRot = true;
-                                    this.SetNoControlCondition();
-                                }
-                            };
-                            buttonRT = rotZButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.666f, 0f), new Vector2(1f, 0.333f), Vector2.zero, Vector2.zero);
-                            this._rotationButtons[2] = rotZButton;
-                        }
-
-                        {
-                            RectTransform otherButtons = UIUtility.CreateNewUIObject(this._bones, "Other buttons");
-                            otherButtons.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 74f), new Vector2(0f, -245f));
-
-
-                            Button copyLeftArmButton = this.CreateCustomButton("Copy Right Arm Button", otherButtons, "Copy R. arm");
-                            cb = copyLeftArmButton.colors;
-                            cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
-                            cb.highlightedColor = UIUtility.purpleColor;
-                            copyLeftArmButton.colors = cb;
-                            copyLeftArmButton.onClick.AddListener(() =>
-                            {
-                                if (this._poseTarget != null)
-                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
-                            });
-                            buttonRT = copyLeftArmButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -32.5f), new Vector2(-1.25f, -0f));
-
-                            Button copyRightArmButton = this.CreateCustomButton("Copy Left Arm Button", otherButtons, "Copy L. arm");
-                            cb = copyRightArmButton.colors;
-                            cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
-                            cb.highlightedColor = UIUtility.purpleColor;
-                            copyRightArmButton.colors = cb;
-                            copyRightArmButton.onClick.AddListener(() =>
-                            {
-                                if (this._poseTarget != null)
-                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
-                            });
-                            buttonRT = copyRightArmButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -32.5f), new Vector2(-0f, -0f));
-
-                            Button copyLeftLegButton = this.CreateCustomButton("Copy Right Leg Button", otherButtons, "Copy R. leg");
-                            cb = copyLeftLegButton.colors;
-                            cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
-                            cb.highlightedColor = UIUtility.purpleColor;
-                            copyLeftLegButton.colors = cb;
-                            copyLeftLegButton.onClick.AddListener(() =>
-                            {
-                                if (this._poseTarget != null)
-                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
-                            });
-                            buttonRT = copyLeftLegButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -62.5f), new Vector2(-1.25f, -32.5f));
-
-                            Button copyRightLegButton = this.CreateCustomButton("Copy Left LegButton", otherButtons, "Copy L. leg");
-                            cb = copyRightLegButton.colors;
-                            cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
-                            cb.highlightedColor = UIUtility.purpleColor;
-                            copyRightLegButton.colors = cb;
-                            copyRightLegButton.onClick.AddListener(() =>
-                            {
-                                if (this._poseTarget != null)
-                                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
-                            });
-                            buttonRT = copyRightLegButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.5f, 1f), Vector2.one, new Vector2(1.25f, -62.5f), new Vector2(-0f, -32.5f));
-                        }
-
-                        {
-                            Image experimental = UIUtility.CreatePanel("Experimental Features", this._bones);
-                            experimental.color = UIUtility.whiteColor;
-                            experimental.rectTransform.SetRect(new Vector2(0.5f, 0f), Vector2.one, new Vector2(2.5f, 65f), new Vector2(0f, -310f));
-
-                            Image experimentalHeader = UIUtility.CreatePanel("Header", experimental.rectTransform);
-                            experimentalHeader.color = UIUtility.purpleColor;
-                            experimentalHeader.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -26.5f), new Vector2(-2.5f, -2.5f));
-
-                            Text headerText = this.CreateCustomText("Header Text", experimentalHeader.transform, "Experimental Features");
-                            headerText.alignment = TextAnchor.MiddleCenter;
-                            headerText.fontStyle = FontStyle.Bold;
-                            headerText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
-                            headerText.color = Color.white;
-
-                            Button advancedModeButton = this.CreateCustomButton("Advanced Mode Button", experimental.rectTransform, "Advanced mode");
-                            cb = advancedModeButton.colors;
-                            cb.normalColor = Color.Lerp(UIUtility.purpleColor, Color.black, 0.5f);
-                            cb.highlightedColor = UIUtility.purpleColor;
-                            advancedModeButton.colors = cb;
-                            advancedModeButton.onClick.AddListener(this.ToggleAdvancedMode);
-                            buttonRT = advancedModeButton.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(2.5f, -54f), new Vector2(-2.5f, -29f));
-                        }
-                        {
-                            RectTransform sliderContainer = UIUtility.CreateNewUIObject(this._bones, "Slider Container");
-                            sliderContainer.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 40f), new Vector2(0f, 60f));
-
-                            Text movIntensityTxt = this.CreateCustomText("Movement Intensity Text", sliderContainer, "Mvt. Intensity");
-                            movIntensityTxt.alignment = TextAnchor.MiddleLeft;
-                            movIntensityTxt.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
-
-                            this._movementIntensity = UIUtility.CreateScrollbar("Movement Intensity Slider", sliderContainer);
-                            this._movementIntensity.size = 0f;
-                            this._movementIntensity.numberOfSteps = 15;
-                            this._movementIntensity.value = 0.5f;
-                            this._movementIntensity.onValueChanged.AddListener(value =>
-                            {
-                                value *= 14;
-                                value -= 7;
-                                this._intensityValue = Mathf.Pow(2, value);
-                                this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
-                            });
-                            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-                            {
-                                this.SetNoControlCondition();
-                                this._blockCamera = true;
-                            };
-                            RectTransform rt = this._movementIntensity.transform as RectTransform;
-                            RectTransform handle = (rt.GetChild(0).GetChild(0) as RectTransform);
-                            handle.sizeDelta = new Vector2(14f, handle.sizeDelta.y);
-                            rt.SetRect(new Vector2(0.333f, 0f), new Vector2(0.9f, 1f), new Vector2(0f, 3f), new Vector2(0f, -3f));
-
-                            this._intensityValueText = this.CreateCustomText("Movement Intensity Value", sliderContainer, "x1");
-                            this._intensityValueText.alignment = TextAnchor.MiddleCenter;
-                            this._intensityValueText.resizeTextMaxSize = 14;
-                            this._intensityValueText.rectTransform.SetRect(new Vector2(0.9f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-
-                            RectTransform buttonContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
-                            buttonContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), new Vector2(0f, 20f), new Vector2(0f, 40f));
-
-                            Text positionOpLabel = this.CreateCustomText("Position Operation Label", buttonContainer, "Pos. Operation");
-                            positionOpLabel.alignment = TextAnchor.MiddleLeft;
-                            positionOpLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
-
-                            Button positionOp = this.CreateCustomButton("Position Operation", buttonContainer, "World");
-                            Text buttonText = positionOp.GetComponentInChildren<Text>();
-                            buttonText.alignment = TextAnchor.MiddleCenter;
-                            buttonText.resizeTextMaxSize = 14;
-                            positionOp.onClick.AddListener(() =>
-                            {
-                                this._positionOperationWorld = !this._positionOperationWorld;
-                                buttonText.text = this._positionOperationWorld ? "World" : "Local";
-                            });
-                            buttonRT = positionOp.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.4444f, 0f), Vector2.one, Vector2.zero, new Vector2(-50f, 0f));
-
-                            RectTransform checkboxContainer = UIUtility.CreateNewUIObject(this._bones, "Button Container");
-                            checkboxContainer.SetRect(Vector2.zero, new Vector2(0.75f, 0f), Vector2.zero, new Vector2(0f, 20f));
-
-                            Text optimizeIKLabel = this.CreateCustomText("Optimize IK Label", checkboxContainer, "Optimize IK");
-                            optimizeIKLabel.alignment = TextAnchor.MiddleLeft;
-                            optimizeIKLabel.rectTransform.SetRect(Vector2.zero, new Vector2(0.4444f, 1f), Vector2.zero, Vector2.zero);
-
-                            this._optimizeIKToggle = UIUtility.AddCheckboxToObject(UIUtility.CreateNewUIObject(checkboxContainer, "Optimize IK"));
-                            this._optimizeIKToggle.onValueChanged.AddListener((b) =>
-                            {
-                                if (this._poseTarget != null)
-                                    this._poseTarget.optimizeIK = this._optimizeIKToggle.isOn;
-                            });
-                            buttonRT = this._optimizeIKToggle.transform as RectTransform;
-                            buttonRT.SetRect(new Vector2(0.4444f, 0f), new Vector2(0.4444f, 1f), Vector2.zero, new Vector2(20f, 0f));
-
-                        }
-                    }
+                    this._yMove = true;
+                    this.SetNoControlCondition();
                 }
+            };
+            this._positionButtons[1] = yMoveButton;
 
+            Button zMoveButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/Z Move Button").GetComponent<Button>();
+            zMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                if (eventData.button == PointerEventData.InputButton.Left)
                 {
-                    Button optionsButton = this.CreateCustomButton("Options Button", bg.transform, "Options");
-                    RectTransform rt = optionsButton.transform as RectTransform;
-                    rt.SetRect(new Vector2(0.75f, 0f), new Vector2(1f, 0f), new Vector2(0f, 5f), new Vector2(-5f, 25f));
-                    optionsButton.onClick.AddListener(() =>
-                    {
-                        if (this._shortcutRegisterMode)
-                            this._shortcutKeyButton.onClick.Invoke();
-                        this._optionsWindow.gameObject.SetActive(!this._optionsWindow.gameObject.activeSelf);
-                    });
+                    this._zMove = true;
+                    this.SetNoControlCondition();
                 }
+            };
+            this._positionButtons[2] = zMoveButton;
 
-            }
+            Button rotXButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/Rot X Button").GetComponent<Button>();
+            rotXButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                if (eventData.button == PointerEventData.InputButton.Left)
+                {
+                    this._xRot = true;
+                    this.SetNoControlCondition();
+                }
+            };
+            this._rotationButtons[0] = rotXButton;
+
+            Button rotYButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/Rot Y Button").GetComponent<Button>();
+            rotYButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                if (eventData.button == PointerEventData.InputButton.Left)
+                {
+                    this._yRot = true;
+                    this.SetNoControlCondition();
+                }
+            };
+            this._rotationButtons[1] = rotYButton;
+
+            Button rotZButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/Rot Z Button").GetComponent<Button>();
+            rotZButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
+            rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                if (eventData.button == PointerEventData.InputButton.Left)
+                {
+                    this._zRot = true;
+                    this.SetNoControlCondition();
+                }
+            };
+            this._rotationButtons[2] = rotZButton;
+
+            Button copyLeftArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Arm Button").GetComponent<Button>();
+            copyLeftArmButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
+            });
+
+            Button copyRightArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left Arm Button").GetComponent<Button>();
+            copyRightArmButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
+            });
+
+            Button copyLeftLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Leg Button").GetComponent<Button>();
+            copyLeftLegButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
+            });
+
+            Button copyRightLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left LegButton").GetComponent<Button>();
+            copyRightLegButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
+            });
+
+            Button swapPostButton = this._ui.transform.Find("BG/Controls/Other buttons/Other/Swap Pose Button").GetComponent<Button>();
+            swapPostButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.SwapPose();
+            });
+
+            Button advancedModeButton = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Advanced Mode Button").GetComponent<Button>();
+            advancedModeButton.onClick.AddListener(this.ToggleAdvancedMode);
+
+            this._movementIntensity = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Intensity Container/Movement Intensity Slider").GetComponent<Slider>();
+            this._movementIntensity.onValueChanged.AddListener(value =>
+            {
+                value = this._movementIntensity.value;
+                value -= 7;
+                this._intensityValue = Mathf.Pow(2, value);
+                this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
+            });
+            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
+            {
+                this.SetNoControlCondition();
+                this._blockCamera = true;
+            };
+
+            this._intensityValueText = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Intensity Container/Movement Intensity Value").GetComponent<Text>();
+
+            Button positionOp = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Pos Operation Container/Position Operation").GetComponent<Button>();
+            Text buttonText = positionOp.GetComponentInChildren<Text>();
+            positionOp.onClick.AddListener(() =>
+            {
+                this._positionOperationWorld = !this._positionOperationWorld;
+                buttonText.text = this._positionOperationWorld ? "World" : "Local";
+            });
+
+            this._optimizeIKToggle = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Optimize IK Container/Optimize IK").GetComponent<Toggle>();
+            this._optimizeIKToggle.onValueChanged.AddListener((b) =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.optimizeIK = this._optimizeIKToggle.isOn;
+            });
+
+            Button optionsButton = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Options Button").GetComponent<Button>();
+            optionsButton.onClick.AddListener(() =>
+            {
+                if (this._shortcutRegisterMode)
+                    this._shortcutKeyButton.onClick.Invoke();
+                this._optionsWindow.gameObject.SetActive(!this._optionsWindow.gameObject.activeSelf);
+            });
             this._ui.gameObject.SetActive(false);
 
             this.SetBoneTarget(FullBodyBipedEffector.Body);
             this.OnTargetChange(null);
 
-            this._optionsWindow = UIUtility.CreatePanel("Options Window", this._ui.transform).rectTransform;
-            this._optionsWindow.GetComponent<Image>().color = UIUtility.whiteColor;
-            this._optionsWindow.SetRect(Vector2.zero, Vector2.zero, new Vector2(390f, 3f), new Vector2(620f, 243f));
-            this._optionsWindow.anchoredPosition = new Vector2(558f, 192f);
+            this._optionsWindow = (RectTransform)this._ui.transform.Find("Options Window");
+
+            topContainer = this._optionsWindow.Find("Top Container");
+            mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, this._optionsWindow, false);
+            mw.onPointerDown += this.OnWindowStartDrag;
+            mw.onDrag += this.OnWindowDrag;
+            mw.onPointerUp += this.OnWindowEndDrag;
+
+            Vector2 sizeDelta = bg.sizeDelta;
+            Text xMoveText = xMoveButton.GetComponentInChildren<Text>();
+            Text yMoveText = yMoveButton.GetComponentInChildren<Text>();
+            Text zMoveText = zMoveButton.GetComponentInChildren<Text>();
+            Text xRotText = rotXButton.GetComponentInChildren<Text>();
+            Text yRotText = rotYButton.GetComponentInChildren<Text>();
+            Text zRotText = rotZButton.GetComponentInChildren<Text>();
+
+            int moveFontSize = xMoveText.fontSize;
+            int rotFontSize = xRotText.fontSize;
+
+            Button normalButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Normal Button").GetComponent<Button>();
+            normalButton.onClick.AddListener(() =>
             {
+                this._mainWindowSize = 1f;
+                bg.sizeDelta = sizeDelta * this._mainWindowSize;
+                xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            });
 
-                {
-                    Image topContainer = UIUtility.CreatePanel("Top Container", this._optionsWindow);
-                    topContainer.color = UIUtility.grayColor;
-                    topContainer.rectTransform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, -28f), new Vector2(-4f, -4f));
-                    topContainer.gameObject.AddComponent<MovableWindow>().toDrag = this._optionsWindow;
-                    MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer.rectTransform, this._optionsWindow, false);
-                    mw.onPointerDown += this.OnWindowStartDrag;
-                    mw.onDrag += this.OnWindowDrag;
-                    mw.onPointerUp += this.OnWindowEndDrag;
+            Button largeButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Large Button").GetComponent<Button>();
+            largeButton.onClick.AddListener(() =>
+            {
+                this._mainWindowSize = 1.25f;
+                bg.sizeDelta = sizeDelta * this._mainWindowSize;
+                xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            });
 
-                    Text titleText = this.CreateCustomText("Title Text", topContainer.transform, "Options");
-                    titleText.alignment = TextAnchor.MiddleCenter;
-                    titleText.fontStyle = FontStyle.Bold;
-                    titleText.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(2f, 2f), new Vector2(-2f, -2f));
-                    titleText.color = Color.white;
-                }
+            Button veryLargeButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Very Large Button").GetComponent<Button>();
+            veryLargeButton.onClick.AddListener(() =>
+            {
+                this._mainWindowSize = 1.5f;
+                bg.sizeDelta = sizeDelta * this._mainWindowSize;
+                xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+                xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+                zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            });
+            bg.sizeDelta = sizeDelta * this._mainWindowSize;
+            xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+            yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+            zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
+            xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+            this._optionsWindow.anchoredPosition += new Vector2((sizeDelta.x * this._mainWindowSize) - sizeDelta.x, 0f);
 
-                {
-                    RectTransform options = UIUtility.CreateNewUIObject(this._optionsWindow, "Options");
-                    options.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 5f), new Vector2(-5f, -31f));
-                    {
-                        {
-                            RectTransform scaleContainer = UIUtility.CreateNewUIObject(options, "Scale Container");
-                            scaleContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -20f), Vector2.zero);
+            normalButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Normal Button").GetComponent<Button>();
+            normalButton.onClick.AddListener(() =>
+            {
+                this._advancedModeWindowSize = 0;
+                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                this._advancedModeRect.width = r.width;
+                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                this._advancedModeRect.height = r.height;
+            });
 
-                            Text label = this.CreateCustomText("Label", scaleContainer, "UI Scale (x" + this.uiScale.ToString("0.0") + ")");
-                            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.75f, 1f), Vector2.zero, Vector2.zero);
-                            label.alignment = TextAnchor.MiddleLeft;
+            largeButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Large Button").GetComponent<Button>();
+            largeButton.onClick.AddListener(() =>
+            {
+                this._advancedModeWindowSize = 1;
+                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                this._advancedModeRect.width = r.width;
+                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                this._advancedModeRect.height = r.height;
+            });
 
-                            Button minusButton = this.CreateCustomButton("Minus Button", scaleContainer, "-");
-                            (minusButton.transform as RectTransform).SetRect(new Vector2(0.75f, 0f), new Vector2(0.875f, 1f), Vector2.zero, Vector2.zero);
-                            minusButton.onClick.AddListener(() =>
-                            {
-                                this.uiScale = Mathf.Clamp(this.uiScale - 0.1f, 0.5f, 2f);
-                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
-                                label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
-                            });
-                            Text t = minusButton.GetComponentInChildren<Text>();
-                            t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-                            t.fontStyle = FontStyle.Bold;
+            veryLargeButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Very Large Button").GetComponent<Button>();
+            veryLargeButton.onClick.AddListener(() =>
+            {
+                this._advancedModeWindowSize = 2;
+                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+                this._advancedModeRect.width = r.width;
+                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+                this._advancedModeRect.height = r.height;
+            });
+            this._advancedModeRect = this._advancedModeRects[this._advancedModeWindowSize];
 
-                            Button plusButton = this.CreateCustomButton("Plus Button", scaleContainer, "+");
-                            (plusButton.transform as RectTransform).SetRect(new Vector2(0.875f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-                            plusButton.onClick.AddListener(() =>
-                            {
-                                this.uiScale = Mathf.Clamp(this.uiScale + 0.1f, 0.5f, 2f);
-                                this._ui.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1920 / this.uiScale, 1080 / this.uiScale);
-                                label.text = "UI Scale (x" + this.uiScale.ToString("0.0") + ")";
-                            });
-                            t = plusButton.GetComponentInChildren<Text>();
-                            t.rectTransform.SetRect(Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
-                            t.fontStyle = FontStyle.Bold;
-                        }
+            this._shortcutKeyButton = this._ui.transform.Find("Options Window/Options/Shortcut Key Container/Listener Button").GetComponent<Button>();
+            Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
+            this._shortcutKeyButton.onClick.AddListener(() =>
+            {
+                this._shortcutRegisterMode = !this._shortcutRegisterMode;
+                text.text = this._shortcutRegisterMode ? "Press a Key" : this._mainWindowKeyCode.ToString();
+            });
 
-                        {
-                            RectTransform advWindowSizeContainer = UIUtility.CreateNewUIObject(options, "Advanced Mode Window Size Container");
-                            advWindowSizeContainer.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -60f), new Vector2(0f, -20f));
+            this._crotchCorrectionByDefaultToggle = this._ui.transform.Find("Options Window/Options/Joint Correction Container/Crotch/Toggle").GetComponent<Toggle>();
 
+            this._anklesCorrectionByDefaultToggle = this._ui.transform.Find("Options Window/Options/Joint Correction Container/Ankles/Toggle").GetComponent<Toggle>();
 
-                            Text label = this.CreateCustomText("Label", advWindowSizeContainer, "Adv. mode win. size");
-                            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.333f, 1f), Vector2.zero, Vector2.zero);
-                            label.alignment = TextAnchor.MiddleLeft;
-
-                            Button normalButton = this.CreateCustomButton("Normal Button", advWindowSizeContainer, "Normal");
-                            (normalButton.transform as RectTransform).SetRect(new Vector2(0.333f, 0f), new Vector2(0.555f, 1f), Vector2.zero, Vector2.zero);
-                            normalButton.onClick.AddListener(() =>
-                            {
-                                this._advancedModeWindowSize = 0;
-                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                                this._advancedModeRect.width = r.width;
-                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                                this._advancedModeRect.height = r.height;
-                            });
-
-                            Button plusButton = this.CreateCustomButton("Large Button", advWindowSizeContainer, "Large");
-                            (plusButton.transform as RectTransform).SetRect(new Vector2(0.555f, 0f), new Vector2(0.777f, 1f), Vector2.zero, Vector2.zero);
-                            plusButton.onClick.AddListener(() =>
-                            {
-                                this._advancedModeWindowSize = 1;
-                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                                this._advancedModeRect.width = r.width;
-                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                                this._advancedModeRect.height = r.height;
-                            });
-
-                            Button veryLargeButton = this.CreateCustomButton("Very Large Button", advWindowSizeContainer, "Very large");
-                            (veryLargeButton.transform as RectTransform).SetRect(new Vector2(0.777f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-                            veryLargeButton.onClick.AddListener(() =>
-                            {
-                                this._advancedModeWindowSize = 2;
-                                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                                this._advancedModeRect.width = r.width;
-                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                                this._advancedModeRect.height = r.height;
-                            });
-                            this._advancedModeRect = this._advancedModeRects[this._advancedModeWindowSize];
-                        }
-
-                        {
-                            RectTransform shortcutKey = UIUtility.CreateNewUIObject(options, "Shortcut Key Container");
-                            shortcutKey.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -90f), new Vector2(0f, -60f));
-
-                            Text label = this.CreateCustomText("Label", shortcutKey, "Shortcut Key");
-                            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.5f, 1f), Vector2.zero, Vector2.zero);
-                            label.alignment = TextAnchor.MiddleLeft;
-
-                            this._shortcutKeyButton = this.CreateCustomButton("Listener Button", shortcutKey, this._mainWindowKeyCode.ToString());
-                            (this._shortcutKeyButton.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-                            Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
-                            this._shortcutKeyButton.onClick.AddListener(() =>
-                            {
-                                this._shortcutRegisterMode = !this._shortcutRegisterMode;
-                                text.text = this._shortcutRegisterMode ? "Press a Key" : this._mainWindowKeyCode.ToString();
-                            });
-                        }
-                    }
-                }
-            }
             this._optionsWindow.gameObject.SetActive(false);
             LayoutRebuilder.ForceRebuildLayoutImmediate(this._ui.transform.GetChild(0).transform as RectTransform);
-        }
 
-        private Button CreateCustomButton(string objectName = "New Button", Transform parent = null, string buttonText = "Button")
-        {
-            Button b = UIUtility.CreateButton(objectName, parent, buttonText);
-            b.colors = new ColorBlock()
+            // Additional UI
             {
-                colorMultiplier = 1f,
-                normalColor = UIUtility.lightGrayColor,
-                highlightedColor = UIUtility.greenColor,
-                pressedColor = UIUtility.lightGreenColor,
-                disabledColor = UIUtility.transparentGrayColor,
-                fadeDuration = b.colors.fadeDuration
-            };
-            Text t = b.GetComponentInChildren<Text>();
-            t.color = UIUtility.whiteColor;
-            UIUtility.AddOutlineToObject(t.transform);
-            return b;
-        }
+                RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
+                RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
+                container.rectTransform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, -60f), Vector2.zero);
+                container.color = new Color32(105, 108, 111, 255);
 
-        private Text CreateCustomText(string objectName = "New Text", Transform parent = null, string textText = "Text")
-        {
-            Text t = UIUtility.CreateText(objectName, parent, textText);
-            t.color = UIUtility.whiteColor;
-            UIUtility.AddOutlineToObject(t.transform);
-            return t;
+                GameObject textPrefab = parent.Find("Text Left Leg").gameObject;
+                Text crotchText = Instantiate(textPrefab).GetComponent<Text>();
+                crotchText.rectTransform.SetParent(parent);
+                crotchText.rectTransform.localPosition = Vector3.zero;
+                crotchText.rectTransform.SetRect(textPrefab.transform);
+                crotchText.rectTransform.localScale = textPrefab.transform.localScale;
+                crotchText.rectTransform.SetParent(container.rectTransform);
+                crotchText.rectTransform.offsetMin += new Vector2(0f, -20f);
+                crotchText.rectTransform.offsetMax += new Vector2(0f, -20f);
+                crotchText.text = " Crotch";
+                GameObject togglePrefab = parent.Find("Toggle Left Leg").gameObject;
+                this._crotchCorrectionToggle = Instantiate(togglePrefab).GetComponent<Toggle>();
+                RectTransform rt = this._crotchCorrectionToggle.transform as RectTransform;
+                rt.SetParent(parent);
+                rt.localPosition = Vector3.zero;
+                rt.SetRect(togglePrefab.transform);
+                rt.localScale = togglePrefab.transform.localScale;
+                rt.SetParent(container.rectTransform);
+                rt.offsetMin += new Vector2(0f, -20f);
+                rt.offsetMax += new Vector2(0f, -20f);
+                this._crotchCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._crotchCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.crotchJointCorrection = this._crotchCorrectionToggle.isOn;
+                });
+
+                Text leftFootText = Instantiate(textPrefab).GetComponent<Text>();
+                leftFootText.rectTransform.SetParent(parent);
+                leftFootText.rectTransform.localPosition = Vector3.zero;
+                leftFootText.rectTransform.SetRect(textPrefab.transform);
+                leftFootText.rectTransform.localScale = textPrefab.transform.localScale;
+                leftFootText.rectTransform.SetParent(container.rectTransform);
+                leftFootText.rectTransform.offsetMin += new Vector2(0f, -40f);
+                leftFootText.rectTransform.offsetMax += new Vector2(0f, -40f);
+                leftFootText.text = " Left Ankle";
+                this._leftFootCorrectionToggle = Instantiate(togglePrefab).GetComponent<Toggle>();
+                rt = this._leftFootCorrectionToggle.transform as RectTransform;
+                rt.SetParent(parent);
+                rt.localPosition = Vector3.zero;
+                rt.SetRect(togglePrefab.transform);
+                rt.localScale = togglePrefab.transform.localScale;
+                rt.SetParent(container.rectTransform);
+                rt.offsetMin += new Vector2(0f, -40f);
+                rt.offsetMax += new Vector2(0f, -40f);
+                this._leftFootCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._leftFootCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
+                });
+
+                Text rightFootText = Instantiate(textPrefab).GetComponent<Text>();
+                rightFootText.rectTransform.SetParent(parent);
+                rightFootText.rectTransform.localPosition = Vector3.zero;
+                rightFootText.rectTransform.SetRect(textPrefab.transform);
+                rightFootText.rectTransform.localScale = textPrefab.transform.localScale;
+                rightFootText.rectTransform.SetParent(container.rectTransform);
+                rightFootText.rectTransform.offsetMin += new Vector2(0f, -60f);
+                rightFootText.rectTransform.offsetMax += new Vector2(0f, -60f);
+                rightFootText.text = " Right Ankle";
+                this._rightFootCorrectionToggle = Instantiate(togglePrefab).GetComponent<Toggle>();
+                rt = this._rightFootCorrectionToggle.transform as RectTransform;
+                rt.SetParent(parent);
+                rt.localPosition = Vector3.zero;
+                rt.SetRect(togglePrefab.transform);
+                rt.localScale = togglePrefab.transform.localScale;
+                rt.SetParent(container.rectTransform);
+                rt.offsetMin += new Vector2(0f, -60f);
+                rt.offsetMax += new Vector2(0f, -60f);
+                this._rightFootCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._rightFootCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
+                });
+            }
         }
 
         private void OnWindowStartDrag(PointerEventData data)
@@ -1057,6 +815,22 @@ namespace HSPE
         {
             this._windowMoving = false;
         }
+
+        private void OnWindowResize()
+        {
+            this._advancedModeRects[0] = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
+            this._advancedModeRects[1] = new Rect(Screen.width - 800, Screen.height - 390, 800, 390);
+            this._advancedModeRects[2] = new Rect(Screen.width - 950, Screen.height - 410, 950, 410);
+
+            Rect r = this._advancedModeRects[this._advancedModeWindowSize];
+            this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
+            this._advancedModeRect.width = r.width;
+            this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
+            this._advancedModeRect.height = r.height;
+
+            this.resolutionRatio = (Screen.width / 1920f + Screen.height / 1080f) / 2f;
+        }
+
 
         private void SetBoneTarget(FullBodyBipedEffector bone)
         {
@@ -1077,11 +851,7 @@ namespace HSPE
             this._lastBonesPositions.Resize(this._boneTargets.Count);
             this._lastBonesRotations.Resize(this._boneTargets.Count);
             if (this._bendGoalTargets.Count != 0 ||
-                this._boneTargets.Contains(FullBodyBipedEffector.Body) ||
-                this._boneTargets.Contains(FullBodyBipedEffector.LeftShoulder) ||
-                this._boneTargets.Contains(FullBodyBipedEffector.LeftThigh) ||
-                this._boneTargets.Contains(FullBodyBipedEffector.RightShoulder) ||
-                this._boneTargets.Contains(FullBodyBipedEffector.RightThigh))
+                this._boneTargets.Intersect(PoseController.nonRotatableEffectors).Any())
                 foreach (Button bu in this._rotationButtons)
                     bu.interactable = false;
             else
@@ -1311,7 +1081,7 @@ namespace HSPE
                 {
                     if (Input.GetKeyDown(kc))
                     {
-                        if (kc != KeyCode.Escape && kc != KeyCode.Return)
+                        if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0)
                             this._mainWindowKeyCode = kc;
                         this._shortcutKeyButton.onClick.Invoke();
                         break;
@@ -1335,18 +1105,13 @@ namespace HSPE
         #endregion
 
         #region Private Methods
-        private void CallPostUpdate()
-        {
-            this.onPostUpdate?.Invoke();
-        }
-
         private void OnObjectAdded()
         {
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in Studio.Studio.Instance.dicObjectCtrl)
             {
                 if (kvp.Key >= this._lastIndex)
                 {
-                    Studio.OCIChar ociChar = kvp.Value as Studio.OCIChar;
+                    OCIChar ociChar = kvp.Value as OCIChar;
                     if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<PoseController>() == null)
                         ociChar.charInfo.gameObject.AddComponent<PoseController>();
                 }
@@ -1365,6 +1130,9 @@ namespace HSPE
             else
             {
                 this._optimizeIKToggle.isOn = this._poseTarget.optimizeIK;
+                this._crotchCorrectionToggle.isOn = this._poseTarget.crotchJointCorrection;
+                this._leftFootCorrectionToggle.isOn = this._poseTarget.leftFootJointCorrection;
+                this._rightFootCorrectionToggle.isOn = this._poseTarget.rightFootJointCorrection;
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
             }
@@ -1434,11 +1202,6 @@ namespace HSPE
                     xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
                     xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
                     PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
-                    if (controller.optimizeIK == false)
-                    {
-                        xmlWriter.WriteAttributeString("optimizeIK", XmlConvert.ToString(controller.optimizeIK));
-                        written++;
-                    }
                     written += controller.SaveXml(xmlWriter);
                     xmlWriter.WriteEndElement();
                 }
@@ -1454,7 +1217,7 @@ namespace HSPE
             node = node.CloneNode(true);
             this.ExecuteDelayed(() =>
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
                 int i = 0;
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
@@ -1470,10 +1233,6 @@ namespace HSPE
                             PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
                             if (controller == null)
                                 controller = ociChar.charInfo.gameObject.AddComponent<PoseController>();
-                            if (childNode.Attributes?["optimizeIK"] != null)
-                                controller.optimizeIK = XmlConvert.ToBoolean(childNode.Attributes["optimizeIK"].Value);
-                            else
-                                controller.optimizeIK = true;
                             controller.ScheduleLoad(childNode, v);
                             ++i;
                             break;
