@@ -56,11 +56,10 @@ namespace HSPE
         private bool _blockCamera = false;
         private bool _isVisible = false;
         private Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
-        private readonly Rect[] _advancedModeRects = new Rect[]
-        {
-                    new Rect(Screen.width - 650, Screen.height - 370, 650, 370),
-                    new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
-                    new Rect(Screen.width - 950, Screen.height - 410, 950, 410)
+        private readonly Rect[] _advancedModeRects = {
+            new Rect(Screen.width - 650, Screen.height - 370, 650, 370),
+            new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
+            new Rect(Screen.width - 950, Screen.height - 410, 950, 410)
         };
         private float _mainWindowSize = 1f;
         private int _advancedModeWindowSize = 0;
@@ -94,6 +93,7 @@ namespace HSPE
         private bool _anklesCorrectionByDefault;
         private int _lastScreenWidth = Screen.width;
         private int _lastScreenHeight = Screen.height;
+        private IKExecutionOrder _ikExecutionOrder;
         #endregion
 
         #region Public Accessors
@@ -112,6 +112,9 @@ namespace HSPE
         protected virtual void Awake()
         {
             self = this;
+
+            this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
+            this._ikExecutionOrder.IKComponents = new IK[0];
 
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)

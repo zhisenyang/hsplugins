@@ -18,8 +18,8 @@ namespace HSUS
         public class TypeData
         {
             public RectTransform parentObject;
-            public List<SmClothes_F.IdTglInfo> lstIdTgl = new List<SmClothes_F.IdTglInfo>();
-            public Dictionary<int, int> keyToObjectIndex = new Dictionary<int, int>();
+            public readonly List<SmClothes_F.IdTglInfo> lstIdTgl = new List<SmClothes_F.IdTglInfo>();
+            public readonly Dictionary<int, int> keyToObjectIndex = new Dictionary<int, int>();
             public List<ObjectData> objects = new List<ObjectData>();
         }
 
@@ -115,58 +115,42 @@ namespace HSUS
                     case 57:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_top);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[0];
-                        }
                         break;
                     case 58:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bot);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[1];
-                        }
                         break;
                     case 59:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_bra);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[2];
-                        }
                         break;
                     case 60:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shorts);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[3];
-                        }
                         break;
                     case 61:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_gloves);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[7];
-                        }
                         break;
                     case 62:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_panst);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[8];
-                        }
                         break;
                     case 63:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_socks);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[9];
-                        }
                         break;
                     case 64:
                         dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_shoes);
                         if (clothesInfoF != null)
-                        {
                             num = clothesInfoF.clothesId[10];
-                        }
                         break;
                     default:
                         if (nowSubMenuTypeId != 76)
@@ -175,18 +159,14 @@ namespace HSUS
                             {
                                 dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimbot);
                                 if (clothesInfoF != null)
-                                {
                                     num = clothesInfoF.clothesId[6];
-                                }
                             }
                         }
                         else
                         {
                             dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swimtop);
                             if (clothesInfoF != null)
-                            {
                                 num = clothesInfoF.clothesId[5];
-                            }
                         }
                         break;
                 }
@@ -439,9 +419,7 @@ namespace HSUS
                         int num4 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
                         Transform transform = rectTransform.FindChild("imgNew");
                         if (transform && num4 == 1)
-                        {
                             transform.gameObject.SetActive(true);
-                        }
                     }
                     SmClothes_F.IdTglInfo idTglInfo = new SmClothes_F.IdTglInfo();
                     idTglInfo.coorde = int.Parse(current.Value.Etc[1]);

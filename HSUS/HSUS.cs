@@ -41,6 +41,15 @@ namespace HSUS
         private KeyCode _debugShortcut = KeyCode.RightControl;
         private bool _improvedTransformOperations = true;
         private bool _autoJointCorrection = true;
+        private bool _eyesBlink = false;
+
+        private bool _ssaoEnabled = true;
+        private bool _bloomEnabled = true;
+        private bool _ssrEnabled = true;
+        private bool _dofEnabled = true;
+        private bool _vignetteEnabled = true;
+        private bool _fogEnabled = true;
+        private bool _sunShaftsEnabled = false;
 
         private GameObject _go;
         private RoutinesComponent _routines;
@@ -52,7 +61,7 @@ namespace HSUS
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.3.2"; } }
+        public string Version { get { return "1.4.0"; } }
         public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
@@ -63,6 +72,14 @@ namespace HSUS
         public KeyCode debugShortcut { get { return this._debugShortcut; } }
         public bool improvedTransformOperations { get { return this._improvedTransformOperations; } }
         public bool autoJointCorrection { get { return this._autoJointCorrection; } }
+        public bool eyesBlink { get { return this._eyesBlink; } }
+        public bool dofEnabled { get { return this._dofEnabled; } }
+        public bool ssaoEnabled { get { return this._ssaoEnabled; } }
+        public bool bloomEnabled { get { return this._bloomEnabled; } }
+        public bool ssrEnabled { get { return this._ssrEnabled; } }
+        public bool vignetteEnabled { get { return this._vignetteEnabled; } }
+        public bool fogEnabled { get { return this._fogEnabled; } }
+        public bool sunShaftsEnabled { get { return this._sunShaftsEnabled; } }
         public RoutinesComponent routines { get { return this._routines; } }
         #endregion
 
@@ -151,6 +168,46 @@ namespace HSUS
                     case "autoJointCorrection":
                         if (node.Attributes["enabled"] != null)
                             this._autoJointCorrection = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "eyesBlink":
+                        if (node.Attributes["enabled"] != null)
+                            this._eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "postProcessing":
+                        foreach (XmlNode childNode in node.ChildNodes)
+                        {
+                            switch (childNode.Name)
+                            {
+                                case "depthOfField":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._dofEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "ssao":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._ssaoEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "bloom":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._bloomEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "ssr":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._ssrEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "vignette":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._vignetteEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "fog":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._fogEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                                case "sunShafts":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._sunShaftsEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                            }
+                        }
                         break;
                 }
             }
@@ -280,6 +337,59 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+                    {
+                        xmlWriter.WriteStartElement("eyesBlink");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._eyesBlink));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("postProcessing");
+
+                        {
+                            xmlWriter.WriteStartElement("depthOfField");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._dofEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("ssao");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._ssaoEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("bloom");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._bloomEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("ssr");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._ssrEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("vignette");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._vignetteEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("fog");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fogEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("sunShafts");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._sunShaftsEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        xmlWriter.WriteEndElement();
+                    }
                     xmlWriter.WriteEndElement();
                 }
             }
@@ -306,24 +416,11 @@ namespace HSUS
             if (this._binary == Binary.Game && level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                 this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
             if (this._improveNeoUI && this._binary == Binary.Neo && level == 3)
-            {
-                RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
-                rt.offsetMax += new Vector2(60f, 0f);
-                rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
-                rt.offsetMax += new Vector2(60f, 0f);
-                rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content") as RectTransform;
-                rt.offsetMax += new Vector2(60f, 0f);
-
-                VerticalLayoutGroup group = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<VerticalLayoutGroup>();
-                group.childForceExpandWidth = true;
-                group.padding = new RectOffset(group.padding.left + 4, group.padding.right + 24, group.padding.top, group.padding.bottom);
-                GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-
-                Text t = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/node/Text").GetComponent<Text>();
-                t.resizeTextForBestFit = true;
-                t.resizeTextMinSize = 2;
-                t.resizeTextMaxSize = 100;
-            }
+                this.ImproveNeoUI();
+            if (level == 3)
+                this.SetProcessAffinity();
+            if (this._binary == Binary.Neo && level == 3 && this._improvedTransformOperations)
+                GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
         }
 
         public void OnUpdate()
@@ -533,7 +630,27 @@ namespace HSUS
                 }, 20);
         }
 
-        public void LoadCustomDefault(string path)
+        private void ImproveNeoUI()
+        {
+            RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
+            rt.offsetMax += new Vector2(60f, 0f);
+            rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
+            rt.offsetMax += new Vector2(60f, 0f);
+            rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content") as RectTransform;
+            rt.offsetMax += new Vector2(60f, 0f);
+
+            VerticalLayoutGroup group = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<VerticalLayoutGroup>();
+            group.childForceExpandWidth = true;
+            group.padding = new RectOffset(group.padding.left + 4, group.padding.right + 24, group.padding.top, group.padding.bottom);
+            GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+
+            Text t = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/node/Text").GetComponent<Text>();
+            t.resizeTextForBestFit = true;
+            t.resizeTextMinSize = 2;
+            t.resizeTextMaxSize = 100;
+        }
+
+        private void LoadCustomDefault(string path)
         {
             CustomControl customControl = Resources.FindObjectsOfTypeAll<CustomControl>()[0];
             int personality = customControl.chainfo.customInfo.personality;
@@ -589,6 +706,27 @@ namespace HSUS
             customControl.UpdateAcsName();
         }
 
+        private void SetProcessAffinity()
+        {
+            this._routines.ExecuteDelayed(() =>
+            {
+                const long affinityMask = 1;
+                Process proc = Process.GetCurrentProcess();
+                proc.ProcessorAffinity = (IntPtr)affinityMask;
+
+                foreach (ProcessThread thread in proc.Threads)
+                    thread.ProcessorAffinity = (IntPtr)affinityMask;
+            });
+            this._routines.ExecuteDelayed(() =>
+            {
+                const long affinityMask = -1;
+                Process proc = Process.GetCurrentProcess();
+                proc.ProcessorAffinity = (IntPtr)affinityMask;
+
+                foreach (ProcessThread thread in proc.Threads)
+                    thread.ProcessorAffinity = (IntPtr)affinityMask;
+            }, 30);
+        }
         #endregion
     }
 
@@ -629,25 +767,6 @@ namespace HSUS
         }
     }
 
-    [HarmonyPatch(typeof(StartScene), "Start")]
-    public class StartScene_Start_Patches
-    {
-        public static bool Prepare()
-        {
-            return HSUS.self.optimizeNeo;
-        }
-        public static bool Prefix(System.Object __instance)
-        {
-            if (__instance as StartScene)
-            {
-                Studio.Info.Instance.LoadExcelData();
-                Manager.Scene.Instance.SetFadeColor(Color.black);
-                Manager.Scene.Instance.LoadReserv("Studio", true);
-                return false;
-            }
-            return true;
-        }
-    }
     //[HarmonyPatch(typeof(HSColorSet), "SetSpecularRGB", new[] { typeof(Color) })]
     //public class Testetetetetet
     //{

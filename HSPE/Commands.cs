@@ -42,7 +42,6 @@ namespace HSPE
 
             public void Undo()
             {
-                
                 foreach (Studio.GuideCommand.EqualsInfo info in this._moveChangeAmountInfo)
                 {
                     Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);

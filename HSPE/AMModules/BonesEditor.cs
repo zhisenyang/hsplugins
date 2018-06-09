@@ -380,6 +380,11 @@ namespace HSPE.AMModules
             }
         }
 
+        void LateUpdate()
+        {
+            this.ApplyBoneManualCorrection();
+        }
+
         void OnGUI()
         {
             GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow.self.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
@@ -402,25 +407,18 @@ namespace HSPE.AMModules
         public override void IKSolverOnPostUpdate()
         {
             if (this.chara.oiCharInfo.enableFK == false)
-            {
-                this.ApplyBoneManualCorrection();
                 this.DrawGizmos();                
-            }
         }
 
         public override void FKCtrlOnPostLateUpdate()
         {
-            this.ApplyBoneManualCorrection();
             this.DrawGizmos();
         }
 
         public override void CharBodyPreLateUpdate()
         {
             if (this.chara.oiCharInfo.enableIK == false && this.chara.oiCharInfo.enableFK == false)
-            {
-                this.ApplyBoneManualCorrection();
                 this.DrawGizmos();                
-            }
         }
 
         public Transform GetTwinBone(Transform bone)

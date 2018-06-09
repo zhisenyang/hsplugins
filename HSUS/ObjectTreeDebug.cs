@@ -188,6 +188,36 @@ namespace HSUS
                             GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
                         }
                     }
+                    else if (c is InputField)
+                    {
+                        InputField b = c as InputField;
+                        if (b.onValueChanged != null)
+                        {
+                            for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
+                                GUILayout.Label("OnValueChanged " + b.onValueChanged.GetPersistentTarget(i).GetType().FullName + "." + b.onValueChanged.GetPersistentMethodName(i));
+                            IList calls = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                            for (int i = 0; i < calls.Count; ++i)
+                            {
+                                UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
+                                GUILayout.Label("OnValueChanged " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
+                            }
+                            
+                        }
+                        if (b.onEndEdit != null)
+                        {
+                            for (int i = 0; i < b.onEndEdit.GetPersistentEventCount(); ++i)
+                                GUILayout.Label("OnEndEdit " + b.onEndEdit.GetPersistentTarget(i).GetType().FullName + "." + b.onEndEdit.GetPersistentMethodName(i));
+                            IList calls = b.onEndEdit.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                            for (int i = 0; i < calls.Count; ++i)
+                            {
+                                UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
+                                GUILayout.Label("OnEndEdit " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
+                            }
+                            
+                        }
+                        if (b.onValidateInput != null)
+                            GUILayout.Label("OnValidateInput " + b.onValidateInput.Target.GetType().FullName + "." + b.onValidateInput.Method.Name);
+                    }
                     else if (c is RectTransform)
                     {
                         RectTransform rt = c as RectTransform;
@@ -196,6 +226,15 @@ namespace HSUS
                         GUILayout.Label("offsetMin " + rt.offsetMin);
                         GUILayout.Label("offsetMax " + rt.offsetMax);
                         GUILayout.Label("rect " + rt.rect);
+                        GUILayout.Label("localRotation " + rt.localEulerAngles);
+                        GUILayout.Label("localScale " + rt.localScale);
+                    }
+                    else if (c is Transform)
+                    {
+                        Transform tr = c as Transform;
+                        GUILayout.Label("localPosition " + tr.localPosition);
+                        GUILayout.Label("localRotation " + tr.localEulerAngles);
+                        GUILayout.Label("localScale " + tr.localScale);
                     }
                     GUILayout.EndHorizontal();
                 }

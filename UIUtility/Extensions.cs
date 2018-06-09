@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace UILib
 {
-    public static class Extensions
+    internal static class Extensions
     {
         public static void ExecuteDelayed(this MonoBehaviour self, Action action, int waitCount = 1)
         {

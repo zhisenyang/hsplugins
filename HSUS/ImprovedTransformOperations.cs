@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using Harmony;
 using Studio;
+using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -152,6 +153,225 @@ namespace HSUS
                     break;
             }
             return Vector3.Project(vector, onNormal);
+        }
+    }
+
+    public class TransformOperations : MonoBehaviour
+    {
+        private Button _copyTransform;
+        private Button _pasteTransform;
+        private Button _resetTransform;
+        private int _lastObjectCount = 0;
+        private HashSet<GuideObject> _hashSelectObject;
+        private bool _clipboardEmpty = true;
+        private Vector3 _savedPosition;
+        private Vector3 _savedRotation;
+        private Vector3 _savedScale;
+
+        void Awake()
+        {
+            RectTransform guideInput = this.transform.Find("Guide Input") as RectTransform;
+            Image container = UIUtility.CreatePanel("Additional Operations", this.transform);
+            container.rectTransform.SetRect(Vector2.zero, Vector2.zero, guideInput.offsetMin + new Vector2(4 + guideInput.rect.width, -1f), guideInput.offsetMin + new Vector2(5 + guideInput.rect.width + 105, guideInput.rect.height + 1f));
+            container.color = new Color32(59, 58, 56, 167);
+            container.sprite = UIUtility.resources.inputField;
+
+            for (int i = 0; i < this.transform.childCount; i++)
+            {
+                RectTransform rt = this.transform.GetChild(i) as RectTransform;
+                if (rt != guideInput && rt != container.rectTransform)
+                    rt.anchoredPosition += new Vector2(105, 0f);
+            }
+            Sprite background = null;
+            foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
+            {
+                switch (sprite.name)
+                {
+                    case "sp_sn_12_00_01":
+                        background = sprite;
+                        goto DOUBLEBREAK;
+                }
+            }
+            DOUBLEBREAK:
+            this._copyTransform = UIUtility.CreateButton("Copy Transform", container.transform, "Copy Transform");
+            this._copyTransform.transform.SetRect(new Vector2(0f, 0.666f), Vector2.one, new Vector2(5f, 1f), new Vector2(-5f, -5f));
+            ((Image)this._copyTransform.targetGraphic).sprite = background;
+            Text t = this._copyTransform.GetComponentInChildren<Text>();
+            t.color = Color.white;
+            t.resizeTextForBestFit = false;
+            t.fontSize = 10;
+            t.rectTransform.SetRect();
+            this._copyTransform.onClick.AddListener(this.CopyTransform);
+
+            this._pasteTransform = UIUtility.CreateButton("Paste Transform", container.transform, "Paste Transform");
+            this._pasteTransform.transform.SetRect(new Vector2(0f, 0.333f), new Vector2(1f, 0.666f), new Vector2(5f, 2f), new Vector2(-5f, -2f));
+            ((Image)this._pasteTransform.targetGraphic).sprite = background;
+            t = this._pasteTransform.GetComponentInChildren<Text>();
+            t.color = Color.white;
+            t.resizeTextForBestFit = false;
+            t.fontSize = 10;
+            t.rectTransform.SetRect();
+            this._pasteTransform.onClick.AddListener(this.PasteTransform);
+
+            this._resetTransform = UIUtility.CreateButton("Reset Transform", container.transform, "Reset Transform");
+            this._resetTransform.transform.SetRect(Vector2.zero, new Vector2(1f, 0.333f), new Vector2(5f, 5f), new Vector2(-5f, -1f));
+            ((Image)this._resetTransform.targetGraphic).sprite = background;
+            ((Image)this._resetTransform.targetGraphic).color = Color.Lerp(Color.red, Color.white, 0.3f); 
+            t = this._resetTransform.GetComponentInChildren<Text>();
+            t.color = Color.white;
+            t.resizeTextForBestFit = false;
+            t.fontSize = 10;
+            t.rectTransform.SetRect();
+            this._resetTransform.onClick.AddListener(this.ResetTransform);
+
+            this._hashSelectObject = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
+        }
+
+        void Update()
+        {
+            if (this._lastObjectCount != this._hashSelectObject.Count)
+                this.UpdateButtonsVisibility();
+            this._lastObjectCount = this._hashSelectObject.Count;
+        }
+
+        private void UpdateButtonsVisibility()
+        {
+            this._copyTransform.interactable = this._hashSelectObject.Count == 1;
+            this._pasteTransform.interactable = this._hashSelectObject.Count > 0 && this._clipboardEmpty == false;
+            this._resetTransform.interactable = this._hashSelectObject.Count > 0;
+        }
+
+        private void CopyTransform()
+        {
+            GuideObject source = this._hashSelectObject.First();
+            this._savedPosition = source.changeAmount.pos;
+            this._savedRotation = source.changeAmount.rot;
+            this._savedScale = source.changeAmount.scale;
+            this._clipboardEmpty = false;
+            this.UpdateButtonsVisibility();
+        }
+
+        private void PasteTransform()
+        {
+            if (this._clipboardEmpty)
+                return;
+            this.SetValues(this._savedPosition, this._savedRotation, this._savedScale);
+        }
+
+        private void ResetTransform()
+        {
+            this.SetValues(Vector3.zero, Vector3.zero, Vector3.one);
+        }
+
+        private void SetValues(Vector3 pos, Vector3 rot, Vector3 scale)
+        {
+            List<GuideCommand.EqualsInfo> moveChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+            List<GuideCommand.EqualsInfo> rotateChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+            List<GuideCommand.EqualsInfo> scaleChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+
+            foreach (GuideObject guideObject in this._hashSelectObject)
+            {
+                if (guideObject.enablePos)
+                {
+                    Vector3 oldPosValue = guideObject.changeAmount.pos;
+                    guideObject.changeAmount.pos = pos;
+                    moveChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = guideObject.dicKey,
+                        oldValue = oldPosValue,
+                        newValue = guideObject.changeAmount.pos
+                    });
+                }
+                if (guideObject.enableRot)
+                {
+                    Vector3 oldRotValue = guideObject.changeAmount.rot;
+                    guideObject.changeAmount.rot = rot;
+                    rotateChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = guideObject.dicKey,
+                        oldValue = oldRotValue,
+                        newValue = guideObject.changeAmount.rot
+                    });
+                }
+                if (guideObject.enableScale)
+                {
+                    Vector3 oldScaleValue = guideObject.changeAmount.scale;
+                    guideObject.changeAmount.scale = scale;
+                    scaleChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = guideObject.dicKey,
+                        oldValue = oldScaleValue,
+                        newValue = guideObject.changeAmount.scale
+                    });
+                }
+            }
+            UndoRedoManager.Instance.Push(new TransformEqualsCommand(moveChangeAmountInfo.ToArray(), rotateChangeAmountInfo.ToArray(), scaleChangeAmountInfo.ToArray()));
+        }
+    }
+
+    public class TransformEqualsCommand : ICommand
+    {
+        private readonly Studio.GuideCommand.EqualsInfo[] _moveChangeAmountInfo;
+        private readonly Studio.GuideCommand.EqualsInfo[] _rotateChangeAmountInfo;
+        private readonly Studio.GuideCommand.EqualsInfo[] _scaleChangeAmountInfo;
+
+        public TransformEqualsCommand(GuideCommand.EqualsInfo[] moveChangeAmountInfo, GuideCommand.EqualsInfo[] rotateChangeAmountInfo, GuideCommand.EqualsInfo[] scaleChangeAmountInfo)
+        {
+            this._moveChangeAmountInfo = moveChangeAmountInfo;
+            this._rotateChangeAmountInfo = rotateChangeAmountInfo;
+            this._scaleChangeAmountInfo = scaleChangeAmountInfo;
+        }
+
+        public void Do()
+        {
+            foreach (GuideCommand.EqualsInfo info in this._moveChangeAmountInfo)
+            {
+                ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.pos = info.newValue;
+            }
+
+            foreach (GuideCommand.EqualsInfo info in this._rotateChangeAmountInfo)
+            {
+                ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.rot = info.newValue;
+            }
+
+            foreach (GuideCommand.EqualsInfo info in this._scaleChangeAmountInfo)
+            {
+                ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.scale = info.newValue;
+            }
+
+        }
+
+        public void Redo()
+        {
+            this.Do();
+        }
+
+        public void Undo()
+        {
+            foreach (Studio.GuideCommand.EqualsInfo info in this._moveChangeAmountInfo)
+            {
+                Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.pos = info.oldValue;
+            }
+            foreach (Studio.GuideCommand.EqualsInfo info in this._rotateChangeAmountInfo)
+            {
+                Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.rot = info.oldValue;
+            }
+            foreach (Studio.GuideCommand.EqualsInfo info in this._scaleChangeAmountInfo)
+            {
+                Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                if (changeAmount != null)
+                    changeAmount.scale = info.oldValue;
+            }
         }
     }
 }

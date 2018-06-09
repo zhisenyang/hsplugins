@@ -215,4 +215,32 @@ namespace StudioFileCheck
         }
     }
 
+    [HarmonyPatch(typeof(CharFileInfoStatus))]
+    public class CharFileInfoStatus_Ctor_Patches
+    {
+        public static void Postfix(CharFileInfoStatus __instance)
+        {
+            __instance.eyesBlink = HSUS.HSUS.self.eyesBlink;
+        }
+    }
+
+    [HarmonyPatch(typeof(StartScene), "Start")]
+    public class StartScene_Start_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static bool Prefix(System.Object __instance)
+        {
+            if (__instance as StartScene)
+            {
+                Studio.Info.Instance.LoadExcelData();
+                Manager.Scene.Instance.SetFadeColor(Color.black);
+                Manager.Scene.Instance.LoadReserv("Studio", true);
+                return false;
+            }
+            return true;
+        }
+    }
 }

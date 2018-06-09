@@ -290,6 +290,7 @@ namespace HSPE
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             IKSolver_Patches.onPostUpdate -= this.IKSolverOnPostUpdate;
+            FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
             CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
             CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
         }
