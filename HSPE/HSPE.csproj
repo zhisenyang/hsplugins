@@ -10,6 +10,8 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>HSPE</RootNamespace>
     <AssemblyName>HSPENeo</AssemblyName>
+    <AssemblyName Condition=" '$(Configuration)' == 'HS' ">HSPENeo</AssemblyName>
+    <AssemblyName Condition=" '$(Configuration)' == 'KOI' ">KKPE</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
@@ -34,6 +36,24 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'HS|AnyCPU'">
+    <OutputPath>bin\HS\</OutputPath>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>HONEYSELECT</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'KOI|AnyCPU'">
+    <OutputPath>bin\KOI\</OutputPath>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>KOIKATSU</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
   <ItemGroup>
     <Compile Include="AMModules\BlendShapesEditor.cs" />
     <Compile Include="AMModules\BonesEditor.cs" />
@@ -56,7 +76,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
+    <ProjectReference Condition=" '$(Configuration)' == 'HS' " Include="..\HSExtSave\HSExtSave.csproj">
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
       <Name>HSExtSave</Name>
       <Private>False</Private>
@@ -73,53 +93,102 @@
     </None>
     <None Include="packages.config" />
     <None Include="Resources\hsperesources.unity3d" />
+    <None Include="Resources\kkperesources.unity3d" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ILMergeOrder.txt" />
   </ItemGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="0Harmony">
       <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
     </Reference>
-    <Reference Include="Assembly-CSharp">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Assembly-CSharp-firstpass">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp-firstpass">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="IllusionPlugin">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="IllusionPlugin">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Xml, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System.Xml, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Xml.Linq, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System.Xml.Linq, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.Linq.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine.UI">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI.Translation">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine.UI.Translation">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Vectrosity">
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Vectrosity">
       <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
       <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="0Harmony">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp-firstpass">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="BepInEx">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\BepInEx.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="ExtensibleSaveFormat">
+      <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\ExtensibleSaveFormat.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml.Linq">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.Linq.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="TextMeshPro-1.0.55.56.0b12">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\TextMeshPro-1.0.55.56.0b12.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine.UI">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Vectrosity">
+      <HintPath>..\..\..\..\Program Files (x86)\HoneySelect\illusion\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -129,8 +198,11 @@
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
     <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'KOI' ">
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\Koikatu/BepInEx"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

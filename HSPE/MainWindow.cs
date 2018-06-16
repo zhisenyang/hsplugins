@@ -1,20 +1,23 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading;
 using System.Xml;
+using Harmony;
 using RootMotion.FinalIK;
 using Studio;
+using TMPro;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Resources = HSPE.Properties.Resources;
+#if KOIKATSU
+using ExtensibleSaveFormat;
+#endif
 
 namespace HSPE
 {
@@ -26,12 +29,32 @@ namespace HSPE
 
         #region Events
         public event Action<TreeNodeObject, TreeNodeObject> onParentage;
+        public event Action<OCIChar> onCharaChange;
         #endregion
 
         #region Constants
+#if HONEYSELECT
         private const string _config = "configNEO.xml";
         private const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
+#elif KOIKATSU
+        private const string _config = "config.xml";
+        private const string _pluginDir = "BepInEx\\KKPE\\";
+        private const string _extSaveKey = "kkpe";
+#endif
+        private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+        #endregion
+
+        #region Private Types
+        [HarmonyPatch(typeof(OCIChar), "ChangeChara", new []{typeof(string)})]
+        private class OCIChar_Patches
+        {
+            public static void Postfix(OCIChar __instance, string _path)
+            {
+                if (self.onCharaChange != null)
+                    self.onCharaChange(__instance);
+            }
+        }
         #endregion
 
         #region Private Variables
@@ -174,17 +197,28 @@ namespace HSPE
             Studio.Studio.Instance.treeNodeCtrl.onParentage = (parent, node) => this.onParentage?.Invoke(parent, node);
             this.onParentage += oldDelegate;
 
+#if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
+#elif KOIKATSU
+            ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
+            ExtendedSave.CardBeingSaved += this.OnCharaSave;
+            //ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
+            //ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
+            //ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += this.OnSceneSave;
+#endif
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
 
         }
 
-        protected virtual void Start()
+        void Start()
         {
+#if HONEYSELECT
             Type type = Type.GetType("HSUS.HSUS,HSUS");
+#elif KOIKATSU
+            Type type = Type.GetType("KKUS.KKUS,KKUS");
+#endif
             if (type != null)
                 this.uiScale = (float)type.GetField("_neoUIScale", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(type.GetProperty("self").GetValue(null, null));
-            UnityEngine.Debug.LogError(this.uiScale);
             this.SpawnGUI();
             this._crotchCorrectionByDefaultToggle.isOn = this._crotchCorrectionByDefault;
             this._anklesCorrectionByDefaultToggle.isOn = this._anklesCorrectionByDefault;
@@ -232,8 +266,11 @@ namespace HSPE
             {
                 if (this._poseTarget.drawAdvancedMode)
                 {
+                    Color c = GUI.backgroundColor;
+                    GUI.backgroundColor = new Color(0.8F, 0.8f, 0.8f, 0.2f);
                     for (int i = 0; i < 3; ++i)
-                        GUI.Box(this._advancedModeRect, "");
+                        GUI.Box(this._advancedModeRect, "", _customBoxStyle);
+                    GUI.backgroundColor = c;
                     this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
                     if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._poseTarget.colliderEditEnabled && this._poseTarget.colliderEditRect.Contains(Event.current.mousePosition)))
                         this._mouseInAdvMode = true;
@@ -256,7 +293,11 @@ namespace HSPE
                 {
                     xmlWriter.Formatting = Formatting.Indented;
                     xmlWriter.WriteStartElement("root");
-                    xmlWriter.WriteAttributeString("version", HSPE.VersionNum.ToString());
+#if HONEYSELECT
+                    xmlWriter.WriteAttributeString("version", HSPE.versionNum.ToString());
+#elif KOIKATSU
+                    xmlWriter.WriteAttributeString("version", KKPE.versionNum.ToString());
+#endif
 
                     xmlWriter.WriteStartElement("mainWindowSize");
                     xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._mainWindowSize));
@@ -315,28 +356,20 @@ namespace HSPE
         #region GUI
         private void SpawnGUI()
         {
+#if HONEYSELECT
             string oldResourcesDir = _pluginDir + "Resources\\";
             if (Directory.Exists(oldResourcesDir))
                 Directory.Delete(oldResourcesDir, true);
+#endif
 
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSPEResources);
-            Texture2D texture = null;
-            foreach (Texture2D tex in bundle.LoadAllAssets<Texture2D>())
-            {
-                switch (tex.name)
-                {
-                    case "Icon":
-                        texture = tex;
-                        break;
-                    case "VectorEndCap":
-                        this.vectorEndCap = tex;
-                        break;
-                    case "VectorMiddle":
-                        this.vectorMiddle = tex;
-                        break;
-                }
-            }
-
+#if HONEYSELECT
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.HSPEResources);
+#elif KOIKATSU
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.KKPEResources);
+#endif
+            Texture2D texture = bundle.LoadAsset<Texture2D>("Icon");
+            this.vectorEndCap = bundle.LoadAsset<Texture2D>("VectorEndCap");
+            this.vectorMiddle = bundle.LoadAsset<Texture2D>("VectorMiddle");
             {
                 RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
                 Button hspeButton = Instantiate(original.gameObject).GetComponent<Button>();
@@ -357,7 +390,11 @@ namespace HSPE
                 this._hspeButtonImage.color = Color.white;
             }
 
+#if HONEYSELECT
             this._ui = Instantiate(bundle.LoadAsset<GameObject>("HSPECanvas")).GetComponent<Canvas>();
+#elif KOIKATSU
+            this._ui = Instantiate(bundle.LoadAsset<GameObject>("KKPECanvas")).GetComponent<Canvas>();
+#endif
             bundle.Unload(false);
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
@@ -611,27 +648,30 @@ namespace HSPE
             mw.onPointerUp += this.OnWindowEndDrag;
 
             Vector2 sizeDelta = bg.sizeDelta;
+#if HONEYSELECT
             Text xMoveText = xMoveButton.GetComponentInChildren<Text>();
             Text yMoveText = yMoveButton.GetComponentInChildren<Text>();
             Text zMoveText = zMoveButton.GetComponentInChildren<Text>();
             Text xRotText = rotXButton.GetComponentInChildren<Text>();
             Text yRotText = rotYButton.GetComponentInChildren<Text>();
             Text zRotText = rotZButton.GetComponentInChildren<Text>();
-
             int moveFontSize = xMoveText.fontSize;
             int rotFontSize = xRotText.fontSize;
+#endif
 
             Button normalButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Normal Button").GetComponent<Button>();
             normalButton.onClick.AddListener(() =>
             {
                 this._mainWindowSize = 1f;
                 bg.sizeDelta = sizeDelta * this._mainWindowSize;
+#if HONEYSELECT
                 xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+#endif
             });
 
             Button largeButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Large Button").GetComponent<Button>();
@@ -639,12 +679,14 @@ namespace HSPE
             {
                 this._mainWindowSize = 1.25f;
                 bg.sizeDelta = sizeDelta * this._mainWindowSize;
+#if HONEYSELECT
                 xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+#endif
             });
 
             Button veryLargeButton = this._ui.transform.Find("Options Window/Options/Main Window Size Container/Very Large Button").GetComponent<Button>();
@@ -652,20 +694,24 @@ namespace HSPE
             {
                 this._mainWindowSize = 1.5f;
                 bg.sizeDelta = sizeDelta * this._mainWindowSize;
+#if HONEYSELECT
                 xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
                 xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
                 zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+#endif
             });
             bg.sizeDelta = sizeDelta * this._mainWindowSize;
+#if HONEYSELECT
             xMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
             yMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
             zMoveText.fontSize = (int)(moveFontSize * this._mainWindowSize);
             xRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
             yRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
             zRotText.fontSize = (int)(rotFontSize * this._mainWindowSize);
+#endif
             this._optionsWindow.anchoredPosition += new Vector2((sizeDelta.x * this._mainWindowSize) - sizeDelta.x, 0f);
 
             normalButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Normal Button").GetComponent<Button>();
@@ -718,6 +764,7 @@ namespace HSPE
             LayoutRebuilder.ForceRebuildLayoutImmediate(this._ui.transform.GetChild(0).transform as RectTransform);
 
             // Additional UI
+#if HONEYSELECT
             {
                 RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
                 RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
@@ -801,6 +848,63 @@ namespace HSPE
                         this._poseTarget.rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
                 });
             }
+#elif KOIKATSU
+            {
+                RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
+                RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
+                container.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(0f, -60f), new Vector2(parent.rect.width, 0f));
+                container.color = new Color32(110, 110, 116, 255);
+
+                GameObject prefab = parent.Find("Left Leg (1)").gameObject;
+                RectTransform crotchContainer = Instantiate(prefab).transform as RectTransform;
+                crotchContainer.SetParent(container.rectTransform);
+                crotchContainer.pivot = new Vector2(0f, 1f);
+                crotchContainer.localPosition = Vector3.zero;
+                crotchContainer.localScale = prefab.transform.localScale;
+                crotchContainer.anchoredPosition = new Vector2(0f, 0f);
+                crotchContainer.GetComponentInChildren<TextMeshProUGUI>().text = "Crotch";
+
+                this._crotchCorrectionToggle = crotchContainer.GetComponentInChildren<Toggle>();
+                this._crotchCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._crotchCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.crotchJointCorrection = this._crotchCorrectionToggle.isOn;
+                });
+
+                RectTransform leftFootContainer = Instantiate(prefab).transform as RectTransform;
+                leftFootContainer.SetParent(container.rectTransform);
+                leftFootContainer.pivot = new Vector2(0f, 1f);
+                leftFootContainer.localPosition = Vector3.zero;
+                leftFootContainer.localScale = prefab.transform.localScale;
+                leftFootContainer.anchoredPosition = new Vector2(0f, -20f);
+                leftFootContainer.GetComponentInChildren<TextMeshProUGUI>().text = "Left Ankle";
+                this._leftFootCorrectionToggle = leftFootContainer.GetComponentInChildren<Toggle>();
+                this._leftFootCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._leftFootCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
+                });
+
+                RectTransform rightFootContainer = Instantiate(prefab).transform as RectTransform;
+
+                rightFootContainer.SetParent(container.rectTransform);
+                rightFootContainer.pivot = new Vector2(0f, 1f);
+                rightFootContainer.localPosition = Vector3.zero;
+                rightFootContainer.localScale = prefab.transform.localScale;
+                rightFootContainer.anchoredPosition = new Vector2(0f, -40f);
+
+                rightFootContainer.GetComponentInChildren<TextMeshProUGUI>().text = "Right Ankle";
+                this._rightFootCorrectionToggle = rightFootContainer.GetComponentInChildren<Toggle>();
+                this._rightFootCorrectionToggle.onValueChanged = new Toggle.ToggleEvent();
+                this._rightFootCorrectionToggle.onValueChanged.AddListener((b) =>
+                {
+                    if (this._poseTarget != null)
+                        this._poseTarget.rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
+                });
+            }
+#endif
         }
 
         private void OnWindowStartDrag(PointerEventData data)
@@ -1151,6 +1255,7 @@ namespace HSPE
         #endregion
 
         #region Saves
+#if HONEYSELECT
         private void OnSceneLoad(string scenePath, XmlNode node)
         {
             this._lastObjectCount = 0;
@@ -1194,7 +1299,7 @@ namespace HSPE
         {
             int written = 0;
             xmlWriter.WriteStartElement("root");
-            xmlWriter.WriteAttributeString("version", HSPE.VersionNum);
+            xmlWriter.WriteAttributeString("version", HSPE.versionNum);
             SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
             {
@@ -1204,8 +1309,9 @@ namespace HSPE
                     xmlWriter.WriteStartElement("characterInfo");
                     xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
                     xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
-                    PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
-                    written += controller.SaveXml(xmlWriter);
+
+                    written += this.SaveChara(ociChar, xmlWriter);
+
                     xmlWriter.WriteEndElement();
                 }
             }
@@ -1233,15 +1339,79 @@ namespace HSPE
                                 ++i;
                             if (i == dic.Count)
                                 break;
-                            PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
-                            if (controller == null)
-                                controller = ociChar.charInfo.gameObject.AddComponent<PoseController>();
-                            controller.ScheduleLoad(childNode, v);
+                            this.LoadChara(ociChar, childNode);
                             ++i;
                             break;
                     }
                 }
             });
+        }
+#elif KOIKATSU
+                private void OnCharaLoad(ChaFile file)
+        {
+            PluginData data = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["characterInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            string v = node.Attributes["version"].Value;
+            node = node.CloneNode(true);
+            this.ExecuteDelayed(() =>
+            {
+                foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+                {
+                    OCIChar ociChar = pair.Value as OCIChar;
+                    if (ociChar != null && ociChar.charInfo.chaFile == file)
+                        this.LoadChara(ociChar, node);
+                }
+            });
+        }
+
+        private void OnCharaSave(ChaFile file)
+        {
+            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            {
+                OCIChar ociChar = pair.Value as OCIChar;
+                if (ociChar != null && ociChar.charInfo.chaFile == file)
+                {
+                    int written = 0;
+                    using (StringWriter stringWriter = new StringWriter())
+                    using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+                    {
+                        xmlWriter.WriteStartElement("characterInfo");
+
+                        xmlWriter.WriteAttributeString("version", KKPE.versionNum);
+                        xmlWriter.WriteAttributeString("name", ociChar.charInfo.chaFile.parameter.fullname);
+
+                        written += this.SaveChara(ociChar, xmlWriter);
+
+                        xmlWriter.WriteEndElement();
+
+                        PluginData data = new PluginData();
+                        data.version = KKPE.saveVersion;
+                        data.data.Add("characterInfo", stringWriter.ToString());
+                        ExtendedSave.SetExtendedDataById(file, _extSaveKey, data);
+                    }
+
+                }
+            }
+        }
+#endif
+
+        private void LoadChara(OCIChar ociChar, XmlNode node)
+        {
+            PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
+            if (controller == null)
+                controller = ociChar.charInfo.gameObject.AddComponent<PoseController>();
+            controller.ScheduleLoad(node);
+        }
+
+        private int SaveChara(OCIChar ociChar, XmlTextWriter xmlWriter)
+        {
+            return ociChar.charInfo.gameObject.GetComponent<PoseController>().SaveXml(xmlWriter);
         }
         #endregion
     }

@@ -16,10 +16,10 @@ namespace HSPE.AMModules
         public static readonly Color _redColor = Color.red;
         public static readonly Color _greenColor = Color.green;
         public static readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
+        protected static float _inc = 1f;
         #endregion
 
         #region Protected Variables
-        protected float _inc = 1f;
         #endregion
 
         #region Private Variables
@@ -57,11 +57,17 @@ namespace HSPE.AMModules
         #endregion
 
         #region Public Methods
-        public virtual void IKSolverOnPreRead() { }
-        public virtual void IKSolverOnPostUpdate() { }
-        public virtual void FKCtrlOnPostLateUpdate() { }
-        public virtual void CharBodyPreLateUpdate() { }
-        public virtual void CharBodyPostLateUpdate() { }
+        public virtual void IKSolverOnPreRead(){}
+        public virtual void IKSolverOnPostUpdate(){}
+        public virtual void FKCtrlOnPostLateUpdate(){}
+        public virtual void IKExecutionOrderOnPostLateUpdate(){}
+#if HONEYSELECT
+        public virtual void CharBodyPreLateUpdate(){}
+        public virtual void CharBodyPostLateUpdate(){}
+#elif KOIKATSU
+        public virtual void CharacterPreLateUpdate() { }
+        public virtual void CharacterPostLateUpdate() { }
+#endif
         #endregion
 
         #region Protected Methods
@@ -87,7 +93,7 @@ namespace HSPE.AMModules
             GUILayout.FlexibleSpace();
             GUILayout.EndHorizontal();
             GUI.color = c;
-            this._inc = Mathf.Pow(10, this._incIndex);
+            _inc = Mathf.Pow(10, this._incIndex);
             if (label)
                 GUILayout.Label("10^-5", GUI.skin.box, GUILayout.MaxWidth(45));
             GUILayout.EndVertical();
@@ -97,38 +103,38 @@ namespace HSPE.AMModules
         {
             GUILayout.BeginVertical();
             Color c = GUI.color;
-            GUI.color = AdvancedModeModule._redColor;
+            GUI.color = _redColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("X:\t" + value.x.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.right;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.right;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.right;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.right;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
             GUI.color = c;
 
-            GUI.color = AdvancedModeModule._greenColor;
+            GUI.color = _greenColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Y:\t" + value.y.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.up;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.up;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.up;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.up;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
             GUI.color = c;
 
-            GUI.color = AdvancedModeModule._blueColor;
+            GUI.color = _blueColor;
             GUILayout.BeginHorizontal();
             GUILayout.Label("Z:\t" + value.z.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.forward;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.forward;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.forward;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.forward;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
             GUI.color = c;
@@ -144,30 +150,30 @@ namespace HSPE.AMModules
             GUILayout.BeginHorizontal();
             GUILayout.Label("X:\t" + value.x.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.right;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.right;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.right;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.right;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Y:\t" + value.y.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.up;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.up;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.up;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.up;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
             GUILayout.Label("Z:\t" + value.z.ToString("0.00000"));
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-this._inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= this._inc * Vector3.forward;
-            if (GUILayout.RepeatButton(this._inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += this._inc * Vector3.forward;
+            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value -= _inc * Vector3.forward;
+            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
+                value += _inc * Vector3.forward;
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
             GUI.color = c;

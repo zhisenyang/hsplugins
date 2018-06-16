@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
-using System.Threading;
 using System.Xml;
 using Harmony;
 using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
 using UnityEngine;
+#if KOIKATSU
+using Manager;
+#endif
 
 namespace HSPE
 {
@@ -46,6 +47,7 @@ namespace HSPE
         #endregion
 
         #region Private Types
+#if HONEYSELECT
         [HarmonyPatch(typeof(CharBody), "LateUpdate")]
         private class CharBody_Patches
         {
@@ -64,6 +66,26 @@ namespace HSPE
                     onPostLateUpdate(__instance);
             }
         }
+#elif KOIKATSU
+        [HarmonyPatch(typeof(Character), "LateUpdate")]
+        private class Character_Patches
+        {
+            public static event Action onPreLateUpdate;
+            public static event Action onPostLateUpdate;
+
+            public static void Prefix()
+            {
+                if (onPreLateUpdate != null)
+                    onPreLateUpdate();
+
+            }
+            public static void Postfix()
+            {
+                if (onPostLateUpdate != null)
+                    onPostLateUpdate();
+            }
+        }
+#endif
         [HarmonyPatch(typeof(IKSolver), "Update")]
         private class IKSolver_Patches
         {
@@ -74,6 +96,16 @@ namespace HSPE
                     onPostUpdate(__instance);
             }
         }
+        [HarmonyPatch(typeof(IKExecutionOrder), "LateUpdate")]
+        private class IKExecutionOrder_Patches
+        {
+            public static event Action onPostLateUpdate;
+            public static void Postfix()
+            {
+                if (onPostLateUpdate != null)
+                    onPostLateUpdate();
+            }
+        }        
         [HarmonyPatch(typeof(FKCtrl), "LateUpdate")]
         private class FKCtrl_Patches
         {
@@ -84,6 +116,7 @@ namespace HSPE
                     onPostLateUpdate(__instance);
             }
         }
+        
         #endregion
 
         #region Public Types
@@ -196,8 +229,13 @@ namespace HSPE
                     break;
                 }
             }
+#if HONEYSELECT
             this._isFemale = this._chara.charInfo.Sex == 1;
             this._body = this._chara.animeIKCtrl.IK;
+#elif KOIKATSU
+            this._isFemale = this._chara.charInfo.sex == 1;
+            this._body = this._chara.finalIK;
+#endif
 
             this._bonesEditor = this.gameObject.AddComponent<BonesEditor>();
             this._bonesEditor.chara = this._chara;
@@ -207,7 +245,10 @@ namespace HSPE
                 this._boobsEditor = this.gameObject.AddComponent<BoobsEditor>();
                 this._boobsEditor.chara = this._chara;
                 this._modules.Add(this._boobsEditor);
-
+            }
+#if HONEYSELECT
+            if (this._isFemale)
+            {
                 this._siriDamL = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_L");
                 this._siriDamR = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_R");
                 this._kosi = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s");
@@ -218,6 +259,11 @@ namespace HSPE
                 this._siriDamR = this.transform.Find("BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_R");
                 this._kosi = this.transform.Find("BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kosi02_s");
             }
+#elif KOIKATSU
+            this._siriDamL = this.transform.FindDescendant("cf_d_siri_L");
+            this._siriDamR = this.transform.FindDescendant("cf_d_siri_R");
+            this._kosi = this.transform.FindDescendant("cf_s_waist02");
+#endif
             this._leftFoot2 = this._body.solver.leftLegMapping.bone3.GetChild(0);
             this._leftFoot2OriginalRotation = this._leftFoot2.localRotation;
             this._leftFoot2ParentOriginalRotation = 357.7f;
@@ -242,9 +288,15 @@ namespace HSPE
             if (this._chara == null)
                 UnityEngine.Debug.LogError("chara is null, this should not happen");
             IKSolver_Patches.onPostUpdate += this.IKSolverOnPostUpdate;
+            IKExecutionOrder_Patches.onPostLateUpdate += this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
+#if HONEYSELECT
             CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
             CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
+#elif KOIKATSU
+            Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
+            Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
+#endif
 
             this.crotchJointCorrection = MainWindow.self.crotchCorrectionByDefault;
             this.leftFootJointCorrection = MainWindow.self.anklesCorrectionByDefault;
@@ -290,9 +342,15 @@ namespace HSPE
             this._body.solver.spineStiffness = this._cachedSpineStiffness;
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             IKSolver_Patches.onPostUpdate -= this.IKSolverOnPostUpdate;
+            IKExecutionOrder_Patches.onPostLateUpdate -= this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
+#if HONEYSELECT
             CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
             CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
+#elif KOIKATSU
+            Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
+            Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
+#endif
         }
         #endregion
 
@@ -502,6 +560,12 @@ namespace HSPE
                 module.IKSolverOnPostUpdate();
         }
 
+        private void IKExecutionOrderOnPostLateUpdate()
+        {
+            foreach (AdvancedModeModule module in this._modules)
+                module.IKExecutionOrderOnPostLateUpdate();
+        }
+
         private void FKCtrlOnPostLateUpdate(FKCtrl ctrl)
         {
             if (this._chara.fkCtrl != ctrl)
@@ -510,10 +574,12 @@ namespace HSPE
                 module.FKCtrlOnPostLateUpdate();
         }
 
+#if HONEYSELECT
         private void CharBodyOnPreLateUpdate(CharBody charBody)
         {
             if (this._chara.charBody != charBody)
                 return;
+            
 
             foreach (AdvancedModeModule module in this._modules)
                 module.CharBodyPreLateUpdate();
@@ -528,7 +594,21 @@ namespace HSPE
             foreach (AdvancedModeModule module in this._modules)
                 module.CharBodyPostLateUpdate();
         }
+#elif KOIKATSU
+        private void CharacterOnPreLateUpdate()
+        {
+            foreach (AdvancedModeModule module in this._modules)
+                module.CharacterPreLateUpdate();
+        }
 
+        private void CharacterOnPostLateUpdate()
+        {
+            this.ApplyJointCorrection();
+
+            foreach (AdvancedModeModule module in this._modules)
+                module.CharacterPostLateUpdate();
+        }
+#endif
         private FullBodyBipedEffector GetTwinBone(FullBodyBipedEffector effector)
         {
             switch (effector)
@@ -874,7 +954,7 @@ namespace HSPE
         #endregion
 
         #region Saves
-        public void ScheduleLoad(XmlNode node, string v)
+        public void ScheduleLoad(XmlNode node)
         {
             this.StartCoroutine(this.LoadDefaultVersion_Routine(node.CloneNode(true)));
         }
@@ -901,16 +981,10 @@ namespace HSPE
             yield return null;
             yield return null;
             yield return null;
-            if (xmlNode.Attributes?["optimizeIK"] != null)
-                this.optimizeIK = XmlConvert.ToBoolean(xmlNode.Attributes["optimizeIK"].Value);
-            else
-                this.optimizeIK = true;
-            if (xmlNode.Attributes?["crotchCorrection"] != null)
-                this.crotchJointCorrection = XmlConvert.ToBoolean(xmlNode.Attributes["crotchCorrection"].Value);
-            if (xmlNode.Attributes?["leftAnkleCorrection"] != null)
-                this.leftFootJointCorrection = XmlConvert.ToBoolean(xmlNode.Attributes["leftAnkleCorrection"].Value);
-            if (xmlNode.Attributes?["rightAnkleCorrection"] != null)
-                this.rightFootJointCorrection = XmlConvert.ToBoolean(xmlNode.Attributes["rightAnkleCorrection"].Value);
+            this.optimizeIK = xmlNode.Attributes?["optimizeIK"] == null || XmlConvert.ToBoolean(xmlNode.Attributes["optimizeIK"].Value);
+            this.crotchJointCorrection = xmlNode.Attributes?["crotchCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["crotchCorrection"].Value);
+            this.leftFootJointCorrection = xmlNode.Attributes?["leftAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["leftAnkleCorrection"].Value);
+            this.rightFootJointCorrection = xmlNode.Attributes?["rightAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["rightAnkleCorrection"].Value);
 
             foreach (AdvancedModeModule module in this._modules)
                 module.LoadXml(xmlNode);

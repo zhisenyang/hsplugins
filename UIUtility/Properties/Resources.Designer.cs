@@ -69,5 +69,15 @@ namespace UILib.Properties {
                 return ((byte[])(obj));
             }
         }
+        
+        /// <summary>
+        ///   Recherche une ressource localisée de type System.Byte[].
+        /// </summary>
+        internal static byte[] DefaultResourcesKOI {
+            get {
+                object obj = ResourceManager.GetObject("DefaultResourcesKOI", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

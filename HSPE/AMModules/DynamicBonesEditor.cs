@@ -601,7 +601,7 @@ namespace HSPE.AMModules
                 this.SetDynamicBoneDirty(this._draggedDynamicBone);
                 if (this._dirtyDynamicBones[this._draggedDynamicBone].originalForce.hasValue == false)
                     this._dirtyDynamicBones[this._draggedDynamicBone].originalForce = this._draggedDynamicBone.m_Force;
-                this._draggedDynamicBone.m_Force = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 3f;
+                this._draggedDynamicBone.m_Force = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
             }
             else if (Input.GetMouseButtonUp(0))
             {

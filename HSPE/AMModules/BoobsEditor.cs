@@ -9,7 +9,11 @@ namespace HSPE.AMModules
     public class BoobsEditor : AdvancedModeModule
     {
         #region Constants
+#if HONEYSELECT
         private const float _boobsDragRadius = 0.05f;
+#elif KOIKATSU
+        private const float _boobsDragRadius = 0.03f;
+#endif
         #endregion
 
         #region Private Types
@@ -187,8 +191,13 @@ namespace HSPE.AMModules
         #region Unity Methods
         void Start()
         {
+#if HONEYSELECT
             this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+#elif KOIKATSU
+            this._leftBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
+            this._rightBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
+#endif
 
             this._debugLines.Init();
             this._debugLines.SetActive(false);
@@ -212,10 +221,6 @@ namespace HSPE.AMModules
         #endregion
 
         #region Public Methods
-        public override void CharBodyPostLateUpdate()
-        {
-        }
-
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
@@ -243,15 +248,27 @@ namespace HSPE.AMModules
         {
             this.ExecuteDelayed(() =>
             {
+#if HONEYSELECT
                 CharFemale charFemale = this.chara.charInfo as CharFemale;
                 CharFemale otherFemale = other.chara.charInfo as CharFemale;
+#elif KOIKATSU
+                ChaControl charFemale = this.chara.charInfo;
+                ChaControl otherFemale = other.chara.charInfo;
+#endif
                 foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyBoobs)
                 {
                     DynamicBone_Ver02 db = null;
+#if HONEYSELECT
                     if (otherFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL) == kvp.Key)
                         db = charFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
                     else if (otherFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR) == kvp.Key)
                         db = charFemale.getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+#elif KOIKATSU
+                    if (otherFemale.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL) == kvp.Key)
+                        db = charFemale.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
+                    else if (otherFemale.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR) == kvp.Key)
+                        db = charFemale.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
+#endif
 
                     if (db != null)
                     {
@@ -454,14 +471,14 @@ namespace HSPE.AMModules
                         this.SetBoobDirty(this._leftBoob);
                         if (this._dirtyBoobs[this._leftBoob].originalGravity.hasValue == false)
                             this._dirtyBoobs[this._leftBoob].originalGravity = this._leftBoob.Gravity;
-                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 10f;
+                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
                         break;
                     case DynamicBoneDragType.RightBoob:
                         this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
                         this.SetBoobDirty(this._rightBoob);
                         if (this._dirtyBoobs[this._rightBoob].originalGravity.hasValue == false)
                             this._dirtyBoobs[this._rightBoob].originalGravity = this._rightBoob.Gravity;
-                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * this._inc / 10f;
+                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
                         break;
                 }
             }
