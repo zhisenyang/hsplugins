@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace HSPE.Properties {
+namespace LightingEditor.Properties {
     using System;
     
     
@@ -39,7 +39,7 @@ namespace HSPE.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("HSPE.Properties.Resources", typeof(Resources).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("LightingEditor.Properties.Resources", typeof(Resources).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
@@ -63,9 +63,19 @@ namespace HSPE.Properties {
         /// <summary>
         ///   Recherche une ressource localisée de type System.Byte[].
         /// </summary>
-        internal static byte[] HSPEResources {
+        internal static byte[] LightingEditorResources {
             get {
-                object obj = ResourceManager.GetObject("HSPEResources", resourceCulture);
+                object obj = ResourceManager.GetObject("LightingEditorResources", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Recherche une ressource localisée de type System.Byte[].
+        /// </summary>
+        internal static byte[] LightingEditorResourcesKOI {
+            get {
+                object obj = ResourceManager.GetObject("LightingEditorResourcesKOI", resourceCulture);
                 return ((byte[])(obj));
             }
         }

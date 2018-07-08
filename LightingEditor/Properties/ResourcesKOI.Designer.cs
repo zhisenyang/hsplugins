@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace HSPE.Properties {
+namespace LightingEditor.Properties {
     using System;
     
     
@@ -22,14 +22,14 @@ namespace HSPE.Properties {
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class Resources {
+    internal class ResourcesKOI {
         
         private static global::System.Resources.ResourceManager resourceMan;
         
         private static global::System.Globalization.CultureInfo resourceCulture;
         
         [global::System.Diagnostics.CodeAnalysis.SuppressMessageAttribute("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
-        internal Resources() {
+        internal ResourcesKOI() {
         }
         
         /// <summary>
@@ -39,7 +39,7 @@ namespace HSPE.Properties {
         internal static global::System.Resources.ResourceManager ResourceManager {
             get {
                 if (object.ReferenceEquals(resourceMan, null)) {
-                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("HSPE.Properties.Resources", typeof(Resources).Assembly);
+                    global::System.Resources.ResourceManager temp = new global::System.Resources.ResourceManager("LightingEditor.Properties.ResourcesKOI", typeof(ResourcesKOI).Assembly);
                     resourceMan = temp;
                 }
                 return resourceMan;
@@ -63,9 +63,9 @@ namespace HSPE.Properties {
         /// <summary>
         ///   Recherche une ressource localisée de type System.Byte[].
         /// </summary>
-        internal static byte[] HSPEResources {
+        internal static byte[] LightingEditorResourcesKOI {
             get {
-                object obj = ResourceManager.GetObject("HSPEResources", resourceCulture);
+                object obj = ResourceManager.GetObject("LightingEditorResourcesKOI", resourceCulture);
                 return ((byte[])(obj));
             }
         }

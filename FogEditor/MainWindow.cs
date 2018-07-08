@@ -1,27 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Xml;
+using Harmony;
+using UILib;
 using UnityEngine;
-using UnityEngine.Assertions.Must;
+using UnityEngine.UI;
 using UnityStandardAssets.ImageEffects;
 
 namespace FogEditor
 {
     public class MainWindow : MonoBehaviour
     {
-        #region Private Variables
-        private const float _width = 400;
-        private const float _height = 500;
-        private bool _enabled = false;
-        private GlobalFog _fog;
-        private Rect _windowRect = new Rect((Screen.width - _width) / 2f, (Screen.height - _height) / 2f, _width, _height);
-        private bool _mouseInWindow;
-        private FogMode[] _fogModeValues;
+        #region Public Variables
+        public static MainWindow self;
         #endregion
 
-        #region Default Parameters
+        #region Private Variables
+        private GlobalFog _fog;
+
         private Color _defaultColor;
         private bool _defaultExcludeFarPixels;
         private bool _defaultDistanceFog;
@@ -34,23 +31,49 @@ namespace FogEditor
         private float _defaultHeightFogHeight;
         private float _defaultHeightFogHeightDensity;
         private float _defaultHeightFogStartDistance;
-        private Vector2 _scroll;
-        private Material _selectedMat;
-        private string _search = "";
-        private bool _advancedMode;
-        private Dictionary<Material, int> _dirtyMaterials = new Dictionary<Material, int>();
-        private Material _material;
-        private int _randomId;
+        private Canvas _ui;
+        private Toggle _linearToggle;
+        private Toggle _exponentialToggle;
+        private Toggle _exponentialSquaredToggle;
+        private Image _colorBackground;
+        private GameObject _globalDensityContainer;
+        private Slider _globalDensitySlider;
+        private InputField _globalDensityInputField;
+        private Slider _startRangeSlider;
+        private InputField _startRangeInputField;
+        private GameObject _startRangeContainer;
+        private Slider _endRangeSlider;
+        private InputField _endRangeInputField;
+        private GameObject _endRangeContainer;
+        private Slider _startDistanceSlider;
+        private InputField _startDistanceInputField;
+        private Toggle _excludeFarPixels;
+        private Toggle _distanceFogEnabled;
+        private Toggle _useRadialDistance;
+        private Toggle _heightFogEnabled;
+        private Slider _heightSlider;
+        private InputField _heightInputField;
+        private GameObject _heightContainer;
+        private Slider _heightDensitySlider;
+        private InputField _heightDensityInputField;
+        private GameObject _heightDensityContainer;
+        private Toggle _alternativeRendering;
+        #endregion
+
+        #region Public Accessors
+        public bool alternativeRendering { get { return this._alternativeRendering != null && this._alternativeRendering.isOn; } }
         #endregion
 
         #region Unity Methods
+        void Awake()
+        {
+            self = this;
+        }
         void Start()
         {
             HSExtSave.HSExtSave.RegisterHandler("fogEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
 
-            this._material = new Material(Shader.Find("Hidden/Internal-Colored"));
             this._fog = Camera.main.GetComponent<GlobalFog>();
-            this._fogModeValues = (FogMode[])Enum.GetValues(typeof(FogMode));
             this._defaultColor = RenderSettings.fogColor;
             this._defaultExcludeFarPixels = this._fog.excludeFarPixels;
             this._defaultDistanceFog = this._fog.distanceFog;
@@ -64,325 +87,289 @@ namespace FogEditor
             this._defaultHeightFogHeightDensity = this._fog.heightDensity;
             this._defaultHeightFogStartDistance = this._fog.startDistance;
 
-            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
+            this.SpawnUI();
+            this.UpdateUI();
+            this._ui.enabled = false;
         }
 
         void Update()
         {
+            Effects_OnRenderImage_Patches._alreadyRendered = false;
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.F))
-                this._enabled = !this._enabled;
-            Dictionary<Material, int> newDic = null;
-            foreach (KeyValuePair<Material, int> pair in this._dirtyMaterials)
             {
-                if (pair.Key == null)
-                {
-                    newDic = new Dictionary<Material, int>();
-                    break;
-                }
-            }
-            if (newDic != null)
-            {
-                foreach (KeyValuePair<Material, int> pair in this._dirtyMaterials)
-                {
-                    if (pair.Key != null)
-                        newDic.Add(pair.Key, pair.Value);
-                }
-                this._dirtyMaterials = newDic;
+                this._ui.enabled = !this._ui.enabled;
+                Studio.Studio.Instance.colorMenu.updateColorFunc = null;
+                Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+                if (this._ui.enabled)
+                    LayoutRebuilder.ForceRebuildLayoutImmediate(this._ui.transform.GetChild(0) as RectTransform);
             }
         }
-
-        void OnGUI()
-        {
-            if (!this._enabled)
-                return;
-            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Fog Editor");
-            this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
-            if (this._mouseInWindow)
-                Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._enabled;
-        }
-
         #endregion
 
         #region Private Methods
-        private void WindowFunction(int id)
+        private void SpawnUI()
         {
-            string res;
-            string input;
-            GUILayout.BeginVertical("Global Fog Parameters", GUI.skin.window);
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.FogEditorResources);
+            this._ui = Instantiate(bundle.LoadAsset<GameObject>("FogEditorCanvas")).GetComponent<Canvas>();
+            bundle.Unload(false);
 
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Mode:");
-                foreach (FogMode mode in this._fogModeValues)
-                {
-                    if (GUILayout.Toggle(RenderSettings.fogMode == mode, mode.ToString()))
-                        RenderSettings.fogMode = mode;
-                }
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.BeginHorizontal("Color", GUI.skin.window);
-            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
-            {
-                Color c = RenderSettings.fogColor;
+            RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
+            Transform topContainer = bg.Find("Top Container");
+            UIUtility.MakeObjectDraggable(topContainer as RectTransform, bg);
+            this._linearToggle = this._ui.transform.LinkToggleTo("BG/Global Fog/Mode Container/Toggle", (b) => this.FogModeChanged(FogMode.Linear));
+            this._exponentialToggle = this._ui.transform.LinkToggleTo("BG/Global Fog/Mode Container/Toggle (1)", (b) => this.FogModeChanged(FogMode.Exponential));
+            this._exponentialSquaredToggle = this._ui.transform.LinkToggleTo("BG/Global Fog/Mode Container/Toggle (2)", (b) => this.FogModeChanged(FogMode.ExponentialSquared));
+            this._colorBackground = this._ui.transform.LinkButtonTo("BG/Global Fog/Color Container/Image", this.OnClickColor).GetComponent<Image>();
 
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("R", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
-                c.r = GUILayout.HorizontalSlider(c.r, 0f, 1f);
-                input = c.r.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(40));
-                if (res.Equals(input) == false)
-                    c.r = float.Parse(res);
-                GUILayout.EndHorizontal();
+            this._globalDensitySlider = this._ui.transform.LinkSliderTo("BG/Global Fog/Density/Slider", this.GlobalDensityChanged);
+            this._globalDensityInputField = this._ui.transform.LinkInputFieldTo("BG/Global Fog/Density/InputField", null, this.GlobalDensityChanged);
+            this._globalDensityContainer = this._globalDensitySlider.transform.parent.gameObject;
 
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("G", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
-                c.g = GUILayout.HorizontalSlider(c.g, 0f, 1f);
-                input = c.g.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(40));
-                if (res.Equals(input) == false)
-                    c.g = float.Parse(res);
-                GUILayout.EndHorizontal();
+            this._startRangeSlider = this._ui.transform.LinkSliderTo("BG/Global Fog/Start Range/Slider", this.StartRangeChanged);
+            this._startRangeInputField = this._ui.transform.LinkInputFieldTo("BG/Global Fog/Start Range/InputField", null, this.StartRangeChanged);
+            this._startRangeContainer = this._startRangeSlider.transform.parent.gameObject;
 
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("B", GUILayout.ExpandWidth(false), GUILayout.MinWidth(17));
-                c.b = GUILayout.HorizontalSlider(c.b, 0f, 1f);
-                input = c.b.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(40));
-                if (res.Equals(input) == false)
-                    c.b = float.Parse(res);
-                GUILayout.EndHorizontal();
+            this._endRangeSlider = this._ui.transform.LinkSliderTo("BG/Global Fog/End Range/Slider", this.EndRangeChanged);
+            this._endRangeInputField = this._ui.transform.LinkInputFieldTo("BG/Global Fog/End Range/InputField", null, this.EndRangeChanged);
+            this._endRangeContainer = this._endRangeSlider.transform.parent.gameObject;
 
-                RenderSettings.fogColor = c;
-            }
-            GUILayout.EndVertical();
+            this._startDistanceSlider = this._ui.transform.LinkSliderTo("BG/Global Fog/Start Distance/Slider", this.StartDistanceChanged);
+            this._startDistanceInputField = this._ui.transform.LinkInputFieldTo("BG/Global Fog/Start Distance/InputField", null, this.StartDistanceChanged);
 
-            GUILayout.BeginVertical(GUILayout.ExpandWidth(false), GUILayout.MaxWidth(69));
-            GUILayout.FlexibleSpace();
+            this._excludeFarPixels = this._ui.transform.LinkToggleTo("BG/Global Fog/Exclude Far Pixels", this.ExcludeFarPixelsChanged);
 
-            Rect layoutRectangle = GUILayoutUtility.GetRect(68, 68, 68, 68, GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true));
+            this._alternativeRendering = this._ui.transform.LinkToggleTo("BG/Global Fog/Alternative Rendering", null);
 
-            if (Event.current.type == EventType.Repaint)
-            {
-                GUI.BeginClip(layoutRectangle);
-                GL.PushMatrix();
+            this._distanceFogEnabled = this._ui.transform.LinkToggleTo("BG/Distance Fog/Enabled", this.DistanceFogEnabledChanged);
 
-                GL.Clear(true, false, Color.black);
-                this._material.SetPass(0);
+            this._useRadialDistance = this._ui.transform.LinkToggleTo("BG/Distance Fog/Radial Distance", this.UseRadialDistanceChanged);
 
-                GL.Begin(GL.QUADS);
-                GL.Color(RenderSettings.fogColor);
-                GL.Vertex3(0, 0, 0);
-                GL.Vertex3(layoutRectangle.width, 0, 0);
-                GL.Vertex3(layoutRectangle.width, layoutRectangle.height, 0);
-                GL.Vertex3(0, layoutRectangle.height, 0);
-                GL.End();
+            this._heightFogEnabled = this._ui.transform.LinkToggleTo("BG/Height Fog/Enabled", this.HeightFogEnabledChanged);
 
-                GL.PopMatrix();
-                GUI.EndClip();
-            }
-            GUILayout.FlexibleSpace();
-            GUILayout.EndVertical();
+            this._heightSlider = this._ui.transform.LinkSliderTo("BG/Height Fog/Height/Slider", this.HeightChanged);
+            this._heightInputField = this._ui.transform.LinkInputFieldTo("BG/Height Fog/Height/InputField", null, this.HeightChanged);
+            this._heightContainer = this._heightSlider.transform.parent.gameObject;
 
-            GUILayout.EndHorizontal();
+            this._heightDensitySlider = this._ui.transform.LinkSliderTo("BG/Height Fog/Density/Slider", this.HeightDensityChanged);
+            this._heightDensityInputField = this._ui.transform.LinkInputFieldTo("BG/Height Fog/Density/InputField", null, this.HeightDensityChanged);
+            this._heightDensityContainer = this._heightDensitySlider.transform.parent.gameObject;
 
-            {
-                GUI.enabled = RenderSettings.fogMode != FogMode.Linear;
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Density", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
-                RenderSettings.fogDensity = GUILayout.HorizontalSlider(RenderSettings.fogDensity, 0f, 20f);
-                input = RenderSettings.fogDensity.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    RenderSettings.fogDensity = float.Parse(res);
-                GUILayout.EndHorizontal();
-
-                GUI.enabled = true;
-            }
-
-            {
-                GUI.enabled = RenderSettings.fogMode == FogMode.Linear;
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Start Range", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
-                RenderSettings.fogStartDistance = GUILayout.HorizontalSlider(RenderSettings.fogStartDistance, 0.001f, 299f);
-                input = RenderSettings.fogStartDistance.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    RenderSettings.fogStartDistance = float.Parse(res);
-                GUILayout.EndHorizontal();
-                if (RenderSettings.fogStartDistance > RenderSettings.fogEndDistance)
-                    RenderSettings.fogEndDistance = RenderSettings.fogStartDistance + 1;
-
-                GUI.enabled = true;
-            }
-
-            {
-                GUI.enabled = RenderSettings.fogMode == FogMode.Linear;
-
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("End Range", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
-                RenderSettings.fogEndDistance = GUILayout.HorizontalSlider(RenderSettings.fogEndDistance, 1.001f, 300f);
-                input = RenderSettings.fogEndDistance.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    RenderSettings.fogEndDistance = float.Parse(res);
-                GUILayout.EndHorizontal();
-                if (RenderSettings.fogEndDistance < RenderSettings.fogStartDistance)
-                    RenderSettings.fogStartDistance = RenderSettings.fogEndDistance - 1;
-
-                GUI.enabled = true;
-            }
-
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Start Distance", GUILayout.ExpandWidth(false), GUILayout.MinWidth(70));
-                this._fog.startDistance = GUILayout.HorizontalSlider(this._fog.startDistance, 0.001f, 100f);
-                input = this._fog.startDistance.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    this._fog.startDistance = float.Parse(res);
-                GUILayout.EndHorizontal();
-            }
-
-            this._fog.excludeFarPixels = GUILayout.Toggle(this._fog.excludeFarPixels, "Exclude Far Pixels");
-
-            GUILayout.EndVertical();
-
-            GUILayout.BeginVertical("Distance Fog Parameters", GUI.skin.window);
-
-            this._fog.distanceFog = GUILayout.Toggle(this._fog.distanceFog, "Enabled");
-
-            GUI.enabled = this._fog.distanceFog;
-
-            this._fog.useRadialDistance = GUILayout.Toggle(this._fog.useRadialDistance, "Use Radial Distance");
-
-            GUI.enabled = true;
-
-            GUILayout.EndVertical();
-
-            GUILayout.BeginVertical("Height Fog Parameters", GUI.skin.window);
-
-            this._fog.heightFog = GUILayout.Toggle(this._fog.heightFog, "Enabled");
-
-            GUI.enabled = this._fog.heightFog;
-
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Height", GUILayout.ExpandWidth(false), GUILayout.MinWidth(50));
-                this._fog.height = GUILayout.HorizontalSlider(this._fog.height, 0f, 30f);
-                input = this._fog.height.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    this._fog.height = float.Parse(res);
-                GUILayout.EndHorizontal();
-            }
-            
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Density", GUILayout.ExpandWidth(false), GUILayout.MinWidth(50));
-                this._fog.heightDensity = GUILayout.HorizontalSlider(this._fog.heightDensity, 0.001f, 20f);
-                input = this._fog.heightDensity.ToString();
-                res = GUILayout.TextField(input, GUILayout.Width(60));
-                if (res.Equals(input) == false)
-                    this._fog.heightDensity = float.Parse(res);
-                GUILayout.EndHorizontal();
-            }
-
-            GUI.enabled = true;
-
-            GUILayout.EndVertical();
-
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
-            {
-                RenderSettings.fogColor = this._defaultColor;
-                this._fog.excludeFarPixels = this._defaultExcludeFarPixels;
-                this._fog.distanceFog = this._defaultDistanceFog;
-                RenderSettings.fogMode = this._defaultDistanceFogMode;
-                this._fog.useRadialDistance = this._defaultUseRadialDistance;
-                RenderSettings.fogStartDistance = this._defaultDistanceFogStartDistance;
-                RenderSettings.fogEndDistance = this._defaultDistanceFogEndDistance;
-                RenderSettings.fogDensity = this._defaultDistanceFogDensity;
-                this._fog.heightFog = this._defaultHeightFog;
-                this._fog.height = this._defaultHeightFogHeight;
-                this._fog.heightDensity = this._defaultHeightFogHeightDensity;
-                this._fog.startDistance = this._defaultHeightFogStartDistance;
-            }
-            GUILayout.EndHorizontal();
-
-            bool advMode = GUILayout.Toggle(this._advancedMode, "Advanced Mode");
-
-            if (this._advancedMode && advMode == false) // on disable
-                this._windowRect.yMax = this._windowRect.yMin + _height;
-
-            this._advancedMode = advMode;
-            if (this._advancedMode)
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Filter:", GUILayout.ExpandWidth(false));
-                this._search = GUILayout.TextField(this._search);
-                GUILayout.EndHorizontal();
-                this._scroll = GUILayout.BeginScrollView(this._scroll, GUILayout.Height(200));
-                if (Studio.Studio.Instance.treeNodeCtrl.selectNode != null)
-                    foreach (Renderer renderer in Studio.Studio.Instance.dicInfo[Studio.Studio.Instance.treeNodeCtrl.selectNode].guideObject.transformTarget.GetComponentsInChildren<Renderer>(true))
-                    {
-                        foreach (Material material in renderer.materials)
-                        {
-                            if (renderer.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1 && material.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1)
-                                continue;
-                            Color c = GUI.color;
-                            bool isMaterialDirty = this._dirtyMaterials.ContainsKey(material);
-                            if (material == this._selectedMat)
-                                GUI.color = Color.cyan;
-                            else if (isMaterialDirty)
-                                GUI.color = Color.magenta;
-                            if (GUILayout.Button(renderer.gameObject.name + "/" + material.name + (isMaterialDirty ? "*" : "")))
-                            {
-                                this._selectedMat = material;
-                            }
-                            GUI.color = c;
-                        }
-                    }
-
-                GUILayout.EndScrollView();
-                GUILayout.BeginHorizontal();
-                if (this._selectedMat != null)
-                {
-                    GUILayout.Label("Render Queue:", GUILayout.ExpandWidth(false));
-                    int renderQueue = (int)GUILayout.HorizontalSlider(this._selectedMat.renderQueue, -1, 5000); //TODO ADD RESET INDIVIDUAL
-                    this.SetRenderQueue(this._selectedMat, renderQueue);
-                    GUILayout.Label(this._selectedMat.renderQueue.ToString("0000"), GUILayout.ExpandWidth(false));
-                    if (GUILayout.Button("-1000", GUILayout.ExpandWidth(false)))
-                        this.SetRenderQueue(this._selectedMat, Mathf.Clamp(this._selectedMat.renderQueue - 1000, -1, 5000));
-                    if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dirtyMaterials.ContainsKey(this._selectedMat))
-                    {
-                        this._selectedMat.renderQueue = this._dirtyMaterials[this._selectedMat];
-                        this._dirtyMaterials.Remove(this._selectedMat);
-                    }
-                }
-                else
-                {
-                    GUI.enabled = false;
-                    GUILayout.Label("Render Queue:", GUILayout.ExpandWidth(false));
-                    GUILayout.HorizontalSlider(-1, -1, 5000);
-                    GUILayout.Label("-1", GUILayout.ExpandWidth(false));
-                    GUILayout.Button("-1000", GUILayout.ExpandWidth(false));
-                    GUILayout.Button("Reset", GUILayout.ExpandWidth(false));
-                    GUI.enabled = true;
-                }
-                GUILayout.EndHorizontal();
-                
-            }
-            GUI.DragWindow();
+            this._ui.transform.LinkButtonTo("BG/Button Container/Button", this.Reset);
         }
 
-        private void SetRenderQueue(Material mat, int renderQueue)
+        private void UpdateUI()
         {
-            if (renderQueue != mat.renderQueue && this._dirtyMaterials.ContainsKey(mat) == false)
-                this._dirtyMaterials.Add(mat, mat.renderQueue);
-            mat.renderQueue = renderQueue;
+            switch (RenderSettings.fogMode)
+            {
+                case FogMode.Linear:
+                    this._linearToggle.isOn = true;
+                    break;
+                case FogMode.Exponential:
+                    this._exponentialToggle.isOn = true;
+                    break;
+                case FogMode.ExponentialSquared:
+                    this._exponentialSquaredToggle.isOn = true;
+                    break;
+            }
+            this._colorBackground.color = RenderSettings.fogColor;
+            this._globalDensitySlider.value = RenderSettings.fogDensity;
+            this._globalDensityInputField.text = RenderSettings.fogDensity.ToString("0.000");
+            this._startRangeSlider.value = RenderSettings.fogStartDistance;
+            this._startRangeInputField.text = RenderSettings.fogStartDistance.ToString("0.000");
+            this._endRangeSlider.value = RenderSettings.fogEndDistance;
+            this._endRangeInputField.text = RenderSettings.fogEndDistance.ToString("0.000");
+            this._startDistanceSlider.value = this._fog.startDistance;
+            this._startDistanceInputField.text = this._fog.startDistance.ToString("0.000");
+            this._excludeFarPixels.isOn = this._fog.excludeFarPixels;
+            this._distanceFogEnabled.isOn = this._fog.distanceFog;
+            this._useRadialDistance.isOn = this._fog.useRadialDistance;
+            this._heightFogEnabled.isOn = this._fog.heightFog;
+            this._heightSlider.value = this._fog.height;
+            this._heightInputField.text = this._fog.height.ToString("0.000");
+            this._heightDensitySlider.value = this._fog.heightDensity;
+            this._heightDensityInputField.text = this._fog.heightDensity.ToString("0.000");
+
+            this._globalDensityContainer.SetActive(RenderSettings.fogMode != FogMode.Linear);
+            this._startRangeContainer.SetActive(RenderSettings.fogMode == FogMode.Linear);
+            this._endRangeContainer.SetActive(RenderSettings.fogMode == FogMode.Linear);
+            this._useRadialDistance.gameObject.SetActive(this._fog.distanceFog);
+            this._heightContainer.SetActive(this._fog.heightFog);
+            this._heightDensityContainer.SetActive(this._fog.heightFog);
+        }
+
+        private void FogModeChanged(FogMode fogMode)
+        {
+            RenderSettings.fogMode = fogMode;
+            this._globalDensityContainer.SetActive(fogMode != FogMode.Linear);
+            this._startRangeContainer.SetActive(fogMode == FogMode.Linear);
+            this._endRangeContainer.SetActive(fogMode == FogMode.Linear);
+        }
+
+        private void OnClickColor()
+        {
+            Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
+            if (Studio.Studio.Instance.colorPaletteCtrl.visible)
+            {
+                Studio.Studio.Instance.colorMenu.updateColorFunc = this.ColorUpdated;
+                Studio.Studio.Instance.colorMenu.SetColor(RenderSettings.fogColor, UI_ColorInfo.ControlType.PresetsSample);                
+            }
+        }
+
+        private void ColorUpdated(Color c)
+        {
+            this._colorBackground.color = c;
+            RenderSettings.fogColor = c;
+        }
+
+        private void GlobalDensityChanged(float f)
+        {
+            RenderSettings.fogDensity = this._globalDensitySlider.value;
+            this._globalDensityInputField.text = f.ToString("0.000");
+        }
+
+        private void GlobalDensityChanged(string s)
+        {
+            if (float.TryParse(this._globalDensityInputField.text, out float value))
+                RenderSettings.fogDensity = value;
+            this._globalDensitySlider.value = RenderSettings.fogDensity;
+            this._globalDensityInputField.text = RenderSettings.fogDensity.ToString("0.000");
+        }
+
+        private void StartRangeChanged(float f)
+        {
+            RenderSettings.fogStartDistance = this._startRangeSlider.value;
+            this._startRangeInputField.text = f.ToString("0.000");
+            if (RenderSettings.fogStartDistance > RenderSettings.fogEndDistance)
+            {
+                RenderSettings.fogEndDistance = RenderSettings.fogStartDistance + 1;
+                this._endRangeSlider.value = RenderSettings.fogEndDistance;
+                this._endRangeInputField.text = RenderSettings.fogEndDistance.ToString("0.000");
+            }
+        }
+
+        private void StartRangeChanged(string s)
+        {
+            if (float.TryParse(this._startRangeInputField.text, out float value))
+            {
+                RenderSettings.fogStartDistance = value;
+                if (RenderSettings.fogStartDistance > RenderSettings.fogEndDistance)
+                {
+                    RenderSettings.fogEndDistance = RenderSettings.fogStartDistance + 1;
+                    this._endRangeSlider.value = RenderSettings.fogEndDistance;
+                    this._endRangeInputField.text = RenderSettings.fogEndDistance.ToString("0.000");
+                }
+            }
+            this._startRangeSlider.value = RenderSettings.fogStartDistance;
+            this._startRangeInputField.text = RenderSettings.fogStartDistance.ToString("0.000");
+        }
+        
+        private void EndRangeChanged(float f)
+        {
+            RenderSettings.fogEndDistance = this._endRangeSlider.value;
+            this._endRangeInputField.text = f.ToString("0.000");
+            if (RenderSettings.fogEndDistance < RenderSettings.fogStartDistance)
+            {
+                RenderSettings.fogStartDistance = RenderSettings.fogEndDistance - 1;
+                this._startRangeSlider.value = RenderSettings.fogStartDistance;
+                this._startRangeInputField.text = RenderSettings.fogStartDistance.ToString("0.000");
+            }
+        }
+
+        private void EndRangeChanged(string s)
+        {
+            if (float.TryParse(this._endRangeInputField.text, out float value))
+            {
+                RenderSettings.fogEndDistance = value;
+                if (RenderSettings.fogEndDistance < RenderSettings.fogStartDistance)
+                {
+                    RenderSettings.fogStartDistance = RenderSettings.fogEndDistance - 1;
+                    this._startRangeSlider.value = RenderSettings.fogStartDistance;
+                    this._startRangeInputField.text = RenderSettings.fogStartDistance.ToString("0.000");
+                }
+            }
+            this._endRangeSlider.value = RenderSettings.fogEndDistance;
+            this._endRangeInputField.text = RenderSettings.fogEndDistance.ToString("0.000");
+        }
+
+        private void StartDistanceChanged(float f)
+        {
+            this._fog.startDistance = this._startDistanceSlider.value;
+            this._startDistanceInputField.text = f.ToString("0.000");
+        }
+
+        private void StartDistanceChanged(string s)
+        {
+            if (float.TryParse(this._startDistanceInputField.text, out float value))
+                this._fog.startDistance = value;
+            this._startDistanceSlider.value = this._fog.startDistance;
+            this._startDistanceInputField.text = this._fog.startDistance.ToString("0.000");
+        }
+
+        private void ExcludeFarPixelsChanged(bool b)
+        {
+            this._fog.excludeFarPixels = this._excludeFarPixels.isOn;
+        }
+
+        private void DistanceFogEnabledChanged(bool b)
+        {
+            this._fog.distanceFog = this._distanceFogEnabled.isOn;
+            this._useRadialDistance.gameObject.SetActive(this._distanceFogEnabled.isOn);
+        }
+
+        private void UseRadialDistanceChanged(bool b)
+        {
+            this._fog.useRadialDistance = this._useRadialDistance.isOn;
+        }
+        private void HeightFogEnabledChanged(bool b)
+        {
+            this._fog.heightFog = this._heightFogEnabled.isOn;
+            this._heightContainer.SetActive(this._heightFogEnabled.isOn);
+            this._heightDensityContainer.SetActive(this._heightFogEnabled.isOn);
+        }
+
+        private void HeightChanged(float f)
+        {
+            this._fog.height = this._heightSlider.value;
+            this._heightInputField.text = this._heightSlider.value.ToString("0.000");
+        }
+
+        private void HeightChanged(string s)
+        {
+            if (float.TryParse(this._heightInputField.text, out float value))
+                this._fog.height = value;
+            this._heightSlider.value = this._fog.height;
+            this._heightInputField.text = this._fog.height.ToString("0.000");
+        }
+        private void HeightDensityChanged(float f)
+        {
+            this._fog.heightDensity = this._heightDensitySlider.value;
+            this._heightDensityInputField.text = f.ToString("0.000");
+        }
+
+        private void HeightDensityChanged(string s)
+        {
+            if (float.TryParse(this._heightDensityInputField.text, out float value))
+                this._fog.heightDensity = value;
+            this._heightSlider.value = this._fog.heightDensity;
+            this._heightDensityInputField.text = this._fog.heightDensity.ToString("0.000");
+        }
+
+        private void Reset()
+        {
+            RenderSettings.fogColor = this._defaultColor;
+            this._fog.excludeFarPixels = this._defaultExcludeFarPixels;
+            this._fog.distanceFog = this._defaultDistanceFog;
+            RenderSettings.fogMode = this._defaultDistanceFogMode;
+            this._fog.useRadialDistance = this._defaultUseRadialDistance;
+            RenderSettings.fogStartDistance = this._defaultDistanceFogStartDistance;
+            RenderSettings.fogEndDistance = this._defaultDistanceFogEndDistance;
+            RenderSettings.fogDensity = this._defaultDistanceFogDensity;
+            this._fog.heightFog = this._defaultHeightFog;
+            this._fog.height = this._defaultHeightFogHeight;
+            this._fog.heightDensity = this._defaultHeightFogHeightDensity;
+            this._fog.startDistance = this._defaultHeightFogStartDistance;
+            this._alternativeRendering.isOn = false;
+            this.UpdateUI();
         }
 
         private void OnSceneLoad(string path, XmlNode node)
@@ -438,8 +425,12 @@ namespace FogEditor
                     case "heightFogStartDistance":
                         this._fog.startDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
                         break;
+                    case "alternativeRendering":
+                        this._alternativeRendering.isOn = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
                 }
             }
+            this.UpdateUI();
         }
 
         private void OnSceneSave(string path, XmlTextWriter writer)
@@ -464,6 +455,10 @@ namespace FogEditor
 
             writer.WriteStartElement("useRadialDistance");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(this._fog.useRadialDistance));
+            writer.WriteEndElement();
+
+            writer.WriteStartElement("alternativeRendering");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(this._alternativeRendering.isOn));
             writer.WriteEndElement();
 
             writer.WriteStartElement("startRange");
@@ -493,6 +488,169 @@ namespace FogEditor
             writer.WriteStartElement("startDistance");
             writer.WriteAttributeString("value", XmlConvert.ToString(this._fog.startDistance));
             writer.WriteEndElement();
+        }
+        #endregion
+
+        #region Patches
+        [HarmonyPatch(typeof(GlobalFog), "OnRenderImage", new[] { typeof(RenderTexture), typeof(RenderTexture) })]
+        private class GlobalFog_OnRenderImage_Patches
+        {
+            public static bool Prefix(GlobalFog __instance, RenderTexture source, RenderTexture destination)
+            {
+                if (MainWindow.self != null && MainWindow.self.alternativeRendering && __instance.CompareTag("MainCamera"))
+                {
+                    Effects_OnRenderImage_Patches._globalFog = __instance;
+                    if (Effects_OnRenderImage_Patches._globalFog != null && Effects_OnRenderImage_Patches._fogMaterial == null)
+                        Effects_OnRenderImage_Patches._fogMaterial = (Material)Effects_OnRenderImage_Patches._globalFog.GetType().GetField("fogMaterial", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(Effects_OnRenderImage_Patches._globalFog);
+                    Graphics.Blit(source, destination);
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        [HarmonyPatch(typeof(DepthOfField), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(VignetteAndChromaticAberration), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(SunShafts), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(ColorCorrectionCurves), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(BloomAndFlares), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(Antialiasing), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(CrossFade), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        [HarmonyPatch(typeof(GameScreenShotAssist), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
+        private class Effects_OnRenderImage_Patches
+        {
+            internal static GlobalFog _globalFog;
+            internal static Material _fogMaterial;
+            internal static bool _alreadyRendered = false;
+
+            private static RenderTexture _intermediateSourceDestination;
+
+            public static bool Prefix(object __instance, ref RenderTexture source, RenderTexture destination)
+            {
+                if (MainWindow.self == null || !MainWindow.self.alternativeRendering || _globalFog == null || !_globalFog.enabled || _alreadyRendered || ((PostEffectsBase)__instance).CompareTag("MainCamera") == false)
+                {
+                    return true;
+                }
+
+                _intermediateSourceDestination = RenderTexture.GetTemporary(destination.width, destination.height, destination.depth, destination.format, RenderTextureReadWrite.Default, destination.antiAliasing);
+
+                _alreadyRendered = true;
+
+                if (_globalFog.CheckResources() == false || (!_globalFog.distanceFog && !_globalFog.heightFog))
+                {
+                    Graphics.Blit(source, _intermediateSourceDestination);
+                    source = _intermediateSourceDestination;
+                    return true;
+                }
+                Camera cam = _globalFog.GetComponent<Camera>();
+                Transform camtr = cam.transform;
+                float camNear = cam.nearClipPlane;
+                float camFar = cam.farClipPlane;
+                float camFov = cam.fieldOfView;
+                float camAspect = cam.aspect;
+
+                Matrix4x4 frustumCorners = Matrix4x4.identity;
+
+                float fovWHalf = camFov * 0.5f;
+
+                Vector3 toRight = camtr.right * camNear * Mathf.Tan(fovWHalf * Mathf.Deg2Rad) * camAspect;
+                Vector3 toTop = camtr.up * camNear * Mathf.Tan(fovWHalf * Mathf.Deg2Rad);
+
+                Vector3 topLeft = (camtr.forward * camNear - toRight + toTop);
+                float camScale = topLeft.magnitude * camFar / camNear;
+
+                topLeft.Normalize();
+                topLeft *= camScale;
+
+                Vector3 topRight = (camtr.forward * camNear + toRight + toTop);
+                topRight.Normalize();
+                topRight *= camScale;
+
+                Vector3 bottomRight = (camtr.forward * camNear + toRight - toTop);
+                bottomRight.Normalize();
+                bottomRight *= camScale;
+
+                Vector3 bottomLeft = (camtr.forward * camNear - toRight - toTop);
+                bottomLeft.Normalize();
+                bottomLeft *= camScale;
+
+                frustumCorners.SetRow(0, topLeft);
+                frustumCorners.SetRow(1, topRight);
+                frustumCorners.SetRow(2, bottomRight);
+                frustumCorners.SetRow(3, bottomLeft);
+
+                var camPos = camtr.position;
+                float FdotC = camPos.y - _globalFog.height;
+                float paramK = (FdotC <= 0.0f ? 1.0f : 0.0f);
+                float excludeDepth = (_globalFog.excludeFarPixels ? 1.0f : 2.0f);
+                _fogMaterial.SetMatrix("_FrustumCornersWS", frustumCorners);
+                _fogMaterial.SetVector("_CameraWS", camPos);
+                _fogMaterial.SetVector("_HeightParams", new Vector4(_globalFog.height, FdotC, paramK, _globalFog.heightDensity * 0.5f));
+                _fogMaterial.SetVector("_DistanceParams", new Vector4(-Mathf.Max(_globalFog.startDistance, 0.0f), excludeDepth, 0, 0));
+
+                var sceneMode = RenderSettings.fogMode;
+                var sceneDensity = RenderSettings.fogDensity;
+                var sceneStart = RenderSettings.fogStartDistance;
+                var sceneEnd = RenderSettings.fogEndDistance;
+                Vector4 sceneParams;
+                bool linear = (sceneMode == FogMode.Linear);
+                float diff = linear ? sceneEnd - sceneStart : 0.0f;
+                float invDiff = Mathf.Abs(diff) > 0.0001f ? 1.0f / diff : 0.0f;
+                sceneParams.x = sceneDensity * 1.2011224087f; // density / sqrt(ln(2)), used by Exp2 fog mode
+                sceneParams.y = sceneDensity * 1.4426950408f; // density / ln(2), used by Exp fog mode
+                sceneParams.z = linear ? -invDiff : 0.0f;
+                sceneParams.w = linear ? sceneEnd * invDiff : 0.0f;
+                _fogMaterial.SetVector("_SceneFogParams", sceneParams);
+                _fogMaterial.SetVector("_SceneFogMode", new Vector4((int)sceneMode, _globalFog.useRadialDistance ? 1 : 0, 0, 0));
+
+                int pass = 0;
+                if (_globalFog.distanceFog && _globalFog.heightFog)
+                    pass = 0; // distance + height
+                else if (_globalFog.distanceFog)
+                    pass = 1; // distance only
+                else
+                    pass = 2; // height only
+                CustomGraphicsBlit(source, _intermediateSourceDestination, _fogMaterial, pass);
+
+                source = _intermediateSourceDestination;
+                return true;
+            }
+
+            public static void Postfix(RenderTexture source, RenderTexture destination)
+            {
+                if (_intermediateSourceDestination != null)
+                    RenderTexture.ReleaseTemporary(_intermediateSourceDestination);
+                _intermediateSourceDestination = null;
+            }
+
+            static void CustomGraphicsBlit(RenderTexture source, RenderTexture dest, Material fxMaterial, int passNr)
+            {
+                RenderTexture.active = dest;
+
+                fxMaterial.SetTexture("_MainTex", source);
+
+                GL.PushMatrix();
+                GL.LoadOrtho();
+
+                fxMaterial.SetPass(passNr);
+
+                GL.Begin(GL.QUADS);
+
+                GL.MultiTexCoord2(0, 0.0f, 0.0f);
+                GL.Vertex3(0.0f, 0.0f, 3.0f); // BL
+
+                GL.MultiTexCoord2(0, 1.0f, 0.0f);
+                GL.Vertex3(1.0f, 0.0f, 2.0f); // BR
+
+                GL.MultiTexCoord2(0, 1.0f, 1.0f);
+                GL.Vertex3(1.0f, 1.0f, 1.0f); // TR
+
+                GL.MultiTexCoord2(0, 0.0f, 1.0f);
+                GL.Vertex3(0.0f, 1.0f, 0.0f); // TL
+
+                GL.End();
+                GL.PopMatrix();
+            }
         }
         #endregion
     }
