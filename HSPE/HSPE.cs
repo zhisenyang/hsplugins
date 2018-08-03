@@ -23,7 +23,7 @@ namespace HSPE
 #endif
     {
 #if HONEYSELECT
-        public const string versionNum = "2.5.2";
+        public const string versionNum = "2.6.0";
         public string Name { get { return "HSPE"; } }
         public string Version { get { return versionNum; } }
         public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
@@ -84,10 +84,8 @@ namespace HSPE
 
         private void SceneLoaded(int level)
         {
-            {
-                GameObject go = new GameObject("HSPEPlugin");
-                go.AddComponent<MainWindow>();
-            }
+            GameObject go = new GameObject("HSPEPlugin");
+            go.AddComponent<MainWindow>();
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace UILib
@@ -415,6 +416,70 @@ namespace UILib
             rt.anchorMax = new Vector2(anchorRight, anchorTop);
             rt.offsetMin = new Vector2(offsetLeft, offsetBottom);
             rt.offsetMax = new Vector2(offsetRight, offsetTop);
+        }
+
+        public static Button LinkButtonTo(this Transform root, string path, UnityAction onClick)
+        {
+            Button b = root.Find(path).GetComponent<Button>();
+            if (onClick != null)
+                b.onClick.AddListener(onClick);
+            return b;
+        }
+
+        public static Dropdown LinkDropdownTo(this Transform root, string path, UnityAction<int> onValueChanged)
+        {
+            Dropdown b = root.Find(path).GetComponent<Dropdown>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            return b;
+
+        }
+
+        public static InputField LinkInputFieldTo(this Transform root, string path, UnityAction<string> onValueChanged, UnityAction<string> onEndEdit)
+        {
+            InputField b = root.Find(path).GetComponent<InputField>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            if (onEndEdit != null)
+                b.onEndEdit.AddListener(onEndEdit);
+            return b;
+
+        }
+
+        public static ScrollRect LinkScrollViewTo(this Transform root, string path, UnityAction<Vector2> onValueChanged)
+        {
+            ScrollRect b = root.Find(path).GetComponent<ScrollRect>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            return b;
+
+        }
+
+        public static Scrollbar LinkScrollbarTo(this Transform root, string path, UnityAction<float> onValueChanged)
+        {
+            Scrollbar b = root.Find(path).GetComponent<Scrollbar>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            return b;
+
+        }
+
+        public static Slider LinkSliderTo(this Transform root, string path, UnityAction<float> onValueChanged)
+        {
+            Slider b = root.Find(path).GetComponent<Slider>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            return b;
+
+        }
+
+        public static Toggle LinkToggleTo(this Transform root, string path, UnityAction<bool> onValueChanged)
+        {
+            Toggle b = root.Find(path).GetComponent<Toggle>();
+            if (onValueChanged != null)
+                b.onValueChanged.AddListener(onValueChanged);
+            return b;
+
         }
     }
 }

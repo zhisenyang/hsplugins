@@ -8,6 +8,7 @@ using Studio;
 namespace HSUS
 {
     [HarmonyPatch(typeof(SystemButtonCtrl), "Init")]
+    [HarmonyPatch(typeof(SystemButtonCtrl), "OnSelectInitYes")]
     public class SystemButtonCtrl_Init_Patches
     {
         public static void Postfix(SystemButtonCtrl __instance)

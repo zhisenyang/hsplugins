@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
@@ -14,15 +15,33 @@ namespace HSUS
         private readonly HashSet<GameObject> _openedObjects = new HashSet<GameObject>();
         private Vector2 _scroll;
         private Vector2 _scroll2;
-        private Vector2 _scroll3;
+        private static Vector2 _scroll3;
         private static readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
         private static bool _debug;
         private Rect _rect = new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f);
         private int _randomId;
+        private static readonly Process _process;
+        private static readonly byte _bits;
+
+        #region HONEYSELECT
+        private static readonly bool _has630Patch;
+        #endregion
+
+        static ObjectTreeDebug()
+        {
+            Application.logMessageReceived += HandleLog;
+            _process = Process.GetCurrentProcess();
+            if (IntPtr.Size == 4)
+                _bits = 32;
+            else if (IntPtr.Size == 8)
+                _bits = 64;
+#if HONEYSELECT
+            _has630Patch = Type.GetType("Vectrosity.VectorLine,Vectrosity") != null;
+#endif
+        }
 
         void Awake()
         {
-            Application.logMessageReceived += this.HandleLog;
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
         }
 
@@ -34,15 +53,14 @@ namespace HSUS
 
         void OnDestroy()
         {
-            Application.logMessageReceived -= this.HandleLog;
         }
 
-        private void HandleLog(string condition, string stackTrace, LogType type)
+        private static void HandleLog(string condition, string stackTrace, LogType type)
         {
             _lastlogs.AddLast(new KeyValuePair<LogType, string>(type, type + " " + condition));
-            if (_lastlogs.Count == 101)
+            if (_lastlogs.Count == 1001)
                 _lastlogs.RemoveFirst();
-            this._scroll3.y += 999999;
+            _scroll3.y += 999999;
         }
 
         private void DisplayObjectTree(GameObject go, int indent)
@@ -84,7 +102,11 @@ namespace HSUS
         {
             if (_debug == false)
                 return;
-            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console");
+            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console: " + _process.ProcessName + " | " + _bits + "bits"
+#if HONEYSELECT
+                                                                                       + " | 630 patch: " + (_has630Patch ? "Yes" : "No")
+#endif
+                                         );
         }
 
         private void WindowFunc(int id)
@@ -112,6 +134,7 @@ namespace HSUS
                     GUIUtility.systemCopyBuffer = n;
                 GUILayout.EndHorizontal();
                 GUILayout.Label("Layer: " + LayerMask.LayerToName(this._target.gameObject.layer) + " " + this._target.gameObject.layer);
+                GUILayout.Label("Tag: " + this._target.gameObject.tag);
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
                     if (c == null)
@@ -133,15 +156,15 @@ namespace HSUS
                         Image img = c as Image;
                         if (img.sprite != null && img.sprite.texture != null)
                         {
+                            GUILayout.Label(img.sprite.name);
+                            GUILayout.Label(img.color.ToString());
                             try
                             {
-                                GUILayout.Label(img.sprite.name);
                                 Color[] newImg = img.sprite.texture.GetPixels((int)img.sprite.textureRect.x, (int)img.sprite.textureRect.y, (int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
                                 Texture2D tex = new Texture2D((int)img.sprite.textureRect.width, (int)img.sprite.textureRect.height);
                                 tex.SetPixels(newImg);
                                 tex.Apply();
                                 GUILayout.Label(tex);
-
                             }
                             catch (Exception)
                             {
@@ -161,7 +184,11 @@ namespace HSUS
 
                     }
                     else if (c is RawImage)
+                    {
+                        GUILayout.Label(((RawImage)c).mainTexture.name);
+                        GUILayout.Label(((RawImage)c).color.ToString());
                         GUILayout.Label(((RawImage)c).mainTexture);
+                    }
                     else if (c is Renderer)
                         GUILayout.Label(((Renderer)c).material != null ? ((Renderer)c).material.shader.name : "");
                     else if (c is Button)
@@ -240,7 +267,7 @@ namespace HSUS
                 }
             }
             GUILayout.EndScrollView();
-            this._scroll3 = GUILayout.BeginScrollView(this._scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 4f));
+            _scroll3 = GUILayout.BeginScrollView(_scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 4f));
             foreach (KeyValuePair<LogType, string> lastlog in _lastlogs)
             {
                 Color c = GUI.color;

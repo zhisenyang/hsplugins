@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Reflection;
 using Harmony;
+using IllusionUtility.SetUtility;
 using Studio;
 using UILib;
 using UnityEngine;
@@ -153,6 +154,48 @@ namespace HSUS
                     break;
             }
             return Vector3.Project(vector, onNormal);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharClothes), "SetAccessoryScl", new[] {typeof(int), typeof(float), typeof(bool), typeof(int)})]
+    public class CharClothes_SetAccessoryScl_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.self.improvedTransformOperations;
+        }
+
+        public static bool Prefix(CharClothes __instance, ref bool __result, int slotNo, float value, bool _add, int flags, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo)
+        {
+            if (!global::MathfEx.RangeEqualOn(0, slotNo, 9))
+            {
+                __result = false;
+                return false;
+            }
+            GameObject gameObject = ___chaInfo.chaBody.objAcsMove[slotNo];
+            if (null == gameObject)
+            {
+                __result = false;
+                return false;
+            }
+            if ((flags & 1) != 0)
+            {
+                float num = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.x) + value;
+                ___clothesInfo.accessory[slotNo].addScl.x = num;
+            }
+            if ((flags & 2) != 0)
+            {
+                float num2 = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.y) + value;
+                ___clothesInfo.accessory[slotNo].addScl.y = num2;
+            }
+            if ((flags & 4) != 0)
+            {
+                float num3 = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.z) + value;
+                ___clothesInfo.accessory[slotNo].addScl.z = num3;
+            }
+            gameObject.transform.SetLocalScale(___clothesInfo.accessory[slotNo].addScl.x, ___clothesInfo.accessory[slotNo].addScl.y, ___clothesInfo.accessory[slotNo].addScl.z);
+            __result = true;
+            return false;
         }
     }
 

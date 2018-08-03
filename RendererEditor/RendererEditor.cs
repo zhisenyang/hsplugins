@@ -10,7 +10,7 @@ namespace RendererEditor
     public class RendererEditor : IEnhancedPlugin
     {
         public string Name { get { return "RendererEditor"; } }
-        public string Version { get { return "1.0.0"; } }
+        public string Version { get { return "1.0.1"; } }
         public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
 
         public void OnApplicationStart()

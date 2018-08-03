@@ -9,14 +9,14 @@ using System.Xml;
 using Harmony;
 using RootMotion.FinalIK;
 using Studio;
-using TMPro;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Resources = HSPE.Properties.Resources;
+using Vectrosity;
 #if KOIKATSU
 using ExtensibleSaveFormat;
+using TMPro;
 #endif
 
 namespace HSPE
@@ -29,7 +29,6 @@ namespace HSPE
 
         #region Events
         public event Action<TreeNodeObject, TreeNodeObject> onParentage;
-        public event Action<OCIChar> onCharaChange;
         #endregion
 
         #region Constants
@@ -43,18 +42,6 @@ namespace HSPE
         private const string _extSaveKey = "kkpe";
 #endif
         private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
-        #endregion
-
-        #region Private Types
-        [HarmonyPatch(typeof(OCIChar), "ChangeChara", new []{typeof(string)})]
-        private class OCIChar_Patches
-        {
-            public static void Postfix(OCIChar __instance, string _path)
-            {
-                if (self.onCharaChange != null)
-                    self.onCharaChange(__instance);
-            }
-        }
         #endregion
 
         #region Private Variables
@@ -267,7 +254,7 @@ namespace HSPE
                 if (this._poseTarget.drawAdvancedMode)
                 {
                     Color c = GUI.backgroundColor;
-                    GUI.backgroundColor = new Color(0.8F, 0.8f, 0.8f, 0.2f);
+                    GUI.backgroundColor = new Color(0.6F, 0.6f, 0.6f, 0.2f);
                     for (int i = 0; i < 3; ++i)
                         GUI.Box(this._advancedModeRect, "", _customBoxStyle);
                     GUI.backgroundColor = c;
@@ -363,13 +350,16 @@ namespace HSPE
 #endif
 
 #if HONEYSELECT
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.HSPEResources);
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSPEResources);
 #elif KOIKATSU
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.KKPEResources);
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.ResourcesKOI.KKPEResources);
 #endif
             Texture2D texture = bundle.LoadAsset<Texture2D>("Icon");
             this.vectorEndCap = bundle.LoadAsset<Texture2D>("VectorEndCap");
             this.vectorMiddle = bundle.LoadAsset<Texture2D>("VectorMiddle");
+            VectorLine.SetEndCap("vector", EndCap.Back, 0f, -1f, 1f, 4f, this.vectorMiddle, this.vectorEndCap);
+            VectorLine.canvas.sortingOrder -= 40;
+
             {
                 RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
                 Button hspeButton = Instantiate(original.gameObject).GetComponent<Button>();
@@ -387,6 +377,17 @@ namespace HSPE
                     this._ui.gameObject.SetActive(this._isVisible);
                     this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
                 });
+                EventTrigger.Entry entry = new EventTrigger.Entry() {eventID = EventTriggerType.PointerClick, callback = new EventTrigger.TriggerEvent()};
+                entry.callback.AddListener(eventData =>
+                {
+                    PointerEventData pointerEventData = eventData as PointerEventData;
+                    if (pointerEventData != null)
+                    {
+                        if (pointerEventData.button == PointerEventData.InputButton.Right)
+                            this.ToggleAdvancedMode();
+                    }
+                });
+                hspeButton.gameObject.AddComponent<EventTrigger>().triggers.Add(entry);
                 this._hspeButtonImage.color = Color.white;
             }
 
@@ -399,7 +400,7 @@ namespace HSPE
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
             Transform topContainer = bg.Find("Top Container");
-            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, bg as RectTransform, false);
+            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, (RectTransform)bg, false);
             mw.onPointerDown += this.OnWindowStartDrag;
             mw.onDrag += this.OnWindowDrag;
             mw.onPointerUp += this.OnWindowEndDrag;
@@ -1228,7 +1229,11 @@ namespace HSPE
         private void OnTargetChange(PoseController last)
         {
             if (last != null)
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.drawAdvancedMode = last.drawAdvancedMode;
                 last.drawAdvancedMode = false;
+            }
             if (this._poseTarget == null)
             {
                 this._nothingText.gameObject.SetActive(true);
@@ -1347,7 +1352,7 @@ namespace HSPE
             });
         }
 #elif KOIKATSU
-                private void OnCharaLoad(ChaFile file)
+        private void OnCharaLoad(ChaFile file)
         {
             PluginData data = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
             if (data == null)

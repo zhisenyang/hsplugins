@@ -46,7 +46,7 @@ namespace HSPE
         };
         #endregion
 
-        #region Private Types
+        #region Patches
 #if HONEYSELECT
         [HarmonyPatch(typeof(CharBody), "LateUpdate")]
         private class CharBody_Patches
@@ -90,6 +90,7 @@ namespace HSPE
         private class IKSolver_Patches
         {
             public static event Action<IKSolver> onPostUpdate;
+            [HarmonyBefore("com.joan6694.hsplugins.instrumentation")]
             public static void Postfix(IKSolver __instance)
             {
                 if (onPostUpdate != null)
@@ -109,14 +110,53 @@ namespace HSPE
         [HarmonyPatch(typeof(FKCtrl), "LateUpdate")]
         private class FKCtrl_Patches
         {
+            public static event Action<FKCtrl> onPreLateUpdate;
             public static event Action<FKCtrl> onPostLateUpdate;
+            public static void Prefix(FKCtrl __instance)
+            {
+                if (onPreLateUpdate != null)
+                    onPreLateUpdate(__instance);
+            }
             public static void Postfix(FKCtrl __instance)
             {
                 if (onPostLateUpdate != null)
                     onPostLateUpdate(__instance);
             }
         }
-        
+
+        [HarmonyPatch(typeof(OCIChar), "LoadClothesFile", new[] { typeof(string) })]
+        private class OCIChar_LoadClothesFile_Patches
+        {
+            public static event Action<OCIChar> onLoadClothesFile;
+            public static void Postfix(OCIChar __instance, string _path)
+            {
+                if (onLoadClothesFile != null)
+                    onLoadClothesFile(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(OCIChar), "ChangeChara", new[] { typeof(string) })]
+        private class OCIChar_ChangeChara_Patches
+        {
+            public static event Action<OCIChar> onChangeChara;
+            public static void Postfix(OCIChar __instance, string _path)
+            {
+                if (onChangeChara != null)
+                    onChangeChara(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(CharDefine.CoordinateType), typeof(bool) })]
+        private class OCIChar_SetCoordinateInfo_Patches
+        {
+            public static event Action<OCIChar, CharDefine.CoordinateType, bool> onSetCoordinateInfo; 
+            public static void Postfix(OCIChar __instance, CharDefine.CoordinateType _type, bool _force)
+            {
+                if (onSetCoordinateInfo != null)
+                    onSetCoordinateInfo(__instance, _type, _force);
+            }
+        }
+
         #endregion
 
         #region Public Types
@@ -289,6 +329,7 @@ namespace HSPE
                 UnityEngine.Debug.LogError("chara is null, this should not happen");
             IKSolver_Patches.onPostUpdate += this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate += this.IKExecutionOrderOnPostLateUpdate;
+            FKCtrl_Patches.onPreLateUpdate += this.FKCtrlOnPreLateUpdate;
             FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
 #if HONEYSELECT
             CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
@@ -297,6 +338,10 @@ namespace HSPE
             Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
             Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
 #endif
+            OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
+            OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
+            OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
+            MainWindow.self.onParentage += this.OnParentage;
 
             this.crotchJointCorrection = MainWindow.self.crotchCorrectionByDefault;
             this.leftFootJointCorrection = MainWindow.self.anklesCorrectionByDefault;
@@ -343,6 +388,7 @@ namespace HSPE
             this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             IKSolver_Patches.onPostUpdate -= this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate -= this.IKExecutionOrderOnPostLateUpdate;
+            FKCtrl_Patches.onPreLateUpdate -= this.FKCtrlOnPreLateUpdate;
             FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
 #if HONEYSELECT
             CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
@@ -351,6 +397,10 @@ namespace HSPE
             Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
             Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
 #endif
+            OCIChar_ChangeChara_Patches.onChangeChara -= this.OnCharacterReplaced;
+            OCIChar_LoadClothesFile_Patches.onLoadClothesFile -= this.OnLoadClothesFile;
+            OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo -= this.OnCoordinateReplaced;
+            MainWindow.self.onParentage -= this.OnParentage;
         }
         #endregion
 
@@ -566,6 +616,14 @@ namespace HSPE
                 module.IKExecutionOrderOnPostLateUpdate();
         }
 
+        private void FKCtrlOnPreLateUpdate(FKCtrl ctrl)
+        {
+            if (this._chara.fkCtrl != ctrl)
+                return;
+            foreach (AdvancedModeModule module in this._modules)
+                module.FKCtrlOnPreLateUpdate();
+        }
+
         private void FKCtrlOnPostLateUpdate(FKCtrl ctrl)
         {
             if (this._chara.fkCtrl != ctrl)
@@ -609,6 +667,35 @@ namespace HSPE
                 module.CharacterPostLateUpdate();
         }
 #endif
+        private void OnCharacterReplaced(OCIChar chara)
+        {
+            if (this._chara != chara)
+                return;
+            foreach (AdvancedModeModule module in this._modules)
+                module.OnCharacterReplaced();
+        }
+        private void OnLoadClothesFile(OCIChar chara)
+        {
+            if (this._chara != chara)
+                return;
+            foreach (AdvancedModeModule module in this._modules)
+                module.OnLoadClothesFile();
+        }
+
+        private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType type, bool force)
+        {
+            if (this._chara != chara)
+                return;
+            foreach (AdvancedModeModule module in this._modules)
+                module.OnCoordinateReplaced(type, force);
+        }
+
+        private void OnParentage(TreeNodeObject parent, TreeNodeObject child)
+        {
+            foreach (AdvancedModeModule module in this._modules)
+                module.OnParentage(parent, child);
+        }
+
         private FullBodyBipedEffector GetTwinBone(FullBodyBipedEffector effector)
         {
             switch (effector)

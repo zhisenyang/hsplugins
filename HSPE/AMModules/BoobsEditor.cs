@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Xml;
+using Harmony;
 using Studio;
 using UnityEngine;
 using Vectrosity;
@@ -152,6 +154,22 @@ namespace HSPE.AMModules
                 this.rightCircle.active = active;
             }
         }
+#if HONEYSELECT
+        [HarmonyPatch(typeof(DynamicBone_Ver02), "LateUpdate")]
+        private class DynamicBone_Ver02_LateUpdate_Patches
+        {
+            public delegate void VoidDelegate(DynamicBone_Ver02 db, ref bool b);
+
+            public static event VoidDelegate shouldExecuteLateUpdate;
+            public static bool Prefix(DynamicBone_Ver02 __instance)
+            {
+                bool result = true;
+                if (shouldExecuteLateUpdate != null)
+                    shouldExecuteLateUpdate(__instance, ref result);
+                return result;
+            }
+        }
+#endif
         #endregion
 
         #region Private Variables
@@ -163,6 +181,9 @@ namespace HSPE.AMModules
         private Vector3 _dragDynamicBoneEndPosition;
         private Vector3 _lastDynamicBoneGravity;
         private DebugLines _debugLines;
+#if HONEYSELECT
+        private bool _alternativeUpdateMode = false;
+#endif
         #endregion
 
         #region Public Fields        
@@ -192,6 +213,7 @@ namespace HSPE.AMModules
         void Start()
         {
 #if HONEYSELECT
+            DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
             this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
 #elif KOIKATSU
@@ -218,11 +240,56 @@ namespace HSPE.AMModules
                 return;
             this._debugLines.Draw(this._leftBoob, this._rightBoob);
         }
+
+        void OnDestroy()
+        {
+#if HONEYSELECT
+            DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate -= this.ShouldExecuteDynamicBoneLateUpdate;
+#endif
+        }
         #endregion
 
         #region Public Methods
+#if HONEYSELECT
+        public override void IKSolverOnPostUpdate()
+        {
+            if (this._alternativeUpdateMode)
+            {
+                if (this._leftBoob.GetWeight() > 0f)
+                {
+                    this._leftBoob.InitTransforms();
+                    this._leftBoob.UpdateDynamicBones(Time.deltaTime);
+                }
+                if (this._rightBoob.GetWeight() > 0f)
+                {
+                    this._rightBoob.InitTransforms();
+                    this._rightBoob.UpdateDynamicBones(Time.deltaTime);
+                }
+            }
+        }
+
+        public override void FKCtrlOnPreLateUpdate()
+        {
+            if (this._alternativeUpdateMode && this.chara.oiCharInfo.enableIK == false)
+            {
+                if (this._leftBoob.GetWeight() > 0f)
+                {
+                    this._leftBoob.InitTransforms();
+                    this._leftBoob.UpdateDynamicBones(Time.deltaTime);
+                }
+                if (this._rightBoob.GetWeight() > 0f)
+                {
+                    this._rightBoob.InitTransforms();
+                    this._rightBoob.UpdateDynamicBones(Time.deltaTime);
+                }
+            }
+        }
+#endif
+
         public override void GUILogic()
         {
+            GUILayout.BeginVertical();
+
             GUILayout.BeginHorizontal();
 
             GUILayout.BeginVertical(GUI.skin.box);
@@ -242,6 +309,10 @@ namespace HSPE.AMModules
             GUILayout.EndVertical();
 
             GUILayout.EndHorizontal();
+#if HONEYSELECT
+            this._alternativeUpdateMode = GUILayout.Toggle(this._alternativeUpdateMode, "Alternative update mode");
+#endif
+            GUILayout.EndVertical();
         }
 
         public void LoadFrom(BoobsEditor other)
@@ -249,6 +320,7 @@ namespace HSPE.AMModules
             this.ExecuteDelayed(() =>
             {
 #if HONEYSELECT
+                this._alternativeUpdateMode = other._alternativeUpdateMode;
                 CharFemale charFemale = this.chara.charInfo as CharFemale;
                 CharFemale otherFemale = other.chara.charInfo as CharFemale;
 #elif KOIKATSU
@@ -285,9 +357,13 @@ namespace HSPE.AMModules
         public override int SaveXml(XmlTextWriter xmlWriter)
         {
             int written = 0;
+            xmlWriter.WriteStartElement("boobs");
+#if HONEYSELECT
+            xmlWriter.WriteAttributeString("alternativeUpdateMode", XmlConvert.ToString(this._alternativeUpdateMode));
+#endif
+            written++;
             if (this._dirtyBoobs.Count != 0)
             {
-                xmlWriter.WriteStartElement("boobs");
                 foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
                 {
                     xmlWriter.WriteStartElement(kvp.Key == this._leftBoob ? "left" : "right");
@@ -309,8 +385,8 @@ namespace HSPE.AMModules
                     xmlWriter.WriteEndElement();
                     ++written;
                 }
-                xmlWriter.WriteEndElement();
             }
+            xmlWriter.WriteEndElement();
             return written;
         }
 
@@ -319,6 +395,10 @@ namespace HSPE.AMModules
             XmlNode boobs = xmlNode.FindChildNode("boobs");
             if (boobs != null)
             {
+#if HONEYSELECT
+                if (boobs.Attributes != null && boobs.Attributes["alternativeUpdateMode"] != null)
+                    this._alternativeUpdateMode = XmlConvert.ToBoolean(boobs.Attributes["alternativeUpdateMode"].Value);
+#endif
                 foreach (XmlNode node in boobs.ChildNodes)
                 {
                     DynamicBone_Ver02 boob = null;
@@ -361,6 +441,15 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
+#if HONEYSELECT
+        private void ShouldExecuteDynamicBoneLateUpdate(DynamicBone_Ver02 bone, ref bool b)
+        {
+            if ((bone == this._leftBoob || bone == this._rightBoob) && this._alternativeUpdateMode)
+                b = this.chara.oiCharInfo.enableIK == false && this.chara.oiCharInfo.enableFK == false;
+        }
+#endif
+
+
         private void DisplaySingleBoob(DynamicBone_Ver02 boob)
         {
             GUILayout.BeginVertical();

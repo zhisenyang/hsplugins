@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Xml;
 using Studio;
 using UnityEngine;
@@ -309,7 +310,6 @@ namespace HSPE.AMModules
         {
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
-            MainWindow.self.onParentage += this.OnParentage;
 
             {
                 float size = 0.012f;
@@ -433,6 +433,22 @@ namespace HSPE.AMModules
         {
             if (this.chara.oiCharInfo.enableFK == false && this.chara.oiCharInfo.enableIK == false)
                 this.DrawGizmos();
+        }
+
+        public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
+        {
+            if (parent == null)
+            {
+                ObjectCtrlInfo info;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && this._ignoredObjects.Contains(info.guideObject.transformTarget.gameObject))
+                    this._ignoredObjects.Remove(info.guideObject.transformTarget.gameObject);
+            }
+            else
+            {
+                ObjectCtrlInfo info;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && info.guideObject.transformTarget.IsChildOf(this.transform))
+                    this._ignoredObjects.Add(info.guideObject.transformTarget.gameObject);
+            }
         }
 
         public Transform GetTwinBone(Transform bone)
@@ -1505,22 +1521,6 @@ namespace HSPE.AMModules
             GUILayout.EndVertical();
 
             GUI.DragWindow();
-        }
-
-        private void OnParentage(TreeNodeObject parent, TreeNodeObject child)
-        {
-            if (parent == null)
-            {
-                ObjectCtrlInfo info;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && this._ignoredObjects.Contains(info.guideObject.transformTarget.gameObject))
-                    this._ignoredObjects.Remove(info.guideObject.transformTarget.gameObject);
-            }
-            else
-            {
-                ObjectCtrlInfo info;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(child, out info) && info.guideObject.transformTarget.IsChildOf(this.transform))
-                    this._ignoredObjects.Add(info.guideObject.transformTarget.gameObject);
-            }
         }
 
         private void SetColliderDirty(DynamicBoneCollider collider)

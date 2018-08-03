@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using Vectrosity;
 
 namespace RendererEditor
 {
@@ -32,6 +33,22 @@ namespace RendererEditor
             for (int i = 0; i < waitCount; ++i)
                 yield return null;
             action();
+        }
+
+        public static void SetPoints(this VectorLine self, params Vector3[] points)
+        {
+            for (int i = 0; i < self.points3.Count; i++)
+                self.points3[i] = points[i];
+        }
+
+        public static int IndexOf<T>(this T[] self, T obj)
+        {
+            for (int i = 0; i < self.Length; i++)
+            {
+                if (self[i].Equals(obj))
+                    return i;
+            }
+            return -1;
         }
     }
 }

@@ -98,7 +98,7 @@ namespace StudioFileCheck
             return HSUS.HSUS.self.optimizeNeo;
         }
 
-        public static void Prefix(ItemList __instance, int _group)
+        public static bool Prefix(ItemList __instance, int _group)
         {
             ItemListData data;
             if (_dataByInstance.TryGetValue(__instance, out data) == false)
@@ -152,11 +152,7 @@ namespace StudioFileCheck
                     __instance.gameObject.SetActive(true);
                 __instance.SetPrivate("group", _group);
             }
-        }
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            yield return new CodeInstruction(OpCodes.Ret);
+            return false;
         }
     }
 
@@ -241,6 +237,193 @@ namespace StudioFileCheck
                 return false;
             }
             return true;
+        }
+    }
+    
+    [HarmonyPatch(typeof(GuideObject), "Start")]
+    public class GuideObject_Start_Patches
+    {
+        public static bool Prepare(HarmonyInstance instance)
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(GuideObject __instance)
+        {
+            Action a = () => GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+            Action<Vector3> a2 = (v) => GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+            __instance.changeAmount.onChangePos = (Action)Delegate.Combine(__instance.changeAmount.onChangePos, a);
+            __instance.changeAmount.onChangeRot = (Action)Delegate.Combine(__instance.changeAmount.onChangeRot, a);
+            __instance.changeAmount.onChangeScale = (Action<Vector3>)Delegate.Combine(__instance.changeAmount.onChangeScale, a2);
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(GuideObject), "LateUpdate")]
+    public class GuideObject_LateUpdate_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+
+        private static readonly Dictionary<GuideObject, bool> _instanceData = new Dictionary<GuideObject, bool>(); //Apparently, doing this is faster than having a simple HashSet...
+
+        public static void ScheduleForUpdate(GuideObject obj)
+        {
+            if (_instanceData.ContainsKey(obj) == false)
+                _instanceData.Add(obj, true);
+            else
+                _instanceData[obj] = true;
+        }
+
+
+        public static bool Prefix(GuideObject __instance, GameObject[] ___roots)
+        {
+            __instance.transform.position = __instance.transformTarget.position;
+            __instance.transform.rotation = __instance.transformTarget.rotation;
+            if (_instanceData.TryGetValue(__instance, out bool b) && b)
+            {
+                switch (__instance.mode)
+                {
+                    case GuideObject.Mode.Local:
+                        ___roots[0].transform.rotation = __instance.parent != null ? __instance.parent.rotation : Quaternion.identity;
+                        break;
+                    case GuideObject.Mode.World:
+                        ___roots[0].transform.rotation = Quaternion.identity;
+                        break;
+                }
+                if (__instance.calcScale)
+                {
+                    Vector3 localScale = __instance.transformTarget.localScale;
+                    Vector3 lossyScale = __instance.transformTarget.lossyScale;
+                    Vector3 vector3 = !__instance.enableScale ? Vector3.one : __instance.changeAmount.scale;
+                    __instance.transformTarget.localScale = new Vector3(localScale.x / lossyScale.x * vector3.x, localScale.y / lossyScale.y * vector3.y, localScale.z / lossyScale.z * vector3.z);
+                }
+                _instanceData[__instance] = false;
+            }
+            return false;
+        }
+
+    }
+
+    [HarmonyPatch(typeof(GuideObject), "set_calcScale", new[] { typeof(bool) })]
+    public class GuideObject_set_calcScale_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(GuideObject __instance)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(GuideObject), "set_enableScale", new[] { typeof(bool) })]
+    public class GuideObject_set_enableScale_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(GuideObject __instance)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(GuideObject), "set_enablePos", new[] { typeof(bool) })]
+    public class GuideObject_set_enablePos_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(GuideObject __instance)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+        }
+    }
+    [HarmonyPatch(typeof(GuideObject), "set_enableRot", new[] { typeof(bool) })]
+    public class GuideObject_set_enableRot_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(GuideObject __instance)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(OCIChar), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIFolder), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIItem), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCILight), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIPathMove), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    public class ObjectCtrlInfo_OnAttach_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance.guideObject);
+        }
+    }
+    [HarmonyPatch(typeof(OCIChar), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIFolder), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIItem), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCILight), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    [HarmonyPatch(typeof(OCIPathMove), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+    public class ObjectCtrlInfo_OnLoadAttach_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance.guideObject);
+        }
+    }
+    [HarmonyPatch(typeof(OCIChar), "OnDetach")]
+    [HarmonyPatch(typeof(OCIFolder), "OnDetach")]
+    [HarmonyPatch(typeof(OCIItem), "OnDetach")]
+    [HarmonyPatch(typeof(OCILight), "OnDetach")]
+    [HarmonyPatch(typeof(OCIPathMove), "OnDetach")]
+    public class ObjectCtrlInfo_OnDetach_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(ObjectCtrlInfo __instance)
+        {
+            GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance.guideObject);
+        }
+    }
+    [HarmonyPatch(typeof(TreeNodeCtrl), "SetSelectNode", new []{typeof(TreeNodeObject) })]
+    public class TreeNodeCtrl_SetSelectNode_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+        public static void Postfix(TreeNodeCtrl __instance, TreeNodeObject _node)
+        {
+            ObjectCtrlInfo objectCtrlInfo = TryGetLoop(_node);
+            if (objectCtrlInfo != null)
+                GuideObject_LateUpdate_Patches.ScheduleForUpdate(objectCtrlInfo.guideObject);
+        }
+
+        private static ObjectCtrlInfo TryGetLoop(TreeNodeObject _node)
+        {
+            if (_node == null)
+                return null;
+            if (Studio.Studio.Instance.dicInfo.TryGetValue(_node, out ObjectCtrlInfo result))
+                return result;
+            return TryGetLoop(_node.parent);
         }
     }
 }

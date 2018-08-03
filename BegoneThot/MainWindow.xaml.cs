@@ -83,6 +83,7 @@ namespace BegoneThot
 
             Dictionary<string, HashSet<string>> animatorsByBundle = new Dictionary<string, HashSet<string>>();
             int i = 0;
+            bool errorHappened = false;
             using (FileStream stream = File.Open(extractedFilePath, FileMode.Create, FileAccess.Write))
             {
                 using (StreamWriter writer = new StreamWriter(stream))
@@ -97,34 +98,46 @@ namespace BegoneThot
                             this.ProgressBar.Value = (i1 / (double)entries.Count) * 100;
                             this.LogText.Text = "Checking individual entries...\n" + entry.ItemName + " \"" + entry.FilePath + "\"";
                         });
-                        string path = Path.Combine(Settings.Default.abdataPath, entry.FilePath).Replace("/", "\\");
-                        if (entry.FilePath.Equals("studioneo/00.unity3d"))
-                            writer.WriteLine(entry.ToString());
-                        else if (File.Exists(path) == false)
+
+                        try
                         {
-                            builder.AppendLine(entry.ToString());
-                            writer.WriteLine(ItemEntry.GenerateEmpty(entry.Id));
-                        }
-                        else if (deep)
-                        {
-                            HashSet<string> animators;
-                            if (animatorsByBundle.TryGetValue(entry.FilePath.ToLower(), out animators) == false)
-                            {
-                                if (this.GetAnimatorsNoDependency(path, out animators) == false)
-                                    animators = this.GetAnimatorsSB3U(path);
-                                animatorsByBundle.Add(entry.FilePath.ToLower(), animators);
-                                System.GC.Collect();
-                            }
-                            if (animators.Contains(entry.AnimatorName.ToLower()) == false)
+                            string path = Path.Combine(Settings.Default.abdataPath, entry.FilePath).Replace("/", "\\");
+                            if (entry.FilePath.Equals("studioneo/00.unity3d"))
+                                writer.WriteLine(entry.ToString());
+                            else if (File.Exists(path) == false)
                             {
                                 builder.AppendLine(entry.ToString());
                                 writer.WriteLine(ItemEntry.GenerateEmpty(entry.Id));
                             }
+                            else if (deep)
+                            {
+                                HashSet<string> animators;
+                                if (animatorsByBundle.TryGetValue(entry.FilePath.ToLower(), out animators) == false)
+                                {
+                                    if (this.GetAnimatorsNoDependency(path, out animators) == false)
+                                        animators = this.GetAnimatorsSB3U(path);
+                                    animatorsByBundle.Add(entry.FilePath.ToLower(), animators);
+                                    GC.Collect();
+                                }
+                                if (animators.Contains(entry.AnimatorName.ToLower()) == false)
+                                {
+                                    builder.AppendLine(entry.ToString());
+                                    writer.WriteLine(ItemEntry.GenerateEmpty(entry.Id));
+                                }
+                                else
+                                    writer.WriteLine(entry.ToString());
+                            }
                             else
                                 writer.WriteLine(entry.ToString());
+
                         }
-                        else
-                            writer.WriteLine(entry.ToString());
+                        catch (Exception e)
+                        {
+                            string error = "Exception caught with entry: " + entry.ToString() + "\nException was: " + e;
+                            Console.WriteLine(error);
+                            builder.AppendLine(error);
+                            errorHappened = true;
+                        }
                     }
                 }
             }
@@ -135,7 +148,7 @@ namespace BegoneThot
             this.ProgressBar.Dispatcher.Invoke(() =>
             {
                 this.ProgressBar.Value = 0;
-                this.LogText.Text = "Done!\nHere's what was removed:\n" + builder;
+                this.LogText.Text = "Done!\nHere's what was removed:\n" + builder + (errorHappened ? "\n\nHowever, an error occurred during the process, please check the report thoroughly." :"");
             });
         }
 

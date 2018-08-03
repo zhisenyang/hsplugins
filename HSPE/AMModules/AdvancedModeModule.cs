@@ -1,4 +1,5 @@
 ﻿using System.Xml;
+using Studio;
 using UnityEngine;
 using Vectrosity;
 
@@ -6,11 +7,6 @@ namespace HSPE.AMModules
 {
     public abstract class AdvancedModeModule : MonoBehaviour
     {
-        static AdvancedModeModule()
-        {
-            VectorLine.SetEndCap("vector", EndCap.Back, 0f, -1f, 1f, 4f, MainWindow.self.vectorMiddle, MainWindow.self.vectorEndCap);
-            VectorLine.canvas.sortingOrder -= 40;
-        }
 
         #region Constants
         public static readonly Color _redColor = Color.red;
@@ -59,7 +55,8 @@ namespace HSPE.AMModules
         #region Public Methods
         public virtual void IKSolverOnPreRead(){}
         public virtual void IKSolverOnPostUpdate(){}
-        public virtual void FKCtrlOnPostLateUpdate(){}
+        public virtual void FKCtrlOnPostLateUpdate() { }
+        public virtual void FKCtrlOnPreLateUpdate() { }
         public virtual void IKExecutionOrderOnPostLateUpdate(){}
 #if HONEYSELECT
         public virtual void CharBodyPreLateUpdate(){}
@@ -68,6 +65,10 @@ namespace HSPE.AMModules
         public virtual void CharacterPreLateUpdate() { }
         public virtual void CharacterPostLateUpdate() { }
 #endif
+        public virtual void OnCharacterReplaced() { }
+        public virtual void OnLoadClothesFile() { }
+        public virtual void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force){}
+        public virtual void OnParentage(TreeNodeObject parent, TreeNodeObject child) { }
         #endregion
 
         #region Protected Methods

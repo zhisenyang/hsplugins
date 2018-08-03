@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
+using Studio;
 using UnityEngine;
 using Vectrosity;
 
@@ -43,6 +45,8 @@ namespace HSPE.AMModules
                 for (; i < dynamicBones.Count; i++)
                 {
                     DynamicBone db = dynamicBones[i];
+                    if (db.m_Root == null)
+                        continue;
                     DebugDynamicBone debug;
                     if (i < this._debugLines.Count)
                     {
@@ -171,13 +175,15 @@ namespace HSPE.AMModules
         #region Private Variables
         private Vector2 _dynamicBonesScroll;
         private DynamicBone _dynamicBoneTarget;
-        private List<DynamicBone> _dynamicBones = new List<DynamicBone>();
+        private readonly List<DynamicBone> _dynamicBones = new List<DynamicBone>();
         private readonly Dictionary<DynamicBone, DynamicBoneData> _dirtyDynamicBones = new Dictionary<DynamicBone, DynamicBoneData>();
         private Vector3 _dragDynamicBoneStartPosition;
         private Vector3 _dragDynamicBoneEndPosition;
         private Vector3 _lastDynamicBoneGravity;
         private DynamicBone _draggedDynamicBone;
         private DebugLines _debugLines = new DebugLines();
+        private BonesEditor _bonesEditor;
+        private bool _firstRefresh;
         #endregion
 
         #region Public Fields
@@ -206,43 +212,23 @@ namespace HSPE.AMModules
         #region Unity Methods
         void Awake()
         {
-            this._dynamicBones = this.GetComponentsInChildren<DynamicBone>(true).ToList();
-            this._dynamicBoneTarget = this._dynamicBones.First(d => d.m_Root != null);
+            this.RefreshDynamicBoneList();
+        }
+
+        void Start()
+        {
+            this.RefreshDynamicBoneList();
+            this._bonesEditor = this.GetComponent<BonesEditor>();
         }
 
         protected override void Update()
         {
             base.Update();
-            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
-            List<DynamicBone> toDelete = null;
-            foreach (DynamicBone db in this._dynamicBones)
-                if (dynamicBones.Contains(db) == false)
-                {
-                    if (toDelete == null)
-                        toDelete = new List<DynamicBone>();
-                    toDelete.Add(db);
-                }
-            if (toDelete != null)
+            if (!this._firstRefresh)
             {
-                foreach (DynamicBone db in toDelete)
-                {
-                    if (this._dirtyDynamicBones.ContainsKey(db))
-                        this._dirtyDynamicBones.Remove(db);
-                    this._dynamicBones.Remove(db);
-                }
-                this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
+                this.RefreshDynamicBoneList();
+                this._firstRefresh = true;
             }
-            List<DynamicBone> toAdd = null;
-            foreach (DynamicBone db in dynamicBones)
-                if (this._dynamicBones.Contains(db) == false)
-                {
-                    if (toAdd == null)
-                        toAdd = new List<DynamicBone>();
-                    toAdd.Add(db);
-                }
-            if (toAdd != null)
-                foreach (DynamicBone db in toAdd)
-                    this._dynamicBones.Add(db);
             this.DynamicBoneDraggingLogic();
             if (!this.isEnabled || !this.drawAdvancedMode)
                 return;
@@ -252,6 +238,26 @@ namespace HSPE.AMModules
         #endregion
 
         #region Public Methods
+        public override void OnCharacterReplaced()
+        {
+            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+        }
+
+        public override void OnLoadClothesFile()
+        {
+            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+        }
+
+        public override void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force)
+        {
+            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+        }
+
+        public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
+        {
+            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+        }
+
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
@@ -276,10 +282,27 @@ namespace HSPE.AMModules
             }
             GUILayout.EndScrollView();
 
-            if (GUILayout.Button("Reset All") && this._dynamicBoneTarget != null)
-                while (this._dirtyDynamicBones.Count != 0)
-                    this.SetDynamicBoneNotDirty(this._dirtyDynamicBones.First().Key);
+            if (GUILayout.Button("Copy to FK"))
+                this.PhysicToFK();
+            if (GUILayout.Button("Force refresh list"))
+                this.RefreshDynamicBoneList();
 
+            {
+                Color c = GUI.color;
+                GUI.color = Color.red;
+                if (GUILayout.Button("Reset all") && this._dynamicBoneTarget != null)
+                {
+                    this.RefreshDynamicBoneList();
+                    foreach (KeyValuePair<DynamicBone, DynamicBoneData> pair in new Dictionary<DynamicBone, DynamicBoneData>(this._dirtyDynamicBones))
+                    {
+                        if (pair.Key == null)
+                            continue;
+                        this.SetDynamicBoneNotDirty(pair.Key);
+                    }
+                    this._dirtyDynamicBones.Clear();
+                }
+                GUI.color = c;
+            }
             GUILayout.EndVertical();
 
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.ExpandWidth(true));
@@ -390,7 +413,7 @@ namespace HSPE.AMModules
                     {
                         if (kvp.Key.m_Root != null && bone.m_Root != null)
                         {
-                            if (kvp.Key.m_Root.name.Equals(bone.m_Root.name) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if (kvp.Key.m_Root.GetPathFrom(other.transform).Equals(bone.m_Root.GetPathFrom(this.transform)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
                             {
                                 db = bone;
                                 break;
@@ -425,14 +448,17 @@ namespace HSPE.AMModules
 
         public override int SaveXml(XmlTextWriter xmlWriter)
         {
+            this.RefreshDynamicBoneList();
             int written = 0;
             if (this._dirtyDynamicBones.Count != 0)
             {
                 xmlWriter.WriteStartElement("dynamicBones");
                 foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in this._dirtyDynamicBones)
                 {
+                    if (kvp.Key == null)
+                        continue;
                     xmlWriter.WriteStartElement("dynamicBone");
-                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.name : kvp.Key.name);
+                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.GetPathFrom(this.transform) : kvp.Key.name);
 
                     if (kvp.Value.originalWeight.hasValue)
                         xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(kvp.Key.GetWeight()));
@@ -460,6 +486,8 @@ namespace HSPE.AMModules
 
         public override void LoadXml(XmlNode xmlNode)
         {
+            this.RefreshDynamicBoneList();
+
             XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
             if (dynamicBonesNode != null)
             {
@@ -528,11 +556,39 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
+        private void PhysicToFK()
+        {
+            List<GuideCommand.EqualsInfo> infos = new List<GuideCommand.EqualsInfo>();
+            foreach (DynamicBone bone in this._dynamicBones)
+            {
+                foreach (object o in (IList)bone.GetPrivate("m_Particles"))
+                {
+                    Transform t = (Transform)o.GetPrivate("m_Transform");
+                    OCIChar.BoneInfo boneInfo;
+                    if (this._bonesEditor.fkObjects.TryGetValue(t.gameObject, out boneInfo))
+                    {
+                        Vector3 oldValue = boneInfo.guideObject.changeAmount.rot;
+                        boneInfo.guideObject.changeAmount.rot = t.localEulerAngles;
+                        infos.Add(new GuideCommand.EqualsInfo()
+                        {
+                            dicKey = boneInfo.guideObject.dicKey,
+                            oldValue = oldValue,
+                            newValue = boneInfo.guideObject.changeAmount.rot
+                        });
+                    }
+                }
+            }
+            UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
+
+        }
+
         private void SetDynamicBoneNotDirty(DynamicBone bone)
         {
-            if (this.IsDynamicBoneDirty(bone))
+            if (this._dynamicBones.Contains(bone) && this.IsDynamicBoneDirty(bone))
             {
                 DynamicBoneData data = this._dirtyDynamicBones[bone];
+                if (data == null)
+                    return;
                 if (data.originalWeight.hasValue)
                 {
                     bone.SetWeight(data.originalWeight);
@@ -608,6 +664,44 @@ namespace HSPE.AMModules
                 this.isDraggingDynamicBone = false;
             }
         }
+
+        private void RefreshDynamicBoneList()
+        {
+            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
+            List<DynamicBone> toDelete = null;
+            foreach (DynamicBone db in this._dynamicBones)
+                if (dynamicBones.Contains(db) == false)
+                {
+                    if (toDelete == null)
+                        toDelete = new List<DynamicBone>();
+                    toDelete.Add(db);
+                }
+            if (toDelete != null)
+            {
+                foreach (DynamicBone db in toDelete)
+                {
+                    if (this._dirtyDynamicBones.ContainsKey(db))
+                        this._dirtyDynamicBones.Remove(db);
+                    this._dynamicBones.Remove(db);
+                }
+            }
+            List<DynamicBone> toAdd = null;
+            foreach (DynamicBone db in dynamicBones)
+                if (this._dynamicBones.Contains(db) == false)
+                {
+                    if (toAdd == null)
+                        toAdd = new List<DynamicBone>();
+                    toAdd.Add(db);
+                }
+            if (toAdd != null)
+            {
+                foreach (DynamicBone db in toAdd)
+                    this._dynamicBones.Add(db);
+            }
+            if (this._dynamicBones.Count != 0 && this._dynamicBoneTarget == null)
+                this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
+        }
+
 
         private void CheckGizmosEnabled()
         {

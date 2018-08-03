@@ -2021,17 +2021,17 @@ namespace MoreAccessories
             if ((flags & 1) != 0)
             {
                 float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x = Mathf.Clamp(num, 0.01f, 100f);
+                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x = num;
             }
             if ((flags & 2) != 0)
             {
                 float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y = Mathf.Clamp(num, 0.01f, 100f);
+                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y = num;
             }
             if ((flags & 4) != 0)
             {
                 float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z = Mathf.Clamp(num, 0.01f, 100f);
+                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z = num;
             }
             gameObject.transform.SetLocalScale(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z);
             return true;

@@ -1,40 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Configuration>Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{B6448057-F9C2-4E9C-8E18-09C556CFCB46}</ProjectGuid>
+    <ProjectGuid>{D2B58411-B5C3-4BC4-A9C1-2FFDED229313}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>HSPE</RootNamespace>
-    <AssemblyName>HSPENeo</AssemblyName>
-    <AssemblyName Condition=" '$(Configuration)' == 'HS' ">HSPENeo</AssemblyName>
-    <AssemblyName Condition=" '$(Configuration)' == 'KOI' ">KKPE</AssemblyName>
+    <RootNamespace>Instrumentation</RootNamespace>
+    <AssemblyName>Instrumentation</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>
-    </DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'HS|AnyCPU'">
     <OutputPath>bin\HS\</OutputPath>
@@ -54,55 +33,6 @@
     <DefineConstants>KOIKATSU</DefineConstants>
     <Optimize>true</Optimize>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="AMModules\BlendShapesEditor.cs" />
-    <Compile Include="AMModules\BonesEditor.cs" />
-    <Compile Include="AMModules\BoobsEditor.cs" />
-    <Compile Include="Commands.cs" />
-    <Compile Include="AMModules\DynamicBonesEditor.cs" />
-    <Compile Include="EditableValue.cs" />
-    <Compile Include="Extensions.cs" />
-    <Compile Include="HarmonyPatches.cs" />
-    <Compile Include="MainWindow.cs" />
-    <Compile Include="PoseController.cs" />
-    <Compile Include="AMModules\AdvancedModeModule.cs" />
-    <Compile Include="PointerDownHandler.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="HSPE.cs" />
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
-    <Compile Include="Properties\ResourcesKOI.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>ResourcesKOI.resx</DependentUpon>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Condition=" '$(Configuration)' == 'HS' " Include="..\HSExtSave\HSExtSave.csproj">
-      <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
-      <Name>HSExtSave</Name>
-      <Private>False</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\UIUtility\UIUtility.csproj">
-      <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
-      <Name>UIUtility</Name>
-      <Private>True</Private>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ILMerge.props">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="packages.config" />
-    <None Include="Resources\hsperesources.unity3d" />
-    <None Include="Resources\kkperesources.unity3d" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="ILMergeOrder.txt" />
-  </ItemGroup>
   <ItemGroup>
     <Reference Condition=" '$(Configuration)' == 'HS' " Include="0Harmony">
       <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
@@ -159,14 +89,6 @@
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="BepInEx">
-      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\BepInEx.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="ExtensibleSaveFormat">
-      <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\ExtensibleSaveFormat.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
@@ -177,10 +99,6 @@
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml.Linq">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.Linq.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="TextMeshPro-1.0.55.56.0b12">
-      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\TextMeshPro-1.0.55.56.0b12.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine">
@@ -196,17 +114,16 @@
       <Private>True</Private>
     </Reference>
   </ItemGroup>
-  <ItemGroup Condition=" '$(Configuration)' == 'HS' ">
-    <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
+  <ItemGroup>
+    <Compile Include="Instrumentation.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup Condition=" '$(Configuration)' == 'KOI' ">
-    <EmbeddedResource Include="Properties\ResourcesKOI.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>ResourcesKOI.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
+  <ItemGroup>
+    <None Include="ILMerge.props" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ILMergeOrder.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
@@ -223,11 +140,4 @@
     <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets'))" />
   </Target>
   <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>

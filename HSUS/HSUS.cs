@@ -11,7 +11,9 @@ using IllusionPlugin;
 using Studio;
 using UILib;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 namespace HSUS
 {
@@ -22,6 +24,13 @@ namespace HSUS
         {
             Neo,
             Game,
+        }
+
+        private class CanvasData
+        {
+            public float scaleFactor;
+            public float scaleFactor2;
+            public Vector2 referenceResolution;
         }
         #endregion
 
@@ -42,6 +51,8 @@ namespace HSUS
         private bool _improvedTransformOperations = true;
         private bool _autoJointCorrection = true;
         private bool _eyesBlink = false;
+        private bool _cameraSpeedShortcuts = true;
+        private bool _alternativeCenterToObject = true;
 
         private bool _ssaoEnabled = true;
         private bool _bloomEnabled = true;
@@ -53,16 +64,18 @@ namespace HSUS
 
         private GameObject _go;
         private RoutinesComponent _routines;
-        private HashSet<Canvas> _scaledCanvases = new HashSet<Canvas>();
         private Binary _binary;
         private Sprite _searchBarBackground;
         private float _lastCleanup;
+        private Dictionary<Canvas, CanvasData> _scaledCanvases = new Dictionary<Canvas, CanvasData>();
+        private int _lastScreenWidth;
+        private int _lastScreenHeight;
         #endregion
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.4.0"; } }
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
+        public string Version { get { return "1.5.0"; } }
+        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
         public static HSUS self { get; private set; }
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
         public Sprite searchBarBackground { get { return this._searchBarBackground; } }
@@ -73,6 +86,8 @@ namespace HSUS
         public bool improvedTransformOperations { get { return this._improvedTransformOperations; } }
         public bool autoJointCorrection { get { return this._autoJointCorrection; } }
         public bool eyesBlink { get { return this._eyesBlink; } }
+        public bool cameraSpeedShortcuts { get { return this._cameraSpeedShortcuts; } }
+        public bool alternativeCenterToObject { get { return this._alternativeCenterToObject; } }
         public bool dofEnabled { get { return this._dofEnabled; } }
         public bool ssaoEnabled { get { return this._ssaoEnabled; } }
         public bool bloomEnabled { get { return this._bloomEnabled; } }
@@ -80,7 +95,6 @@ namespace HSUS
         public bool vignetteEnabled { get { return this._vignetteEnabled; } }
         public bool fogEnabled { get { return this._fogEnabled; } }
         public bool sunShaftsEnabled { get { return this._sunShaftsEnabled; } }
-        public RoutinesComponent routines { get { return this._routines; } }
         #endregion
 
         #region Unity Methods
@@ -173,6 +187,14 @@ namespace HSUS
                         if (node.Attributes["enabled"] != null)
                             this._eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
                         break;
+                    case "cameraSpeedShortcuts":
+                        if (node.Attributes["enabled"] != null)
+                            this._cameraSpeedShortcuts = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "alternativeCenterToObject":
+                        if (node.Attributes["enabled"] != null)
+                            this._alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
                     case "postProcessing":
                         foreach (XmlNode childNode in node.ChildNodes)
                         {
@@ -213,36 +235,28 @@ namespace HSUS
             }
             UIUtility.Init();
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
-            if (this._binary == Binary.Game)
+            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
             {
-                foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
+                try
                 {
-                    switch (type.FullName)
-                    {
-                        case "Studio.ItemFKCtrl_InitBone_Patches":
-                            continue;
-                    }
-                    try
-                    {
-                        List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
-                        if (harmonyMethods != null && harmonyMethods.Count > 0)
-                        {
-                            HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
-                            new PatchProcessor(harmony, type, attributes).Patch();
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        UnityEngine.Debug.Log("HSUS: Exception occured when patching: " + e.ToString());
-                    }
+                    List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
+                    if (harmonyMethods == null || harmonyMethods.Count <= 0)
+                        continue;
+                    HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
+                    new PatchProcessor(harmony, type, attributes).Patch();
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.Log("HSUS: Exception occured when patching: " + e.ToString());
                 }
             }
-            else
-            {
-                harmony.PatchAll(Assembly.GetExecutingAssembly());
-            }
 
-            QualitySettings.pixelLightCount = 16; //TODO A ENLEVER!!!
+            //Manual Patching for various reasons:
+            {
+                ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
+                ItemFKCtrl_LateUpdate_Patches.ManualPatch(harmony);
+                HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
+            }
         }
 
         public void OnApplicationQuit()
@@ -344,6 +358,18 @@ namespace HSUS
                     }
 
                     {
+                        xmlWriter.WriteStartElement("cameraSpeedShortcuts");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._cameraSpeedShortcuts));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("alternativeCenterToObject");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._alternativeCenterToObject));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
                         xmlWriter.WriteStartElement("postProcessing");
 
                         {
@@ -429,8 +455,16 @@ namespace HSUS
             {
                 Resources.UnloadUnusedAssets();
                 this._lastCleanup = Time.unscaledTime;
+                if (EventSystem.current.sendNavigationEvents)
+                    EventSystem.current.sendNavigationEvents = false;
             }
+
+            if (this._lastScreenWidth != Screen.width || this._lastScreenHeight != Screen.height)
+                this.OnWindowResize();
+            this._lastScreenWidth = Screen.width;
+            this._lastScreenHeight = Screen.height;
         }
+
         public void OnLateUpdate()
         {
         }
@@ -438,9 +472,15 @@ namespace HSUS
         public void OnFixedUpdate()
         {
         }
+
         #endregion
 
         #region Private Methods
+        private void OnWindowResize()
+        {
+            this._routines.ExecuteDelayed(this.ApplyUIScale, 2);
+        }
+
         private void InitFasterCharaMakerLoading()
         {
             this._routines.ExecuteDelayed(() =>
@@ -477,7 +517,7 @@ namespace HSUS
                 foreach (SmHair_F f in Resources.FindObjectsOfTypeAll<SmHair_F>())
                 {
                     SmHair_F_Data.Init(f);
-                    break;  
+                    break;
                 }
                 foreach (SmKindColorD f in Resources.FindObjectsOfTypeAll<SmKindColorD>())
                 {
@@ -511,10 +551,9 @@ namespace HSUS
         {
             this._routines.ExecuteDelayed(() =>
             {
-                float usedScale = this._binary == Binary.Game ? this._gameUIScale : this._neoUIScale;
                 foreach (Canvas c in Resources.FindObjectsOfTypeAll<Canvas>())
                 {
-                    if (this._scaledCanvases.Contains(c) == false && this.ShouldScaleUI(c))
+                    if (this._scaledCanvases.ContainsKey(c) == false && this.ShouldScaleUI(c))
                     {
                         CanvasScaler cs = c.GetComponent<CanvasScaler>();
                         if (cs != null)
@@ -522,26 +561,67 @@ namespace HSUS
                             switch (cs.uiScaleMode)
                             {
                                 case CanvasScaler.ScaleMode.ConstantPixelSize:
-                                    cs.scaleFactor *= usedScale;
+                                    this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor, scaleFactor2 = cs.scaleFactor});
                                     break;
                                 case CanvasScaler.ScaleMode.ScaleWithScreenSize:
-                                    cs.referenceResolution = cs.referenceResolution / usedScale;
+                                    this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor, referenceResolution = cs.referenceResolution});
                                     break;
                             }
                         }
                         else
-                            c.scaleFactor *= usedScale;
-                        this._scaledCanvases.Add(c);
+                        {
+                            this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor });
+                        }
                     }
                 }
-                HashSet<Canvas> newScaledCanvases = new HashSet<Canvas>();
-                foreach (Canvas c in this._scaledCanvases)
+                Dictionary<Canvas, CanvasData> newScaledCanvases = new Dictionary<Canvas, CanvasData>();
+                foreach (KeyValuePair<Canvas, CanvasData> pair in this._scaledCanvases)
                 {
-                    if (c != null)
-                        newScaledCanvases.Add(c);
+                    if (pair.Key != null)
+                        newScaledCanvases.Add(pair.Key, pair.Value);
                 }
                 this._scaledCanvases = newScaledCanvases;
+                this.ApplyUIScale();
             }, 10);
+        }
+
+        private void ApplyUIScale()
+        {
+            float usedScale = this._binary == Binary.Game ? this._gameUIScale : this._neoUIScale;
+            if (usedScale != 1f) //Fuck you shortcutshsparty
+            {
+                Type t = Type.GetType("ShortcutsHSParty.DefaultMenuController,ShortcutsHSParty");
+                if (t != null)
+                {
+                    MonoBehaviour component = ((MonoBehaviour)Object.FindObjectOfType(t));
+                    if (component != null)
+                        component.enabled = false;
+                }
+            }
+            foreach (KeyValuePair<Canvas, CanvasData> pair in this._scaledCanvases)
+            {
+                if (pair.Key != null && this.ShouldScaleUI(pair.Key))
+                {
+                    //pair.Key.scaleFactor = pair.Value.scaleFactor * usedScale;
+                    CanvasScaler cs = pair.Key.GetComponent<CanvasScaler>();
+                    if (cs != null)
+                    {
+                        switch (cs.uiScaleMode)
+                        {
+                            case CanvasScaler.ScaleMode.ConstantPixelSize:
+                                cs.scaleFactor = pair.Value.scaleFactor2 * usedScale;
+                                break;
+                            case CanvasScaler.ScaleMode.ScaleWithScreenSize:
+                                cs.referenceResolution = pair.Value.referenceResolution / usedScale;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        pair.Key.scaleFactor = pair.Value.scaleFactor * usedScale;
+                    }
+                }
+            }
         }
 
         private bool ShouldScaleUI(Canvas c)
@@ -550,84 +630,85 @@ namespace HSUS
             string path = c.transform.GetPathFrom(null);
             if (this._binary == Binary.Neo)
             {
-                if (ok)
-                    ok = path != "StartScene/Canvas";
+                switch (path)
+                {
+                    case "StartScene/Canvas":
+                    case "VectorCanvas":
+                        ok = false;
+                        break;
+                }
             }
             else
             {
-                if (ok)
-                    ok = path != "LogoScene/Canvas";
-                if (ok)
-                    ok = path != "LogoScene/Canvas (1)";
-                if (ok)
-                    ok = path != "CustomScene/CustomControl/CustomUI/BackGround";
-                if (ok)
-                    ok = path != "CustomScene/CustomControl/CustomUI/Fusion";
-                if (ok)
-                    ok = path != "TitleScene/Canvas";
-                if (ok)
-                    ok = path != "GameScene/Canvas";
-                if (ok)
-                    ok = path != "MapSelectScene/Canvas";
-                if (ok)
-                    ok = path != "SubtitleUserInterface";
-                if (ok)
-                    ok = path != "ADVScene/Canvas";
+                switch (path)
+                {
+                    case "LogoScene/Canvas":
+                    case "LogoScene/Canvas (1)":
+                    case "CustomScene/CustomControl/CustomUI/BackGround":
+                    case "CustomScene/CustomControl/CustomUI/Fusion":
+                    case "TitleScene/Canvas":
+                    case "GameScene/Canvas":
+                    case "MapSelectScene/Canvas":
+                    case "SubtitleUserInterface":
+                    case "ADVScene/Canvas":
+                        ok = false;
+                        break;
+                }
             }
             Canvas parent = c.GetComponentInParent<Canvas>();
-            return c.isRootCanvas && (parent == null || parent == c) && c.name != "HSPE" && ok;
+            return ok && c.isRootCanvas && (parent == null || parent == c) && c.name != "HSPE";
         }
 
         private void InitDeleteConfirmationDialog()
         {
-                this._routines.ExecuteDelayed(() =>
-                {
-                    Canvas c = UIUtility.CreateNewUISystem("HSUSDeleteConfirmation");
-                    c.sortingOrder = 40;
-                    c.transform.SetParent(GameObject.Find("StudioScene").transform);
-                    c.transform.localPosition = Vector3.zero;
-                    c.transform.localScale = Vector3.one;
-                    c.transform.SetRect();
-                    c.transform.SetAsLastSibling();
-                    
-                    Image bg = UIUtility.CreateImage("Background", c.transform);
-                    bg.rectTransform.SetRect();
-                    bg.sprite = null;
-                    bg.color = new Color(0f, 0f, 0f, 0.5f);
-                    bg.raycastTarget = true;
+            this._routines.ExecuteDelayed(() =>
+            {
+                Canvas c = UIUtility.CreateNewUISystem("HSUSDeleteConfirmation");
+                c.sortingOrder = 40;
+                c.transform.SetParent(GameObject.Find("StudioScene").transform);
+                c.transform.localPosition = Vector3.zero;
+                c.transform.localScale = Vector3.one;
+                c.transform.SetRect();
+                c.transform.SetAsLastSibling();
 
-                    Image panel = UIUtility.CreatePanel("Panel", bg.transform);
-                    panel.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(640f/2, 360f/2), new Vector2(-640f/2, -360f/2));
-                    panel.color = Color.gray;
+                Image bg = UIUtility.CreateImage("Background", c.transform);
+                bg.rectTransform.SetRect();
+                bg.sprite = null;
+                bg.color = new Color(0f, 0f, 0f, 0.5f);
+                bg.raycastTarget = true;
 
-                    Text text = UIUtility.CreateText("Text", panel.transform, "Are you sure you want to delete this object?");
-                    text.rectTransform.SetRect(new Vector2(0f, 0.5f), Vector2.one, new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                    text.color = Color.white;
-                    text.resizeTextForBestFit = true;
-                    text.resizeTextMaxSize = 100;
-                    text.alignByGeometry = true;
-                    text.alignment = TextAnchor.MiddleCenter;
+                Image panel = UIUtility.CreatePanel("Panel", bg.transform);
+                panel.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(640f / 2, 360f / 2), new Vector2(-640f / 2, -360f / 2));
+                panel.color = Color.gray;
 
-                    Button yes = UIUtility.CreateButton("YesButton", panel.transform, "Yes");
-                    (yes.transform as RectTransform).SetRect(Vector2.zero, new Vector2(0.5f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                    text = yes.GetComponentInChildren<Text>();
-                    text.resizeTextForBestFit = true;
-                    text.resizeTextMaxSize = 100;
-                    text.alignByGeometry = true;
-                    text.alignment = TextAnchor.MiddleCenter;
+                Text text = UIUtility.CreateText("Text", panel.transform, "Are you sure you want to delete this object?");
+                text.rectTransform.SetRect(new Vector2(0f, 0.5f), Vector2.one, new Vector2(10f, 10f), new Vector2(-10f, -10f));
+                text.color = Color.white;
+                text.resizeTextForBestFit = true;
+                text.resizeTextMaxSize = 100;
+                text.alignByGeometry = true;
+                text.alignment = TextAnchor.MiddleCenter;
 
-                    Button no = UIUtility.CreateButton("NoButton", panel.transform, "No");
-                    (no.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), new Vector2(1f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                    text = no.GetComponentInChildren<Text>();
-                    text.resizeTextForBestFit = true;
-                    text.resizeTextMaxSize = 100;
-                    text.alignByGeometry = true;
-                    text.alignment = TextAnchor.MiddleCenter;
+                Button yes = UIUtility.CreateButton("YesButton", panel.transform, "Yes");
+                (yes.transform as RectTransform).SetRect(Vector2.zero, new Vector2(0.5f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
+                text = yes.GetComponentInChildren<Text>();
+                text.resizeTextForBestFit = true;
+                text.resizeTextMaxSize = 100;
+                text.alignByGeometry = true;
+                text.alignment = TextAnchor.MiddleCenter;
 
-                    c.gameObject.AddComponent<DeleteConfirmation>();
-                    c.gameObject.SetActive(false);
+                Button no = UIUtility.CreateButton("NoButton", panel.transform, "No");
+                (no.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), new Vector2(1f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
+                text = no.GetComponentInChildren<Text>();
+                text.resizeTextForBestFit = true;
+                text.resizeTextMaxSize = 100;
+                text.alignByGeometry = true;
+                text.alignment = TextAnchor.MiddleCenter;
 
-                }, 20);
+                c.gameObject.AddComponent<DeleteConfirmation>();
+                c.gameObject.SetActive(false);
+
+            }, 20);
         }
 
         private void ImproveNeoUI()
@@ -767,12 +848,12 @@ namespace HSUS
         }
     }
 
-    //[HarmonyPatch(typeof(HSColorSet), "SetSpecularRGB", new[] { typeof(Color) })]
+    //[HarmonyPatch(typeof(GuideObjectManager), "Add", new[] { typeof(Transform), typeof(int) })]
     //public class Testetetetetet
     //{
-    //    public static void Prefix(Color rgb)
+    //    public static void Prefix(Transform _target, int _dicKey, Dictionary<Transform, GuideObject> ___dicGuideObject)
     //    {
-    //        UnityEngine.Debug.Log("rgb " + rgb);
+    //        UnityEngine.Debug.LogError("Adding target " + _target.GetPathFrom(null) + "\n" + _dicKey + "Contained ? " + ___dicGuideObject.ContainsKey(_target));
     //    }
     //}
 
@@ -782,7 +863,7 @@ namespace HSUS
     //    public static void Prefix(Material mat, global::HSColorSet color, bool chgDif = true, bool chgSpe = true, global::HSColorSet color2 = null, bool chgDif2 = true, bool chgSpe2 = true)
     //    {
     //        UnityEngine.Debug.Log("spec color id " + Manager.Character.Instance._SpecColor + " " + mat.HasProperty(Manager.Character.Instance._SpecColor) + " " + Shader.PropertyToID("_SpecColor") + " " + mat.HasProperty("_SpecColor") + " " + mat.shader + " " + mat.GetColor("_SpecColor"));
-            
+
     //        UnityEngine.Debug.Log(mat + " " + (color != null ? color.rgbDiffuse + " " + color.rgbSpecular + " " + color.rgbaDiffuse : "") + " " + chgDif + " " + chgSpe + " " + (color2 != null ? color2.rgbDiffuse + " " + color2.rgbSpecular + " " + color2.rgbaDiffuse : "") + " " + chgDif2 + " " + chgSpe2);
     //    }
     //}
