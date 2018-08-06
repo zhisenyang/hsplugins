@@ -255,7 +255,8 @@ namespace HSUS
             {
                 ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
                 ItemFKCtrl_LateUpdate_Patches.ManualPatch(harmony);
-                HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
+                if (this._binary == Binary.Neo)
+                    HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
             }
         }
 

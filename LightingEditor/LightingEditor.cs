@@ -33,7 +33,7 @@ namespace LightingEditor
 #endif
     {
 #region Constants
-        public const string versionNum = "1.0.1";
+        public const string versionNum = "1.1.0";
 #if KOIKATSU
         private const int _saveVersion = 0;
         private const string _extSaveKey = "lightingData";
@@ -75,10 +75,11 @@ namespace LightingEditor
 
         private Light _target;
 
-#if KOIKATSU
-        private RectTransform _charaLightUI;
-        private bool _lastEnabled;
-
+#if HONEYSELECT
+        private Slider _shadowDistanceSlider;
+        private InputField _shadowDistanceInputField;
+        private float _defaultShadowDistance;
+#elif KOIKATSU
         private FieldInfo _sceneInfoLightCount;
 
         private Toggle _charaLightToggle;
@@ -104,9 +105,11 @@ namespace LightingEditor
 #endif
 
         private static int _lightIntensityMaxValue = 2;
-#endregion
+        private RectTransform _charaLightUI;
+        private bool _lastEnabled;
+        #endregion
 
-#region Plugins
+        #region Plugins
 #if HONEYSELECT
         public string Name { get { return "LightingEditor"; }}
         public string Version { get { return versionNum; } }
@@ -156,7 +159,8 @@ namespace LightingEditor
 #endif
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.lightingeditor");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
-            QualitySettings.pixelLightCount = ModPrefs.GetInt("LightingEditor", "pixelLightCountOverride", 16, true); ;
+            QualitySettings.pixelLightCount = ModPrefs.GetInt("LightingEditor", "pixelLightCountOverride", 16, true);
+            this._defaultShadowDistance = QualitySettings.shadowDistance;
         }
 
         public void OnApplicationQuit()
@@ -201,12 +205,14 @@ namespace LightingEditor
 
             if (lastTarget != this._target)
                 this.UpdateUI();
+
 #if KOIKATSU
             this._sceneInfoLightCount.SetValue(Studio.Studio.Instance.sceneInfo, 0); // Doing this here because patching didn't work for some reason
+            
+#endif
             if (this._lastEnabled != this._charaLightUI.gameObject.activeInHierarchy)
                 this.UpdateGlobalUI();
             this._lastEnabled = this._charaLightUI.gameObject.activeInHierarchy;
-#endif
         }
         #endregion
 
@@ -297,19 +303,32 @@ namespace LightingEditor
 
             layerTemplate.gameObject.SetActive(false);
 
-#if KOIKATSU
-
-
+#if HONEYSELECT
+            parent = GameObject.Find("StudioScene/Canvas Main Menu/04_System/03_CameraLight").transform as RectTransform;
+#elif KOIKATSU
             parent = GameObject.Find("StudioScene/Canvas Main Menu/04_System/03_Light").transform as RectTransform;
+#endif
             this._charaLightUI = parent;
             RectTransform globalContainer = GameObject.Instantiate(bundle.LoadAsset<GameObject>("Global Container")).GetComponent<RectTransform>();
             globalContainer.SetParent(parent);
             globalContainer.localPosition = Vector3.zero;
             globalContainer.localScale = Vector3.one;
+#if HONEYSELECT
+            globalContainer.anchoredPosition = new Vector2(-globalContainer.rect.width / 2, -88f);
+#elif KOIKATSU
             globalContainer.anchoredPosition = new Vector2(-95f, -110f);
+#endif
 
-            UnityEngine.Debug.LogError("hjfkdlsqf 1");
+#if HONEYSELECT
+            this._shadowDistanceSlider = globalContainer.Find("Shadow Distance/Slider").GetComponent<Slider>();
+            this._shadowDistanceSlider.onValueChanged.AddListener(this.ShadowDistanceChanged);
+            this._shadowDistanceInputField = globalContainer.Find("Shadow Distance/InputField").GetComponent<InputField>();
+            this._shadowDistanceInputField.onEndEdit.AddListener(this.ShadowDistanceChanged);
+            globalContainer.Find("Shadow Distance/Button").GetComponent<Button>().onClick.AddListener(this.ResetShadowDistance);
 
+            this._shadowDistanceSlider.value = QualitySettings.shadowDistance;
+            this._shadowDistanceInputField.text = QualitySettings.shadowDistance.ToString("0.00");
+#elif KOIKATSU
             this._charaLightToggle = globalContainer.Find("Enabled/Toggle").GetComponent<Toggle>();
             this._charaLightToggle.onValueChanged.AddListener(this.CharaLightToggled);
 
@@ -397,11 +416,14 @@ namespace LightingEditor
                 pair.Value.isOn = (this._target.cullingMask & (1 << pair.Key)) != 0;
         }
 
-#if KOIKATSU
         private void UpdateGlobalUI()
         {
             if (this._charaLightUI == null || this._charaLightUI.gameObject.activeInHierarchy == false)
                 return;
+#if HONEYSELECT
+            this._shadowDistanceSlider.value = QualitySettings.shadowDistance;
+            this._shadowDistanceInputField.text = QualitySettings.shadowDistance.ToString("0.00");
+#elif KOIKATSU
             this._charaLightToggle.isOn = ((Light)Studio.Studio.Instance.cameraLightCtrl.GetPrivate("lightChara").GetPrivate("light")).enabled;
 
             this._ambientIntensitySlider.value = RenderSettings.ambientIntensity;
@@ -418,8 +440,9 @@ namespace LightingEditor
             this._reflectionIntensitySlider.value = RenderSettings.reflectionIntensity;
             this._reflectionIntensityInputField.text = RenderSettings.reflectionIntensity.ToString("0.000");
             this.AmbientModeChanged(0);
+#endif
         }
-
+#if KOIKATSU
         private void OnSceneLoad(string path)
         {
             PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
@@ -459,6 +482,18 @@ namespace LightingEditor
         private void OnSceneLoad(string path, XmlNode node)
         {
             this.LoadGeneric(node);
+            if (node != null)
+            {
+                foreach (XmlNode childNode in node.ChildNodes)
+                {
+                    switch (childNode.Name)
+                    {
+                        case "shadowDistance":
+                            QualitySettings.shadowDistance = XmlConvert.ToSingle(childNode.Attributes["value"].Value);
+                            break;
+                    }
+                }
+            }
         }
 
         private void OnSceneImport(string path, XmlNode node)
@@ -475,6 +510,9 @@ namespace LightingEditor
         private void OnSceneSave(string path, XmlTextWriter xmlWriter)
         {
             xmlWriter.WriteAttributeString("version", LightingEditor.versionNum);
+            xmlWriter.WriteStartElement("shadowDistance");
+            xmlWriter.WriteAttributeString("value", XmlConvert.ToString(QualitySettings.shadowDistance));
+            xmlWriter.WriteEndElement();
             SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
             {
@@ -657,7 +695,26 @@ namespace LightingEditor
             bool enabled = this._cullingMaskLayers[layer].isOn;
             this._target.cullingMask = (this._target.cullingMask & ~(1 << layer)) | ((enabled ? 1 : 0) << layer);
         }
-#if KOIKATSU
+#if HONEYSELECT
+        private void ShadowDistanceChanged(float f)
+        {
+            QualitySettings.shadowDistance = this._shadowDistanceSlider.value;
+            this._shadowDistanceInputField.text = QualitySettings.shadowDistance.ToString("0.00");
+        }
+        private void ShadowDistanceChanged(string s)
+        {
+            QualitySettings.shadowDistance = float.Parse(this._shadowDistanceInputField.text);
+            this._shadowDistanceSlider.value = QualitySettings.shadowDistance;
+            this._shadowDistanceInputField.text = QualitySettings.shadowDistance.ToString("0.00");
+        }
+        private void ResetShadowDistance()
+        {
+            QualitySettings.shadowDistance = this._defaultShadowDistance;
+            this._shadowDistanceSlider.value = QualitySettings.shadowDistance;
+            this._shadowDistanceInputField.text = QualitySettings.shadowDistance.ToString("0.00");
+        }
+
+#elif KOIKATSU
         private void CharaLightToggled(bool b)
         {
             ((Light)Studio.Studio.Instance.cameraLightCtrl.GetPrivate("lightChara").GetPrivate("light")).enabled = this._charaLightToggle.isOn;
@@ -794,6 +851,47 @@ namespace LightingEditor
                     else
                         yield return inst;
                 }
+            }
+        }
+
+        [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
+        public class Studio_Duplicate_Patches
+        {
+            private static SortedList<int, OCILight> _toDuplicate;
+
+            public static void Prefix(Studio.Studio __instance)
+            {
+                _toDuplicate = new SortedList<int, OCILight>();
+                TreeNodeObject[] selectNodes = __instance.treeNodeCtrl.selectNodes;
+                for (int i = 0; i < selectNodes.Length; i++)
+                {
+                    ObjectCtrlInfo objectCtrlInfo = null;
+                    if (__instance.dicInfo.TryGetValue(selectNodes[i], out objectCtrlInfo))
+                    {
+                        objectCtrlInfo.OnSavePreprocessing();
+                        OCILight ociLight = objectCtrlInfo as OCILight;
+                        if (ociLight != null)
+                            _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, ociLight);
+                    }
+                }
+            }
+
+            public static void Postfix(Studio.Studio __instance)
+            {
+                IEnumerator<KeyValuePair<int, OCILight>> enumerator = _toDuplicate.GetEnumerator();
+                foreach (KeyValuePair<int, ObjectInfo> keyValuePair in new SortedDictionary<int, ObjectInfo>(__instance.sceneInfo.dicImport))
+                {
+                    OCILight dest = __instance.dicObjectCtrl[keyValuePair.Value.dicKey] as OCILight;
+                    if (dest != null && enumerator.MoveNext())
+                    {
+                        dest.light.shadowStrength = enumerator.Current.Value.light.shadowStrength;
+                        dest.light.shadowBias = enumerator.Current.Value.light.shadowBias;
+                        dest.light.shadowNormalBias = enumerator.Current.Value.light.shadowNormalBias;
+                        dest.light.shadowNearPlane = enumerator.Current.Value.light.shadowNearPlane;
+                        dest.light.cullingMask = enumerator.Current.Value.light.cullingMask;
+                    }
+                }
+                enumerator.Dispose();
             }
         }
         #endregion

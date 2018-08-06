@@ -34,6 +34,8 @@ namespace RendererEditor
                 public readonly Dictionary<string, TextureData> dirtyTextureProperties = new Dictionary<string, TextureData>();
                 public readonly Dictionary<string, Vector2> dirtyTextureOffsetProperties = new Dictionary<string, Vector2>();
                 public readonly Dictionary<string, Vector2> dirtyTextureScaleProperties = new Dictionary<string, Vector2>();
+                public readonly HashSet<string> disabledKeywords = new HashSet<string>();
+                public readonly HashSet<string> enabledKeywords = new HashSet<string>();
             }
 
             public ShadowCastingMode shadowCastingMode;
@@ -163,6 +165,8 @@ namespace RendererEditor
         private string _textureFilter = "";
         private readonly Dictionary<Material, Renderer> _rendererByMaterial = new Dictionary<Material, Renderer>();
         private readonly List<VectorLine> _boundsDebugLines = new List<VectorLine>();
+        private Vector2 _keywordsScroll;
+        private string _keywordInput = "";
         #endregion
 
         #region Unity Methods
@@ -468,6 +472,11 @@ namespace RendererEditor
                     foreach (ShaderProperty property in cachedProperties)
                         this.ShaderPropertyDrawer(property);
                 }
+
+                {
+                    this.KeywordsDrawer();
+                }
+
                 GUILayout.EndScrollView();
 
                 {
@@ -703,7 +712,7 @@ namespace RendererEditor
 
         private void TryResetMaterial(Material mat, RendererData.MaterialData materialData, RendererData rendererData)
         {
-            if (materialData.hasRenderQueue == false && materialData.dirtyColorProperties.Count == 0 && materialData.dirtyBooleanProperties.Count == 0 && materialData.dirtyEnumProperties.Count == 0 && materialData.dirtyFloatProperties.Count == 0 && materialData.dirtyVector4Properties.Count == 0 && materialData.dirtyTextureOffsetProperties.Count == 0 && materialData.dirtyTextureScaleProperties.Count == 0 && materialData.dirtyTextureProperties.Count == 0)
+            if (materialData.hasRenderQueue == false && materialData.dirtyColorProperties.Count == 0 && materialData.dirtyBooleanProperties.Count == 0 && materialData.dirtyEnumProperties.Count == 0 && materialData.dirtyFloatProperties.Count == 0 && materialData.dirtyVector4Properties.Count == 0 && materialData.dirtyTextureOffsetProperties.Count == 0 && materialData.dirtyTextureScaleProperties.Count == 0 && materialData.dirtyTextureProperties.Count == 0 && materialData.enabledKeywords.Count == 0 && materialData.disabledKeywords.Count == 0)
             {
                 this.ResetMaterial(mat, materialData, rendererData);
             }
@@ -1231,6 +1240,76 @@ namespace RendererEditor
             }
             GUILayout.EndHorizontal();
         }
+
+        private void KeywordsDrawer()
+        {
+            GUILayout.BeginHorizontal();
+            this._keywordsScroll = GUILayout.BeginScrollView(this._keywordsScroll, GUI.skin.box, GUILayout.Height(60f));
+            Material material = this._selectedMaterials.First();
+            foreach (string keyword in material.shaderKeywords)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(keyword);
+                if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
+                {
+                    foreach (Material selectedMaterial in this._selectedMaterials)
+                    {
+                        if (selectedMaterial.IsKeywordEnabled(keyword))
+                        {
+                            this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
+                            if (materialData.disabledKeywords.Contains(keyword) == false)
+                            {
+                                materialData.disabledKeywords.Add(keyword);
+                                selectedMaterial.DisableKeyword(keyword);
+                            }
+                            if (materialData.enabledKeywords.Contains(keyword))
+                                materialData.enabledKeywords.Remove(keyword);
+                        }
+                    }
+                }
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+            {
+                foreach (Material selectedMaterial in this._selectedMaterials)
+                    if (this._dirtyRenderers.TryGetValue(this._rendererByMaterial[selectedMaterial], out RendererData rendererData) &&
+                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial, out RendererData.MaterialData materialData))
+                    {
+                        foreach (string enabledKeyword in materialData.enabledKeywords)
+                            selectedMaterial.DisableKeyword(enabledKeyword);
+                        materialData.enabledKeywords.Clear();
+                        foreach (string disabledKeyword in materialData.disabledKeywords)
+                            selectedMaterial.EnableKeyword(disabledKeyword);
+                        materialData.disabledKeywords.Clear();
+                        this.TryResetMaterial(selectedMaterial, materialData, rendererData);
+                    }
+                
+            }
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            this._keywordInput = GUILayout.TextField(this._keywordInput);
+            if (GUILayout.Button("Add Keyword", GUILayout.ExpandWidth(false)))
+            {
+                foreach (Material selectedMaterial in this._selectedMaterials)
+                {
+                    if (selectedMaterial.IsKeywordEnabled(this._keywordInput) == false)
+                    {
+                        this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
+                        if (materialData.enabledKeywords.Contains(this._keywordInput) == false)
+                        {
+                            materialData.enabledKeywords.Add(this._keywordInput);
+                            selectedMaterial.EnableKeyword(this._keywordInput);
+                        }
+                        if (materialData.disabledKeywords.Contains(this._keywordInput))
+                            materialData.disabledKeywords.Remove(this._keywordInput);
+                    }
+                }
+                this._keywordInput = "";
+            }
+
+            GUILayout.EndHorizontal();
+        }
         #endregion
 
         #region Saves
@@ -1379,6 +1458,22 @@ namespace RendererEditor
                                                             mat.SetVector(key, scale);
                                                         }
                                                         break;
+                                                    case "enabledKeywords":
+                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                        {
+                                                            string keyword = property.Attributes["value"].Value;
+                                                            materialData.enabledKeywords.Add(keyword);
+                                                            mat.EnableKeyword(keyword);
+                                                        }
+                                                        break;
+                                                    case "disabledKeywords":
+                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                        {
+                                                            string keyword = property.Attributes["value"].Value;
+                                                            materialData.disabledKeywords.Add(keyword);
+                                                            mat.DisableKeyword(keyword);
+                                                        }
+                                                        break;
                                                 }
                                             }
                                             break;
@@ -1504,6 +1599,24 @@ namespace RendererEditor
                         writer.WriteAttributeString("x", XmlConvert.ToString(value.x));
                         writer.WriteAttributeString("y", XmlConvert.ToString(value.y));
                         writer.WriteAttributeString("z", XmlConvert.ToString(value.z));
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("enabledKeywords");
+                    foreach (string keyword in materialPair.Value.enabledKeywords)
+                    {
+                        writer.WriteStartElement("keyword");
+                        writer.WriteAttributeString("value", keyword);
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("disabledKeywords");
+                    foreach (string keyword in materialPair.Value.disabledKeywords)
+                    {
+                        writer.WriteStartElement("keyword");
+                        writer.WriteAttributeString("value", keyword);
                         writer.WriteEndElement();
                     }
                     writer.WriteEndElement();
