@@ -35,7 +35,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'HS|AnyCPU'">
     <OutputPath>bin\HS\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;HONEYSELECT</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -44,7 +44,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'KOI|AnyCPU'">
     <OutputPath>bin\KOI\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;KOIKATSU</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -113,7 +113,7 @@
     <Content Include="ILMergeOrder.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
+    <ProjectReference Condition=" '$(Configuration)' == 'HS' " Include="..\HSExtSave\HSExtSave.csproj">
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
       <Name>HSExtSave</Name>
       <Private>False</Private>

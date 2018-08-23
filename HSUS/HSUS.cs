@@ -53,6 +53,7 @@ namespace HSUS
         private bool _eyesBlink = false;
         private bool _cameraSpeedShortcuts = true;
         private bool _alternativeCenterToObject = true;
+        private bool _fingersFkCopyButtons = true;
 
         private bool _ssaoEnabled = true;
         private bool _bloomEnabled = true;
@@ -194,6 +195,14 @@ namespace HSUS
                     case "alternativeCenterToObject":
                         if (node.Attributes["enabled"] != null)
                             this._alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "fingersFkCopyButtons":
+                        if (node.Attributes["enabled"] != null)
+                            this._fingersFkCopyButtons = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
+                    case "vsync":
+                        if (node.Attributes["enabled"] != null && XmlConvert.ToBoolean(node.Attributes["enabled"].Value) == false)
+                            QualitySettings.vSyncCount = 0;
                         break;
                     case "postProcessing":
                         foreach (XmlNode childNode in node.ChildNodes)
@@ -371,6 +380,18 @@ namespace HSUS
                     }
 
                     {
+                        xmlWriter.WriteStartElement("fingersFkCopyButtons");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fingersFkCopyButtons));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
+                        xmlWriter.WriteStartElement("vsync");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(QualitySettings.vSyncCount != 0));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
                         xmlWriter.WriteStartElement("postProcessing");
 
                         {
@@ -424,7 +445,7 @@ namespace HSUS
 
         public void OnLevelWasLoaded(int level)
         {
-            UIUtility.Init();
+            UIUtility.SetCustomFont("mplus-1c-medium");
         }
 
         public void OnLevelWasInitialized(int level)
@@ -432,22 +453,33 @@ namespace HSUS
             this._go = new GameObject("HSUS");
             this._go.AddComponent<ObjectTreeDebug>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
-
-            if (this._optimizeCharaMaker)
-                this.InitFasterCharaMakerLoading();
-            this.InitUIScale();
-            if (this._deleteConfirmation && this._binary == Binary.Neo && level == 3)
-                this.InitDeleteConfirmationDialog();
-            if (this._disableShortcutsWhenTyping)
-                this._go.AddComponent<ShortcutsDisabler>();
-            if (this._binary == Binary.Game && level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
-                this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
-            if (this._improveNeoUI && this._binary == Binary.Neo && level == 3)
-                this.ImproveNeoUI();
             if (level == 3)
                 this.SetProcessAffinity();
-            if (this._binary == Binary.Neo && level == 3 && this._improvedTransformOperations)
-                GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
+            switch (this._binary)
+            {
+                case Binary.Game:
+                    if (this._optimizeCharaMaker)
+                        this.InitFasterCharaMakerLoading();
+                    if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+                        this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+                    break;
+                case Binary.Neo:
+                    if (level == 3)
+                    {
+                        if (this._deleteConfirmation)
+                            this.InitDeleteConfirmationDialog();
+                        if (this._improveNeoUI)
+                            this.ImproveNeoUI();
+                        if (this._improvedTransformOperations)
+                            GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
+                        if (this._fingersFkCopyButtons)
+                            this.InitFingersFKCopyButtons();
+                    }
+                    break;
+            }
+            this.InitUIScale();
+            if (this._disableShortcutsWhenTyping)
+                this._go.AddComponent<ShortcutsDisabler>();
         }
 
         public void OnUpdate()
@@ -499,7 +531,6 @@ namespace HSUS
                     if (shouldBreak)
                         break;
                 }
-                UIUtility.SetCustomFont("mplus-1c-medium");
                 foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
                 {
                     SmClothes_F_Data.Init(f);
@@ -732,6 +763,74 @@ namespace HSUS
             t.resizeTextMaxSize = 100;
         }
 
+        private void InitFingersFKCopyButtons()
+        {
+            RectTransform toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Right Hand").transform as RectTransform;
+            Button b = UIUtility.CreateButton("Copy Right Fingers Button", toggle.parent, "From Anim");
+            b.transform.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
+            b.onClick.AddListener(() =>
+            {
+                TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
+                if (treeNodeObject == null)
+                    return;
+                ObjectCtrlInfo info;
+                if (!Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
+                    return;
+                OCIChar selected = info as OCIChar;
+                if (selected == null)
+                    return;
+                this.CopyToFKBoneOfGroup(selected.listBones, OIBoneInfo.BoneGroup.RightHand);
+            });
+            Text text = b.GetComponentInChildren<Text>();
+            text.rectTransform.SetRect();
+            text.color = Color.white;
+            Image image = b.GetComponent<Image>();
+            image.sprite = null;
+            image.color = new Color32(89, 88, 85, 255);
+            toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Left Hand").transform as RectTransform;
+            b = UIUtility.CreateButton("Copy Left Fingers Button", toggle.parent, "From Anim");
+            b.transform.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
+            b.onClick.AddListener(() =>
+            {
+                TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
+                if (treeNodeObject == null)
+                    return;
+                ObjectCtrlInfo info;
+                if (!Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
+                    return;
+                OCIChar selected = info as OCIChar;
+                if (selected == null)
+                    return;
+                this.CopyToFKBoneOfGroup(selected.listBones, OIBoneInfo.BoneGroup.LeftHand);
+            });
+            text = b.GetComponentInChildren<Text>();
+            text.rectTransform.SetRect();
+            text.color = Color.white;
+            image = b.GetComponent<Image>();
+            image.sprite = null;
+            image.color = new Color32(89, 88, 85, 255);
+        }
+
+        private void CopyToFKBoneOfGroup(List<OCIChar.BoneInfo> listBones, OIBoneInfo.BoneGroup group)
+        {
+            List<GuideCommand.EqualsInfo> infos = new List<GuideCommand.EqualsInfo>();
+            foreach (OCIChar.BoneInfo bone in listBones)
+            {
+                if (bone.guideObject != null && bone.guideObject.transformTarget != null && bone.boneGroup == group)
+                {
+                    Vector3 oldValue = bone.guideObject.changeAmount.rot;
+                    bone.guideObject.changeAmount.rot = bone.guideObject.transformTarget.localEulerAngles;
+                    infos.Add(new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = bone.guideObject.dicKey,
+                        oldValue = oldValue,
+                        newValue = bone.guideObject.changeAmount.rot
+                    });
+                }
+            }
+            UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
+        }
+
         private void LoadCustomDefault(string path)
         {
             CustomControl customControl = Resources.FindObjectsOfTypeAll<CustomControl>()[0];
@@ -855,17 +954,6 @@ namespace HSUS
     //    public static void Prefix(Transform _target, int _dicKey, Dictionary<Transform, GuideObject> ___dicGuideObject)
     //    {
     //        UnityEngine.Debug.LogError("Adding target " + _target.GetPathFrom(null) + "\n" + _dicKey + "Contained ? " + ___dicGuideObject.ContainsKey(_target));
-    //    }
-    //}
-
-    //[HarmonyPatch(typeof(ColorChange), "SetHSColor", new[] { typeof(Material), typeof(HSColorSet), typeof(bool), typeof(bool), typeof(HSColorSet), typeof(bool), typeof(bool) })]
-    //public class gfdsgfds
-    //{
-    //    public static void Prefix(Material mat, global::HSColorSet color, bool chgDif = true, bool chgSpe = true, global::HSColorSet color2 = null, bool chgDif2 = true, bool chgSpe2 = true)
-    //    {
-    //        UnityEngine.Debug.Log("spec color id " + Manager.Character.Instance._SpecColor + " " + mat.HasProperty(Manager.Character.Instance._SpecColor) + " " + Shader.PropertyToID("_SpecColor") + " " + mat.HasProperty("_SpecColor") + " " + mat.shader + " " + mat.GetColor("_SpecColor"));
-
-    //        UnityEngine.Debug.Log(mat + " " + (color != null ? color.rgbDiffuse + " " + color.rgbSpecular + " " + color.rgbaDiffuse : "") + " " + chgDif + " " + chgSpe + " " + (color2 != null ? color2.rgbDiffuse + " " + color2.rgbSpecular + " " + color2.rgbaDiffuse : "") + " " + chgDif2 + " " + chgSpe2);
     //    }
     //}
 }

@@ -439,7 +439,6 @@ namespace HSPE.AMModules
                         if (kvp.Value.originalWeight.hasValue)
                             db.SetWeight(kvp.Key.GetWeight());
                         this._dirtyDynamicBones.Add(db, new DynamicBoneData(kvp.Value));
-
                     }
                     this._dynamicBonesScroll = other._dynamicBonesScroll;
                 }
