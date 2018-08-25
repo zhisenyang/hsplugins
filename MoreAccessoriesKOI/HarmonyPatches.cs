@@ -2,11 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Security.Policy;
 using ChaCustom;
 using Harmony;
 using Illusion.Extensions;
 using IllusionUtility.GetUtility;
 using Manager;
+using MessagePack;
 using TMPro;
 using UniRx;
 using UniRx.Triggers;
@@ -53,10 +56,11 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsChangeSlot), "ChangeColorWindow", new[] { typeof(int) })]
+    [HarmonyPatch(typeof(CustomAcsChangeSlot), "ChangeColorWindow", new[] {typeof(int)})]
     internal static class CustomAcsChangeSlot_ChangeColorWindow_Patches
     {
         private static CvsColor cvsColor;
+
         private static bool Prefix(CustomAcsChangeSlot __instance, int no)
         {
             if (cvsColor == null)
@@ -86,7 +90,7 @@ namespace MoreAccessoriesKOI
             bool[] array = new bool[2];
             if (((CanvasGroup)__instance.GetPrivate("cgAccessoryTop")).alpha == 1f)
             {
-                int selectIndex = MoreAccessories._self.GetSelecterMakerIndex();
+                int selectIndex = MoreAccessories._self.GetSelectedMakerIndex();
                 if (selectIndex != -1)
                 {
                     CvsAccessory accessory = MoreAccessories._self.GetCvsAccessory(selectIndex);
@@ -108,7 +112,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeCoordinateType", new[] { typeof(ChaFileDefine.CoordinateType), typeof(bool) })]
+    [HarmonyPatch(typeof(ChaControl), "ChangeCoordinateType", new[] {typeof(ChaFileDefine.CoordinateType), typeof(bool)})]
     internal static class ChaControl_ChangeCoordinateType_Patches
     {
         private static void Prefix(ChaControl __instance, ChaFileDefine.CoordinateType type, bool changeBackCoordinateType)
@@ -165,7 +169,7 @@ namespace MoreAccessoriesKOI
                 index = (byte)idx
             }).ToList().ForEach(p =>
             {
-                p.toggle.OnValueChangedAsObservable().Subscribe(delegate (bool isOn)
+                p.toggle.OnValueChangedAsObservable().Subscribe(delegate(bool isOn)
                 {
                     if (!(bool)__instance.GetPrivate("updateWin") && isOn)
                     {
@@ -188,7 +192,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsParentWindow), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
+    [HarmonyPatch(typeof(CustomAcsParentWindow), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
     internal static class CustomAcsParentWindow_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsParentWindow __instance, int _no, bool open)
@@ -206,7 +210,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsParentWindow), "UpdateCustomUI", new[] { typeof(int) })]
+    [HarmonyPatch(typeof(CustomAcsParentWindow), "UpdateCustomUI", new[] {typeof(int)})]
     internal static class CustomAcsParentWindow_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsParentWindow __instance, int param, ref int __result)
@@ -274,11 +278,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                 where isOn
-                 select isOn).Subscribe(delegate
-                 {
-                     Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo] = p.index;
-                 });
+                    where isOn
+                    select isOn).Subscribe(delegate
+                {
+                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo] = p.index;
+                });
             });
             ((Toggle[])__instance.GetPrivate("tglRotRate")).Select((p, idx) => new
             {
@@ -287,11 +291,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                 where isOn
-                 select isOn).Subscribe(delegate
-                 {
-                     Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo] = p.index;
-                 });
+                    where isOn
+                    select isOn).Subscribe(delegate
+                {
+                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo] = p.index;
+                });
             });
             ((Toggle[])__instance.GetPrivate("tglSclRate")).Select((p, idx) => new
             {
@@ -300,11 +304,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                 where isOn
-                 select isOn).Subscribe(delegate
-                 {
-                     Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo] = p.index;
-                 });
+                    where isOn
+                    select isOn).Subscribe(delegate
+                {
+                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo] = p.index;
+                });
             });
             float downTimeCnt = 0f;
             float loopTimeCnt = 0f;
@@ -376,7 +380,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(-100f, 100f, 1, value);
@@ -459,7 +463,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(0f, 360f, 0, value);
@@ -540,7 +544,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(0.01f, 100f, 2, value);
@@ -603,7 +607,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
     internal static class CustomAcsMoveWindow_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int _no, bool open)
@@ -623,7 +627,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateCustomUI", new[] { typeof(int) })]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateCustomUI", new[] {typeof(int)})]
     internal static class CustomAcsMoveWindow_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int param)
@@ -640,7 +644,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateDragValue", new[] { typeof(int), typeof(int), typeof(float) })]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateDragValue", new[] {typeof(int), typeof(int), typeof(float)})]
     internal static class CustomAcsMoveWindow_UpdateDragValue_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int type, int xyz, float move)
@@ -648,26 +652,26 @@ namespace MoreAccessoriesKOI
             switch (type)
             {
                 case 0:
-                    {
-                        float val = move * ((float[])__instance.GetPrivate("movePosValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo]];
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, xyz, true, val);
-                        ((TMP_InputField[])__instance.GetPrivate("inpPos"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0][xyz].ToString();
-                        break;
-                    }
+                {
+                    float val = move * ((float[])__instance.GetPrivate("movePosValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo]];
+                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, xyz, true, val);
+                    ((TMP_InputField[])__instance.GetPrivate("inpPos"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0][xyz].ToString();
+                    break;
+                }
                 case 1:
-                    {
-                        float val2 = move * ((float[])__instance.GetPrivate("moveRotValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo]];
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, xyz, true, val2);
-                        ((TMP_InputField[])__instance.GetPrivate("inpRot"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 1][xyz].ToString();
-                        break;
-                    }
+                {
+                    float val2 = move * ((float[])__instance.GetPrivate("moveRotValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo]];
+                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, xyz, true, val2);
+                    ((TMP_InputField[])__instance.GetPrivate("inpRot"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 1][xyz].ToString();
+                    break;
+                }
                 case 2:
-                    {
-                        float val3 = move * ((float[])__instance.GetPrivate("moveSclValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo]];
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, xyz, true, val3);
-                        ((TMP_InputField[])__instance.GetPrivate("inpScl"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 2][xyz].ToString();
-                        break;
-                    }
+                {
+                    float val3 = move * ((float[])__instance.GetPrivate("moveSclValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo]];
+                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, xyz, true, val3);
+                    ((TMP_InputField[])__instance.GetPrivate("inpScl"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 2][xyz].ToString();
+                    break;
+                }
             }
             MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
             return false;
@@ -684,7 +688,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
     internal static class CustomAcsSelectKind_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int _no, bool open)
@@ -700,7 +704,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "UpdateCustomUI", new[] { typeof(int) })]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "UpdateCustomUI", new[] {typeof(int)})]
     internal static class CustomAcsSelectKind_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int param)
@@ -710,7 +714,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "OnSelect", new[] { typeof(int) })]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "OnSelect", new[] {typeof(int)})]
     internal static class CustomAcsSelectKind_OnSelect_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int index)
@@ -744,10 +748,10 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultColor", new[] {typeof(Color), typeof(int), typeof(int)}, new []{0})]
+    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultColor", new[] {typeof(Color), typeof(int), typeof(int)}, new[] {0})]
     internal static class ChaControl_GetAccessoryDefaultColor_Patches
     {
-        private static bool Prefix (ChaControl __instance, ref Color color, int slotNo, int no, ref bool __result)
+        private static bool Prefix(ChaControl __instance, ref Color color, int slotNo, int no, ref bool __result)
         {
             ChaAccessoryComponent chaAccessoryComponent;
             if (slotNo < 20)
@@ -964,7 +968,7 @@ namespace MoreAccessoriesKOI
             }
             Dictionary<int, ListInfoBase> categoryInfo = __instance.lstCtrl.GetCategoryInfo((ChaListDefine.CategoryNo)part.type);
             ListInfoBase listInfoBase = null;
-                categoryInfo.TryGetValue(part.id, out listInfoBase);
+            categoryInfo.TryGetValue(part.id, out listInfoBase);
             if (listInfoBase.GetInfoInt(ChaListDefine.KeyType.HideHair) == 1)
             {
                 for (int i = 0; i < 2; i++)
@@ -1066,7 +1070,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryParent", new[] {typeof(int), typeof(string) })]
+    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryParent", new[] {typeof(int), typeof(string)})]
     internal static class ChaControl_ChangeAccessoryParent_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, string parentStr, ref bool __result)
@@ -1079,7 +1083,7 @@ namespace MoreAccessoriesKOI
             {
                 additionalData = MoreAccessories._self._accessoriesByChar[__instance.chaFile];
                 gameObject = additionalData.objAccessory[slotNo - 20];
-                
+
             }
             if (null == gameObject)
             {
@@ -1108,7 +1112,7 @@ namespace MoreAccessoriesKOI
                     return false;
                 }
                 gameObject.transform.SetParent(referenceInfo.transform, false);
-                
+
                 if (slotNo < 20)
                 {
                     __instance.nowCoordinate.accessory.parts[slotNo].parentKey = parentStr;
@@ -1508,5 +1512,4 @@ namespace MoreAccessoriesKOI
 
     }
     #endregion
-
 }

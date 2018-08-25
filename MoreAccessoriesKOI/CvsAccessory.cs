@@ -49,7 +49,9 @@ namespace MoreAccessoriesKOI
         {
             private static bool Prefix(CvsAccessory __instance)
             {
-                int selectIndex = MoreAccessories._self.GetSelecterMakerIndex();
+                int selectIndex = MoreAccessories._self.GetSelectedMakerIndex();
+                if (selectIndex < 0)
+                    return false;
                 __instance.CalculateUI();
                 ((CvsDrawCtrl)__instance.GetPrivate("cmpDrawCtrl")).UpdateAccessoryDraw();
                 int num = MoreAccessories._self.GetPart(selectIndex).type - 120;
@@ -63,11 +65,12 @@ namespace MoreAccessoriesKOI
                 CvsColor cvsColor = (CvsColor)__instance.GetPrivate("cvsColor");
                 for (int i = 0; i < MoreAccessories._self.GetPartsLength(); i++)
                 {
+                    ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetPart(i);
                     for (int j = 0; j < 4; j++)
                     {
                         if ((int)cvsColor.connectColorKind == i * 4 + j + offset)
                         {
-                            cvsColor.SetColor(MoreAccessories._self.GetPart(i).color[j]);
+                            cvsColor.SetColor(part.color[j]);
                             flag = true;
                             break;
                         }
@@ -1346,5 +1349,140 @@ namespace MoreAccessoriesKOI
                 return false;
             }
         }
+
+        [HarmonyPatch(typeof(CvsAccessoryCopy), "ChangeDstDD")]
+        private static class CvsAccessoryCopy_ChangeDstDD_Patches
+        {
+            private static void Postfix(CvsAccessoryCopy __instance)
+            {
+                List<ChaFileAccessory.PartsInfo> parts;
+                TMP_Dropdown[] ddCoordeType = ((TMP_Dropdown[])__instance.GetPrivate("ddCoordeType"));
+                if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[0].value, out parts))
+                {
+                    for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                    {
+                        if (i < parts.Count)
+                        {
+                            ChaFileAccessory.PartsInfo part = parts[i];
+                            ListInfoBase listInfo = Singleton<CustomBase>.Instance.chaCtrl.lstCtrl.GetListInfo((ChaListDefine.CategoryNo)part.type, part.id);
+                            MoreAccessories._self._additionalCharaMakerSlots[i].copyDestinationText.text = listInfo == null ? "なし" : listInfo.Name;
+                        }
+                        else
+                            MoreAccessories._self._additionalCharaMakerSlots[i].copyDestinationText.text = "なし";
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                        MoreAccessories._self._additionalCharaMakerSlots[i].copyDestinationText.text = "なし";
+                }
+                int srcCount = 0;
+                if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[1].value, out parts))
+                    srcCount = parts.Count;
+                int j = 0;
+                for (; j < srcCount; j++)
+                    MoreAccessories._self._additionalCharaMakerSlots[j].copySlotObject.SetActive(true);
+                for (; j < MoreAccessories._self._additionalCharaMakerSlots.Count; ++j)
+                    MoreAccessories._self._additionalCharaMakerSlots[j].copySlotObject.SetActive(false);
+            }
+        }
+
+        [HarmonyPatch(typeof(CvsAccessoryCopy), "ChangeSrcDD")]
+        private static class CvsAccessoryCopy_ChangeSrcDD_Patches
+        {
+            private static void Postfix(CvsAccessoryCopy __instance)
+            {
+                List<ChaFileAccessory.PartsInfo> parts;
+                TMP_Dropdown[] ddCoordeType = ((TMP_Dropdown[])__instance.GetPrivate("ddCoordeType"));
+                int srcCount = 0;
+                if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[1].value, out parts))
+                {
+                    srcCount = parts.Count;
+                    for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                    {
+                        if (i < parts.Count)
+                        {
+                            ChaFileAccessory.PartsInfo part = parts[i];
+                            ListInfoBase listInfo = Singleton<CustomBase>.Instance.chaCtrl.lstCtrl.GetListInfo((ChaListDefine.CategoryNo)part.type, part.id);
+                            MoreAccessories._self._additionalCharaMakerSlots[i].copySourceText.text = listInfo == null ? "なし" : listInfo.Name;
+                        }
+                        else
+                            MoreAccessories._self._additionalCharaMakerSlots[i].copySourceText.text = "なし";
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                        MoreAccessories._self._additionalCharaMakerSlots[i].copySourceText.text = "なし";
+                }
+                int j = 0;
+                for (; j < srcCount; j++)
+                    MoreAccessories._self._additionalCharaMakerSlots[j].copySlotObject.SetActive(true);
+                for (; j < MoreAccessories._self._additionalCharaMakerSlots.Count; ++j)
+                    MoreAccessories._self._additionalCharaMakerSlots[j].copySlotObject.SetActive(false);
+
+            }
+        }
+
+        [HarmonyPatch(typeof(CvsAccessoryCopy), "CopyAcs")]
+        private static class CvsAccessoryCopy_CopyAcs_Patches
+        {
+            private static void Prefix(CvsAccessoryCopy __instance)
+            {
+                TMP_Dropdown[] ddCoordeType = ((TMP_Dropdown[])__instance.GetPrivate("ddCoordeType"));
+                List<ChaFileAccessory.PartsInfo> srcParts;
+                if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[1].value, out srcParts) == false)
+                {
+                    srcParts = new List<ChaFileAccessory.PartsInfo>();
+                    MoreAccessories._self._charaMakerData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)ddCoordeType[1].value, srcParts);
+                }
+                List<ChaFileAccessory.PartsInfo> dstParts;
+                if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[0].value, out dstParts) == false)
+                {
+                    dstParts = new List<ChaFileAccessory.PartsInfo>();
+                    MoreAccessories._self._charaMakerData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)ddCoordeType[0].value, dstParts);
+                }
+                for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                {
+                    MoreAccessories.CharaMakerSlotData slot = MoreAccessories._self._additionalCharaMakerSlots[i];
+                    if (slot.copyToggle.isOn)
+                    {
+                        byte[] array = MessagePackSerializer.Serialize(srcParts[i]);
+                        while (i >= dstParts.Count)
+                        {
+                            ChaFileAccessory.PartsInfo part = new ChaFileAccessory.PartsInfo();
+                            part.MemberInit();
+                            dstParts.Add(part);
+                        }
+                        dstParts[i] = MessagePackSerializer.Deserialize<ChaFileAccessory.PartsInfo>(array);
+
+                    }
+                }
+            }
+        }
+
+
+        [HarmonyPatch(typeof(CvsAccessoryCopy), "Start")]
+        private static class CvsAccessoryCopy_Start_Patches
+        {
+            private static void Postfix(CvsAccessoryCopy __instance)
+            {
+                ((Button)__instance.GetPrivate("btnAllOn")).onClick.AddListener(() =>
+                {
+                    foreach (MoreAccessories.CharaMakerSlotData slot in MoreAccessories._self._additionalCharaMakerSlots)
+                    {
+                        slot.copyToggle.isOn = true;
+                    }
+                });
+                ((Button)__instance.GetPrivate("btnAllOff")).onClick.AddListener(() =>
+                {
+                    foreach (MoreAccessories.CharaMakerSlotData slot in MoreAccessories._self._additionalCharaMakerSlots)
+                    {
+                        slot.copyToggle.isOn = false;
+                    }
+                });
+            }
+        }
+
     }
 }

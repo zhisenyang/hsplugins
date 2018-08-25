@@ -99,7 +99,6 @@ namespace MoreAccessoriesKOI
                 }
                 else
                     fi.SetValue(to, fi.GetValue(from));
-                
             }
         }
 

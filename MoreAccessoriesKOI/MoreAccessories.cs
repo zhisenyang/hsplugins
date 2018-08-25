@@ -40,6 +40,11 @@ namespace MoreAccessoriesKOI
             public CanvasGroup canvasGroup;
             public TextMeshProUGUI text;
             public CvsAccessory cvsAccessory;
+
+            public GameObject copySlotObject;
+            public Toggle copyToggle;
+            public TextMeshProUGUI copySourceText;
+            public TextMeshProUGUI copyDestinationText;
         }
 
         private enum Binary
@@ -66,6 +71,8 @@ namespace MoreAccessoriesKOI
         internal bool _inCharaMaker = false;
         private Binary _binary;
         private RectTransform _addButtonsGroup;
+        private ScrollRect _charaMakerCopyScrollView;
+        private GameObject _copySlotTemplate;
         #endregion
 
         #region Unity Methods
@@ -224,6 +231,7 @@ namespace MoreAccessoriesKOI
                         }
                         this.AccessorySlotCanvasGroupCallback(-1, info.cgItem);
                     });
+                   ((RectTransform)info.cgItem.transform).anchoredPosition += new Vector2(0f, 40f);
                 }
                 else if (i == 21)
                 {
@@ -236,11 +244,38 @@ namespace MoreAccessoriesKOI
                         }
                         this.AccessorySlotCanvasGroupCallback(-2, info.cgItem);
                     });
+                    ((RectTransform)info.cgItem.transform).anchoredPosition += new Vector2(0f, 40f);
                 }
             }
+
+
+            container = (RectTransform)GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/04_AccessoryTop/tglCopy/CopyTop/rect").transform;
+            this._charaMakerCopyScrollView = UIUtility.CreateScrollView("Slots", container);
+            this._charaMakerCopyScrollView.movementType = ScrollRect.MovementType.Clamped;
+            this._charaMakerCopyScrollView.horizontal = false;
+            this._charaMakerCopyScrollView.scrollSensitivity = 18f;
+            if (this._charaMakerCopyScrollView.horizontalScrollbar != null)
+                Destroy(this._charaMakerCopyScrollView.horizontalScrollbar.gameObject);
+            if (this._charaMakerCopyScrollView.verticalScrollbar != null)
+                Destroy(this._charaMakerCopyScrollView.verticalScrollbar.gameObject);
+            Destroy(this._charaMakerCopyScrollView.GetComponent<Image>());
+            RectTransform content = (RectTransform)container.Find("grpClothes");
+            this._charaMakerCopyScrollView.transform.SetRect(content);
+            content.SetParent(this._charaMakerCopyScrollView.viewport);
+            Destroy(this._charaMakerCopyScrollView.content.gameObject);
+            this._charaMakerCopyScrollView.content = content;
+
+            this._copySlotTemplate = this._charaMakerCopyScrollView.content.GetChild(0).gameObject;
+
+            this._charaMakerScrollView.viewport.gameObject.SetActive(false);
+
+            this.ExecuteDelayed(() => //Fixes problems with UI masks overlapping and creating bugs
+            {
+                this._charaMakerScrollView.viewport.gameObject.SetActive(true);
+            }, 5);
         }
 
-        internal void UpdateMakerUI()
+        private void UpdateMakerUI()
         {
             if (this._customAcsChangeSlot == null)
                 return;
@@ -255,6 +290,8 @@ namespace MoreAccessoriesKOI
                     if (i + 20 == CustomBase.Instance.selectSlot)
                         slot.cvsAccessory.UpdateCustomUI();
                     slot.cvsAccessory.UpdateSlotName();
+
+                    //slot.copySlotObject.SetActive(true);
                 }
                 else
                 {
@@ -275,8 +312,20 @@ namespace MoreAccessoriesKOI
                     info.text.text = $"スロット{index + 1:00}";
                     info.cvsAccessory.slotNo = (CvsAccessory.AcsSlotNo)index;
                     newSlot.name = "tglSlot" + (index + 1).ToString("00");
-                    this._additionalCharaMakerSlots.Add(info);
                     info.canvasGroup.Enable(false, false);
+
+                    info.copySlotObject = Instantiate(this._copySlotTemplate, this._charaMakerCopyScrollView.content);
+                    info.copyToggle = info.copySlotObject.GetComponentInChildren<Toggle>();
+                    info.copySourceText = info.copySlotObject.transform.Find("srcText00").GetComponent<TextMeshProUGUI>();
+                    info.copyDestinationText = info.copySlotObject.transform.Find("dstText00").GetComponent<TextMeshProUGUI>();
+                    info.copyToggle.GetComponentInChildren<TextMeshProUGUI>().text = (index + 1).ToString("00");
+                    info.copySourceText.text = "なし";
+                    info.copyDestinationText.text = "なし";
+                    info.copyToggle.isOn = false;
+                    info.copyToggle.interactable = true;
+                    info.copySlotObject.name = "kind" + index.ToString("00");
+
+                    this._additionalCharaMakerSlots.Add(info);
                 }
             }
             for (; i < this._additionalCharaMakerSlots.Count; i++)
@@ -284,6 +333,7 @@ namespace MoreAccessoriesKOI
                 CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
                 slot.toggle.gameObject.SetActive(false);
                 slot.toggle.isOn = false;
+                //slot.copySlotObject.SetActive(false);
             }
         }
 
@@ -377,7 +427,7 @@ namespace MoreAccessoriesKOI
             for (int i = 0; i < this._customAcsChangeSlot.items.Length; i++)
             {
                 UI_ToggleGroupCtrl.ItemInfo info = this._customAcsChangeSlot.items[i];
-                if (i == index || info == null)
+                if (info == null || i == index || (i == 20 && index == -1) || (i == 21 && index == -2))
                     continue;
                 if (info.cgItem != null)
                     info.cgItem.Enable(false, false);
@@ -408,9 +458,9 @@ namespace MoreAccessoriesKOI
             }
         }
 
-        internal int GetSelecterMakerIndex()
+        internal int GetSelectedMakerIndex()
         {
-            for (int i = 0; i < this._customAcsChangeSlot.items.Length; i++)
+            for (int i = 0; i < 20; i++)
             {
                 UI_ToggleGroupCtrl.ItemInfo info = this._customAcsChangeSlot.items[i];
                 if (info.tglItem.isOn)
