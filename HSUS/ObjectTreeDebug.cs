@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Events;
@@ -23,9 +24,11 @@ namespace HSUS
         private static readonly Process _process;
         private static readonly byte _bits;
 
-        #region HONEYSELECT
+#if HONEYSELECT
         private static readonly bool _has630Patch;
-        #endregion
+#elif KOIKATSU
+        private readonly HashSet<Component> _openedComponents = new HashSet<Component>();
+#endif
 
         static ObjectTreeDebug()
         {
@@ -149,7 +152,18 @@ namespace HSUS
                         an.enabled = GUILayout.Toggle(an.enabled, c.GetType().FullName, GUILayout.ExpandWidth(false));
                     }
                     else
-                        GUILayout.Label(c.GetType().FullName);
+                        GUILayout.Label(c.GetType().FullName, GUILayout.ExpandWidth(false));
+
+                    if (GUILayout.Toggle(this._openedComponents.Contains(c), ""))
+                    {
+                        if (this._openedComponents.Contains(c) == false)
+                            this._openedComponents.Add(c);
+                    }
+                    else
+                    {
+                        if (this._openedComponents.Contains(c))
+                            this._openedComponents.Remove(c);
+                    }
 
                     if (c is Image)
                     {
@@ -181,7 +195,6 @@ namespace HSUS
                     {
                         Text text = c as Text;
                         GUILayout.Label(text.text + " " + text.font + " " + text.fontStyle + " " + text.fontSize + " " + text.alignment + " " + text.alignByGeometry + " " + text.resizeTextForBestFit + " " + text.color);
-
                     }
                     else if (c is RawImage)
                     {
@@ -228,7 +241,6 @@ namespace HSUS
                                 UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
                                 GUILayout.Label("OnValueChanged " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
                             }
-                            
                         }
                         if (b.onEndEdit != null)
                         {
@@ -240,7 +252,6 @@ namespace HSUS
                                 UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
                                 GUILayout.Label("OnEndEdit " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
                             }
-                            
                         }
                         if (b.onValidateInput != null)
                             GUILayout.Label("OnValidateInput " + b.onValidateInput.Target.GetType().FullName + "." + b.onValidateInput.Method.Name);
@@ -264,6 +275,28 @@ namespace HSUS
                         GUILayout.Label("localScale " + tr.localScale);
                     }
                     GUILayout.EndHorizontal();
+
+                    if (this._openedComponents.Contains(c))
+                    {
+                        GUILayout.BeginVertical();
+                        FieldInfo[] fields = c.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                        foreach (FieldInfo field in fields)
+                        {
+                            GUILayout.BeginHorizontal();
+                            GUILayout.Space(20);
+                            GUILayout.Label(field.Name + ": " + field.GetValue(c));
+                            GUILayout.EndHorizontal();
+                        }
+                        PropertyInfo[] properties = c.GetType().GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                        foreach (PropertyInfo property in properties)
+                        {
+                            GUILayout.BeginHorizontal();
+                            GUILayout.Space(20);
+                            GUILayout.Label(property.Name + ": " + property.GetValue(c, null));
+                            GUILayout.EndHorizontal();
+                        }
+                        GUILayout.EndVertical();
+                    }
                 }
             }
             GUILayout.EndScrollView();

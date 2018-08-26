@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using ChaCustom;
 using CustomUtility;
 using Harmony;
@@ -1228,6 +1229,52 @@ namespace MoreAccessoriesKOI
             }
         }
 
+        [HarmonyPatch(typeof(CvsAccessoryChange), "Start")]
+        internal static class CvsAccessoryChange_Start_Patches
+        {
+            private static CvsAccessoryChange _instance;
+            private static void Postfix(CvsAccessoryChange __instance)
+            {
+                _instance = __instance;
+            }
+
+            internal static void SetSourceIndex(int index)
+            {
+                _instance.SetPrivate("selSrc", index);
+            }
+            internal static void SetDestinationIndex(int index)
+            {
+                _instance.SetPrivate("selDst", index);
+            }
+        }
+
+        [HarmonyPatch(typeof(CvsAccessoryChange), "CalculateUI")]
+        private static class CvsAccessoryChange_CalculateUI_Patches
+        {
+            private static void Postfix(CvsAccessoryChange __instance)
+            {
+                for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                {
+                    MoreAccessories.CharaMakerSlotData slot = MoreAccessories._self._additionalCharaMakerSlots[i];
+                    if (slot.transferSlotObject.activeSelf)
+                    {
+                        ChaFileAccessory.PartsInfo part = MoreAccessories._self._charaMakerData.nowAccessories[i];
+                        ListInfoBase listInfo = Singleton<CustomBase>.Instance.chaCtrl.lstCtrl.GetListInfo((ChaListDefine.CategoryNo)part.type, part.id);
+                        if (listInfo == null)
+                        {
+                            slot.transferSourceText.text = "なし";
+                            slot.transferDestinationText.text = "なし";
+                        }
+                        else
+                        {
+                            slot.transferSourceText.text = listInfo.Name;
+                            slot.transferDestinationText.text = listInfo.Name;
+                        }
+                    }
+                }
+            }        
+        }
+
         [HarmonyPatch(typeof(CvsAccessoryChange), "CopyAcs")]
         private static class CvsAccessoryChange_CopyAcs_Patches
         {
@@ -1250,7 +1297,10 @@ namespace MoreAccessoriesKOI
                 Singleton<CustomBase>.Instance.chaCtrl.Reload(false, true, true, true);
                 __instance.CalculateUI();
                 ((CustomAcsChangeSlot)__instance.GetPrivate("cmpAcsChangeSlot")).UpdateSlotNames();
-                Singleton<CustomBase>.Instance.SetUpdateCvsAccessory(selDst, true);
+                CvsAccessory accessory = MoreAccessories._self.GetCvsAccessory(selDst);
+                if (selDst == CustomBase.Instance.selectSlot)
+                    accessory.UpdateCustomUI();
+                accessory.UpdateSlotName();
                 Singleton<CustomHistory>.Instance.Add5(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.Reload, false, true, true, true);
                 return false;
             }

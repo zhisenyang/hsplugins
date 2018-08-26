@@ -562,11 +562,6 @@ namespace HSExtSave
 
         public static void Save(CharFileInfoClothes __instance, BinaryWriter bw)
         {
-            StackTrace stackTrace = new StackTrace();
-
-            // Get calling method name
-            Console.WriteLine("mabite " + stackTrace.GetFrame(1).GetMethod().Name);
-
             UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving extended data for coordinates...");
             using (XmlTextWriter xmlWriter = new XmlTextWriter(bw.BaseStream, System.Text.Encoding.UTF8))
             {

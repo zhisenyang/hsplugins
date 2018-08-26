@@ -18,7 +18,7 @@ namespace HSUS
         {
             this.transform.FindDescendant("YesButton").GetComponent<Button>().onClick.AddListener(this.YesPressed);
             this.transform.FindDescendant("NoButton").GetComponent<Button>().onClick.AddListener(this.NoPressed);
-            Button deleteButton = GameObject.Find("StudioScene").transform.FindChild("Canvas Object List/Image Bar/Button Delete").GetComponent<Button>();
+            Button deleteButton = GameObject.Find("StudioScene").transform.Find("Canvas Object List/Image Bar/Button Delete").GetComponent<Button>();
             this._deleteAction = deleteButton.onClick;
             deleteButton.onClick = new Button.ButtonClickedEvent();
             deleteButton.onClick.AddListener(this.DisplayDialog);

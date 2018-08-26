@@ -5,19 +5,32 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Xml;
+#if HONEYSELECT
 using CustomMenu;
-using Harmony;
 using IllusionPlugin;
+#elif KOIKATSU
+using BepInEx;
+#endif
+using Harmony;
 using Studio;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 namespace HSUS
 {
-    public class HSUS : IEnhancedPlugin
+#if KOIKATSU
+    [BepInPlugin(GUID: "com.joan6694.illusionplugins.kkus", Name: "KKUS", Version: "1.0.0")]
+#endif
+    public class HSUS :
+#if HONEYSELECT
+        IEnhancedPlugin
+#elif KOIKATSU
+        BaseUnityPlugin
+#endif
     {
         #region Private Types
         private enum Binary
@@ -99,18 +112,33 @@ namespace HSUS
         #endregion
 
         #region Unity Methods
+#if HONEYSELECT
         public void OnApplicationStart()
+#elif KOIKATSU
+        void Awake()
+        
+#endif 
         {
             self = this;
-
+#if KOIKATSU
+            SceneManager.sceneLoaded += this.SceneLoaded;
+#endif
             switch (Process.GetCurrentProcess().ProcessName)
             {
+#if HONEYSELECT
                 case "HoneySelect_32":
-                case "HoneySelect_64":
+                case "HoneySelect_64":                    
+#elif KOIKATSU
+                case "Koikatu":
+#endif
                     this._binary = Binary.Game;
                     break;
+#if HONEYSELECT
                 case "StudioNEO_32":
                 case "StudioNEO_64":
+#elif KOIKATSU
+                case "CharaStudio":
+#endif
                     this._binary = Binary.Neo;
                     break;
             }
@@ -268,7 +296,16 @@ namespace HSUS
                     HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
             }
         }
-
+#if KOIKATSU
+        private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
+        {
+            if (loadMode == LoadSceneMode.Single)
+            {
+                this.OnLevelWasInitialized(scene.buildIndex);
+                this.OnLevelWasLoaded(scene.buildIndex);
+            }
+        }
+#endif
         public void OnApplicationQuit()
         {
             if (Directory.Exists(_pluginDir) == false)
@@ -458,10 +495,12 @@ namespace HSUS
             switch (this._binary)
             {
                 case Binary.Game:
+#if HONEYSELECT
                     if (this._optimizeCharaMaker)
                         this.InitFasterCharaMakerLoading();
                     if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                         this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+#endif
                     break;
                 case Binary.Neo:
                     if (level == 3)
@@ -482,7 +521,11 @@ namespace HSUS
                 this._go.AddComponent<ShortcutsDisabler>();
         }
 
+#if HONEYSELECT
         public void OnUpdate()
+#elif KOIKATSU
+        void Update()
+#endif
         {
             if (Time.unscaledTime - this._lastCleanup > 30f)
             {
@@ -514,6 +557,7 @@ namespace HSUS
             this._routines.ExecuteDelayed(this.ApplyUIScale, 2);
         }
 
+#if HONEYSELECT
         private void InitFasterCharaMakerLoading()
         {
             this._routines.ExecuteDelayed(() =>
@@ -578,6 +622,7 @@ namespace HSUS
                 }
             }, 10);
         }
+#endif
 
         private void InitUIScale()
         {
@@ -745,19 +790,19 @@ namespace HSUS
 
         private void ImproveNeoUI()
         {
-            RectTransform rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
+            RectTransform rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
             rt.offsetMax += new Vector2(60f, 0f);
-            rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
+            rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
             rt.offsetMax += new Vector2(60f, 0f);
-            rt = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content") as RectTransform;
+            rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content") as RectTransform;
             rt.offsetMax += new Vector2(60f, 0f);
 
-            VerticalLayoutGroup group = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<VerticalLayoutGroup>();
+            VerticalLayoutGroup group = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.padding = new RectOffset(group.padding.left + 4, group.padding.right + 24, group.padding.top, group.padding.bottom);
-            GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-            Text t = GameObject.Find("StudioScene").transform.FindChild("Canvas Main Menu/01_Add/02_Item/Scroll View Item/node/Text").GetComponent<Text>();
+            Text t = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/node/Text").GetComponent<Text>();
             t.resizeTextForBestFit = true;
             t.resizeTextMinSize = 2;
             t.resizeTextMaxSize = 100;
@@ -831,6 +876,7 @@ namespace HSUS
             UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
         }
 
+#if HONEYSELECT
         private void LoadCustomDefault(string path)
         {
             CustomControl customControl = Resources.FindObjectsOfTypeAll<CustomControl>()[0];
@@ -886,6 +932,7 @@ namespace HSUS
             customControl.UpdateCharaName();
             customControl.UpdateAcsName();
         }
+#endif
 
         private void SetProcessAffinity()
         {

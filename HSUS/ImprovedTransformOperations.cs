@@ -157,6 +157,7 @@ namespace HSUS
         }
     }
 
+#if HONEYSELECT
     [HarmonyPatch(typeof(CharClothes), "SetAccessoryScl", new[] {typeof(int), typeof(float), typeof(bool), typeof(int)})]
     public class CharClothes_SetAccessoryScl_Patches
     {
@@ -167,7 +168,7 @@ namespace HSUS
 
         public static bool Prefix(CharClothes __instance, ref bool __result, int slotNo, float value, bool _add, int flags, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo)
         {
-            if (!global::MathfEx.RangeEqualOn(0, slotNo, 9))
+            if (!MathfEx.RangeEqualOn(0, slotNo, 9))
             {
                 __result = false;
                 return false;
@@ -198,6 +199,7 @@ namespace HSUS
             return false;
         }
     }
+#endif
 
     public class TransformOperations : MonoBehaviour
     {

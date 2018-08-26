@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -1068,10 +1069,40 @@ namespace MoreAccessories
 
         private void OnCoordLoad(CharFileInfoClothes clothesinfo, XmlNode node)
         {
-            CharFileInfoClothes selectedClothesInfo = this._binary == Binary.Game ? this.charaMakerCharInfo.clothesInfo : this._selectedStudioCharacter.charInfo.clothesInfo;
-            if (clothesinfo != selectedClothesInfo)
+            CharAdditionalData additionalData = null;
+            switch (this._binary)
+            {
+                case Binary.Game:
+
+                    switch (this._level)
+                    {
+                        case 21:
+                            if (clothesinfo == this.charaMakerCharInfo.clothesInfo)
+                                additionalData = this.charaMakerAdditionalData;
+                            break;
+                        case 15:
+                            if (HSceneClothChange_InitCharaList_Patches._isInitializing == false)
+                                additionalData = this._accessoriesByChar[Singleton<Character>.Instance.GetFemale(Singleton<HSceneManager>.Instance.numFemaleClothCustom).femaleFile];
+                            break;
+                        default:
+                            foreach (CharInfo charInfo in Resources.FindObjectsOfTypeAll<CharInfo>())
+                            {
+                                if (charInfo.clothesInfo == clothesinfo)
+                                {
+                                    additionalData = this._accessoriesByChar[charInfo.chaFile];
+                                    break;
+                                }
+                            }
+                            break;
+                    }
+                    break;
+                case Binary.Neo:
+                    if (clothesinfo == this._selectedStudioCharacter.charInfo.clothesInfo)
+                        additionalData = this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
+                    break;
+            }
+            if (additionalData == null)
                 return;
-            CharAdditionalData additionalData = this._binary == Binary.Game ? this.charaMakerAdditionalData : this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
             List<CharFileInfoClothes.Accessory> accessories2 = additionalData.clothesInfoAccessory;
             accessories2.Clear();
             if (node != null)

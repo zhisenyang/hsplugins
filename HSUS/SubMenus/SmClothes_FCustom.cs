@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -170,13 +171,13 @@ namespace HSUS
                         }
                         break;
                 }
-                SmClothes_F_Data.TypeData td = new SmClothes_F_Data.TypeData();
+                TypeData td = new TypeData();
                 td.parentObject = new GameObject("Type " + nowSubMenuTypeId, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter), typeof(ToggleGroup)).GetComponent<RectTransform>();
                 td.parentObject.transform.SetParent(_originalComponent.objListTop.transform, false);
                 td.parentObject.transform.localScale = Vector3.one;
                 td.parentObject.transform.localPosition = Vector3.zero;
                 td.parentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                SmClothes_F_Data.objects.Add(nowSubMenuTypeId, td);
+                objects.Add(nowSubMenuTypeId, td);
                 ToggleGroup group = td.parentObject.GetComponent<ToggleGroup>();
                 foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
                 {
@@ -196,13 +197,13 @@ namespace HSUS
                     gameObject.transform.SetParent(td.parentObject.transform, false);
                     RectTransform rectTransform = gameObject.transform as RectTransform;
                     rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                    rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
+                    rectTransform.sizeDelta = new Vector2(container.rect.width, 24f);
                     Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                     component.text = fbxTypeInfo.typeName;
                     _originalComponent.CallPrivate("SetButtonClickHandler", gameObject);
                     Toggle component2 = gameObject.GetComponent<Toggle>();
                     td.keyToObjectIndex.Add(current.Key, count);
-                    td.objects.Add(new SmClothes_F_Data.ObjectData { obj = gameObject, toggle = component2, text = component });
+                    td.objects.Add(new ObjectData { obj = gameObject, toggle = component2, text = component });
                     component2.onValueChanged.AddListener(v =>
                     {
                         if (component2.isOn)
@@ -305,7 +306,7 @@ namespace HSUS
                             num = clothesInfoF.clothesId[6];
                             break;
                     }
-               td.parentObject.gameObject.SetActive(true);
+                td.parentObject.gameObject.SetActive(true);
                 selected = td.keyToObjectIndex[num];
                 SmClothes_F_Data.ObjectData o = td.objects[selected];
                 o.toggle.isOn = true;
@@ -651,3 +652,4 @@ namespace HSUS
         }
     }
 }
+#endif

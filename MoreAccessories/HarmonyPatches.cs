@@ -413,4 +413,19 @@ namespace MoreAccessories
             enumerator.Dispose();
         }
     }
+
+    [HarmonyPatch(typeof(HSceneClothChange), "InitCharaList")]
+    public class HSceneClothChange_InitCharaList_Patches
+    {
+        public static bool _isInitializing = false;
+        public static void Prefix()
+        {
+            _isInitializing = true;
+        }
+
+        public static void Postfix()
+        {
+            _isInitializing = false;
+        }
+    }
 }

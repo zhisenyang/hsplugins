@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using CustomMenu;
@@ -30,11 +31,11 @@ namespace HSUS
             Reset();
             _originalComponent = originalComponent;
 
-            SmKindColorDS_Data.container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
-            VerticalLayoutGroup group = SmKindColorDS_Data.container.gameObject.AddComponent<VerticalLayoutGroup>();
+            container = _originalComponent.transform.FindDescendant("ListTop").transform as RectTransform;
+            VerticalLayoutGroup group = container.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
-            ContentSizeFitter fitter = SmKindColorDS_Data.container.gameObject.AddComponent<ContentSizeFitter>();
+            ContentSizeFitter fitter = container.gameObject.AddComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
             _originalComponent.rtfPanel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -48,15 +49,15 @@ namespace HSUS
             rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -24f);
 
-            SmKindColorDS_Data.searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
+            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
             searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
-            rt = SmKindColorDS_Data.searchBar.transform as RectTransform;
+            rt = searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
             rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            SmKindColorDS_Data.searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            SmKindColorDS_Data.searchBar.onValueChanged.AddListener(SearchChanged);
-            foreach (Text t in SmKindColorDS_Data.searchBar.GetComponentsInChildren<Text>())
+            searchBar.placeholder.GetComponent<Text>().text = "Search...";
+            searchBar.onValueChanged.AddListener(SearchChanged);
+            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
         }
 
@@ -347,7 +348,7 @@ namespace HSUS
                             gameObject.transform.SetParent(__instance.objListTop.transform, false);
                             RectTransform rectTransform = gameObject.transform as RectTransform;
                             rectTransform.localScale = new Vector3(1f, 1f, 1f);
-//                            rectTransform.sizeDelta = new Vector2(0f, rectTransform.sizeDelta.y);
+                            //                            rectTransform.sizeDelta = new Vector2(0f, rectTransform.sizeDelta.y);
                             rectTransform.sizeDelta = new Vector2(SmKindColorDS_Data.container.rect.width, 24f);
                             Text component = rectTransform.FindChild("Label").GetComponent<Text>();
                             component.text = matTypeInfo.typeName;
@@ -446,3 +447,5 @@ namespace HSUS
         }
     }
 }
+
+#endif

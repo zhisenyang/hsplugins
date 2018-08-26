@@ -11,6 +11,7 @@ using Object = UnityEngine.Object;
 
 namespace StudioFileCheck
 {
+#if HONEYSELECT
     [HarmonyPatch(typeof(ItemList), "Awake")]
     public class ItemList_Awake_Patches
     {
@@ -239,7 +240,7 @@ namespace StudioFileCheck
             return true;
         }
     }
-    
+
     [HarmonyPatch(typeof(GuideObject), "Start")]
     public class GuideObject_Start_Patches
     {
@@ -426,4 +427,6 @@ namespace StudioFileCheck
             return TryGetLoop(_node.parent);
         }
     }
+#endif
+
 }

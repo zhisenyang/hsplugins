@@ -85,7 +85,7 @@ namespace Studio
             _ociItem.listBones = new List<OCIChar.BoneInfo>();
             IList listBones = (IList)__instance.GetPrivate("listBones");
             Type type = listBones.GetType().GetGenericArguments()[0];
-            ConstructorInfo ctor = type.GetConstructor(new[] { typeof(GameObject), typeof(ChangeAmount), typeof(bool) });
+            ConstructorInfo ctor = type.GetConstructor(new[] {typeof(GameObject), typeof(ChangeAmount), typeof(bool)});
             int i = 0;
             foreach (Transform t in activeBones)
             {
@@ -113,10 +113,18 @@ namespace Studio
                 guideObject.scaleRot = 0.025f;
                 guideObject.scaleSelect = 0.05f;
                 guideObject.parentGuide = _ociItem.guideObject;
-                _ociItem.listBones.Add(new OCIChar.BoneInfo(guideObject, oIBoneInfo));
+                _ociItem.listBones.Add(
+                                       new OCIChar.BoneInfo(
+                                                            guideObject,
+                                                            oIBoneInfo
+#if KOIKATSU
+                                                            , i
+#endif
+                                                           )
+                                      );
                 guideObject.SetActive(false, true);
 
-                object instance = ctor.Invoke(new object[] { t.gameObject, oIBoneInfo.changeAmount, _isNew });
+                object instance = ctor.Invoke(new object[] {t.gameObject, oIBoneInfo.changeAmount, _isNew});
                 listBones.Add(instance);
                 ++i;
             }
