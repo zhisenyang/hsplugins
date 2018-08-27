@@ -55,7 +55,6 @@
   <ItemGroup>
     <Compile Include="CameraShortcuts.cs" />
     <Compile Include="DeleteConfirmation.cs" />
-    <Compile Include="Extensions.cs" />
     <Compile Include="GenericFK.cs" />
     <Compile Include="HSUS.cs" />
     <Compile Include="ImprovedTransformOperations.cs" />
@@ -76,6 +75,10 @@
     <Compile Include="SubMenus\SmSwimsuitCustom.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
+      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
+      <Name>ToolBox</Name>
+    </ProjectReference>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">
       <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
       <Name>UIUtility</Name>
@@ -123,10 +126,7 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
-	
-	
-	
-	    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="0Harmony">
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="0Harmony">
       <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\core\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
@@ -166,7 +166,6 @@
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>False</Private>
     </Reference>
-	
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">

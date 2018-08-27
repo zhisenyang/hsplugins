@@ -8,6 +8,7 @@ using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 using Vectrosity;
+using ToolBox;
 
 namespace MoreAccessories
 {
@@ -413,6 +414,7 @@ namespace MoreAccessories
 
         public virtual void Init()
         {
+            UnityEngine.Debug.LogError("Before HSUS stuff");
             Type type = Type.GetType("HSUS.HSUS,HSUS");
             if (type != null && (bool)type.GetProperty("optimizeCharaMaker").GetValue(type.GetProperty("self").GetValue(null, null), null))
             {
@@ -434,12 +436,16 @@ namespace MoreAccessories
                 this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
                 this._searchBar.onValueChanged.AddListener(this.SearchChanged);
             }
+            UnityEngine.Debug.LogError("Before real init stuff");
 
             {
-                RectTransform parentCategory = this.transform.FindChild("TabControl/TabItem02/ParentCategory") as RectTransform;
+                UnityEngine.Debug.LogError("INIT 1");
+                RectTransform parentCategory = this.transform.Find("TabControl/TabItem02/ParentCategory") as RectTransform;
+                UnityEngine.Debug.LogError("INIT 2");
                 RectTransform defaultContainer = UIUtility.CreateNewUIObject(parentCategory, "Default Container");
                 defaultContainer.SetRect(0f, 1f, 1f, 1f, 0f, -196f, -4f, 0f);
                 defaultContainer.gameObject.AddComponent<LayoutElement>().preferredHeight = 196f;
+                UnityEngine.Debug.LogError("INIT 3");
                 int i = 0;
                 while (parentCategory.childCount != 1)
                 {
@@ -452,11 +458,13 @@ namespace MoreAccessories
                     else
                         ++i;
                 }
+                UnityEngine.Debug.LogError("INIT 4");
 
                 ScrollRect scrollRect = UIUtility.CreateScrollView("ScrollView", parentCategory);
                 scrollRect.transform.SetRect(defaultContainer);
                 Destroy(scrollRect.GetComponent<Image>());
                 scrollRect.scrollSensitivity *= 30f;
+                UnityEngine.Debug.LogError("INIT 5");
 
                 foreach (Sprite s in Resources.FindObjectsOfTypeAll<Sprite>())
                 {
@@ -470,6 +478,7 @@ namespace MoreAccessories
                             break;
                     }
                 }
+                UnityEngine.Debug.LogError("INIT 6");
 
                 defaultContainer.SetParent(scrollRect.content, true);
                 VerticalLayoutGroup group = scrollRect.content.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -478,12 +487,15 @@ namespace MoreAccessories
                 group.padding = new RectOffset(8, 0, 0, 0);
                 group.spacing = 2f;
                 scrollRect.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                UnityEngine.Debug.LogError("INIT 7");
 
                 RawImage separator = UIUtility.CreateRawImage("Separator", scrollRect.content);
                 separator.gameObject.AddComponent<LayoutElement>().preferredHeight = 2f;
+                UnityEngine.Debug.LogError("INIT 8");
 
                 List<string> moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths;
                 Dictionary<string, string> moreAttachPointsAliases = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsAliases : MoreAccessories.self.maleMoreAttachPointsAliases;
+                UnityEngine.Debug.LogError("INIT 9");
                 for (int index = 0; index < moreAttachPointsPaths.Count; index++)
                 {
                     string path = moreAttachPointsPaths[index];
@@ -504,10 +516,12 @@ namespace MoreAccessories
                 }
             }
 
+            UnityEngine.Debug.LogError("INIT 10");
 
             for (int i = 0; i < this.strParentKey.Length; i++)
                 this.dictParentKey[this.strParentKey[i]] = i;
             GameObject gameObject = this.transform.FindLoop("TypeCategory");
+            UnityEngine.Debug.LogError("INIT 11");
             if (gameObject)
             {
                 for (int j = 0; j < this.tglType.Length; j++)
@@ -519,6 +533,7 @@ namespace MoreAccessories
                 }
             }
             GameObject gameObject3 = this.transform.FindLoop("ParentCategory");
+            UnityEngine.Debug.LogError("INIT 12");
             if (gameObject3)
             {
                 for (int k = 0; k < this.tglParent.Length; k++)
@@ -530,6 +545,7 @@ namespace MoreAccessories
                 }
             }
             this.initEnd = true;
+            UnityEngine.Debug.LogError("INIT 13");
         }
 
 

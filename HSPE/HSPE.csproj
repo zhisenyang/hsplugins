@@ -61,7 +61,6 @@
     <Compile Include="Commands.cs" />
     <Compile Include="AMModules\DynamicBonesEditor.cs" />
     <Compile Include="EditableValue.cs" />
-    <Compile Include="Extensions.cs" />
     <Compile Include="HarmonyPatches.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="PoseController.cs" />
@@ -85,6 +84,10 @@
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
       <Name>HSExtSave</Name>
       <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
+      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
+      <Name>ToolBox</Name>
     </ProjectReference>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">
       <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
@@ -192,8 +195,8 @@
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Vectrosity">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Vectrosity.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup Condition=" '$(Configuration)' == 'HS' ">

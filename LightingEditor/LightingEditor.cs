@@ -6,6 +6,7 @@ using System.Reflection.Emit;
 using System.Xml;
 using Harmony;
 using Studio;
+using ToolBox;
 #if HONEYSELECT
 using IllusionPlugin;
 #elif KOIKATSU

@@ -8,6 +8,7 @@ using Harmony;
 using Illusion.Extensions;
 using MessagePack;
 using TMPro;
+using ToolBox;
 using UniRx;
 using UniRx.Triggers;
 using UnityEngine;

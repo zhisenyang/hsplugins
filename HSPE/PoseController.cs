@@ -6,6 +6,7 @@ using Harmony;
 using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
+using ToolBox;
 using UnityEngine;
 #if KOIKATSU
 using Manager;
@@ -146,11 +147,20 @@ namespace HSPE
             }
         }
 
+#if HONEYSELECT
         [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(CharDefine.CoordinateType), typeof(bool) })]
+#elif KOIKATSU
+        [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(ChaFileDefine.CoordinateType), typeof(bool) })]        
+#endif
         private class OCIChar_SetCoordinateInfo_Patches
         {
+#if HONEYSELECT
             public static event Action<OCIChar, CharDefine.CoordinateType, bool> onSetCoordinateInfo; 
             public static void Postfix(OCIChar __instance, CharDefine.CoordinateType _type, bool _force)
+#elif KOIKATSU
+            public static event Action<OCIChar, ChaFileDefine.CoordinateType, bool> onSetCoordinateInfo;
+            public static void Postfix(OCIChar __instance, ChaFileDefine.CoordinateType _type, bool _force)
+#endif
             {
                 if (onSetCoordinateInfo != null)
                     onSetCoordinateInfo(__instance, _type, _force);
@@ -682,7 +692,11 @@ namespace HSPE
                 module.OnLoadClothesFile();
         }
 
+#if HONEYSELECT
         private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType type, bool force)
+#elif KOIKATSU
+        private void OnCoordinateReplaced(OCIChar chara, ChaFileDefine.CoordinateType type, bool force)
+#endif
         {
             if (this._chara != chara)
                 return;

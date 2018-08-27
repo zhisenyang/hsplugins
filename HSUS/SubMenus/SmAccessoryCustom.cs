@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using CustomMenu;
 using Harmony;
+using ToolBox;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;

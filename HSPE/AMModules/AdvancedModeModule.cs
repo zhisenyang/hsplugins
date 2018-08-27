@@ -67,7 +67,11 @@ namespace HSPE.AMModules
 #endif
         public virtual void OnCharacterReplaced() { }
         public virtual void OnLoadClothesFile() { }
+#if HONEYSELECT
         public virtual void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force){}
+#elif KOIKATSU
+        public virtual void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force){}
+#endif
         public virtual void OnParentage(TreeNodeObject parent, TreeNodeObject child) { }
         #endregion
 

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text;
+using ToolBox;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -23,11 +24,10 @@ namespace HSUS
         private int _randomId;
         private static readonly Process _process;
         private static readonly byte _bits;
+        private readonly HashSet<Component> _openedComponents = new HashSet<Component>();
 
 #if HONEYSELECT
         private static readonly bool _has630Patch;
-#elif KOIKATSU
-        private readonly HashSet<Component> _openedComponents = new HashSet<Component>();
 #endif
 
         static ObjectTreeDebug()

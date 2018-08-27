@@ -96,13 +96,12 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
-	
-	<Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp">
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System">
-      <HintPath>>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
+      <HintPath>&gt;D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine">

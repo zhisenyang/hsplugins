@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using Studio;
+using ToolBox;
 using UnityEngine;
 using Vectrosity;
 
@@ -248,7 +249,11 @@ namespace HSPE.AMModules
             this.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
+#if HONEYSELECT
         public override void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force)
+#elif KOIKATSU
+        public override void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force)
+#endif
         {
             this.ExecuteDelayed(this.RefreshDynamicBoneList);
         }

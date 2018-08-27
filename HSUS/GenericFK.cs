@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Harmony;
 using HSUS;
+using ToolBox;
 using UnityEngine;
 
 namespace Studio

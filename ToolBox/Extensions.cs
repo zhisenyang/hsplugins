@@ -2,12 +2,14 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Xml;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Vectrosity;
 
-namespace MoreAccessoriesKOI
+namespace ToolBox
 {
     public static class Extensions
     {
@@ -222,15 +224,51 @@ namespace MoreAccessoriesKOI
             return self2;
         }
 
-        public static void ExecuteDelayed(this MonoBehaviour self, Action action, int waitCount = 1)
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
         {
-            self.StartCoroutine(ExecuteDelayed_Routine(action, waitCount));
+            return self.StartCoroutine(ExecuteDelayed_Routine(action));
         }
 
-        private static IEnumerator ExecuteDelayed_Routine(Action action, int waitCount)
+        private static IEnumerator ExecuteDelayed_Routine(Action action, int frameCount = 1)
         {
-            for (int i = 0; i < waitCount; ++i)
+            for (int i = 0; i < frameCount; i++)
                 yield return null;
+            action();
+        }
+
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, float delay, bool timeScaled = true)
+        {
+            return self.StartCoroutine(ExecuteDelayed_Routine(action, delay, timeScaled));
+        }
+
+        private static IEnumerator ExecuteDelayed_Routine(Action action, float delay, bool timeScaled)
+        {
+            if (timeScaled)
+                yield return new WaitForSeconds(delay);
+            else
+                yield return new WaitForSecondsRealtime(delay);
+            action();
+        }
+
+        public static Coroutine ExecuteDelayedFixed(this MonoBehaviour self, Action action)
+        {
+            return self.StartCoroutine(ExecuteDelayedFixed_Routine(action));
+        }
+
+        private static IEnumerator ExecuteDelayedFixed_Routine(Action action)
+        {
+            yield return new WaitForFixedUpdate();
+            action();
+        }
+
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Func<bool> waitUntil, Action action)
+        {
+            return self.StartCoroutine(ExecuteDelayed_Routine(waitUntil, action));
+        }
+
+        private static IEnumerator ExecuteDelayed_Routine(Func<bool> waitUntil, Action action)
+        {
+            yield return new WaitUntil(waitUntil);
             action();
         }
 
@@ -245,6 +283,57 @@ namespace MoreAccessoriesKOI
                     return res;
             }
             return null;
+        }
+
+        public static XmlNode FindChildNode(this XmlNode self, string name)
+        {
+            if (self.HasChildNodes == false)
+                return null;
+            foreach (XmlNode chilNode in self.ChildNodes)
+                if (chilNode.Name.Equals(name))
+                    return chilNode;
+            return null;
+        }
+
+        public static void Resize<T>(this List<T> self, int newSize)
+        {
+            int diff = self.Count - newSize;
+            if (diff < 0)
+                while (self.Count != newSize)
+                    self.Add(default(T));
+            else if (diff > 0)
+                while (self.Count != newSize)
+                    self.RemoveRange(newSize, diff);
+        }
+
+        public static Transform GetFirstLeaf(this Transform self)
+        {
+            while (self.childCount != 0)
+                self = self.GetChild(0);
+            return self;
+        }
+
+
+        public static void SetPoints(this VectorLine self, params Vector3[] points)
+        {
+            for (int i = 0; i < self.points3.Count; i++)
+                self.points3[i] = points[i];
+        }
+
+        public static void SetPoints(this VectorLine self, params Vector2[] points)
+        {
+            for (int i = 0; i < self.points3.Count; i++)
+                self.points2[i] = points[i];
+        }
+
+        public static int IndexOf<T>(this T[] self, T obj)
+        {
+            for (int i = 0; i < self.Length; i++)
+            {
+                if (self[i].Equals(obj))
+                    return i;
+            }
+            return -1;
         }
     }
 }

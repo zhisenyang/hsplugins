@@ -4,6 +4,7 @@ using System.Linq;
 using System.Xml;
 using Harmony;
 using Studio;
+using ToolBox;
 using UnityEngine;
 
 namespace HSPE.AMModules
@@ -250,8 +251,11 @@ namespace HSPE.AMModules
             this.RefreshSkinnedMeshRendererList();
             this.ExecuteDelayed(this.RefreshSkinnedMeshRendererList);
         }
-
+#if HONEYSELECT
         public override void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force)
+#elif KOIKATSU
+        public override void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force)
+#endif
         {
             this.RefreshSkinnedMeshRendererList();
             this.ExecuteDelayed(this.RefreshSkinnedMeshRendererList);

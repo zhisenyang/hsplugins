@@ -10,6 +10,7 @@ using Harmony;
 using IllusionPlugin;
 using Manager;
 using Studio;
+using ToolBox;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;

@@ -6,6 +6,7 @@ using Harmony;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
 using Studio;
+using ToolBox;
 using UnityEngine;
 using Object = UnityEngine.Object;
 

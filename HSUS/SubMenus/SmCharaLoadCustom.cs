@@ -8,6 +8,7 @@ using System.Threading;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
+using ToolBox;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;

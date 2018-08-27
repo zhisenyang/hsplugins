@@ -34,6 +34,10 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
+      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
+      <Name>ToolBox</Name>
+    </ProjectReference>
     <ProjectReference Include="..\UIUtility\UIUtility.csproj">
       <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
       <Name>UIUtility</Name>
@@ -88,7 +92,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CvsAccessory.cs" />
-    <Compile Include="Extensions.cs" />
     <Compile Include="HarmonyPatches.cs" />
     <Compile Include="MoreAccessories.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

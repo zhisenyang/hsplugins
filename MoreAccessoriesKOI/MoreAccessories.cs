@@ -8,6 +8,7 @@ using Harmony;
 using Illusion.Extensions;
 using StrayTech;
 using TMPro;
+using ToolBox;
 using UILib;
 using UniRx;
 using UniRx.Triggers;

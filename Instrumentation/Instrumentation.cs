@@ -1,6 +1,7 @@
-﻿#if HONEYSELECT
+﻿
 using System;
 using System.Collections.Generic;
+#if HONEYSELECT
 using IllusionPlugin;
 using UnityEngine;
 #elif KOIKATSU
@@ -13,13 +14,12 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
+using UnityEngine;
 
 namespace Instrumentation
 {
 #if KOIKATSU
-    [BepInPlugin(GUID: "com.joan6694.illusionplugins.lightingeditor", Name: "Instrumentation", Version: Instrumentation.versionNum)]
-    [BepInDependency("com.bepis.bepinex.extendedsave")]
-//  [BepInProcess("CharaStudio")]
+    [BepInPlugin(GUID: "com.joan6694.illusionplugins.instrumentation", Name: "Instrumentation", Version: Instrumentation.versionNum)]
 #endif
     public class Instrumentation :
 #if HONEYSELECT
