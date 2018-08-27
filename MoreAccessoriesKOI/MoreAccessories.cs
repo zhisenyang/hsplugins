@@ -1,17 +1,17 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml;
 using BepInEx;
 using ChaCustom;
+using ExtensibleSaveFormat;
 using Harmony;
 using Illusion.Extensions;
-using StrayTech;
 using TMPro;
 using ToolBox;
 using UILib;
-using UniRx;
-using UniRx.Triggers;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -28,12 +28,12 @@ namespace MoreAccessoriesKOI
         internal class CharAdditionalData
         {
             public List<ChaFileAccessory.PartsInfo> nowAccessories;
-            public List<ListInfoBase> infoAccessory = new List<ListInfoBase>();
-            public List<GameObject> objAccessory = new List<GameObject>();
-            public List<GameObject[]> objAcsMove = new List<GameObject[]>();
-            public List<ChaAccessoryComponent> cusAcsCmp = new List<ChaAccessoryComponent>();
+            public readonly List<ListInfoBase> infoAccessory = new List<ListInfoBase>();
+            public readonly List<GameObject> objAccessory = new List<GameObject>();
+            public readonly List<GameObject[]> objAcsMove = new List<GameObject[]>();
+            public readonly List<ChaAccessoryComponent> cusAcsCmp = new List<ChaAccessoryComponent>();
 
-            public Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> rawAccessoriesInfos = new Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>>();
+            public readonly Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> rawAccessoriesInfos = new Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>>();
         }
 
         internal class CharaMakerSlotData
@@ -64,6 +64,8 @@ namespace MoreAccessoriesKOI
 
         #region Private Variables
         internal static MoreAccessories _self;
+        private const int _saveVersion = 1;
+        private const string _extSaveKey = "moreAccessories";
         private GameObject _charaMakerSlotTemplate;
         private ScrollRect _charaMakerScrollView;
         internal CustomAcsChangeSlot _customAcsChangeSlot;
@@ -72,7 +74,7 @@ namespace MoreAccessoriesKOI
         internal CustomAcsSelectKind[] _customAcsSelectKind;
         internal CvsAccessory[] _cvsAccessory;
         internal List<CharaMakerSlotData> _additionalCharaMakerSlots;
-        internal readonly Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
+        internal Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
         internal CharAdditionalData _charaMakerData = null;
         private Vector3 _slotUIWorldPosition;
         private int _selectedSlot = 0;
@@ -91,7 +93,7 @@ namespace MoreAccessoriesKOI
         {
             SceneManager.sceneLoaded += this.SceneLoaded;
             _self = this;
-            switch (BepInEx.Paths.ProcessName)
+            switch (Paths.ProcessName)
             {
                 case "Koikatu":
                     this._binary = Binary.Game;
@@ -103,6 +105,10 @@ namespace MoreAccessoriesKOI
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.kkplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
             ChaControl_ChangeAccessory_Patches.ManualPatch(harmony);
+            ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
+            ExtendedSave.CardBeingSaved += this.OnCharaSave;
+            ExtendedSave.CoordinateBeingLoaded += this.OnCoordLoad;
+            ExtendedSave.CoordinateBeingSaved += this.OnCoordSave;
         }
 
         public void OnApplicationQuit()
@@ -112,9 +118,9 @@ namespace MoreAccessoriesKOI
 
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
-            if (this._binary == Binary.Game)
+            if (loadMode == LoadSceneMode.Single)
             {
-                if (loadMode == LoadSceneMode.Single)
+                if (this._binary == Binary.Game)
                 {
                     if (scene.buildIndex == 2) //Chara Maker
                     {
@@ -126,10 +132,18 @@ namespace MoreAccessoriesKOI
                     else
                         this._inCharaMaker = false;
                 }
-            }
-            else
-            {
-                
+                else
+                {
+
+                }
+                if (this._accessoriesByChar.Any(p => p.Key == null))
+                {
+                    Dictionary<ChaFile, CharAdditionalData> newDic = new Dictionary<ChaFile, CharAdditionalData>();
+                    foreach (KeyValuePair<ChaFile, CharAdditionalData> pair in this._accessoriesByChar)
+                        if (pair.Key != null)
+                            newDic.Add(pair.Key, pair.Value);
+                    this._accessoriesByChar = newDic;
+                }
             }
         }
 
@@ -199,7 +213,7 @@ namespace MoreAccessoriesKOI
             addOneButton.colors = toggleCopy.colors;
             ((Image)addOneButton.targetGraphic).sprite = toggleCopy.transform.Find("imgOff").GetComponent<Image>().sprite;
             Destroy(addOneButton.GetComponentInChildren<Text>().gameObject);
-            TextMeshProUGUI text = GameObject.Instantiate(textModel).GetComponent<TextMeshProUGUI>();
+            TextMeshProUGUI text = Instantiate(textModel).GetComponent<TextMeshProUGUI>();
             text.transform.SetParent(addOneButton.transform);
             text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 4f), new Vector2(-5f, -4f));
             text.text = "+1";
@@ -210,7 +224,7 @@ namespace MoreAccessoriesKOI
             addTenButton.colors = toggleCopy.colors;
             ((Image)addTenButton.targetGraphic).sprite = toggleCopy.transform.Find("imgOff").GetComponent<Image>().sprite;
             Destroy(addTenButton.GetComponentInChildren<Text>().gameObject);
-            text = GameObject.Instantiate(textModel).GetComponent<TextMeshProUGUI>();
+            text = Instantiate(textModel).GetComponent<TextMeshProUGUI>();
             text.transform.SetParent(addTenButton.transform);
             text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(5f, 4f), new Vector2(-5f, -4f));
             text.text = "+10";
@@ -258,7 +272,12 @@ namespace MoreAccessoriesKOI
                 }
             }
 
-
+            this.ExecuteDelayed(() =>
+            {
+                this._cvsAccessory[0].UpdateCustomUI();
+                ((Toggle)this._cvsAccessory[0].GetPrivate("tglTakeOverParent")).isOn = false;
+                ((Toggle)this._cvsAccessory[0].GetPrivate("tglTakeOverColor")).isOn = false;
+            }, 5);
             container = (RectTransform)GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/04_AccessoryTop/tglCopy/CopyTop/rect").transform;
             this._charaMakerCopyScrollView = UIUtility.CreateScrollView("Slots", container);
             this._charaMakerCopyScrollView.movementType = ScrollRect.MovementType.Clamped;
@@ -397,6 +416,7 @@ namespace MoreAccessoriesKOI
             //{
             //    ctrl.Reset();
             //}
+            this._addButtonsGroup.SetAsLastSibling();
         }
 
         private void AddSlot()
@@ -412,7 +432,6 @@ namespace MoreAccessoriesKOI
                 this._charaMakerData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)CustomBase.Instance.chaCtrl.fileStatus.coordinateType, this._charaMakerData.nowAccessories);
             }
             ChaFileAccessory.PartsInfo partsInfo = new ChaFileAccessory.PartsInfo();
-            partsInfo.MemberInit();
             this._charaMakerData.nowAccessories.Add(partsInfo);
             while (this._charaMakerData.infoAccessory.Count < this._charaMakerData.nowAccessories.Count)
                 this._charaMakerData.infoAccessory.Add(null);
@@ -423,7 +442,6 @@ namespace MoreAccessoriesKOI
             while (this._charaMakerData.cusAcsCmp.Count < this._charaMakerData.nowAccessories.Count)
                 this._charaMakerData.cusAcsCmp.Add(null);
             this.UpdateMakerUI();
-            this._addButtonsGroup.SetAsLastSibling();
         }
 
         private void AddTenSlot()
@@ -441,7 +459,6 @@ namespace MoreAccessoriesKOI
             for (int i = 0; i < 10; i++)
             {
                 ChaFileAccessory.PartsInfo partsInfo = new ChaFileAccessory.PartsInfo();
-                partsInfo.MemberInit();
                 this._charaMakerData.nowAccessories.Add(partsInfo);
             }
             while (this._charaMakerData.infoAccessory.Count < this._charaMakerData.nowAccessories.Count)
@@ -453,7 +470,6 @@ namespace MoreAccessoriesKOI
             while (this._charaMakerData.cusAcsCmp.Count < this._charaMakerData.nowAccessories.Count)
                 this._charaMakerData.cusAcsCmp.Add(null);
             this.UpdateMakerUI();
-            this._addButtonsGroup.SetAsLastSibling();
         }
 
         private void AccessorySlotToggleCallback(int index, Toggle toggle)
@@ -486,24 +502,17 @@ namespace MoreAccessoriesKOI
 
         private void AccessorySlotCanvasGroupCallback(int index, Toggle toggle, CanvasGroup canvasGroup)
         {
-            //if (toggle.isOn == false)
+            for (int i = 0; i < this._customAcsChangeSlot.items.Length; i++)
             {
-                for (int i = 0; i < this._customAcsChangeSlot.items.Length; i++)
-                {
-                    UI_ToggleGroupCtrl.ItemInfo info = this._customAcsChangeSlot.items[i];
-                    //if (info == null || i == index || (i == 20 && index == -1) || (i == 21 && index == -2))
-                    //    continue;
-                    if (info.cgItem != null)
-                        info.cgItem.Enable(false, false);
-                }
-                for (int i = 0; i < this._additionalCharaMakerSlots.Count; i++)
-                {
-                    CharaMakerSlotData info = this._additionalCharaMakerSlots[i];
-                    if (i + 20 == index || info == null)
-                        continue;
-                    if (info.canvasGroup != null)
-                        info.canvasGroup.Enable(false, false);
-                }
+                UI_ToggleGroupCtrl.ItemInfo info = this._customAcsChangeSlot.items[i];
+                if (info.cgItem != null)
+                    info.cgItem.Enable(false, false);
+            }
+            for (int i = 0; i < this._additionalCharaMakerSlots.Count; i++)
+            {
+                CharaMakerSlotData info = this._additionalCharaMakerSlots[i];
+                if (info.canvasGroup != null)
+                    info.canvasGroup.Enable(false, false);
             }
             if (toggle.isOn && canvasGroup)
                 canvasGroup.Enable(true, false);
@@ -512,15 +521,11 @@ namespace MoreAccessoriesKOI
         internal void OnCoordTypeChangeCharaMaker()
         {
             this.UpdateMakerUI();
-            if (this._selectedSlot >= 20)
-            {
-                if (this._additionalCharaMakerSlots[this._selectedSlot - 20].toggle.gameObject.activeSelf == false)
-                {
-                    Toggle toggle = this._customAcsChangeSlot.items[0].tglItem;
-                    toggle.isOn = true;
-                    this._selectedSlot = 0;
-                }
-            }
+            if (this._selectedSlot < 20 || this._additionalCharaMakerSlots[this._selectedSlot - 20].toggle.gameObject.activeSelf)
+                return;
+            Toggle toggle = this._customAcsChangeSlot.items[0].tglItem;
+            toggle.isOn = true;
+            this._selectedSlot = 0;
         }
 
         internal int GetSelectedMakerIndex()
@@ -565,6 +570,165 @@ namespace MoreAccessoriesKOI
             if (index < 20)
                 return this._cvsAccessory[index];
             return this._additionalCharaMakerSlots[index - 20].cvsAccessory;
+        }
+        #endregion
+
+        #region Saves
+        private void OnCharaLoad(ChaFile file)
+        {
+            PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
+            if (this._inCharaMaker && this._customAcsChangeSlot != null)
+                file = CustomBase.Instance.chaCtrl.chaFile;
+            CharAdditionalData data;
+            if (this._accessoriesByChar.TryGetValue(file, out data) == false)
+            {
+                data = new CharAdditionalData();
+                this._accessoriesByChar.Add(file, data);
+            }
+            else
+            {
+                foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> pair in data.rawAccessoriesInfos)
+                    pair.Value.Clear();
+            }
+            XmlNode node = null;
+            if (pluginData != null && pluginData.data.TryGetValue("additionalAccessories", out object xmlData))
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.LoadXml((string)xmlData);
+                node = doc.FirstChild;
+            }
+            if (node != null)
+            {
+                foreach (XmlNode accessorySetNode in node.ChildNodes)
+                {
+                    ChaFileDefine.CoordinateType coordinateType = (ChaFileDefine.CoordinateType)XmlConvert.ToInt32(accessorySetNode.Attributes["type"].Value);
+                    List<ChaFileAccessory.PartsInfo> parts;
+                    if (data.rawAccessoriesInfos.TryGetValue(coordinateType, out parts) == false)
+                    {
+                        parts = new List<ChaFileAccessory.PartsInfo>();
+                        data.rawAccessoriesInfos.Add(coordinateType, parts);
+                    }
+                    foreach (XmlNode accessoryNode in accessorySetNode.ChildNodes)
+                    {
+                        ChaFileAccessory.PartsInfo part = new ChaFileAccessory.PartsInfo();
+                        part.type = XmlConvert.ToInt32(accessoryNode.Attributes["type"].Value);
+                        if (part.type != 120)
+                        {
+                            part.id = XmlConvert.ToInt32(accessoryNode.Attributes["id"].Value);
+                            part.parentKey = accessoryNode.Attributes["parentKey"].Value;
+
+                            for (int i = 0; i < 2; i++)
+                            {
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    part.addMove[i, j] = new Vector3
+                                    {
+                                        x = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}x"].Value),
+                                        y = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}y"].Value),
+                                        z = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}z"].Value)
+                                    };
+                                }
+                            }
+                            for (int i = 0; i < 4; i++)
+                            {
+                                part.color[i] = new Color
+                                {
+                                    r = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}r"].Value),
+                                    g = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}g"].Value),
+                                    b = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}b"].Value),
+                                    a = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}a"].Value)
+                                };
+                            }
+                            part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
+
+                        }
+                        parts.Add(part);
+                    }
+                }
+            }
+            if (data.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)file.status.coordinateType, out data.nowAccessories) == false)
+            {
+                data.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
+                data.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)file.status.coordinateType, data.nowAccessories);
+            }
+            while (data.infoAccessory.Count < data.nowAccessories.Count)
+                data.infoAccessory.Add(null);
+            while (data.objAccessory.Count < data.nowAccessories.Count)
+                data.objAccessory.Add(null);
+            while (data.objAcsMove.Count < data.nowAccessories.Count)
+                data.objAcsMove.Add(new GameObject[2]);
+            while (data.cusAcsCmp.Count < data.nowAccessories.Count)
+                data.cusAcsCmp.Add(null);
+            if (this._inCharaMaker)
+                this.ExecuteDelayed(this.UpdateMakerUI);
+        }
+
+        private void OnCharaSave(ChaFile file)
+        {
+            CharAdditionalData data;
+            if (this._accessoriesByChar.TryGetValue(file, out data) == false)
+                return;
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+                xmlWriter.WriteStartElement("additionalAccessories");
+                xmlWriter.WriteAttributeString("version", MoreAccessories.versionNum);
+                foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> pair in data.rawAccessoriesInfos)
+                {
+                    if (pair.Value.Count == 0)
+                        continue;
+                    xmlWriter.WriteStartElement("accessorySet");
+                    xmlWriter.WriteAttributeString("type", XmlConvert.ToString((int)pair.Key));
+                    foreach (ChaFileAccessory.PartsInfo part in pair.Value)
+                    {
+                        xmlWriter.WriteStartElement("accessory");
+                        xmlWriter.WriteAttributeString("type", XmlConvert.ToString(part.type));
+                        if (part.type != 120)
+                        {
+                            xmlWriter.WriteAttributeString("id", XmlConvert.ToString(part.id));
+                            xmlWriter.WriteAttributeString("parentKey", part.parentKey);
+
+                            for (int i = 0; i < 2; i++)
+                            {
+                                for (int j = 0; j < 3; j++)
+                                {
+                                    Vector3 v = part.addMove[i, j];
+                                    xmlWriter.WriteAttributeString($"addMove{i}{j}x", XmlConvert.ToString(v.x));
+                                    xmlWriter.WriteAttributeString($"addMove{i}{j}y", XmlConvert.ToString(v.y));
+                                    xmlWriter.WriteAttributeString($"addMove{i}{j}z", XmlConvert.ToString(v.z));
+                                }
+                            }
+                            for (int i = 0; i < 4; i++)
+                            {
+                                Color c = part.color[i];
+                                xmlWriter.WriteAttributeString($"color{i}r", XmlConvert.ToString(c.r));
+                                xmlWriter.WriteAttributeString($"color{i}g", XmlConvert.ToString(c.g));
+                                xmlWriter.WriteAttributeString($"color{i}b", XmlConvert.ToString(c.b));
+                                xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
+                            }
+                            xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
+                        }
+                        xmlWriter.WriteEndElement();
+                    }
+                    xmlWriter.WriteEndElement();
+                }
+                xmlWriter.WriteEndElement();
+
+                PluginData pluginData = new PluginData();
+                pluginData.version = MoreAccessories._saveVersion;
+                pluginData.data.Add("additionalAccessories", stringWriter.ToString());
+                ExtendedSave.SetExtendedDataById(file, _extSaveKey, pluginData);
+            }
+        }
+
+        private void OnCoordLoad(ChaFileCoordinate file)
+        {
+            UnityEngine.Debug.LogError("loading coord");
+        }
+
+        private void OnCoordSave(ChaFileCoordinate file)
+        {
+            UnityEngine.Debug.LogError("saving coord");
         }
         #endregion
     }

@@ -121,8 +121,8 @@
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Vectrosity">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Vectrosity.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>

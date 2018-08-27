@@ -8,6 +8,7 @@ using ToolBox;
 
 namespace HSUS
 {
+#if HONEYSELECT
     [HarmonyPatch(typeof(SystemButtonCtrl), "Init")]
     [HarmonyPatch(typeof(SystemButtonCtrl), "OnSelectInitYes")]
     public class SystemButtonCtrl_Init_Patches
@@ -23,5 +24,5 @@ namespace HSUS
             __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", HSUS.self.sunShaftsEnabled);
         }
     }
-
+#endif
 }

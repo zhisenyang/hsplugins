@@ -8,7 +8,7 @@ namespace UILib
 {
     internal static class Extensions
     {
-        public static void ExecuteDelayed(this MonoBehaviour self, Action action, int waitCount = 1)
+        internal static void ExecuteDelayed(this MonoBehaviour self, Action action, int waitCount = 1)
         {
             self.StartCoroutine(ExecuteDelayed_Routine(action, waitCount));
         }

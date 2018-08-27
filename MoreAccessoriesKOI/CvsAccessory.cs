@@ -998,7 +998,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup(string.Format("スロット{0:00} カラー②", (int)__instance.slotNo + 1), (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 1), MoreAccessories._self.GetPart((int)__instance.slotNo).color[1], __instance.UpdateAcsColor02, __instance.UpdateAcsColorHistory, false);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー②", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 1), MoreAccessories._self.GetPart((int)__instance.slotNo).color[1], __instance.UpdateAcsColor02, __instance.UpdateAcsColorHistory, false);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnAcsColor03")).OnClickAsObservable().Subscribe(delegate
@@ -1009,7 +1009,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup(string.Format("スロット{0:00} カラー③", (int)__instance.slotNo + 1), (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 2), MoreAccessories._self.GetPart((int)__instance.slotNo).color[2], __instance.UpdateAcsColor03, __instance.UpdateAcsColorHistory, false);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー③", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 2), MoreAccessories._self.GetPart((int)__instance.slotNo).color[2], __instance.UpdateAcsColor03, __instance.UpdateAcsColorHistory, false);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnAcsColor04")).OnClickAsObservable().Subscribe(delegate
@@ -1020,7 +1020,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup(string.Format("スロット{0:00} カラー④", (int)__instance.slotNo + 1), (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 3), MoreAccessories._self.GetPart((int)__instance.slotNo).color[3], __instance.UpdateAcsColor04, __instance.UpdateAcsColorHistory, true);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー④", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 3), MoreAccessories._self.GetPart((int)__instance.slotNo).color[3], __instance.UpdateAcsColor04, __instance.UpdateAcsColorHistory, true);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnInitColor")).onClick.AsObservable().Subscribe(delegate
@@ -1502,11 +1502,9 @@ namespace MoreAccessoriesKOI
                         while (i >= dstParts.Count)
                         {
                             ChaFileAccessory.PartsInfo part = new ChaFileAccessory.PartsInfo();
-                            part.MemberInit();
                             dstParts.Add(part);
                         }
                         dstParts[i] = MessagePackSerializer.Deserialize<ChaFileAccessory.PartsInfo>(array);
-
                     }
                 }
             }
