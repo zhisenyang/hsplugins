@@ -86,6 +86,7 @@ namespace MoreAccessoriesKOI
         private ScrollRect _charaMakerTransferScrollView;
         private GameObject _transferSlotTemplate;
         private List<UI_RaycastCtrl> _raycastCtrls = new List<UI_RaycastCtrl>();
+        private ChaFile _overrideCharaLoadingFile;
         #endregion
 
         #region Unity Methods
@@ -574,11 +575,29 @@ namespace MoreAccessoriesKOI
         #endregion
 
         #region Saves
+        [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new []{typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
+        private static class ChaFileControl_LoadFileLimited_Patches
+        {
+            private static void Prefix(ChaFileControl __instance, string filename, byte sex = 255, bool face = true, bool body = true, bool hair = true, bool parameter = true, bool coordinate = true)
+            {
+                if (_self._inCharaMaker && _self._customAcsChangeSlot != null) //TODO check if we need that somewhere else
+                    _self._overrideCharaLoadingFile = __instance;
+            }
+
+            private static void Postfix(string filename, byte sex = 255, bool face = true, bool body = true, bool hair = true, bool parameter = true, bool coordinate = true)
+            {
+                _self._overrideCharaLoadingFile = null;
+            }
+        }
+
         private void OnCharaLoad(ChaFile file)
         {
+
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
-            if (this._inCharaMaker && this._customAcsChangeSlot != null)
-                file = CustomBase.Instance.chaCtrl.chaFile;
+
+            if (this._overrideCharaLoadingFile != null)
+                file = this._overrideCharaLoadingFile;
+
             CharAdditionalData data;
             if (this._accessoriesByChar.TryGetValue(file, out data) == false)
             {
@@ -723,12 +742,142 @@ namespace MoreAccessoriesKOI
 
         private void OnCoordLoad(ChaFileCoordinate file)
         {
-            UnityEngine.Debug.LogError("loading coord");
+            ChaFile chaFile = null;
+            foreach (KeyValuePair<int, ChaControl> pair in Manager.Character.Instance.dictEntryChara)
+            {
+                if (pair.Value.nowCoordinate == file)
+                {
+                    chaFile = pair.Value.chaFile;
+                    break;
+                }
+            }
+            if (chaFile == null)
+                return;
+
+            CharAdditionalData data;
+            if (this._accessoriesByChar.TryGetValue(chaFile, out data) == false)
+            {
+                data = new CharAdditionalData();
+                this._accessoriesByChar.Add(chaFile, data);
+            }
+            if (data.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)chaFile.status.coordinateType, out data.nowAccessories) == false)
+            {
+                data.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
+                data.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)chaFile.status.coordinateType, data.nowAccessories);
+            }
+            else
+                data.nowAccessories.Clear();
+            XmlNode node = null;
+            PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
+            if (pluginData != null && pluginData.data.TryGetValue("additionalAccessories", out object xmlData))
+            {
+                XmlDocument doc = new XmlDocument();
+                doc.LoadXml((string)xmlData);
+                node = doc.FirstChild;
+            }
+            if (node != null)
+            {
+                foreach (XmlNode accessoryNode in node.ChildNodes)
+                {
+                    ChaFileAccessory.PartsInfo part = new ChaFileAccessory.PartsInfo();
+                    part.type = XmlConvert.ToInt32(accessoryNode.Attributes["type"].Value);
+                    if (part.type != 120)
+                    {
+                        part.id = XmlConvert.ToInt32(accessoryNode.Attributes["id"].Value);
+                        part.parentKey = accessoryNode.Attributes["parentKey"].Value;
+
+                        for (int i = 0; i < 2; i++)
+                        {
+                            for (int j = 0; j < 3; j++)
+                            {
+                                part.addMove[i, j] = new Vector3
+                                {
+                                    x = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}x"].Value),
+                                    y = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}y"].Value),
+                                    z = XmlConvert.ToSingle(accessoryNode.Attributes[$"addMove{i}{j}z"].Value)
+                                };
+                            }
+                        }
+                        for (int i = 0; i < 4; i++)
+                        {
+                            part.color[i] = new Color
+                            {
+                                r = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}r"].Value),
+                                g = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}g"].Value),
+                                b = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}b"].Value),
+                                a = XmlConvert.ToSingle(accessoryNode.Attributes[$"color{i}a"].Value)
+                            };
+                        }
+                        part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
+                    }
+                    data.nowAccessories.Add(part);
+                }
+            }
+
+            while (data.infoAccessory.Count < data.nowAccessories.Count)
+                data.infoAccessory.Add(null);
+            while (data.objAccessory.Count < data.nowAccessories.Count)
+                data.objAccessory.Add(null);
+            while (data.objAcsMove.Count < data.nowAccessories.Count)
+                data.objAcsMove.Add(new GameObject[2]);
+            while (data.cusAcsCmp.Count < data.nowAccessories.Count)
+                data.cusAcsCmp.Add(null);
+            if (this._inCharaMaker)
+                this.ExecuteDelayed(this.UpdateMakerUI);
         }
 
         private void OnCoordSave(ChaFileCoordinate file)
         {
-            UnityEngine.Debug.LogError("saving coord");
+            if (this._inCharaMaker == false) //Need to see if that can happen
+                return;
+            CharAdditionalData data;
+            if (this._accessoriesByChar.TryGetValue(CustomBase.Instance.chaCtrl.chaFile, out data) == false)
+                return;
+            if (data.nowAccessories.Count == 0)
+                return;
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+                xmlWriter.WriteStartElement("additionalAccessories");
+                xmlWriter.WriteAttributeString("version", MoreAccessories.versionNum);
+                foreach (ChaFileAccessory.PartsInfo part in data.nowAccessories)
+                {
+                    xmlWriter.WriteStartElement("accessory");
+                    xmlWriter.WriteAttributeString("type", XmlConvert.ToString(part.type));
+                    if (part.type != 120)
+                    {
+                        xmlWriter.WriteAttributeString("id", XmlConvert.ToString(part.id));
+                        xmlWriter.WriteAttributeString("parentKey", part.parentKey);
+
+                        for (int i = 0; i < 2; i++)
+                        {
+                            for (int j = 0; j < 3; j++)
+                            {
+                                Vector3 v = part.addMove[i, j];
+                                xmlWriter.WriteAttributeString($"addMove{i}{j}x", XmlConvert.ToString(v.x));
+                                xmlWriter.WriteAttributeString($"addMove{i}{j}y", XmlConvert.ToString(v.y));
+                                xmlWriter.WriteAttributeString($"addMove{i}{j}z", XmlConvert.ToString(v.z));
+                            }
+                        }
+                        for (int i = 0; i < 4; i++)
+                        {
+                            Color c = part.color[i];
+                            xmlWriter.WriteAttributeString($"color{i}r", XmlConvert.ToString(c.r));
+                            xmlWriter.WriteAttributeString($"color{i}g", XmlConvert.ToString(c.g));
+                            xmlWriter.WriteAttributeString($"color{i}b", XmlConvert.ToString(c.b));
+                            xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
+                        }
+                        xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
+                    }
+                    xmlWriter.WriteEndElement();
+                }
+                xmlWriter.WriteEndElement();
+
+                PluginData pluginData = new PluginData();
+                pluginData.version = MoreAccessories._saveVersion;
+                pluginData.data.Add("additionalAccessories", stringWriter.ToString());
+                ExtendedSave.SetExtendedDataById(file, _extSaveKey, pluginData);
+            }
         }
         #endregion
     }

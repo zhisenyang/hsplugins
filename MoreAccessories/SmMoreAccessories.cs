@@ -416,25 +416,33 @@ namespace MoreAccessories
         {
             UnityEngine.Debug.LogError("Before HSUS stuff");
             Type type = Type.GetType("HSUS.HSUS,HSUS");
-            if (type != null && (bool)type.GetProperty("optimizeCharaMaker").GetValue(type.GetProperty("self").GetValue(null, null), null))
+            if (type != null)
             {
-                RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
-                rt.offsetMax += new Vector2(0f, -24f);
-                float newY = rt.offsetMax.y;
-                rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
-                rt.offsetMax += new Vector2(0f, -24f);
+                PropertyInfo propertyInfo = type.GetProperty("optimizeCharaMaker");
+                if (propertyInfo != null)
+                {
+                    PropertyInfo selfProperty = type.GetProperty("self");
+                    if (selfProperty != null && (bool)propertyInfo.GetValue(selfProperty.GetValue(null, null), null))
+                    {
+                        RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
+                        rt.offsetMax += new Vector2(0f, -24f);
+                        float newY = rt.offsetMax.y;
+                        rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
+                        rt.offsetMax += new Vector2(0f, -24f);
 
-                this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
-                this._searchBar.GetComponent<Image>().sprite = (Sprite)type.GetProperty("searchBarBackground").GetValue(type.GetProperty("self").GetValue(null, null), null);
-                foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
-                    t.color = Color.white;
+                        this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
+                        this._searchBar.GetComponent<Image>().sprite = (Sprite)type.GetProperty("searchBarBackground").GetValue(type.GetProperty("self").GetValue(null, null), null);
+                        foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
+                            t.color = Color.white;
 
-                rt = this._searchBar.transform as RectTransform;
-                rt.localPosition = Vector3.zero;
-                rt.localScale = Vector3.one;
-                rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
-                this._searchBar.onValueChanged.AddListener(this.SearchChanged);
+                        rt = this._searchBar.transform as RectTransform;
+                        rt.localPosition = Vector3.zero;
+                        rt.localScale = Vector3.one;
+                        rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
+                        this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
+                        this._searchBar.onValueChanged.AddListener(this.SearchChanged);
+                    }
+                }
             }
             UnityEngine.Debug.LogError("Before real init stuff");
 

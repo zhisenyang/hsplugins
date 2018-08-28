@@ -39,6 +39,7 @@ namespace RendererEditor
                 public readonly HashSet<string> enabledKeywords = new HashSet<string>();
             }
 
+            public bool enabled;
             public ShadowCastingMode shadowCastingMode;
             public bool receiveShadow;
             public readonly Dictionary<Material, MaterialData> dirtyMaterials = new Dictionary<Material, MaterialData>();
@@ -280,6 +281,19 @@ namespace RendererEditor
             GUILayout.BeginVertical();
 
             GUI.enabled = this._selectedRenderers.Count != 0;
+
+            {
+                bool newEnabled = GUILayout.Toggle(this._selectedRenderers.Count != 0 && this._selectedRenderers.First().enabled, "Enabled");
+                if (this._selectedRenderers.Count != 0 && newEnabled != this._selectedRenderers.First().enabled)
+                {
+                    foreach (Renderer renderer in this._selectedRenderers)
+                    {
+                        RendererData data;
+                        this.SetRendererDirty(renderer, out data);
+                        renderer.enabled = newEnabled;
+                    }
+                }
+            }
 
             {
                 GUILayout.BeginHorizontal();
@@ -752,6 +766,7 @@ namespace RendererEditor
             {
                 data = new RendererData
                 {
+                    enabled = renderer.enabled,
                     shadowCastingMode = renderer.shadowCastingMode,
                     receiveShadow = renderer.receiveShadows
                 };
@@ -766,6 +781,7 @@ namespace RendererEditor
             RendererData data;
             if (this._dirtyRenderers.TryGetValue(renderer, out data))
             {
+                renderer.enabled = data.enabled;
                 renderer.shadowCastingMode = data.shadowCastingMode;
                 renderer.receiveShadows = data.receiveShadow;
                 if (withMaterials)
@@ -1344,6 +1360,7 @@ namespace RendererEditor
                             Renderer renderer = child.GetComponent<Renderer>();
                             if (renderer != null && this.SetRendererDirty(renderer, out RendererData rendererData))
                             {
+                                renderer.enabled = childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                                 renderer.shadowCastingMode = (ShadowCastingMode)XmlConvert.ToInt32(childNode.Attributes["shadowCastingMode"].Value);
                                 renderer.receiveShadows = XmlConvert.ToBoolean(childNode.Attributes["receiveShadows"].Value);
 
@@ -1501,6 +1518,7 @@ namespace RendererEditor
                 writer.WriteAttributeString("objectIndex", XmlConvert.ToString(objectIndex));
                 writer.WriteAttributeString("rendererPath", rendererPair.Key.transform.GetPathFrom(t));
 
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
                 writer.WriteAttributeString("shadowCastingMode", XmlConvert.ToString((int)rendererPair.Key.shadowCastingMode));
                 writer.WriteAttributeString("receiveShadows", XmlConvert.ToString(rendererPair.Key.receiveShadows));
 

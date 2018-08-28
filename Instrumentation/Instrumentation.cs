@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 #if HONEYSELECT
 using IllusionPlugin;
-using UnityEngine;
 #elif KOIKATSU
 using BepInEx;
 using UnityEngine.SceneManagement;
