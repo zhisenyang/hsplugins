@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Security.Policy;
 using ChaCustom;
@@ -20,6 +21,59 @@ using UnityEngine.UI;
 namespace MoreAccessoriesKOI
 {
     #region Patches
+    [HarmonyPatch(typeof(HSceneProc), "Start")]
+    internal static class HSceneProc_Start_Patches
+    {
+        private static void Postfix(HSceneProc __instance)
+        {
+            MoreAccessories._self.SpawnHUI(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(HSprite), "Update")]
+    public static class HSprite_Update_Patches
+    {
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> instructionsList = instructions.ToList();
+            for (int i = 0; i < instructionsList.Count; i++)
+            {
+                CodeInstruction inst = instructionsList[i];
+                yield return inst;
+                if (inst.opcode == OpCodes.Stloc_S && inst.operand != null && inst.operand.ToString().Equals("System.Int32 (5)"))
+                {
+                    object num2Operand = inst.operand;
+                    yield return new CodeInstruction(OpCodes.Ldloc_2); //i
+                    yield return new CodeInstruction(OpCodes.Call, typeof(HSprite_Update_Patches).GetMethod(nameof(GetFixedAccessoryCount), BindingFlags.NonPublic | BindingFlags.Static));
+                    yield return new CodeInstruction(OpCodes.Stloc_S, num2Operand);
+
+                    while (instructionsList[i].opcode != OpCodes.Blt)
+                        ++i;
+                }
+            }
+        }
+
+
+        private static int GetFixedAccessoryCount(int i)
+        {
+            ChaControl female = MoreAccessories._self._hSceneFemales[i];
+            int res = 0;
+            for (int k = 0; k < 20; k++)
+                if (female.IsAccessory(k))
+                    res++;
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(female.chaFile, out data) == false)
+                return res;
+            foreach (ChaFileAccessory.PartsInfo part in data.nowAccessories)
+            {
+                if (part.type != 120)
+                    res++;
+            }
+            return res;
+        }
+    }
+
+
     [HarmonyPatch(typeof(CustomAcsChangeSlot), "Start")]
     internal static class CustomAcsChangeSlot_Start_Patches
     {
@@ -118,6 +172,8 @@ namespace MoreAccessoriesKOI
     {
         private static void Prefix(ChaControl __instance, ChaFileDefine.CoordinateType type, bool changeBackCoordinateType)
         {
+            UnityEngine.Debug.LogError("changing coordinates");
+
             MoreAccessories.CharAdditionalData data;
             List<ChaFileAccessory.PartsInfo> accessories;
             if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
@@ -131,8 +187,149 @@ namespace MoreAccessoriesKOI
                 data.rawAccessoriesInfos.Add(type, accessories);
             }
             data.nowAccessories = accessories;
-            if (MoreAccessories._self._inCharaMaker)
-                MoreAccessories._self.OnCoordTypeChangeCharaMaker();
+            MoreAccessories._self.OnCoordTypeChange();
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaControl), "UpdateVisible")]
+    internal static class ChaControl_UpdateVisible_Patches
+    {
+        private static void Postfix(ChaControl __instance)
+        {
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return;
+
+            bool flag2 = true;
+            if (Singleton<Scene>.Instance.NowSceneNames.Any(s => s == "H"))
+            {
+                flag2 = (__instance.sex != 0 || Manager.Config.EtcData.VisibleBody);
+            }
+
+            for (int i = 0; i < data.nowAccessories.Count; i++)
+            {
+                GameObject objAccessory = data.objAccessory[i];
+                if (objAccessory == null)
+                    continue;
+
+                bool flag9 = false;
+                if (!__instance.fileStatus.visibleHeadAlways && data.nowAccessories[i].partsOfHead)
+                {
+                    flag9 = true;
+                }
+                if (!__instance.fileStatus.visibleBodyAlways || !flag2)
+                {
+                    flag9 = true;
+                }
+
+                objAccessory.SetActive(__instance.visibleAll &&
+                                       data.showAccessories[i] &&
+                                       __instance.fileStatus.visibleSimple == false &&
+                                       !flag9);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryStateAll")]
+    internal static class ChaControl_SetAccessoryStateAll_Patches
+    {
+        private static void Postfix(ChaControl __instance, bool show)
+        {
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return;
+            for (int i = 0; i < data.nowAccessories.Count; i++)
+                data.showAccessories[i] = show;
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryStateCategory")]
+    internal static class ChaControl_SetAccessoryStateCategory_Patches
+    {
+        private static void Postfix(ChaControl __instance, int cateNo, bool show)
+        {
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return;
+            for (int i = 0; i < data.nowAccessories.Count; i++)
+                if (data.nowAccessories[i].hideCategory == cateNo)
+                    data.showAccessories[i] = show;
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaControl), "GetAccessoryCategoryCount", new []{typeof(int)})]
+    internal static class ChaControl_GetAccessoryCategoryCount_Patches
+    {
+        private static void Postfix(ChaControl __instance, int cateNo, ref int __result)
+        {
+            if (__result == -1)
+                return;
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return;
+            foreach (ChaFileAccessory.PartsInfo part in data.nowAccessories)
+            {
+                if (part.hideCategory == cateNo)
+                    __result++;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaFile), "CopyAll")]
+    internal static class ChaFile_CopyAll_Patches
+    {
+        private static void Postfix(ChaFile __instance, ChaFile _chafile)
+        {
+            MoreAccessories.CharAdditionalData sourceData;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(_chafile, out sourceData) == false)
+                return;
+            MoreAccessories.CharAdditionalData destinationData;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance, out destinationData))
+            {
+                foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> pair in destinationData.rawAccessoriesInfos)
+                {
+                    if (pair.Value != null)
+                        pair.Value.Clear();                
+                }
+            }
+            else
+            {
+                destinationData = new MoreAccessories.CharAdditionalData();
+                MoreAccessories._self._accessoriesByChar.Add(__instance, destinationData);
+            }
+            foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> sourcePair in sourceData.rawAccessoriesInfos)
+            {
+                if (sourcePair.Value == null || sourcePair.Value.Count == 0)
+                    continue;
+                List<ChaFileAccessory.PartsInfo> destinationParts;
+                if (destinationData.rawAccessoriesInfos.TryGetValue(sourcePair.Key, out destinationParts) == false)
+                {
+                    destinationParts = new List<ChaFileAccessory.PartsInfo>();
+                    destinationData.rawAccessoriesInfos.Add(sourcePair.Key, destinationParts);
+                }
+                foreach (ChaFileAccessory.PartsInfo sourcePart in sourcePair.Value)
+                {
+                    {
+                        byte[] bytes = MessagePackSerializer.Serialize(sourcePart);
+                        destinationParts.Add(MessagePackSerializer.Deserialize<ChaFileAccessory.PartsInfo>(bytes));
+                    }
+                }
+            }
+            if (destinationData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)_chafile.status.coordinateType, out destinationData.nowAccessories) == false)
+            {
+                destinationData.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
+                destinationData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)_chafile.status.coordinateType, destinationData.nowAccessories);
+            }
+            while (destinationData.infoAccessory.Count < destinationData.nowAccessories.Count)
+                destinationData.infoAccessory.Add(null);
+            while (destinationData.objAccessory.Count < destinationData.nowAccessories.Count)
+                destinationData.objAccessory.Add(null);
+            while (destinationData.objAcsMove.Count < destinationData.nowAccessories.Count)
+                destinationData.objAcsMove.Add(new GameObject[2]);
+            while (destinationData.cusAcsCmp.Count < destinationData.nowAccessories.Count)
+                destinationData.cusAcsCmp.Add(null);
+            while (destinationData.showAccessories.Count < destinationData.nowAccessories.Count)
+                destinationData.showAccessories.Add(true);
         }
     }
 

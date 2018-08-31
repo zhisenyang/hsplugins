@@ -170,7 +170,7 @@ namespace Studio
         {
             Type t = Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp");
             if (t != null)
-                harmony.Patch(t.GetMethod("LateUpdate"), new HarmonyMethod(typeof(ItemFKCtrl_LateUpdate_Patches).GetMethod(nameof(Prefix))), null, null);
+                harmony.Patch(t.GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic), new HarmonyMethod(typeof(ItemFKCtrl_LateUpdate_Patches).GetMethod(nameof(Prefix))), null, null);
         }
         public static bool Prepare()
         {

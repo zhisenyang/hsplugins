@@ -555,7 +555,11 @@ namespace HSUS
         #region Private Methods
         private void OnWindowResize()
         {
+#if HONEYSELECT
             this._routines.ExecuteDelayed(this.ApplyUIScale, 2);
+#elif KOIKATSU
+            this.ExecuteDelayed(this.ApplyUIScale, 2);
+#endif
         }
 
 #if HONEYSELECT

@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using Studio;
+using ToolBox;
 using UnityEngine;
 
 namespace HSUS
@@ -54,8 +55,16 @@ namespace HSUS
             return HSUS.self.cameraSpeedShortcuts;
         }
 
+#if HONEYSELECT
         public static void Postfix(Studio.CameraControl ___cameraControl)
         {
+#elif KOIKATSU
+        private static Studio.CameraControl ___cameraControl;
+        public static void Postfix(ShortcutKeyCtrl __instance)
+        {
+            if (___cameraControl == null)
+                ___cameraControl = (Studio.CameraControl)__instance.GetPrivate("cameraControl");
+#endif
             if (!Studio.Studio.IsInstance() && Studio.Studio.Instance.isInputNow && !Manager.Scene.IsInstance() && Manager.Scene.Instance.AddSceneName != string.Empty)
                 return;
             if (!Studio.Studio.Instance.isVRMode && Input.GetKeyDown(KeyCode.F) && GuideObjectManager.Instance.selectObject != null)

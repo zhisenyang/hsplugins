@@ -254,7 +254,7 @@ namespace HSPE
                 if (this._poseTarget.drawAdvancedMode)
                 {
                     Color c = GUI.backgroundColor;
-                    GUI.backgroundColor = new Color(0.6F, 0.6f, 0.6f, 0.2f);
+                    GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
                     for (int i = 0; i < 3; ++i)
                         GUI.Box(this._advancedModeRect, "", _customBoxStyle);
                     GUI.backgroundColor = c;
