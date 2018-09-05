@@ -61,6 +61,7 @@
     <Compile Include="Commands.cs" />
     <Compile Include="AMModules\DynamicBonesEditor.cs" />
     <Compile Include="EditableValue.cs" />
+    <Compile Include="Extensions.cs" />
     <Compile Include="HarmonyPatches.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="PoseController.cs" />

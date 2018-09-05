@@ -1346,159 +1346,168 @@ namespace RendererEditor
                 List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
-                    switch (childNode.Name)
+                    try
                     {
-                        case "renderer":
-                            int objectIndex = XmlConvert.ToInt32(childNode.Attributes["objectIndex"].Value);
-                            if (objectIndex >= dic.Count)
-                                continue;
-                            Transform t = dic[objectIndex].Value.guideObject.transformTarget;
-                            string rendererPath = childNode.Attributes["rendererPath"].Value;
-                            Transform child = t.Find(rendererPath);
-                            if (child == null)
-                                continue;
-                            Renderer renderer = child.GetComponent<Renderer>();
-                            if (renderer != null && this.SetRendererDirty(renderer, out RendererData rendererData))
-                            {
-                                renderer.enabled = childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                renderer.shadowCastingMode = (ShadowCastingMode)XmlConvert.ToInt32(childNode.Attributes["shadowCastingMode"].Value);
-                                renderer.receiveShadows = XmlConvert.ToBoolean(childNode.Attributes["receiveShadows"].Value);
-
-                                foreach (XmlNode grandChildNode in childNode.ChildNodes)
+                        switch (childNode.Name)
+                        {
+                            case "renderer":
+                                int objectIndex = XmlConvert.ToInt32(childNode.Attributes["objectIndex"].Value);
+                                if (objectIndex >= dic.Count)
+                                    continue;
+                                Transform t = dic[objectIndex].Value.guideObject.transformTarget;
+                                string rendererPath = childNode.Attributes["rendererPath"].Value;
+                                Transform child;
+                                child = string.IsNullOrEmpty(rendererPath) ? t : t.Find(rendererPath);
+                                if (child == null)
+                                    continue;
+                                Renderer renderer = child.GetComponent<Renderer>();
+                                if (renderer != null && this.SetRendererDirty(renderer, out RendererData rendererData))
                                 {
-                                    switch (grandChildNode.Name)
+                                    renderer.enabled = childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    renderer.shadowCastingMode = (ShadowCastingMode)XmlConvert.ToInt32(childNode.Attributes["shadowCastingMode"].Value);
+                                    renderer.receiveShadows = XmlConvert.ToBoolean(childNode.Attributes["receiveShadows"].Value);
+
+                                    foreach (XmlNode grandChildNode in childNode.ChildNodes)
                                     {
-                                        case "material":
-                                            int index = XmlConvert.ToInt32(grandChildNode.Attributes["index"].Value);
-                                            Material mat = renderer.materials[index];
-                                            this.SetMaterialDirty(mat, out RendererData.MaterialData materialData, rendererData);
-                                            if (grandChildNode.Attributes["renderQueue"] != null)
-                                            {
-                                                materialData.originalRenderQueue = mat.renderQueue;
-                                                materialData.hasRenderQueue = true;
-                                                mat.renderQueue = XmlConvert.ToInt32(grandChildNode.Attributes["renderQueue"].Value);
-
-                                            }
-
-                                            foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
-                                            {
-                                                switch (propertyGroupNode.Name)
+                                        switch (grandChildNode.Name)
+                                        {
+                                            case "material":
+                                                int index = XmlConvert.ToInt32(grandChildNode.Attributes["index"].Value);
+                                                Material mat = renderer.materials[index];
+                                                this.SetMaterialDirty(mat, out RendererData.MaterialData materialData, rendererData);
+                                                if (grandChildNode.Attributes["renderQueue"] != null)
                                                 {
-                                                    case "colors":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Color c = Color.black;
-                                                            c.r = XmlConvert.ToSingle(property.Attributes["r"].Value);
-                                                            c.g = XmlConvert.ToSingle(property.Attributes["g"].Value);
-                                                            c.b = XmlConvert.ToSingle(property.Attributes["b"].Value);
-                                                            c.a = XmlConvert.ToSingle(property.Attributes["a"].Value);
-                                                            materialData.dirtyColorProperties.Add(key, mat.GetColor(key));
-                                                            mat.SetColor(key, c);
-                                                        }
-                                                        break;
-                                                    case "textures":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            string texturePath = property.Attributes["path"].Value;
-                                                            Texture2D texture;
-                                                            if (this._textures.TryGetValue(texturePath, out texture))
-                                                            {
-                                                                materialData.dirtyTextureProperties.Add(key, new RendererData.MaterialData.TextureData()
-                                                                {
-                                                                    currentTexturePath = texturePath,
-                                                                    originalTexture = mat.GetTexture(key)
-                                                                });
-                                                                mat.SetTexture(key, this._textures[texturePath]);
-                                                            }
-                                                        }
-                                                        break;
-                                                    case "textureOffsets":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector2 offset;
-                                                            offset.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            offset.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            materialData.dirtyTextureOffsetProperties.Add(key, mat.GetTextureOffset(key));
-                                                            mat.SetTextureOffset(key, offset);
-                                                        }
-                                                        break;
-                                                    case "textureScales":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector2 scale;
-                                                            scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            materialData.dirtyTextureScaleProperties.Add(key, mat.GetTextureScale(key));
-                                                            mat.SetTextureScale(key, scale);
-                                                        }
-                                                        break;
-                                                    case "floats":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            float value = XmlConvert.ToSingle(property.Attributes["value"].Value);
-                                                            materialData.dirtyFloatProperties.Add(key, mat.GetFloat(key));
-                                                            mat.SetFloat(key, value);
-                                                        }
-                                                        break;
-                                                    case "booleans":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            bool value = XmlConvert.ToBoolean(property.Attributes["value"].Value);
-                                                            materialData.dirtyBooleanProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)) == 1);
-                                                            mat.SetFloat(key, value ? 1 : 0);
-                                                        }
-                                                        break;
-                                                    case "enums":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            int value = XmlConvert.ToInt32(property.Attributes["value"].Value);
-                                                            materialData.dirtyEnumProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)));
-                                                            mat.SetFloat(key, value);
-                                                        }
-                                                        break;
-                                                    case "vector4s":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector4 scale;
-                                                            scale.w = XmlConvert.ToSingle(property.Attributes["w"].Value);
-                                                            scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            scale.z = XmlConvert.ToSingle(property.Attributes["z"].Value);
-                                                            materialData.dirtyVector4Properties.Add(key, mat.GetVector(key));
-                                                            mat.SetVector(key, scale);
-                                                        }
-                                                        break;
-                                                    case "enabledKeywords":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string keyword = property.Attributes["value"].Value;
-                                                            materialData.enabledKeywords.Add(keyword);
-                                                            mat.EnableKeyword(keyword);
-                                                        }
-                                                        break;
-                                                    case "disabledKeywords":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string keyword = property.Attributes["value"].Value;
-                                                            materialData.disabledKeywords.Add(keyword);
-                                                            mat.DisableKeyword(keyword);
-                                                        }
-                                                        break;
+                                                    materialData.originalRenderQueue = mat.renderQueue;
+                                                    materialData.hasRenderQueue = true;
+                                                    mat.renderQueue = XmlConvert.ToInt32(grandChildNode.Attributes["renderQueue"].Value);
+
                                                 }
-                                            }
-                                            break;
+
+                                                foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
+                                                {
+                                                    switch (propertyGroupNode.Name)
+                                                    {
+                                                        case "colors":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                Color c = Color.black;
+                                                                c.r = XmlConvert.ToSingle(property.Attributes["r"].Value);
+                                                                c.g = XmlConvert.ToSingle(property.Attributes["g"].Value);
+                                                                c.b = XmlConvert.ToSingle(property.Attributes["b"].Value);
+                                                                c.a = XmlConvert.ToSingle(property.Attributes["a"].Value);
+                                                                materialData.dirtyColorProperties.Add(key, mat.GetColor(key));
+                                                                mat.SetColor(key, c);
+                                                            }
+                                                            break;
+                                                        case "textures":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                string texturePath = property.Attributes["path"].Value;
+                                                                Texture2D texture;
+                                                                if (this._textures.TryGetValue(texturePath, out texture))
+                                                                {
+                                                                    materialData.dirtyTextureProperties.Add(key, new RendererData.MaterialData.TextureData()
+                                                                    {
+                                                                        currentTexturePath = texturePath,
+                                                                        originalTexture = mat.GetTexture(key)
+                                                                    });
+                                                                    mat.SetTexture(key, this._textures[texturePath]);
+                                                                }
+                                                            }
+                                                            break;
+                                                        case "textureOffsets":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                Vector2 offset;
+                                                                offset.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                                offset.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                                materialData.dirtyTextureOffsetProperties.Add(key, mat.GetTextureOffset(key));
+                                                                mat.SetTextureOffset(key, offset);
+                                                            }
+                                                            break;
+                                                        case "textureScales":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                Vector2 scale;
+                                                                scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                                scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                                materialData.dirtyTextureScaleProperties.Add(key, mat.GetTextureScale(key));
+                                                                mat.SetTextureScale(key, scale);
+                                                            }
+                                                            break;
+                                                        case "floats":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                float value = XmlConvert.ToSingle(property.Attributes["value"].Value);
+                                                                materialData.dirtyFloatProperties.Add(key, mat.GetFloat(key));
+                                                                mat.SetFloat(key, value);
+                                                            }
+                                                            break;
+                                                        case "booleans":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                bool value = XmlConvert.ToBoolean(property.Attributes["value"].Value);
+                                                                materialData.dirtyBooleanProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)) == 1);
+                                                                mat.SetFloat(key, value ? 1 : 0);
+                                                            }
+                                                            break;
+                                                        case "enums":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                int value = XmlConvert.ToInt32(property.Attributes["value"].Value);
+                                                                materialData.dirtyEnumProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)));
+                                                                mat.SetFloat(key, value);
+                                                            }
+                                                            break;
+                                                        case "vector4s":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string key = property.Attributes["key"].Value;
+                                                                Vector4 scale;
+                                                                scale.w = XmlConvert.ToSingle(property.Attributes["w"].Value);
+                                                                scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                                scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                                scale.z = XmlConvert.ToSingle(property.Attributes["z"].Value);
+                                                                materialData.dirtyVector4Properties.Add(key, mat.GetVector(key));
+                                                                mat.SetVector(key, scale);
+                                                            }
+                                                            break;
+                                                        case "enabledKeywords":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string keyword = property.Attributes["value"].Value;
+                                                                materialData.enabledKeywords.Add(keyword);
+                                                                mat.EnableKeyword(keyword);
+                                                            }
+                                                            break;
+                                                        case "disabledKeywords":
+                                                            foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                            {
+                                                                string keyword = property.Attributes["value"].Value;
+                                                                materialData.disabledKeywords.Add(keyword);
+                                                                mat.DisableKeyword(keyword);
+                                                            }
+                                                            break;
+                                                    }
+                                                }
+                                                break;
+                                        }
                                     }
                                 }
-                            }
-                            break;
+                                break;
+                        }
+
+                    }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("Exception happened while loading item " + childNode.OuterXml + "\n" + e);
                     }
                 }
             }, 8);
@@ -1509,141 +1518,149 @@ namespace RendererEditor
             List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
             foreach (KeyValuePair<Renderer, RendererData> rendererPair in this._dirtyRenderers)
             {
-                Transform t = rendererPair.Key.transform;
                 int objectIndex = -1;
-                while ((objectIndex = dic.FindIndex(e => e.Value.guideObject.transformTarget == t)) == -1)
-                    t = t.parent;
-
-                writer.WriteStartElement("renderer");
-                writer.WriteAttributeString("objectIndex", XmlConvert.ToString(objectIndex));
-                writer.WriteAttributeString("rendererPath", rendererPair.Key.transform.GetPathFrom(t));
-
-                writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
-                writer.WriteAttributeString("shadowCastingMode", XmlConvert.ToString((int)rendererPair.Key.shadowCastingMode));
-                writer.WriteAttributeString("receiveShadows", XmlConvert.ToString(rendererPair.Key.receiveShadows));
-
-                List<Material> materials = rendererPair.Key.sharedMaterials.ToList();
-                foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in rendererPair.Value.dirtyMaterials)
+                try
                 {
-                    writer.WriteStartElement("material");
-                    writer.WriteAttributeString("index", XmlConvert.ToString(materials.IndexOf(materialPair.Key)));
-                    if (materialPair.Value.hasRenderQueue)
-                        writer.WriteAttributeString("renderQueue", XmlConvert.ToString(materialPair.Key.renderQueue));
+                    Transform t = rendererPair.Key.transform;
+                    while ((objectIndex = dic.FindIndex(e => e.Value.guideObject.transformTarget == t)) == -1)
+                        t = t.parent;
 
-                    writer.WriteStartElement("colors");
-                    foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)
+                    writer.WriteStartElement("renderer");
+                    writer.WriteAttributeString("objectIndex", XmlConvert.ToString(objectIndex));
+                    writer.WriteAttributeString("rendererPath", rendererPair.Key.transform.GetPathFrom(t));
+
+                    writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
+                    writer.WriteAttributeString("shadowCastingMode", XmlConvert.ToString((int)rendererPair.Key.shadowCastingMode));
+                    writer.WriteAttributeString("receiveShadows", XmlConvert.ToString(rendererPair.Key.receiveShadows));
+
+                    List<Material> materials = rendererPair.Key.sharedMaterials.ToList();
+                    foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in rendererPair.Value.dirtyMaterials)
                     {
-                        writer.WriteStartElement("color");
-                        writer.WriteAttributeString("key", pair.Key);
-                        Color c = materialPair.Key.GetColor(pair.Key);
-                        writer.WriteAttributeString("r", XmlConvert.ToString(c.r));
-                        writer.WriteAttributeString("g", XmlConvert.ToString(c.g));
-                        writer.WriteAttributeString("b", XmlConvert.ToString(c.b));
-                        writer.WriteAttributeString("a", XmlConvert.ToString(c.a));
+                        writer.WriteStartElement("material");
+                        writer.WriteAttributeString("index", XmlConvert.ToString(materials.IndexOf(materialPair.Key)));
+                        if (materialPair.Value.hasRenderQueue)
+                            writer.WriteAttributeString("renderQueue", XmlConvert.ToString(materialPair.Key.renderQueue));
+
+                        writer.WriteStartElement("colors");
+                        foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)
+                        {
+                            writer.WriteStartElement("color");
+                            writer.WriteAttributeString("key", pair.Key);
+                            Color c = materialPair.Key.GetColor(pair.Key);
+                            writer.WriteAttributeString("r", XmlConvert.ToString(c.r));
+                            writer.WriteAttributeString("g", XmlConvert.ToString(c.g));
+                            writer.WriteAttributeString("b", XmlConvert.ToString(c.b));
+                            writer.WriteAttributeString("a", XmlConvert.ToString(c.a));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("textures");
+                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
+                        {
+                            writer.WriteStartElement("texture");
+                            writer.WriteAttributeString("key", pair.Key);
+                            writer.WriteAttributeString("path", pair.Value.currentTexturePath);
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("textureOffsets");
+                        foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureOffsetProperties)
+                        {
+                            writer.WriteStartElement("textureOffset");
+                            writer.WriteAttributeString("key", pair.Key);
+                            Vector2 offset = materialPair.Key.GetTextureOffset(pair.Key);
+                            writer.WriteAttributeString("x", XmlConvert.ToString(offset.x));
+                            writer.WriteAttributeString("y", XmlConvert.ToString(offset.y));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("textureScales");
+                        foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureScaleProperties)
+                        {
+                            writer.WriteStartElement("textureScale");
+                            writer.WriteAttributeString("key", pair.Key);
+                            Vector2 scale = materialPair.Key.GetTextureScale(pair.Key);
+                            writer.WriteAttributeString("x", XmlConvert.ToString(scale.x));
+                            writer.WriteAttributeString("y", XmlConvert.ToString(scale.y));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("floats");
+                        foreach (KeyValuePair<string, float> pair in materialPair.Value.dirtyFloatProperties)
+                        {
+                            writer.WriteStartElement("float");
+                            writer.WriteAttributeString("key", pair.Key);
+                            writer.WriteAttributeString("value", XmlConvert.ToString(materialPair.Key.GetFloat(pair.Key)));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("booleans");
+                        foreach (KeyValuePair<string, bool> pair in materialPair.Value.dirtyBooleanProperties)
+                        {
+                            writer.WriteStartElement("boolean");
+                            writer.WriteAttributeString("key", pair.Key);
+                            writer.WriteAttributeString("value", XmlConvert.ToString(Mathf.RoundToInt(materialPair.Key.GetFloat(pair.Key)) == 1));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("enums");
+                        foreach (KeyValuePair<string, int> pair in materialPair.Value.dirtyEnumProperties)
+                        {
+                            writer.WriteStartElement("enum");
+                            writer.WriteAttributeString("key", pair.Key);
+                            writer.WriteAttributeString("value", XmlConvert.ToString(Mathf.RoundToInt(materialPair.Key.GetFloat(pair.Key))));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("vector4s");
+                        foreach (KeyValuePair<string, Vector4> pair in materialPair.Value.dirtyVector4Properties)
+                        {
+                            writer.WriteStartElement("vector4");
+                            writer.WriteAttributeString("key", pair.Key);
+                            Vector4 value = materialPair.Key.GetVector(pair.Key);
+                            writer.WriteAttributeString("w", XmlConvert.ToString(value.w));
+                            writer.WriteAttributeString("x", XmlConvert.ToString(value.x));
+                            writer.WriteAttributeString("y", XmlConvert.ToString(value.y));
+                            writer.WriteAttributeString("z", XmlConvert.ToString(value.z));
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("enabledKeywords");
+                        foreach (string keyword in materialPair.Value.enabledKeywords)
+                        {
+                            writer.WriteStartElement("keyword");
+                            writer.WriteAttributeString("value", keyword);
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
+                        writer.WriteStartElement("disabledKeywords");
+                        foreach (string keyword in materialPair.Value.disabledKeywords)
+                        {
+                            writer.WriteStartElement("keyword");
+                            writer.WriteAttributeString("value", keyword);
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+
                         writer.WriteEndElement();
                     }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("textures");
-                    foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
-                    {
-                        writer.WriteStartElement("texture");
-                        writer.WriteAttributeString("key", pair.Key);
-                        writer.WriteAttributeString("path", pair.Value.currentTexturePath);
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("textureOffsets");
-                    foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureOffsetProperties)
-                    {
-                        writer.WriteStartElement("textureOffset");
-                        writer.WriteAttributeString("key", pair.Key);
-                        Vector2 offset = materialPair.Key.GetTextureOffset(pair.Key);
-                        writer.WriteAttributeString("x", XmlConvert.ToString(offset.x));
-                        writer.WriteAttributeString("y", XmlConvert.ToString(offset.y));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("textureScales");
-                    foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureScaleProperties)
-                    {
-                        writer.WriteStartElement("textureScale");
-                        writer.WriteAttributeString("key", pair.Key);
-                        Vector2 scale = materialPair.Key.GetTextureScale(pair.Key);
-                        writer.WriteAttributeString("x", XmlConvert.ToString(scale.x));
-                        writer.WriteAttributeString("y", XmlConvert.ToString(scale.y));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("floats");
-                    foreach (KeyValuePair<string, float> pair in materialPair.Value.dirtyFloatProperties)
-                    {
-                        writer.WriteStartElement("float");
-                        writer.WriteAttributeString("key", pair.Key);
-                        writer.WriteAttributeString("value", XmlConvert.ToString(materialPair.Key.GetFloat(pair.Key)));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("booleans");
-                    foreach (KeyValuePair<string, bool> pair in materialPair.Value.dirtyBooleanProperties)
-                    {
-                        writer.WriteStartElement("boolean");
-                        writer.WriteAttributeString("key", pair.Key);
-                        writer.WriteAttributeString("value", XmlConvert.ToString(Mathf.RoundToInt(materialPair.Key.GetFloat(pair.Key)) == 1));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("enums");
-                    foreach (KeyValuePair<string, int> pair in materialPair.Value.dirtyEnumProperties)
-                    {
-                        writer.WriteStartElement("enum");
-                        writer.WriteAttributeString("key", pair.Key);
-                        writer.WriteAttributeString("value", XmlConvert.ToString(Mathf.RoundToInt(materialPair.Key.GetFloat(pair.Key))));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("vector4s");
-                    foreach (KeyValuePair<string, Vector4> pair in materialPair.Value.dirtyVector4Properties)
-                    {
-                        writer.WriteStartElement("vector4");
-                        writer.WriteAttributeString("key", pair.Key);
-                        Vector4 value = materialPair.Key.GetVector(pair.Key);
-                        writer.WriteAttributeString("w", XmlConvert.ToString(value.w));
-                        writer.WriteAttributeString("x", XmlConvert.ToString(value.x));
-                        writer.WriteAttributeString("y", XmlConvert.ToString(value.y));
-                        writer.WriteAttributeString("z", XmlConvert.ToString(value.z));
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("enabledKeywords");
-                    foreach (string keyword in materialPair.Value.enabledKeywords)
-                    {
-                        writer.WriteStartElement("keyword");
-                        writer.WriteAttributeString("value", keyword);
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-
-                    writer.WriteStartElement("disabledKeywords");
-                    foreach (string keyword in materialPair.Value.disabledKeywords)
-                    {
-                        writer.WriteStartElement("keyword");
-                        writer.WriteAttributeString("value", keyword);
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
 
                     writer.WriteEndElement();
+
                 }
-
-                writer.WriteEndElement();
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError("Exception happened during save with item " + rendererPair.Key.transform + " index " + objectIndex + "\n" + e);
+                }
             }
         }
         #endregion

@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Xml;
 using BepInEx;
 using ChaCustom;
@@ -10,6 +12,7 @@ using ExtensibleSaveFormat;
 using Harmony;
 using Illusion.Extensions;
 using Illusion.Game;
+using Manager;
 using Studio;
 using TMPro;
 using ToolBox;
@@ -17,6 +20,7 @@ using UILib;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Scene = UnityEngine.SceneManagement.Scene;
 
 namespace MoreAccessoriesKOI
 {
@@ -107,11 +111,11 @@ namespace MoreAccessoriesKOI
         private ChaFile _overrideCharaLoadingFile;
 
         private bool _inH;
-        private GameObject _hSceneSlotTemplate;
         internal List<ChaControl> _hSceneFemales;
-        private List<HSprite.FemaleDressButtonCategory> _hSceneFemaleButtons;
-        private List<HSceneSlotData> _additionalHSceneSlots = new List<HSceneSlotData>();
+        private List<HSprite.FemaleDressButtonCategory> _hSceneMultipleFemaleButtons;
+        private List<List<HSceneSlotData>> _additionalHSceneSlots = new List<List<HSceneSlotData>>();
         private HSprite _hSprite;
+        private HSceneSpriteCategory _hSceneSoloFemaleAccessoryButton;
 
         private StudioSlotData _studioToggleAll;
         private RectTransform _studioToggleTemplate;
@@ -120,6 +124,7 @@ namespace MoreAccessoriesKOI
         private readonly List<StudioSlotData> _additionalStudioSlots = new List<StudioSlotData>();
         private StudioSlotData _studioToggleMain;
         private StudioSlotData _studioToggleSub;
+
         #endregion
 
         #region Unity Methods
@@ -136,13 +141,16 @@ namespace MoreAccessoriesKOI
                     this._binary = Binary.Studio;
                     break;
             }
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.kkplugins.moreaccessories");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
-            ChaControl_ChangeAccessory_Patches.ManualPatch(harmony);
             ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
             ExtendedSave.CardBeingSaved += this.OnCharaSave;
             ExtendedSave.CoordinateBeingLoaded += this.OnCoordLoad;
             ExtendedSave.CoordinateBeingSaved += this.OnCoordSave;
+            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.kkplugins.moreaccessories");
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            ChaControl_ChangeAccessory_Patches.ManualPatch(harmony);
+            SideloaderAutoresolverHooks_IterateCardPrefixes_Patches.ManualPatch(harmony);
+            SideloaderAutoresolverHooks_ExtendedCardLoad_Patches.ManualPatch(harmony);
+
         }
 
         public void OnApplicationQuit()
@@ -179,9 +187,7 @@ namespace MoreAccessoriesKOI
                         this._inStudio = true;
                     }
                     else
-                    {
                         this._inStudio = false;
-                    }
                 }
                 if (this._accessoriesByChar.Any(p => p.Key == null))
                 {
@@ -217,13 +223,13 @@ namespace MoreAccessoriesKOI
             }
             if (this._inStudio)
             {
-                Studio.TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
+                TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
                 if (treeNodeObject != null)
                 {
-                    Studio.ObjectCtrlInfo info;
+                    ObjectCtrlInfo info;
                     if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
                     {
-                        Studio.OCIChar selected = info as Studio.OCIChar;
+                        OCIChar selected = info as OCIChar;
                         if (selected != this._selectedStudioCharacter)
                         {
                             this._selectedStudioCharacter = selected;
@@ -475,11 +481,13 @@ namespace MoreAccessoriesKOI
 
         internal void SpawnHUI(HSceneProc hSceneProc)
         {
-            this._additionalHSceneSlots = new List<HSceneSlotData>();
             this._hSceneFemales = (List<ChaControl>)hSceneProc.GetPrivate("lstFemale");
+            this._additionalHSceneSlots = new List<List<HSceneSlotData>>();
+            for (int i = 0; i < 2; i++)
+                this._additionalHSceneSlots.Add(new List<HSceneSlotData>());
             this._hSprite = hSceneProc.sprite;
-            this._hSceneFemaleButtons = hSceneProc.sprite.lstMultipleFemaleDressButton;
-            this._hSceneSlotTemplate = this._hSceneFemaleButtons[0].accessory.transform.GetChild(0).gameObject;
+                this._hSceneMultipleFemaleButtons = this._hSprite.lstMultipleFemaleDressButton;
+            this._hSceneSoloFemaleAccessoryButton = this._hSprite.categoryAccessory;
             this.UpdateHUI();
         }
 
@@ -490,7 +498,7 @@ namespace MoreAccessoriesKOI
             else if (this._inStudio)
                 this.UpdateStudioUI();
             else if (this._inH)
-                this.UpdateHUI();
+                this.ExecuteDelayed(this.UpdateHUI);
         }
 
         private void UpdateMakerUI()
@@ -645,28 +653,28 @@ namespace MoreAccessoriesKOI
 
         private void UpdateHUI()
         {
+            if (this._hSprite == null)
+                return;
             for (int i = 0; i < this._hSceneFemales.Count; i++)
             {
                 ChaControl female = this._hSceneFemales[i];
 
-                HSprite.FemaleDressButtonCategory buttons = this._hSceneFemaleButtons[i];
                 CharAdditionalData additionalData = this._accessoriesByChar[female.chaFile];
                 int j;
+                List<HSceneSlotData> additionalSlots = this._additionalHSceneSlots[i];
+                Transform buttonsParent = this._hSceneFemales.Count == 1 ? this._hSceneSoloFemaleAccessoryButton.transform : this._hSceneMultipleFemaleButtons[i].accessory.transform;
                 for (j = 0; j < additionalData.nowAccessories.Count; j++)
                 {
                     HSceneSlotData slot;
-                    ChaFileAccessory.PartsInfo accessory = additionalData.nowAccessories[j];
-                    if (j < this._additionalHSceneSlots.Count)
-                    {
-                        slot = this._additionalHSceneSlots[j];
-                    }
+                    if (j < additionalSlots.Count)
+                        slot = additionalSlots[j];
                     else
                     {
                         slot = new HSceneSlotData();
-                        slot.slot = (RectTransform)GameObject.Instantiate(this._hSceneSlotTemplate.gameObject).transform;
+                        slot.slot = (RectTransform)GameObject.Instantiate(buttonsParent.GetChild(0).gameObject).transform;
                         slot.text = slot.slot.GetComponentInChildren<TextMeshProUGUI>(true);
                         slot.button = slot.slot.GetComponentInChildren<Button>(true);
-                        slot.slot.SetParent(buttons.accessory.transform);
+                        slot.slot.SetParent(buttonsParent);
                         slot.slot.localPosition = Vector3.zero;
                         slot.slot.localScale = Vector3.one;
                         int i1 = j;
@@ -674,29 +682,27 @@ namespace MoreAccessoriesKOI
                         slot.button.onClick.AddListener(() =>
                         {
                             if (!Input.GetMouseButtonUp(0))
-                            {
                                 return;
-                            }
                             if (!this._hSprite.IsSpriteAciotn())
-                            {
                                 return;
-                            }
                             additionalData.showAccessories[i1] = !additionalData.showAccessories[i1];
                             Utils.Sound.Play(SystemSE.sel);
                         });
-                        this._additionalHSceneSlots.Add(slot);
+                        additionalSlots.Add(slot);
                     }
-                    if (accessory.type == 120)
+                    GameObject objAccessory = additionalData.objAccessory[j];
+                    if (objAccessory == null)
                         slot.slot.gameObject.SetActive(false);
                     else
                     {
                         slot.slot.gameObject.SetActive(true);
-                        ListInfoComponent component = additionalData.objAccessory[j].GetComponent<ListInfoComponent>();
+                        ListInfoComponent component = objAccessory.GetComponent<ListInfoComponent>();
                         slot.text.text = component.data.Name;
                     }
                 }
-                for (; j < this._additionalStudioSlots.Count; ++j)
-                    this._additionalStudioSlots[j].slot.gameObject.SetActive(false);
+
+                for (; j < additionalSlots.Count; ++j)
+                    additionalSlots[j].slot.gameObject.SetActive(false);
             }
         }
 
@@ -862,6 +868,169 @@ namespace MoreAccessoriesKOI
         #endregion
 
         #region Saves
+
+        #region Sideloader
+        private static class SideloaderAutoresolverHooks_ExtendedCardLoad_Patches
+        {
+            internal static bool _isLoading = false;
+            public static void ManualPatch(HarmonyInstance harmony)
+            {
+                Type t = Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader");
+                if (t != null)
+                {
+                    harmony.Patch(
+                                  t.GetMethod("ExtendedCardLoad", BindingFlags.NonPublic | BindingFlags.Static),
+                                  new HarmonyMethod(typeof(SideloaderAutoresolverHooks_ExtendedCardLoad_Patches).GetMethod(nameof(Prefix), BindingFlags.NonPublic | BindingFlags.Static)),
+                                  new HarmonyMethod(typeof(SideloaderAutoresolverHooks_ExtendedCardLoad_Patches).GetMethod(nameof(Postfix), BindingFlags.NonPublic | BindingFlags.Static))
+                                 );
+                }
+            }
+
+            private static void Prefix(ChaFile file)
+            {
+                _isLoading = true;
+            }
+
+            private static void Postfix(ChaFile file)
+            {
+                _isLoading = false;
+            }
+        }
+
+        private static class SideloaderAutoresolverHooks_IterateCardPrefixes_Patches
+        {
+            public static void ManualPatch(HarmonyInstance harmony)
+            {
+                Type t = Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader");
+                if (t != null)
+                {
+                    harmony.Patch(
+                                  t.GetMethod("IterateCardPrefixes", BindingFlags.NonPublic | BindingFlags.Static),
+                                  new HarmonyMethod(typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Prefix), BindingFlags.NonPublic | BindingFlags.Static)),
+                                  new HarmonyMethod(typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Postfix), BindingFlags.NonPublic | BindingFlags.Static)),
+                                  new HarmonyMethod(typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Transpiler), BindingFlags.NonPublic | BindingFlags.Static))
+                                 );
+                }
+            }
+
+
+            private static CharAdditionalData _currentAdditionalData;
+            private static object _sideLoaderCurrentAction;
+            private static object _sideloaderCurrentExtInfo;
+            private static object _sideLoaderChaFileAccessoryPartsInfoProperties;
+
+            private static void Prefix(object action, ChaFile file, object extInfo)
+            {
+                _sideLoaderCurrentAction = action;
+                _sideloaderCurrentExtInfo = extInfo;
+                _self._accessoriesByChar.TryGetValue(file, out _currentAdditionalData);
+
+                if (_sideLoaderChaFileAccessoryPartsInfoProperties == null)
+                {
+                    _sideLoaderChaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+                }
+            }
+
+            private static void Postfix(object action, ChaFile file, object extInfo)
+            {
+                _sideLoaderCurrentAction = null;
+                _sideloaderCurrentExtInfo = null;
+            }
+
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                bool set = false;
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                for (int i = 0; i < instructionsList.Count; i++)
+                {
+                    CodeInstruction inst = instructionsList[i];
+                    yield return inst;
+                    if (set == false && instructionsList[i + 1].opcode == OpCodes.Blt && instructionsList[i + 2].opcode == OpCodes.Ret)
+                    {
+                        yield return new CodeInstruction(OpCodes.Ldloc_0); //i
+                        yield return new CodeInstruction(OpCodes.Call, typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                        set = true;
+                    }
+                }
+            }
+
+            private static void Injected(int i)
+            {
+                if (SideloaderAutoresolverHooks_ExtendedCardLoad_Patches._isLoading)
+                    return;
+                if (_currentAdditionalData == null || _currentAdditionalData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)i, out List<ChaFileAccessory.PartsInfo> parts) == false)
+                    return;
+                for (int j = 0; j < parts.Count; j++)
+                {
+                    ((Delegate)_sideLoaderCurrentAction).DynamicInvoke(_sideLoaderChaFileAccessoryPartsInfoProperties, parts[j], _sideloaderCurrentExtInfo, $"outfit.{i}accessory{j}.");
+                }
+            }
+        }
+
+        [HarmonyPatch(typeof(ChaFile), "LoadFile", new Type[] { typeof(BinaryReader), typeof(bool), typeof(bool) }), HarmonyAfter("com.bepis.bepinex.extensiblesaveformat")]
+        private static class ChaFile_LoadFile_Patches
+        {
+            private static MethodInfo _resolveStructure;
+            private static MethodInfo _resolveInfoUnserialize;
+            private static Type _resolveInfo;
+            private static object _chaFileAccessoryPartsInfoProperties;
+            private static bool Prepare()
+            {
+                Type t = Type.GetType("Sideloader.AutoResolver.UniversalAutoResolver,Sideloader");
+                bool res = t != null;
+                if (res)
+                {
+                    _resolveStructure = t.GetMethod("ResolveStructure", BindingFlags.Public | BindingFlags.Static);
+                    _resolveInfo = Type.GetType("Sideloader.AutoResolver.ResolveInfo,Sideloader");
+                    _resolveInfoUnserialize = _resolveInfo.GetMethod("Unserialize", BindingFlags.Public | BindingFlags.Static);
+                }
+                return res;
+            }
+
+            private static void Postfix(ChaFile __instance, bool __result, BinaryReader br, bool noLoadPNG, bool noLoadStatus)
+            {
+                CharAdditionalData additionalData;
+                PluginData extendedDataById = ExtendedSave.GetExtendedDataById(__instance, "com.bepis.sideloader.universalautoresolver");
+                IList list;
+                if (extendedDataById == null || !extendedDataById.data.ContainsKey("info"))
+                {
+                    list = null;
+                }
+                else
+                {
+                    list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(_resolveInfo));
+                    foreach (object o in (object[])extendedDataById.data["info"])
+                        list.Add(_resolveInfoUnserialize.Invoke(null, new[] { o }));
+                }
+                if (_chaFileAccessoryPartsInfoProperties == null)
+                    _chaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+
+                if (_self._overrideCharaLoadingFile != null)
+                {
+                    __instance = _self._overrideCharaLoadingFile;
+                }
+                if (_self._accessoriesByChar.TryGetValue(__instance, out additionalData) != false)
+                {
+                    foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> coordinate in additionalData.rawAccessoriesInfos)
+                    {
+                        if (coordinate.Value == null)
+                            continue;
+                        for (int j = 0; j < coordinate.Value.Count; j++)
+                        {
+                            _resolveStructure.Invoke(null, new[]
+                            {
+                                _chaFileAccessoryPartsInfoProperties,
+                                coordinate.Value[j],
+                                list,
+                                $"outfit.{(int)coordinate.Key}accessory{j}."
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
+
         [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new []{typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
         private static class ChaFileControl_LoadFileLimited_Patches
         {
@@ -982,7 +1151,7 @@ namespace MoreAccessoriesKOI
                 data.cusAcsCmp.Add(null);
             while (data.showAccessories.Count < data.nowAccessories.Count)
                 data.showAccessories.Add(true);
-                this.ExecuteDelayed(this.UpdateUI);
+            this.ExecuteDelayed(this.UpdateUI);
         }
 
         private void OnCharaSave(ChaFile file)
@@ -1063,7 +1232,7 @@ namespace MoreAccessoriesKOI
         private void OnCoordLoad(ChaFileCoordinate file)
         {
             ChaFile chaFile = null;
-            foreach (KeyValuePair<int, ChaControl> pair in Manager.Character.Instance.dictEntryChara)
+            foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
             {
                 if (pair.Value.nowCoordinate == file)
                 {

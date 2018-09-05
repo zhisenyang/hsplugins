@@ -87,6 +87,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Extensions.cs" />
     <Compile Include="MainWindow.cs" />
     <Compile Include="RendererEditor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

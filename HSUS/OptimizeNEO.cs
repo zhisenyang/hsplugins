@@ -308,6 +308,30 @@ namespace StudioFileCheck
 
     }
 
+    [HarmonyPatch(typeof(ChangeAmount), "set_scale", new[] {typeof(Vector3)})]
+    public class ChangeAmount_set_scale_Patches
+    {
+        public static void Postfix(ChangeAmount __instance)
+        {
+            foreach (KeyValuePair<TreeNodeObject, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicInfo)
+            {
+                if (pair.Value.guideObject.changeAmount == __instance)
+                {
+                    Recurse(pair.Key, info => GuideObject_LateUpdate_Patches.ScheduleForUpdate(info.guideObject));
+                    break;
+                }
+            }
+        }
+
+        private static void Recurse(TreeNodeObject node, Action<ObjectCtrlInfo> action)
+        {
+            if (Studio.Studio.Instance.dicInfo.TryGetValue(node, out ObjectCtrlInfo info))
+                action(info);
+            foreach (TreeNodeObject child in node.child)
+                Recurse(child, action);
+        }
+    }
+
     [HarmonyPatch(typeof(GuideObject), "set_calcScale", new[] { typeof(bool) })]
     public class GuideObject_set_calcScale_Patches
     {

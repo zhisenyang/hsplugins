@@ -172,8 +172,6 @@ namespace MoreAccessoriesKOI
     {
         private static void Prefix(ChaControl __instance, ChaFileDefine.CoordinateType type, bool changeBackCoordinateType)
         {
-            UnityEngine.Debug.LogError("changing coordinates");
-
             MoreAccessories.CharAdditionalData data;
             List<ChaFileAccessory.PartsInfo> accessories;
             if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)

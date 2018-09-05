@@ -7,7 +7,6 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Vectrosity;
 
 namespace ToolBox
 {
@@ -192,6 +191,8 @@ namespace ToolBox
         }
         public static string GetPathFrom(this Transform self, Transform root)
         {
+            if (self == root)
+                return "";
             Transform self2 = self;
             string path = self2.name;
             self2 = self2.parent;
@@ -313,18 +314,6 @@ namespace ToolBox
             return self;
         }
 
-
-        public static void SetPoints(this VectorLine self, params Vector3[] points)
-        {
-            for (int i = 0; i < self.points3.Count; i++)
-                self.points3[i] = points[i];
-        }
-
-        public static void SetPoints(this VectorLine self, params Vector2[] points)
-        {
-            for (int i = 0; i < self.points3.Count; i++)
-                self.points2[i] = points[i];
-        }
 
         public static int IndexOf<T>(this T[] self, T obj)
         {
