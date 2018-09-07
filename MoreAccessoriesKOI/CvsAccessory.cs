@@ -99,7 +99,7 @@ namespace MoreAccessoriesKOI
                     return false;
                 }
                 int index = (int)__instance.slotNo;
-                if (MoreAccessories._self.GetPart(index).type == 120)
+                if (MoreAccessories._self.GetPartsLength() <= index || MoreAccessories._self.GetPart(index).type == 120)
                 {
                     textSlotName.text = $"スロット{index + 1:00}";
                 }
@@ -1254,7 +1254,7 @@ namespace MoreAccessoriesKOI
         {
             private static void Postfix(CvsAccessoryChange __instance)
             {
-                for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                for (int i = 0; i < MoreAccessories._self._charaMakerData.nowAccessories.Count; i++)
                 {
                     MoreAccessories.CharaMakerSlotData slot = MoreAccessories._self._additionalCharaMakerSlots[i];
                     if (slot.transferSlotObject.activeSelf)

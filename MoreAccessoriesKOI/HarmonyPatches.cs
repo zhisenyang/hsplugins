@@ -185,6 +185,16 @@ namespace MoreAccessoriesKOI
                 data.rawAccessoriesInfos.Add(type, accessories);
             }
             data.nowAccessories = accessories;
+            while (data.infoAccessory.Count < data.nowAccessories.Count)
+                data.infoAccessory.Add(null);
+            while (data.objAccessory.Count < data.nowAccessories.Count)
+                data.objAccessory.Add(null);
+            while (data.objAcsMove.Count < data.nowAccessories.Count)
+                data.objAcsMove.Add(new GameObject[2]);
+            while (data.cusAcsCmp.Count < data.nowAccessories.Count)
+                data.cusAcsCmp.Add(null);
+            while (data.showAccessories.Count < data.nowAccessories.Count)
+                data.showAccessories.Add(true);
             MoreAccessories._self.OnCoordTypeChange();
         }
     }
