@@ -367,7 +367,11 @@ namespace HSPE
                 hspeButton.transform.SetParent(original.parent, true);
                 hspeButton.transform.localScale = original.localScale;
                 hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
+#if HONEYSELECT
                 hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
+#elif KOIKATSU
+                hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 80f);
+#endif
                 this._hspeButtonImage = hspeButton.targetGraphic as Image;
                 this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
                 hspeButton.onClick = new Button.ButtonClickedEvent();

@@ -109,6 +109,7 @@ namespace MoreAccessoriesKOI
         private GameObject _transferSlotTemplate;
         private List<UI_RaycastCtrl> _raycastCtrls = new List<UI_RaycastCtrl>();
         private ChaFile _overrideCharaLoadingFile;
+        private bool _loadAdditionalAccessories = true;
 
         private bool _inH;
         internal List<ChaControl> _hSceneFemales;
@@ -166,7 +167,7 @@ namespace MoreAccessoriesKOI
         {
             if (loadMode == LoadSceneMode.Single)
             {
-                UnityEngine.Debug.LogError(scene.name + " " + scene.buildIndex);
+                //UnityEngine.Debug.LogError(scene.name + " " + scene.buildIndex);
                 if (this._binary == Binary.Game)
                 {
                     this._inCharaMaker = false;
@@ -178,7 +179,7 @@ namespace MoreAccessoriesKOI
                         this._raycastCtrls = new List<UI_RaycastCtrl>();
                         this._inCharaMaker = true;
                     }
-                    else if (scene.buildIndex == 17)
+                    else if (scene.buildIndex == 17) //HScene
                     {
                         this._inH = true;
                     }
@@ -411,7 +412,7 @@ namespace MoreAccessoriesKOI
             this._studioToggleAll.name = this._studioToggleAll.slot.GetComponentInChildren<Text>();
             this._studioToggleAll.onButton = this._studioToggleAll.slot.GetChild(1).GetComponent<Button>();
             this._studioToggleAll.offButton = this._studioToggleAll.slot.GetChild(2).GetComponent<Button>();
-            this._studioToggleAll.name.text = "All";
+            this._studioToggleAll.name.text = "全て";
             this._studioToggleAll.slot.SetParent(this._studioToggleTemplate.parent);
             this._studioToggleAll.slot.localPosition = Vector3.zero;
             this._studioToggleAll.slot.localScale = Vector3.one;
@@ -436,7 +437,7 @@ namespace MoreAccessoriesKOI
             this._studioToggleMain.name = this._studioToggleMain.slot.GetComponentInChildren<Text>();
             this._studioToggleMain.onButton = this._studioToggleMain.slot.GetChild(1).GetComponent<Button>();
             this._studioToggleMain.offButton = this._studioToggleMain.slot.GetChild(2).GetComponent<Button>();
-            this._studioToggleMain.name.text = "Main";
+            this._studioToggleMain.name.text = "メイン";
             this._studioToggleMain.slot.SetParent(this._studioToggleTemplate.parent);
             this._studioToggleMain.slot.localPosition = Vector3.zero;
             this._studioToggleMain.slot.localScale = Vector3.one;
@@ -461,7 +462,7 @@ namespace MoreAccessoriesKOI
             this._studioToggleSub.name = this._studioToggleSub.slot.GetComponentInChildren<Text>();
             this._studioToggleSub.onButton = this._studioToggleSub.slot.GetChild(1).GetComponent<Button>();
             this._studioToggleSub.offButton = this._studioToggleSub.slot.GetChild(2).GetComponent<Button>();
-            this._studioToggleSub.name.text = "Sub";
+            this._studioToggleSub.name.text = "サブ";
             this._studioToggleSub.slot.SetParent(this._studioToggleTemplate.parent);
             this._studioToggleSub.slot.localPosition = Vector3.zero;
             this._studioToggleSub.slot.localScale = Vector3.one;
@@ -1172,17 +1173,23 @@ namespace MoreAccessoriesKOI
             private static void Prefix(ChaFileControl __instance, string filename, byte sex = 255, bool face = true, bool body = true, bool hair = true, bool parameter = true, bool coordinate = true)
             {
                 if (_self._inCharaMaker && _self._customAcsChangeSlot != null)
+                {
                     _self._overrideCharaLoadingFile = __instance;
+                    _self._loadAdditionalAccessories = coordinate;
+                }
             }
 
             private static void Postfix(string filename, byte sex = 255, bool face = true, bool body = true, bool hair = true, bool parameter = true, bool coordinate = true)
             {
                 _self._overrideCharaLoadingFile = null;
+                _self._loadAdditionalAccessories = true;
             }
         }
 
         private void OnCharaLoad(ChaFile file)
         {
+            if (this._loadAdditionalAccessories == false)
+                return;
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
 
             if (this._overrideCharaLoadingFile != null)
@@ -1193,7 +1200,6 @@ namespace MoreAccessoriesKOI
             {
                 data = new CharAdditionalData();
                 this._accessoriesByChar.Add(file, data);
-
             }
             else
             {
@@ -1206,7 +1212,6 @@ namespace MoreAccessoriesKOI
                 XmlDocument doc = new XmlDocument();
                 doc.LoadXml((string)xmlData);
                 node = doc.FirstChild;
-
             }
             if (node != null)
             {

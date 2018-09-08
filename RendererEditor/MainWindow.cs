@@ -68,6 +68,7 @@ namespace RendererEditor
 
         #region Private Variables
         private const string _texturesDir = "Plugins\\RendererEditor\\Textures\\";
+        private const string _dumpDir = _texturesDir + "Dump\\";
 
         private readonly List<ShaderProperty> _shaderProperties = new List<ShaderProperty>()
         {
@@ -265,7 +266,7 @@ namespace RendererEditor
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             if (this._selectTextureCallback != null)
             {
-                Rect selectTextureRect = GUILayout.Window(this._randomId + 1, new Rect(this._windowRect.max.x + 4, this._windowRect.max.y - 360, 170, 360), this.SelectTextureWindow, "Select Texture");
+                Rect selectTextureRect = GUILayout.Window(this._randomId + 1, new Rect(this._windowRect.max.x + 4, this._windowRect.max.y - 440, 230, 440), this.SelectTextureWindow, "Select Texture");
                 this._mouseInWindow = this._mouseInWindow || selectTextureRect.Contains(Event.current.mousePosition);
             }
             if (this._mouseInWindow)
@@ -609,7 +610,7 @@ namespace RendererEditor
                     GUILayout.Label(pair.Key.Replace(_texturesDir, ""));
                     GUILayout.BeginHorizontal();
                     GUILayout.FlexibleSpace();
-                    if (GUILayout.Button(GUIContent.none, GUILayout.Width(110), GUILayout.Height(110)))
+                    if (GUILayout.Button(GUIContent.none, GUILayout.Width(178), GUILayout.Height(178)))
                     {
                         this._selectTextureCallback(pair.Key, pair.Value);
                         this._selectTextureCallback = null;
@@ -649,23 +650,33 @@ namespace RendererEditor
             this._textures.Add("", null); 
             foreach (string file in Directory.GetFiles(_texturesDir, "*.*", SearchOption.AllDirectories).Where(s => s.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)))
             {
-                Texture2D texture = new Texture2D(1, 1, TextureFormat.ARGB32, true);
-                if (texture.LoadImage(File.ReadAllBytes(file)))
-                {
-                    texture.SetPixel(0, 0, texture.GetPixel(0, 0));
-                    texture.Apply(true);
-                    this._textures.Add(file, texture);
+                this.LoadSingleTexture(file);
+            }
+        }
 
-                    foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+        private void LoadSingleTexture(string path)
+        {
+            Texture2D texture = new Texture2D(1, 1, TextureFormat.ARGB32, true);
+            if (texture.LoadImage(File.ReadAllBytes(path)))
+            {
+                texture.SetPixel(0, 0, texture.GetPixel(0, 0));
+                texture.Apply(true);
+                if (this._textures.ContainsKey(path) == false)
+                    this._textures.Add(path, texture);
+                else
+                {
+                    UnityEngine.Object.Destroy(this._textures[path]);
+                    this._textures[path] = texture;
+                }
+                foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+                {
+                    foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
                     {
-                        foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
                         {
-                            foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                            if (pair3.Value.currentTexturePath.Equals(path, StringComparison.OrdinalIgnoreCase))
                             {
-                                if (pair3.Value.currentTexturePath.Equals(file, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    pair2.Key.SetTexture(pair3.Key, texture);
-                                }
+                                pair2.Key.SetTexture(pair3.Key, texture);
                             }
                         }
                     }
@@ -953,7 +964,8 @@ namespace RendererEditor
             r.yMax -= 4;
             if (texture != null)
                 GUI.DrawTexture(r, texture, ScaleMode.StretchToFill, true);
-            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+            GUILayout.BeginVertical();
+            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)))
             {
                 foreach (Material selectedMaterial in this._selectedMaterials)
                     if (this._dirtyRenderers.TryGetValue(this._rendererByMaterial[selectedMaterial], out RendererData rendererData) &&
@@ -965,6 +977,28 @@ namespace RendererEditor
                         this.TryResetMaterial(selectedMaterial, materialData, rendererData);
                     }
             }
+            if (this._selectedMaterials.Count == 1 && GUILayout.Button("Dump", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)) && texture != null)
+            {
+                if (Directory.Exists(_dumpDir) == false)
+                    Directory.CreateDirectory(_dumpDir);
+                RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 24, RenderTextureFormat.ARGB32);
+                RenderTexture cachedActive = RenderTexture.active;
+                RenderTexture.active = rt;
+                Graphics.Blit(texture, rt);
+                Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.ARGB32, true);
+                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+                RenderTexture.active = cachedActive;
+
+                byte[] bytes = tex.EncodeToPNG();
+                Material mat = this._selectedMaterials.First();
+                Renderer renderer = this._rendererByMaterial[mat];
+                int index = renderer.sharedMaterials.IndexOf(mat);
+                string fileName = Path.Combine(_dumpDir, $"{renderer.name}_{mat.name}_{index}_{texture.name}.png");
+                File.WriteAllBytes(fileName, bytes);
+
+                this.LoadSingleTexture(fileName);
+            }
+            GUILayout.EndVertical();
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();

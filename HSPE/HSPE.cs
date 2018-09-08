@@ -28,7 +28,7 @@ namespace HSPE
         public string Version { get { return versionNum; } }
         public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
 #elif KOIKATSU
-        public const string versionNum = "1.0.0";
+        public const string versionNum = "1.1.0";
         public const int saveVersion = 0;
 #endif
 

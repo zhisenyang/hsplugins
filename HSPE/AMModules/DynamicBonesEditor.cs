@@ -569,7 +569,7 @@ namespace HSPE.AMModules
                 {
                     Transform t = (Transform)o.GetPrivate("m_Transform");
                     OCIChar.BoneInfo boneInfo;
-                    if (this._bonesEditor.fkObjects.TryGetValue(t.gameObject, out boneInfo))
+                    if (t != null && this._bonesEditor.fkObjects.TryGetValue(t.gameObject, out boneInfo))
                     {
                         Vector3 oldValue = boneInfo.guideObject.changeAmount.rot;
                         boneInfo.guideObject.changeAmount.rot = t.localEulerAngles;
@@ -583,7 +583,6 @@ namespace HSPE.AMModules
                 }
             }
             UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
-
         }
 
         private void SetDynamicBoneNotDirty(DynamicBone bone)
