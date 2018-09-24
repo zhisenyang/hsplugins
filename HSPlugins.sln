@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MoreAccessoriesKOI", "MoreA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ToolBox", "ToolBox\ToolBox.csproj", "{D7E512B2-4E7A-4455-BD7D-97DACF5A039A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HSIBL", "HSIBL\HSIBL.csproj", "{2929DB12-18C8-4158-A934-43C2FDEEF2F5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -133,6 +135,13 @@ Global
 		{D7E512B2-4E7A-4455-BD7D-97DACF5A039A}.KOI|Any CPU.Build.0 = KOI|Any CPU
 		{D7E512B2-4E7A-4455-BD7D-97DACF5A039A}.Release|Any CPU.ActiveCfg = KOI|Any CPU
 		{D7E512B2-4E7A-4455-BD7D-97DACF5A039A}.Release|Any CPU.Build.0 = KOI|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.HS|Any CPU.ActiveCfg = Release|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.HS|Any CPU.Build.0 = Release|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.KOI|Any CPU.ActiveCfg = Release|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2929DB12-18C8-4158-A934-43C2FDEEF2F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

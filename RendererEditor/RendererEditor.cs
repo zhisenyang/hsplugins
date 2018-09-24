@@ -25,7 +25,7 @@ namespace RendererEditor
         {
             if (level == 3)
             {
-                new GameObject("FogEditor", typeof(MainWindow));
+                new GameObject("RendererEditor", typeof(MainWindow));
             }
         }
 

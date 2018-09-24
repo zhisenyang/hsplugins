@@ -82,6 +82,9 @@ namespace RendererEditor
             new ShaderProperty() {name = "_SpecColor_3", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecColor_4", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_EmissionColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_BaseColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_ReflectionColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_SpecularColor", type = ShaderProperty.Type.Color},
             //Textures
             new ShaderProperty() {name = "_MainTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_SpecGlossMap", type = ShaderProperty.Type.Texture},
@@ -102,6 +105,8 @@ namespace RendererEditor
             new ShaderProperty() {name = "_ParallaxMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_EmissionMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailAlbedoMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_ReflectionTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_ShoreTex", type = ShaderProperty.Type.Texture},
             //Float
             new ShaderProperty() {name = "_Metallic", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Smoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -127,6 +132,9 @@ namespace RendererEditor
             new ShaderProperty() {name = "_SrcBlend", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_DstBlend", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_ZWrite", type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_FresnelScale", floatRange = new Vector2(0.15f, 4), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_GerstnerIntensity", type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_Shininess", floatRange = new Vector2(2, 500), hasFloatRange = true, type = ShaderProperty.Type.Float},
             //Bools
             new ShaderProperty() {name = "_HairEffect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_GlossUseAlpha", type = ShaderProperty.Type.Boolean},
@@ -143,6 +151,20 @@ namespace RendererEditor
             //Vector4
             new ShaderProperty() {name = "_UVScroll", type = ShaderProperty.Type.Vector4},
             new ShaderProperty() {name = "_DetailNormalConvert", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_DistortParams", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_InvFadeParemeter", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_AnimationTiling", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_AnimationDirection", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_BumpTiling", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_BumpDirection", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_WorldLightDir", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_Foam", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GAmplitude", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GFrequency", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GSteepness", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GSpeed", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GDirectionAB", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_GDirectionCD", type = ShaderProperty.Type.Vector4}
         };
         private const float _width = 600;
         private const float _height = 600;
@@ -874,11 +896,22 @@ namespace RendererEditor
             Color c = this._selectedMaterials.First().GetColor(property.name);
             GUILayout.BeginHorizontal();
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
-            if (GUILayout.Button(GUIContent.none, GUILayout.ExpandWidth(true)))
+
+            if (GUILayout.Button("Hit me senpai <3", GUILayout.ExpandWidth(true)))
             {
-                Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
+                    Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
                 if (Studio.Studio.Instance.colorPaletteCtrl.visible)
                 {
+                    Studio.Studio.Instance.colorMenu.updateColorFunc = col =>
+                    {
+                        foreach (Material selectedMaterial in this._selectedMaterials)
+                        {
+                            this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
+                            if (materialData.dirtyColorProperties.ContainsKey(property.name) == false)
+                                materialData.dirtyColorProperties.Add(property.name, selectedMaterial.GetColor(property.name));
+                            selectedMaterial.SetColor(property.name, col);
+                        }
+                    };
                     try
                     {
                         Studio.Studio.Instance.colorMenu.SetColor(c, UI_ColorInfo.ControlType.PresetsSample);
@@ -887,25 +920,14 @@ namespace RendererEditor
                     {
                         UnityEngine.Debug.LogError("RendererEditor: Color is HDR, couldn't assign it properly.");
                     }
-                    Studio.Studio.Instance.colorMenu.updateColorFunc = (col) =>
-                    {
-                        foreach (Material selectedMaterial in this._selectedMaterials)
-                        {
-                            this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
-                            if (materialData.dirtyColorProperties.ContainsKey(property.name) == false)
-                                materialData.dirtyColorProperties.Add(property.name, selectedMaterial.GetColor(property.name));
-                            selectedMaterial.SetColor(property.name, col);
-
-                        }
-                    };
                 }
             }
 
             Rect layoutRectangle = GUILayoutUtility.GetLastRect();
-            layoutRectangle.xMin += 4;
-            layoutRectangle.xMax -= 4;
-            layoutRectangle.yMin += 4;
-            layoutRectangle.yMax -= 4;
+            layoutRectangle.xMin += 3;
+            layoutRectangle.xMax -= 3;
+            layoutRectangle.yMin += 3;
+            layoutRectangle.yMax -= 3;
             this._simpleTexture.SetPixel(0, 0, c);
             this._simpleTexture.Apply(false);
             GUI.DrawTexture(layoutRectangle, this._simpleTexture, ScaleMode.StretchToFill, true);
@@ -924,7 +946,6 @@ namespace RendererEditor
                     }
                 }
             }
-
             GUILayout.EndHorizontal();
 
         }
@@ -1308,13 +1329,12 @@ namespace RendererEditor
                         if (selectedMaterial.IsKeywordEnabled(keyword))
                         {
                             this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
-                            if (materialData.disabledKeywords.Contains(keyword) == false)
-                            {
-                                materialData.disabledKeywords.Add(keyword);
-                                selectedMaterial.DisableKeyword(keyword);
-                            }
-                            if (materialData.enabledKeywords.Contains(keyword))
+                            bool inEnabled = materialData.enabledKeywords.Contains(keyword);
+                            if (inEnabled) //Keyword was added artifically
                                 materialData.enabledKeywords.Remove(keyword);
+                            else //Keyword here in the first place
+                                materialData.disabledKeywords.Add(keyword);
+                            selectedMaterial.DisableKeyword(keyword);
                         }
                     }
                 }
@@ -1347,13 +1367,11 @@ namespace RendererEditor
                     if (selectedMaterial.IsKeywordEnabled(this._keywordInput) == false)
                     {
                         this.SetMaterialDirty(selectedMaterial, out RendererData.MaterialData materialData);
-                        if (materialData.enabledKeywords.Contains(this._keywordInput) == false)
-                        {
-                            materialData.enabledKeywords.Add(this._keywordInput);
-                            selectedMaterial.EnableKeyword(this._keywordInput);
-                        }
-                        if (materialData.disabledKeywords.Contains(this._keywordInput))
+                        if (materialData.disabledKeywords.Contains(this._keywordInput)) //Keyword was here in the first place
                             materialData.disabledKeywords.Remove(this._keywordInput);
+                        else //Keyword is added artificially
+                            materialData.enabledKeywords.Add(this._keywordInput);
+                        selectedMaterial.EnableKeyword(this._keywordInput);
                     }
                 }
                 this._keywordInput = "";

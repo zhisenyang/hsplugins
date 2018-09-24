@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using HSUS;
@@ -257,6 +258,33 @@ namespace StudioFileCheck
             __instance.changeAmount.onChangeRot = (Action)Delegate.Combine(__instance.changeAmount.onChangeRot, a);
             __instance.changeAmount.onChangeScale = (Action<Vector3>)Delegate.Combine(__instance.changeAmount.onChangeScale, a2);
             GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance);
+            __instance.ExecuteDelayed(() =>
+            {
+                GuideObject_LateUpdate_Patches.ScheduleForUpdate(__instance); //Probably for HSPE
+            }, 4);
+        }
+    }
+
+    public class ABMStudioNEOSaveLoadHandler_OnLoad_Patches
+    {
+        public static void ManualPatch(HarmonyInstance harmony)
+        {
+            Type t = Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO");
+            if (t != null)
+            {
+                harmony.Patch(t.GetMethod("OnLoad", BindingFlags.Public | BindingFlags.Instance), null, new HarmonyMethod(typeof(ABMStudioNEOSaveLoadHandler_OnLoad_Patches).GetMethod(nameof(Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
+            }
+        }
+
+        private static void Postfix()
+        {
+            GuideObjectManager.Instance.ExecuteDelayed(() =>
+            {
+                foreach (KeyValuePair<Transform, GuideObject> pair in (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject"))
+                {
+                    GuideObject_LateUpdate_Patches.ScheduleForUpdate(pair.Value);
+                }
+            });
         }
     }
 
@@ -308,9 +336,33 @@ namespace StudioFileCheck
 
     }
 
+
+    [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
+    public class Studio_Duplicate_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+
+        public static void Postfix(Studio.Studio __instance)
+        {
+            foreach (GuideObject guideObject in Resources.FindObjectsOfTypeAll<GuideObject>())
+            {
+                
+                GuideObject_LateUpdate_Patches.ScheduleForUpdate(guideObject);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(ChangeAmount), "set_scale", new[] {typeof(Vector3)})]
     public class ChangeAmount_set_scale_Patches
     {
+        public static bool Prepare()
+        {
+            return HSUS.HSUS.self.optimizeNeo;
+        }
+
         public static void Postfix(ChangeAmount __instance)
         {
             foreach (KeyValuePair<TreeNodeObject, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicInfo)

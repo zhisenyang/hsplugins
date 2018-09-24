@@ -13,6 +13,7 @@ using BepInEx;
 #endif
 using Harmony;
 using Studio;
+using StudioFileCheck;
 using ToolBox;
 using UILib;
 using UnityEngine;
@@ -50,7 +51,11 @@ namespace HSUS
 
         #region Private Variables
         private const string _config = "config.xml";
+#if HONEYSELECT
         private const string _pluginDir = "Plugins\\HSUS\\";
+#elif KOIKATSU
+        private const string _pluginDir = "BepInEx\\KKUS\\";
+#endif
 
         private bool _optimizeCharaMaker = true;
         private float _gameUIScale = 1f;
@@ -68,6 +73,7 @@ namespace HSUS
         private bool _cameraSpeedShortcuts = true;
         private bool _alternativeCenterToObject = true;
         private bool _fingersFkCopyButtons = true;
+        private bool _fourKManagerDithering = true;
 
         private bool _ssaoEnabled = true;
         private bool _bloomEnabled = true;
@@ -103,6 +109,7 @@ namespace HSUS
         public bool eyesBlink { get { return this._eyesBlink; } }
         public bool cameraSpeedShortcuts { get { return this._cameraSpeedShortcuts; } }
         public bool alternativeCenterToObject { get { return this._alternativeCenterToObject; } }
+        public bool fourKManagerDithering { get { return this._fourKManagerDithering; } }
         public bool dofEnabled { get { return this._dofEnabled; } }
         public bool ssaoEnabled { get { return this._ssaoEnabled; } }
         public bool bloomEnabled { get { return this._bloomEnabled; } }
@@ -233,6 +240,10 @@ namespace HSUS
                         if (node.Attributes["enabled"] != null && XmlConvert.ToBoolean(node.Attributes["enabled"].Value) == false)
                             QualitySettings.vSyncCount = 0;
                         break;
+                    case "fourKManagerDithering":
+                        if (node.Attributes["enabled"] != null)
+                            this._fourKManagerDithering = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        break;
                     case "postProcessing":
                         foreach (XmlNode childNode in node.ChildNodes)
                         {
@@ -272,6 +283,7 @@ namespace HSUS
                 }
             }
             UIUtility.Init();
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsus");
             foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
             {
@@ -292,9 +304,18 @@ namespace HSUS
             //Manual Patching for various reasons:
             {
                 ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
-                ItemFKCtrl_LateUpdate_Patches.ManualPatch(harmony);
+                //ItemFKCtrl_LateUpdate_Patches.ManualPatch(harmony);
+                //ItemFKCtrl_OnDisable_Patches.ManualPatch(harmony);
                 if (this._binary == Binary.Neo)
+                {
+  
                     HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
+                    ABMStudioNEOSaveLoadHandler_OnLoad_Patches.ManualPatch(harmony);
+                }
+#if HONEYSELECT
+                TonemappingColorGrading_Ctor_Patches.ManualPatch(harmony);
+#endif
+
             }
         }
 #if KOIKATSU
@@ -430,6 +451,12 @@ namespace HSUS
                     }
 
                     {
+                        xmlWriter.WriteStartElement("fourKManagerDithering");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fourKManagerDithering));
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
                         xmlWriter.WriteStartElement("postProcessing");
 
                         {
@@ -514,6 +541,14 @@ namespace HSUS
                             GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
                         if (this._fingersFkCopyButtons)
                             this.InitFingersFKCopyButtons();
+                        //UnityEngine.Debug.LogError("currentDisplay " + Camera.main.targetDisplay);
+                        //foreach (Display display in Display.displays)
+                        //{
+                        //    UnityEngine.Debug.LogError("display " + display.systemWidth + " " + display.systemHeight);
+                        //}
+                        //Display.displays[1].Activate();
+                        //Camera secondCamera = new GameObject("Second Camera", typeof(Camera)).GetComponent<Camera>();
+                        //secondCamera.targetDisplay = 1;
                     }
                     break;
             }
@@ -544,6 +579,7 @@ namespace HSUS
 
         public void OnLateUpdate()
         {
+
         }
 
         public void OnFixedUpdate()
@@ -716,6 +752,7 @@ namespace HSUS
                 {
                     case "StartScene/Canvas":
                     case "VectorCanvas":
+                    case "New Game Object":
                         ok = false;
                         break;
                 }

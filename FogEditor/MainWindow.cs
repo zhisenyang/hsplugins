@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Xml;
 using Harmony;
 using UILib;
@@ -350,7 +352,7 @@ namespace FogEditor
         {
             if (float.TryParse(this._heightDensityInputField.text, out float value))
                 this._fog.heightDensity = value;
-            this._heightSlider.value = this._fog.heightDensity;
+            this._heightDensitySlider.value = this._fog.heightDensity;
             this._heightDensityInputField.text = this._fog.heightDensity.ToString("0.000");
         }
 
@@ -492,14 +494,56 @@ namespace FogEditor
         #endregion
 
         #region Patches
+        internal class HoneyShotPlugin_CaptureUsingCameras_Patches
+        {
+            internal static void ManualPatch(HarmonyInstance harmony)
+            {
+                Type t = Type.GetType("HoneyShot.HoneyShotPlugin,HoneyShot");
+                if (t != null)
+                {
+                    harmony.Patch(
+                                  t.GetMethod("CaptureUsingCameras", BindingFlags.NonPublic | BindingFlags.Instance),
+                                  null,
+                                  null,
+                                  new HarmonyMethod(typeof(HoneyShotPlugin_CaptureUsingCameras_Patches).GetMethod(nameof(Transpiler), BindingFlags.NonPublic | BindingFlags.Static))
+                                 );
+                }
+            }
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                bool set = false;
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                for (int i = 0; i < instructionsList.Count; i++)
+                {
+                    CodeInstruction inst = instructionsList[i];
+                    yield return inst;
+                    if (set == false && instructionsList[i + 1].opcode == OpCodes.Ldloc_S && instructionsList[i + 1].operand.ToString().Equals("UnityEngine.Camera (10)"))
+                    {
+                        yield return new CodeInstruction(OpCodes.Ldloc_S, instructionsList[i + 1].operand);
+                        yield return new CodeInstruction(OpCodes.Call, typeof(HoneyShotPlugin_CaptureUsingCameras_Patches).GetMethod(nameof(Injected), BindingFlags.Static | BindingFlags.NonPublic));
+                        set = true;
+                    }
+                }
+            }
+
+            private static void Injected(Camera camera)
+            {
+                UnityEngine.Debug.LogError("injected called");
+                if (camera.CompareTag("MainCamera"))
+                    Effects_OnRenderImage_Patches._alreadyRendered = false;
+            }
+        }
+
         [HarmonyPatch(typeof(GlobalFog), "OnRenderImage", new[] { typeof(RenderTexture), typeof(RenderTexture) })]
         private class GlobalFog_OnRenderImage_Patches
         {
-            public static bool Prefix(GlobalFog __instance, RenderTexture source, RenderTexture destination)
+            private static bool Prefix(GlobalFog __instance, RenderTexture source, RenderTexture destination)
             {
-                if (MainWindow.self != null && MainWindow.self.alternativeRendering && __instance.CompareTag("MainCamera"))
+                if (MainWindow.self != null && MainWindow.self.alternativeRendering && __instance.CompareTag("MainCamera") && Effects_OnRenderImage_Patches._renderingAlternatively == false)
                 {
                     Effects_OnRenderImage_Patches._globalFog = __instance;
+                    Effects_OnRenderImage_Patches._globalFogOnRenderImage = (Action<RenderTexture, RenderTexture>)Delegate.CreateDelegate(typeof(Action<RenderTexture, RenderTexture>), __instance, "OnRenderImage");
+
                     if (Effects_OnRenderImage_Patches._globalFog != null && Effects_OnRenderImage_Patches._fogMaterial == null)
                         Effects_OnRenderImage_Patches._fogMaterial = (Material)Effects_OnRenderImage_Patches._globalFog.GetType().GetField("fogMaterial", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(Effects_OnRenderImage_Patches._globalFog);
                     Graphics.Blit(source, destination);
@@ -509,147 +553,75 @@ namespace FogEditor
             }
         }
 
-        [HarmonyPatch(typeof(DepthOfField), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(VignetteAndChromaticAberration), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(SunShafts), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(ColorCorrectionCurves), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(BloomAndFlares), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(Antialiasing), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(CrossFade), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        [HarmonyPatch(typeof(GameScreenShotAssist), "OnRenderImage", new []{typeof(RenderTexture), typeof(RenderTexture)})]
-        private class Effects_OnRenderImage_Patches
+        internal class Effects_OnRenderImage_Patches
         {
             internal static GlobalFog _globalFog;
+            internal static Action<RenderTexture, RenderTexture> _globalFogOnRenderImage;
             internal static Material _fogMaterial;
             internal static bool _alreadyRendered = false;
+            internal static bool _renderingAlternatively = false;
 
             private static RenderTexture _intermediateSourceDestination;
 
-            public static bool Prefix(object __instance, ref RenderTexture source, RenderTexture destination)
+            internal static void ManualPatch(HarmonyInstance harmony)
+            {
+                Type[] types = 
+                {
+                    typeof(DepthOfField),
+                    typeof(VignetteAndChromaticAberration),
+                    typeof(SunShafts),
+                    typeof(ColorCorrectionCurves),
+                    typeof(BloomAndFlares),
+                    typeof(Antialiasing),
+                };
+                MethodInfo prefix = typeof(Effects_OnRenderImage_Patches).GetMethod(nameof(Prefix), BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo postfix = typeof(Effects_OnRenderImage_Patches).GetMethod(nameof(Postfix), BindingFlags.Static | BindingFlags.NonPublic);
+                foreach (Type type in types)
+                {
+                    harmony.Patch(type.GetMethod("OnRenderImage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic), new HarmonyMethod(prefix), new HarmonyMethod(postfix));
+                }
+                Type[] types2 = 
+                {
+                    typeof(CrossFade),
+                    typeof(GameScreenShotAssist)
+                };
+                MethodInfo prefix2 = typeof(Effects_OnRenderImage_Patches).GetMethod(nameof(Prefix2), BindingFlags.Static | BindingFlags.NonPublic);
+                MethodInfo postfix2 = typeof(Effects_OnRenderImage_Patches).GetMethod(nameof(Postfix2), BindingFlags.Static | BindingFlags.NonPublic);
+                foreach (Type type in types2)
+                {
+                    harmony.Patch(type.GetMethod("OnRenderImage", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic), new HarmonyMethod(prefix2), new HarmonyMethod(postfix2));
+                }
+            }
+
+            private static void Prefix2(object __instance, ref RenderTexture src, RenderTexture dst)
+            {
+                Prefix(__instance, ref src, dst);
+            }
+
+            private static void Prefix(object __instance, ref RenderTexture source, RenderTexture destination)
             {
                 if (MainWindow.self == null || !MainWindow.self.alternativeRendering || _globalFog == null || !_globalFog.enabled || _alreadyRendered || ((PostEffectsBase)__instance).CompareTag("MainCamera") == false)
-                {
-                    return true;
-                }
+                    return;
 
                 _intermediateSourceDestination = RenderTexture.GetTemporary(destination.width, destination.height, destination.depth, destination.format, RenderTextureReadWrite.Default, destination.antiAliasing);
 
                 _alreadyRendered = true;
-
-                if (_globalFog.CheckResources() == false || (!_globalFog.distanceFog && !_globalFog.heightFog))
-                {
-                    Graphics.Blit(source, _intermediateSourceDestination);
-                    source = _intermediateSourceDestination;
-                    return true;
-                }
-                Camera cam = _globalFog.GetComponent<Camera>();
-                Transform camtr = cam.transform;
-                float camNear = cam.nearClipPlane;
-                float camFar = cam.farClipPlane;
-                float camFov = cam.fieldOfView;
-                float camAspect = cam.aspect;
-
-                Matrix4x4 frustumCorners = Matrix4x4.identity;
-
-                float fovWHalf = camFov * 0.5f;
-
-                Vector3 toRight = camtr.right * camNear * Mathf.Tan(fovWHalf * Mathf.Deg2Rad) * camAspect;
-                Vector3 toTop = camtr.up * camNear * Mathf.Tan(fovWHalf * Mathf.Deg2Rad);
-
-                Vector3 topLeft = (camtr.forward * camNear - toRight + toTop);
-                float camScale = topLeft.magnitude * camFar / camNear;
-
-                topLeft.Normalize();
-                topLeft *= camScale;
-
-                Vector3 topRight = (camtr.forward * camNear + toRight + toTop);
-                topRight.Normalize();
-                topRight *= camScale;
-
-                Vector3 bottomRight = (camtr.forward * camNear + toRight - toTop);
-                bottomRight.Normalize();
-                bottomRight *= camScale;
-
-                Vector3 bottomLeft = (camtr.forward * camNear - toRight - toTop);
-                bottomLeft.Normalize();
-                bottomLeft *= camScale;
-
-                frustumCorners.SetRow(0, topLeft);
-                frustumCorners.SetRow(1, topRight);
-                frustumCorners.SetRow(2, bottomRight);
-                frustumCorners.SetRow(3, bottomLeft);
-
-                var camPos = camtr.position;
-                float FdotC = camPos.y - _globalFog.height;
-                float paramK = (FdotC <= 0.0f ? 1.0f : 0.0f);
-                float excludeDepth = (_globalFog.excludeFarPixels ? 1.0f : 2.0f);
-                _fogMaterial.SetMatrix("_FrustumCornersWS", frustumCorners);
-                _fogMaterial.SetVector("_CameraWS", camPos);
-                _fogMaterial.SetVector("_HeightParams", new Vector4(_globalFog.height, FdotC, paramK, _globalFog.heightDensity * 0.5f));
-                _fogMaterial.SetVector("_DistanceParams", new Vector4(-Mathf.Max(_globalFog.startDistance, 0.0f), excludeDepth, 0, 0));
-
-                var sceneMode = RenderSettings.fogMode;
-                var sceneDensity = RenderSettings.fogDensity;
-                var sceneStart = RenderSettings.fogStartDistance;
-                var sceneEnd = RenderSettings.fogEndDistance;
-                Vector4 sceneParams;
-                bool linear = (sceneMode == FogMode.Linear);
-                float diff = linear ? sceneEnd - sceneStart : 0.0f;
-                float invDiff = Mathf.Abs(diff) > 0.0001f ? 1.0f / diff : 0.0f;
-                sceneParams.x = sceneDensity * 1.2011224087f; // density / sqrt(ln(2)), used by Exp2 fog mode
-                sceneParams.y = sceneDensity * 1.4426950408f; // density / ln(2), used by Exp fog mode
-                sceneParams.z = linear ? -invDiff : 0.0f;
-                sceneParams.w = linear ? sceneEnd * invDiff : 0.0f;
-                _fogMaterial.SetVector("_SceneFogParams", sceneParams);
-                _fogMaterial.SetVector("_SceneFogMode", new Vector4((int)sceneMode, _globalFog.useRadialDistance ? 1 : 0, 0, 0));
-
-                int pass = 0;
-                if (_globalFog.distanceFog && _globalFog.heightFog)
-                    pass = 0; // distance + height
-                else if (_globalFog.distanceFog)
-                    pass = 1; // distance only
-                else
-                    pass = 2; // height only
-                CustomGraphicsBlit(source, _intermediateSourceDestination, _fogMaterial, pass);
+                _renderingAlternatively = true;
+                _globalFogOnRenderImage(source, _intermediateSourceDestination);
+                _renderingAlternatively = false;
 
                 source = _intermediateSourceDestination;
-                return true;
             }
 
-            public static void Postfix(RenderTexture source, RenderTexture destination)
+            private static void Postfix2(RenderTexture src, RenderTexture dst)
+            {
+                Postfix(src, dst); 
+            }
+            private static void Postfix(RenderTexture source, RenderTexture destination)
             {
                 if (_intermediateSourceDestination != null)
                     RenderTexture.ReleaseTemporary(_intermediateSourceDestination);
                 _intermediateSourceDestination = null;
-            }
-
-            static void CustomGraphicsBlit(RenderTexture source, RenderTexture dest, Material fxMaterial, int passNr)
-            {
-                RenderTexture.active = dest;
-
-                fxMaterial.SetTexture("_MainTex", source);
-
-                GL.PushMatrix();
-                GL.LoadOrtho();
-
-                fxMaterial.SetPass(passNr);
-
-                GL.Begin(GL.QUADS);
-
-                GL.MultiTexCoord2(0, 0.0f, 0.0f);
-                GL.Vertex3(0.0f, 0.0f, 3.0f); // BL
-
-                GL.MultiTexCoord2(0, 1.0f, 0.0f);
-                GL.Vertex3(1.0f, 0.0f, 2.0f); // BR
-
-                GL.MultiTexCoord2(0, 1.0f, 1.0f);
-                GL.Vertex3(1.0f, 1.0f, 1.0f); // TR
-
-                GL.MultiTexCoord2(0, 0.0f, 1.0f);
-                GL.Vertex3(0.0f, 1.0f, 0.0f); // TL
-
-                GL.End();
-                GL.PopMatrix();
             }
         }
         #endregion
