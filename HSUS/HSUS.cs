@@ -566,6 +566,7 @@ namespace HSUS
             if (Time.unscaledTime - this._lastCleanup > 30f)
             {
                 Resources.UnloadUnusedAssets();
+                GC.Collect();
                 this._lastCleanup = Time.unscaledTime;
                 if (EventSystem.current.sendNavigationEvents)
                     EventSystem.current.sendNavigationEvents = false;

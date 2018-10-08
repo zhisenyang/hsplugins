@@ -70,7 +70,7 @@ namespace HSIBL
         private bool _autoRotate = false;
         private float _autoRotateSpeed = 0.2f;
         private int _selectedCubeMap;
-        private int _preveiousSelectedCubeMap;
+        private int _previousSelectedCubeMap;
         private readonly int _cmWaringWindowId = 14321;
         private readonly int _errorwindowId = 14322;
         private readonly int _windowId = 14333;
@@ -103,11 +103,13 @@ namespace HSIBL
 
         private Quaternion _frontLightDefaultRotation;
         private Quaternion _backLightDefaultRotation;
+        private Material _originalSkybox;
         #endregion
 
         #region Accessors
         private readonly Func<float> _getWindowHeight = () => ModPrefs.GetFloat("HSIBL","Window.height");
         private readonly Func<float> _getWindowWidth = () => ModPrefs.GetFloat("HSIBL","Window.width");
+        private ColorCorrectionCurves _colorCorrectionCurves;
         #endregion
 
         #region Unity Methods
@@ -150,10 +152,11 @@ namespace HSIBL
             this._possibleSSAOBlurModeNames = Enum.GetNames(typeof(SSAOPro.BlurMode));
             this._possibleSunShaftsResolutionNames = Enum.GetNames(typeof(SunShafts.SunShaftsResolution));
             this._possibleShaftsScreenBlendModeNames = Enum.GetNames(typeof(SunShafts.ShaftsScreenBlendMode));
-            this._possibleBlurSampleCountNames = Enum.GetNames(typeof(UnityStandardAssets.ImageEffects.DepthOfField.BlurSampleCount));
-            this._possibleBlurTypeNames = Enum.GetNames(typeof(UnityStandardAssets.ImageEffects.DepthOfField.BlurType));
+            this._possibleBlurSampleCountNames = Enum.GetNames(typeof(DepthOfField.BlurSampleCount));
+            this._possibleBlurTypeNames = Enum.GetNames(typeof(DepthOfField.BlurType));
             this._possibleSSRResolutionNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRResolution));
             this._possibleSSRDebugModeNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRDebugMode));
+            this._originalSkybox = RenderSettings.skybox;
             if (Application.productName =="StudioNEO")
             {
                 HSExtSave.HSExtSave.RegisterHandler("hsibl", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
@@ -202,7 +205,7 @@ namespace HSIBL
             this._cubemapFolder = new FolderAssist();
             this._cubemapFolder.CreateFolderInfo(Application.dataPath +"/../abdata/plastic/cubemaps/","*.unity3d", true, true);
             this._selectedCubeMap = -1;
-            this._preveiousSelectedCubeMap = -1;
+            this._previousSelectedCubeMap = -1;
             this._cubeMapFileNames = new string[this._cubemapFolder.lstFile.Count+1];
             this._cubeMapFileNames[0] ="Procedural";
             int count = 1;
@@ -211,13 +214,17 @@ namespace HSIBL
                 this._cubeMapFileNames[count] = fileInfo.FileName;
                 count++;
             }
-
-            this._toneMappingManager = Camera.main.GetComponent<ColorCorrectionCurves>().Tonemapping;
-            this._bloomManager = Camera.main.GetComponent<ColorCorrectionCurves>().CinematicBloom;
-            this._lensManager = Camera.main.GetComponent<ColorCorrectionCurves>().LensAberrations;
+            this._colorCorrectionCurves = Camera.main.GetComponent<ColorCorrectionCurves>();
+            if (this._colorCorrectionCurves != null)
+            {
+                this._toneMappingManager = this._colorCorrectionCurves.Tonemapping;
+                this._bloomManager = this._colorCorrectionCurves.CinematicBloom;
+                this._lensManager = this._colorCorrectionCurves.LensAberrations;
+                this._ev = Mathf.Log(this._toneMappingManager.tonemapping.exposure, 2f);
+            }
             this._ssao = Camera.main.GetComponent<SSAOPro>();
             this._sunShafts = Camera.main.GetComponent<SunShafts>();
-            this._depthOfField = Camera.main.GetComponent<UnityStandardAssets.ImageEffects.DepthOfField>();
+            this._depthOfField = Camera.main.GetComponent<DepthOfField>();
             this._ssr = Camera.main.GetComponent<ScreenSpaceReflection>();
         }
 
@@ -376,8 +383,11 @@ namespace HSIBL
 
                 else if (this._tabMenu == 1)
                 {
-                    this.LensPresetsModule();
-                    this.LensModule();
+                    if (this._colorCorrectionCurves != null)
+                    {
+                        this.LensPresetsModule();
+                        this.LensModule();
+                    }
                 }
                 else if (this._tabMenu == 2)
                 {
@@ -403,16 +413,16 @@ namespace HSIBL
                         this.SunShaftsModule();
                         UIUtils.HorizontalLine();
                     }
-                    //////////////////////Bloom//////////////////////////
-                    this.BloomModule();
-                    UIUtils.HorizontalLine();
-                    //////////////////////eye adaptation/////////////////////
-                    this.EyeAdaptationModule();
-                    UIUtils.HorizontalLine();
-                    ///////////////////////Tone mapping///////////////////// 
-                    this.ToneMappingModule();
-                    UIUtils.HorizontalLine();
-                    this.ColorGradingModule();
+                    if (this._colorCorrectionCurves != null)
+                    {
+                        this.BloomModule();
+                        UIUtils.HorizontalLine();
+                        this.EyeAdaptationModule();
+                        UIUtils.HorizontalLine();
+                        this.ToneMappingModule();
+                        UIUtils.HorizontalLine();
+                        this.ColorGradingModule();
+                    }
                 }
                 else if (this._tabMenu == 3)
                 {
@@ -459,28 +469,29 @@ namespace HSIBL
 
             if (GUILayout.Button("None", UIUtils.buttonstyleStrechWidth))
             {
-                this._skybox.Skybox = null;
-                RenderSettings.skybox = null;
+                this._skybox.Skybox = this._originalSkybox;
+                RenderSettings.skybox = this._originalSkybox;
                 RenderSettings.ambientMode = AmbientMode.Skybox;
                 RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
+                Camera.main.clearFlags = CameraClearFlags.SolidColor;
                 this._cubemaploaded = false;
                 this._selectedCubeMap = -1;
-                this._preveiousSelectedCubeMap = -1;
+                this._previousSelectedCubeMap = -1;
             }
 
             this._selectedCubeMap = GUILayout.SelectionGrid(this._selectedCubeMap, this._cubeMapFileNames, 1, UIUtils.buttonstyleStrechWidth);
 
-            if (this._selectedCubeMap > 0 && this._preveiousSelectedCubeMap != this._selectedCubeMap)
+            if (this._selectedCubeMap > 0 && this._previousSelectedCubeMap != this._selectedCubeMap)
             {
                 this.StartCoroutine(this.LoadCubemapAsync(this._cubemapFolder.lstFile[this._selectedCubeMap - 1].FileName));
-                this._preveiousSelectedCubeMap = this._selectedCubeMap;
+                this._previousSelectedCubeMap = this._selectedCubeMap;
             }
-            if (this._selectedCubeMap == 0 && this._preveiousSelectedCubeMap != 0)
+            if (this._selectedCubeMap == 0 && this._previousSelectedCubeMap != 0)
             {
                 this._proceduralSkybox.ApplySkybox();
                 this._proceduralSkybox.ApplySkyboxParams();
                 this._environmentUpdateFlag = true;
-                this._preveiousSelectedCubeMap = 0;
+                this._previousSelectedCubeMap = 0;
                 this._cubemaploaded = true;
             }
 
@@ -1387,13 +1398,14 @@ namespace HSIBL
                         this._selectedCubeMap = XmlConvert.ToInt32(moduleNode.Attributes["index"].Value);
                         if (this._selectedCubeMap == -1)
                         {
-                            this._skybox.Skybox = null;
-                            RenderSettings.skybox = null;
+                            this._skybox.Skybox = this._originalSkybox;
+                            RenderSettings.skybox = this._originalSkybox;
                             RenderSettings.ambientMode = AmbientMode.Skybox;
                             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
                             this._cubemaploaded = false;
                             this._selectedCubeMap = -1;
-                            this._preveiousSelectedCubeMap = -1;
+                            this._previousSelectedCubeMap = -1;
+                            Camera.main.clearFlags = CameraClearFlags.SolidColor;
                         }
                         else if (this._selectedCubeMap == 0)
                         {
@@ -1401,7 +1413,7 @@ namespace HSIBL
                             this._proceduralSkybox.ApplySkyboxParams();
                             this._environmentUpdateFlag = true;
                             this._cubemaploaded = true;
-                            this._preveiousSelectedCubeMap = -1;
+                            this._previousSelectedCubeMap = -1;
                         }
                         else
                         {
@@ -1418,18 +1430,19 @@ namespace HSIBL
                             }
                             if (this._selectedCubeMap == -1)
                             {
-                                this._skybox.Skybox = null;
-                                RenderSettings.skybox = null;
+                                this._skybox.Skybox = this._originalSkybox;
+                                RenderSettings.skybox = this._originalSkybox;
                                 RenderSettings.ambientMode = AmbientMode.Skybox;
                                 RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
                                 this._cubemaploaded = false;
                                 this._selectedCubeMap = -1;
-                                this._preveiousSelectedCubeMap = -1;
+                                this._previousSelectedCubeMap = -1;
+                                Camera.main.clearFlags = CameraClearFlags.SolidColor;
                             }
                             else
                             {
                                 this.LoadCubemap(this._cubemapFolder.lstFile[this._selectedCubeMap - 1].FileName);
-                                this._preveiousSelectedCubeMap = this._selectedCubeMap;
+                                this._previousSelectedCubeMap = this._selectedCubeMap;
                             }
                         }
 
@@ -1528,204 +1541,229 @@ namespace HSIBL
 
                         break;
                     case "lens":
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            Camera.main.fieldOfView = XmlConvert.ToSingle(moduleNode.Attributes["fov"].Value);
+                            this._lensManager.distortion.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["distortionEnabled"].Value);
+                            this._lensManager.distortion.amount = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmount"].Value);
+                            this._lensManager.distortion.amountX = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmountX"].Value);
+                            this._lensManager.distortion.amountY = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmountY"].Value);
+                            this._lensManager.distortion.scale = XmlConvert.ToSingle(moduleNode.Attributes["distortionScale"].Value);
 
-                        Camera.main.fieldOfView = XmlConvert.ToSingle(moduleNode.Attributes["fov"].Value);
-                        this._lensManager.distortion.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["distortionEnabled"].Value);
-                        this._lensManager.distortion.amount = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmount"].Value);
-                        this._lensManager.distortion.amountX = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmountX"].Value);
-                        this._lensManager.distortion.amountY = XmlConvert.ToSingle(moduleNode.Attributes["distortionAmountY"].Value);
-                        this._lensManager.distortion.scale = XmlConvert.ToSingle(moduleNode.Attributes["distortionScale"].Value);
+                            this._lensManager.chromaticAberration.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["chromaticAberrationEnabled"].Value);
+                            this._lensManager.chromaticAberration.amount = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationAmount"].Value);
 
-                        this._lensManager.chromaticAberration.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["chromaticAberrationEnabled"].Value);
-                        this._lensManager.chromaticAberration.amount = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationAmount"].Value);
+                            this._lensManager.vignette.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["vignetteEnabled"].Value);
+                            this._lensManager.vignette.intensity = XmlConvert.ToSingle(moduleNode.Attributes["vignetteIntensity"].Value);
+                            this._lensManager.vignette.smoothness = XmlConvert.ToSingle(moduleNode.Attributes["vignetteSmoothness"].Value);
+                            this._lensManager.vignette.roundness = XmlConvert.ToSingle(moduleNode.Attributes["vignetteRoundness"].Value);
+                            this._lensManager.vignette.desaturate = XmlConvert.ToSingle(moduleNode.Attributes["vignetteDesaturate"].Value);
+                            this._lensManager.vignette.blur = XmlConvert.ToSingle(moduleNode.Attributes["vignetteBlur"].Value);
 
-                        this._lensManager.vignette.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["vignetteEnabled"].Value);
-                        this._lensManager.vignette.intensity = XmlConvert.ToSingle(moduleNode.Attributes["vignetteIntensity"].Value);
-                        this._lensManager.vignette.smoothness = XmlConvert.ToSingle(moduleNode.Attributes["vignetteSmoothness"].Value);
-                        this._lensManager.vignette.roundness = XmlConvert.ToSingle(moduleNode.Attributes["vignetteRoundness"].Value);
-                        this._lensManager.vignette.desaturate = XmlConvert.ToSingle(moduleNode.Attributes["vignetteDesaturate"].Value);
-                        this._lensManager.vignette.blur = XmlConvert.ToSingle(moduleNode.Attributes["vignetteBlur"].Value);
-
-                        c = Color.black;
-                        c.r = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorR"].Value);
-                        c.g = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorG"].Value);
-                        c.b = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorB"].Value);
-                        this._lensManager.vignette.color = c;
-
+                            c = Color.black;
+                            c.r = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorR"].Value);
+                            c.g = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorG"].Value);
+                            c.b = XmlConvert.ToSingle(moduleNode.Attributes["vignetteColorB"].Value);
+                            this._lensManager.vignette.color = c;
+                        }
                         break;
                     case "colorGrading":
-                        TonemappingColorGrading.ColorGradingSettings colorGrading = this._toneMappingManager.colorGrading;
-                        TonemappingColorGrading.BasicsSettings settings = colorGrading.basics;
-                        colorGrading.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        settings.temperatureShift = XmlConvert.ToSingle(moduleNode.Attributes["temperatureShift"].Value);
-                        settings.tint = XmlConvert.ToSingle(moduleNode.Attributes["tint"].Value);
-                        settings.contrast = XmlConvert.ToSingle(moduleNode.Attributes["contrast"].Value);
-                        settings.hue = XmlConvert.ToSingle(moduleNode.Attributes["hue"].Value);
-                        settings.saturation = XmlConvert.ToSingle(moduleNode.Attributes["saturation"].Value);
-                        settings.value = XmlConvert.ToSingle(moduleNode.Attributes["value"].Value);
-                        settings.vibrance = XmlConvert.ToSingle(moduleNode.Attributes["vibrance"].Value);
-                        settings.gain = XmlConvert.ToSingle(moduleNode.Attributes["gain"].Value);
-                        settings.gamma = XmlConvert.ToSingle(moduleNode.Attributes["gamma"].Value);
-                        colorGrading.basics = settings;
-                        this._toneMappingManager.colorGrading = colorGrading;
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            TonemappingColorGrading.ColorGradingSettings colorGrading = this._toneMappingManager.colorGrading;
+                            TonemappingColorGrading.BasicsSettings settings = colorGrading.basics;
+                            colorGrading.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            settings.temperatureShift = XmlConvert.ToSingle(moduleNode.Attributes["temperatureShift"].Value);
+                            settings.tint = XmlConvert.ToSingle(moduleNode.Attributes["tint"].Value);
+                            settings.contrast = XmlConvert.ToSingle(moduleNode.Attributes["contrast"].Value);
+                            settings.hue = XmlConvert.ToSingle(moduleNode.Attributes["hue"].Value);
+                            settings.saturation = XmlConvert.ToSingle(moduleNode.Attributes["saturation"].Value);
+                            settings.value = XmlConvert.ToSingle(moduleNode.Attributes["value"].Value);
+                            settings.vibrance = XmlConvert.ToSingle(moduleNode.Attributes["vibrance"].Value);
+                            settings.gain = XmlConvert.ToSingle(moduleNode.Attributes["gain"].Value);
+                            settings.gamma = XmlConvert.ToSingle(moduleNode.Attributes["gamma"].Value);
+                            colorGrading.basics = settings;
+                            this._toneMappingManager.colorGrading = colorGrading;
+                        }
                         break;
                     case"tonemapping":
-                        this._tonemappingEnabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        this._toneMapper = (TonemappingColorGrading.Tonemapper)XmlConvert.ToInt32(moduleNode.Attributes["tonemapper"].Value);
-                        this._ev = XmlConvert.ToSingle(moduleNode.Attributes["exposure"].Value);
-
-                        this._toneMappingManager.tonemapping = new TonemappingColorGrading.TonemappingSettings
+                        if (this._colorCorrectionCurves != null)
                         {
-                            tonemapper = this._toneMapper,
-                            exposure = Mathf.Pow(2f, this._ev),
-                            enabled = this._tonemappingEnabled,
-                            neutralBlackIn = this._toneMappingManager.tonemapping.neutralBlackIn,
-                            neutralBlackOut = this._toneMappingManager.tonemapping.neutralBlackOut,
-                            neutralWhiteClip = this._toneMappingManager.tonemapping.neutralWhiteClip,
-                            neutralWhiteIn = this._toneMappingManager.tonemapping.neutralWhiteIn,
-                            neutralWhiteLevel = this._toneMappingManager.tonemapping.neutralWhiteLevel,
-                            neutralWhiteOut = this._toneMappingManager.tonemapping.neutralWhiteOut,
-                            curve = this._toneMappingManager.tonemapping.curve
-                        };
+                            this._tonemappingEnabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            this._toneMapper = (TonemappingColorGrading.Tonemapper)XmlConvert.ToInt32(moduleNode.Attributes["tonemapper"].Value);
+                            this._ev = XmlConvert.ToSingle(moduleNode.Attributes["exposure"].Value);
+
+                            this._toneMappingManager.tonemapping = new TonemappingColorGrading.TonemappingSettings
+                            {
+                                tonemapper = this._toneMapper,
+                                exposure = Mathf.Pow(2f, this._ev),
+                                enabled = this._tonemappingEnabled,
+                                neutralBlackIn = this._toneMappingManager.tonemapping.neutralBlackIn,
+                                neutralBlackOut = this._toneMappingManager.tonemapping.neutralBlackOut,
+                                neutralWhiteClip = this._toneMappingManager.tonemapping.neutralWhiteClip,
+                                neutralWhiteIn = this._toneMappingManager.tonemapping.neutralWhiteIn,
+                                neutralWhiteLevel = this._toneMappingManager.tonemapping.neutralWhiteLevel,
+                                neutralWhiteOut = this._toneMappingManager.tonemapping.neutralWhiteOut,
+                                curve = this._toneMappingManager.tonemapping.curve
+                            };
+                        }
                         break;
                     case "eyeAdaptation":
-                        this._eyeEnabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        this._eyeMiddleGrey = XmlConvert.ToSingle(moduleNode.Attributes["middleGrey"].Value);
-                        this._eyeMax = XmlConvert.ToSingle(moduleNode.Attributes["max"].Value);
-                        this._eyeMin = XmlConvert.ToSingle(moduleNode.Attributes["min"].Value);
-                        this._eyeSpeed = XmlConvert.ToSingle(moduleNode.Attributes["speed"].Value);
-
-                        this._toneMappingManager.eyeAdaptation = new TonemappingColorGrading.EyeAdaptationSettings
+                        if (this._colorCorrectionCurves != null)
                         {
-                            enabled = this._eyeEnabled,
-                            showDebug = false,
-                            middleGrey = this._eyeMiddleGrey,
-                            max = this._eyeMax,
-                            min = this._eyeMin,
-                            speed = this._eyeSpeed
-                        };
+                            this._eyeEnabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            this._eyeMiddleGrey = XmlConvert.ToSingle(moduleNode.Attributes["middleGrey"].Value);
+                            this._eyeMax = XmlConvert.ToSingle(moduleNode.Attributes["max"].Value);
+                            this._eyeMin = XmlConvert.ToSingle(moduleNode.Attributes["min"].Value);
+                            this._eyeSpeed = XmlConvert.ToSingle(moduleNode.Attributes["speed"].Value);
+
+                            this._toneMappingManager.eyeAdaptation = new TonemappingColorGrading.EyeAdaptationSettings
+                            {
+                                enabled = this._eyeEnabled,
+                                showDebug = false,
+                                middleGrey = this._eyeMiddleGrey,
+                                max = this._eyeMax,
+                                min = this._eyeMin,
+                                speed = this._eyeSpeed
+                            };
+                        }
                         break;
                     case "bloom":
-                        this._bloomManager.settings.intensity = XmlConvert.ToSingle(moduleNode.Attributes["intensity"].Value);
-                        this._bloomManager.settings.threshold = XmlConvert.ToSingle(moduleNode.Attributes["threshold"].Value);
-                        this._bloomManager.settings.softKnee = XmlConvert.ToSingle(moduleNode.Attributes["softKnee"].Value);
-                        this._bloomManager.settings.radius = XmlConvert.ToSingle(moduleNode.Attributes["radius"].Value);
-                        this._bloomManager.settings.antiFlicker = XmlConvert.ToBoolean(moduleNode.Attributes["antiFlicker"].Value);
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            this._bloomManager.settings.intensity = XmlConvert.ToSingle(moduleNode.Attributes["intensity"].Value);
+                            this._bloomManager.settings.threshold = XmlConvert.ToSingle(moduleNode.Attributes["threshold"].Value);
+                            this._bloomManager.settings.softKnee = XmlConvert.ToSingle(moduleNode.Attributes["softKnee"].Value);
+                            this._bloomManager.settings.radius = XmlConvert.ToSingle(moduleNode.Attributes["radius"].Value);
+                            this._bloomManager.settings.antiFlicker = XmlConvert.ToBoolean(moduleNode.Attributes["antiFlicker"].Value);
+                        }
                         break;
                     case "ssao":
-                        if (moduleNode.Attributes["enabled"] != null)
-                            this._ssao.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        this._ssao.Samples = (SSAOPro.SampleCount)XmlConvert.ToInt32(moduleNode.Attributes["samples"].Value);
-                        this._ssao.Downsampling = XmlConvert.ToInt32(moduleNode.Attributes["downsampling"].Value);
-                        this._ssao.Radius = XmlConvert.ToSingle(moduleNode.Attributes["radius"].Value);
-                        this._ssao.Intensity = XmlConvert.ToSingle(moduleNode.Attributes["intensity"].Value);
-                        this._ssao.Distance = XmlConvert.ToSingle(moduleNode.Attributes["distance"].Value);
-                        this._ssao.Bias = XmlConvert.ToSingle(moduleNode.Attributes["bias"].Value);
-                        this._ssao.LumContribution = XmlConvert.ToSingle(moduleNode.Attributes["lumContribution"].Value);
-                        c = Color.black;
-                        c.r = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorR"].Value);
-                        c.g = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorG"].Value);
-                        c.b = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorB"].Value);
-                        this._ssao.OcclusionColor = c;
-                        this._ssao.CutoffDistance = XmlConvert.ToSingle(moduleNode.Attributes["cutoffDistance"].Value);
-                        this._ssao.CutoffFalloff = XmlConvert.ToSingle(moduleNode.Attributes["cutoffFalloff"].Value);
-                        this._ssao.BlurPasses = XmlConvert.ToInt32(moduleNode.Attributes["blurPasses"].Value);
-                        this._ssao.BlurBilateralThreshold = XmlConvert.ToSingle(moduleNode.Attributes["blurBilateralThreshold"].Value);
-                        this._ssao.UseHighPrecisionDepthMap = XmlConvert.ToBoolean(moduleNode.Attributes["useHighPrecisionDepthMap"].Value);
-                        this._ssao.Blur = (SSAOPro.BlurMode)XmlConvert.ToInt32(moduleNode.Attributes["blur"].Value);
-                        this._ssao.BlurDownsampling = XmlConvert.ToBoolean(moduleNode.Attributes["blurDownsampling"].Value);
-                        this._ssao.DebugAO = XmlConvert.ToBoolean(moduleNode.Attributes["debugAO"].Value);
+                        if (this._ssao != null)
+                        {
+                            if (moduleNode.Attributes["enabled"] != null)
+                                this._ssao.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            this._ssao.Samples = (SSAOPro.SampleCount)XmlConvert.ToInt32(moduleNode.Attributes["samples"].Value);
+                            this._ssao.Downsampling = XmlConvert.ToInt32(moduleNode.Attributes["downsampling"].Value);
+                            this._ssao.Radius = XmlConvert.ToSingle(moduleNode.Attributes["radius"].Value);
+                            this._ssao.Intensity = XmlConvert.ToSingle(moduleNode.Attributes["intensity"].Value);
+                            this._ssao.Distance = XmlConvert.ToSingle(moduleNode.Attributes["distance"].Value);
+                            this._ssao.Bias = XmlConvert.ToSingle(moduleNode.Attributes["bias"].Value);
+                            this._ssao.LumContribution = XmlConvert.ToSingle(moduleNode.Attributes["lumContribution"].Value);
+                            c = Color.black;
+                            c.r = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorR"].Value);
+                            c.g = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorG"].Value);
+                            c.b = XmlConvert.ToSingle(moduleNode.Attributes["occlusionColorB"].Value);
+                            this._ssao.OcclusionColor = c;
+                            this._ssao.CutoffDistance = XmlConvert.ToSingle(moduleNode.Attributes["cutoffDistance"].Value);
+                            this._ssao.CutoffFalloff = XmlConvert.ToSingle(moduleNode.Attributes["cutoffFalloff"].Value);
+                            this._ssao.BlurPasses = XmlConvert.ToInt32(moduleNode.Attributes["blurPasses"].Value);
+                            this._ssao.BlurBilateralThreshold = XmlConvert.ToSingle(moduleNode.Attributes["blurBilateralThreshold"].Value);
+                            this._ssao.UseHighPrecisionDepthMap = XmlConvert.ToBoolean(moduleNode.Attributes["useHighPrecisionDepthMap"].Value);
+                            this._ssao.Blur = (SSAOPro.BlurMode)XmlConvert.ToInt32(moduleNode.Attributes["blur"].Value);
+                            this._ssao.BlurDownsampling = XmlConvert.ToBoolean(moduleNode.Attributes["blurDownsampling"].Value);
+                            this._ssao.DebugAO = XmlConvert.ToBoolean(moduleNode.Attributes["debugAO"].Value);
 
-                        Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
-                        Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;
-                        Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(c);
+                            Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
+                            Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;
+                            Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(c);
+                        }
                         break;
                     case "sunShafts":
-                        if (moduleNode.Attributes["enabled"] != null)
-                            this._sunShafts.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        this._sunShafts.useDepthTexture = XmlConvert.ToBoolean(moduleNode.Attributes["useDepthTexture"].Value);
-                        this._sunShafts.resolution = (SunShafts.SunShaftsResolution)XmlConvert.ToInt32(moduleNode.Attributes["resolution"].Value);
-                        this._sunShafts.screenBlendMode = (SunShafts.ShaftsScreenBlendMode)XmlConvert.ToInt32(moduleNode.Attributes["screenBlendMode"].Value);
-                        c = Color.black;
-                        c.r = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdR"].Value);
-                        c.g = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdG"].Value);
-                        c.b = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdB"].Value);
-                        this._sunShafts.sunThreshold = c;
-                        c.r = XmlConvert.ToSingle(moduleNode.Attributes["sunColorR"].Value);
-                        c.g = XmlConvert.ToSingle(moduleNode.Attributes["sunColorG"].Value);
-                        c.b = XmlConvert.ToSingle(moduleNode.Attributes["sunColorB"].Value);
-                        this._sunShafts.sunColor = c;
-                        this._sunShafts.maxRadius = XmlConvert.ToSingle(moduleNode.Attributes["maxRadius"].Value);
-                        this._sunShafts.sunShaftBlurRadius = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftBlurRadius"].Value);
-                        this._sunShafts.radialBlurIterations = XmlConvert.ToInt32(moduleNode.Attributes["radialBlurIterations"].Value);
-                        this._sunShafts.sunShaftIntensity = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftIntensity"].Value);
-                        Studio.Studio.Instance.sceneInfo.enableSunShafts = this._sunShafts.enabled;
+                        if (this._sunShafts != null)
+                        {
+                            if (moduleNode.Attributes["enabled"] != null)
+                                this._sunShafts.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            this._sunShafts.useDepthTexture = XmlConvert.ToBoolean(moduleNode.Attributes["useDepthTexture"].Value);
+                            this._sunShafts.resolution = (SunShafts.SunShaftsResolution)XmlConvert.ToInt32(moduleNode.Attributes["resolution"].Value);
+                            this._sunShafts.screenBlendMode = (SunShafts.ShaftsScreenBlendMode)XmlConvert.ToInt32(moduleNode.Attributes["screenBlendMode"].Value);
+                            c = Color.black;
+                            c.r = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdR"].Value);
+                            c.g = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdG"].Value);
+                            c.b = XmlConvert.ToSingle(moduleNode.Attributes["sunThresholdB"].Value);
+                            this._sunShafts.sunThreshold = c;
+                            c.r = XmlConvert.ToSingle(moduleNode.Attributes["sunColorR"].Value);
+                            c.g = XmlConvert.ToSingle(moduleNode.Attributes["sunColorG"].Value);
+                            c.b = XmlConvert.ToSingle(moduleNode.Attributes["sunColorB"].Value);
+                            this._sunShafts.sunColor = c;
+                            this._sunShafts.maxRadius = XmlConvert.ToSingle(moduleNode.Attributes["maxRadius"].Value);
+                            this._sunShafts.sunShaftBlurRadius = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftBlurRadius"].Value);
+                            this._sunShafts.radialBlurIterations = XmlConvert.ToInt32(moduleNode.Attributes["radialBlurIterations"].Value);
+                            this._sunShafts.sunShaftIntensity = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftIntensity"].Value);
+                            Studio.Studio.Instance.sceneInfo.enableSunShafts = this._sunShafts.enabled;
+                        }
 
                         break;
                     case "depthOfField":
-                        if (moduleNode.Attributes["enabled"] != null)
-                            this._depthOfField.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
-                        this._depthOfField.visualizeFocus = XmlConvert.ToBoolean(moduleNode.Attributes["visualizeFocus"].Value);
-                        this._depthOfField.focalLength = XmlConvert.ToSingle(moduleNode.Attributes["focalLength"].Value);
-                        this._depthOfField.focalSize = XmlConvert.ToSingle(moduleNode.Attributes["focalSize"].Value);
-                        this._depthOfField.aperture = XmlConvert.ToSingle(moduleNode.Attributes["aperture"].Value);
-                        this._depthOfField.maxBlurSize = XmlConvert.ToSingle(moduleNode.Attributes["maxBlurSize"].Value);
-                        this._depthOfField.highResolution = XmlConvert.ToBoolean(moduleNode.Attributes["highResolution"].Value);
-                        this._depthOfField.nearBlur = XmlConvert.ToBoolean(moduleNode.Attributes["nearBlur"].Value);
-                        this._depthOfField.foregroundOverlap = XmlConvert.ToSingle(moduleNode.Attributes["foregroundOverlap"].Value);
-                        this._depthOfField.blurType = (DepthOfField.BlurType)XmlConvert.ToInt32(moduleNode.Attributes["blurType"].Value);
-                        this._depthOfField.blurSampleCount = (DepthOfField.BlurSampleCount)XmlConvert.ToInt32(moduleNode.Attributes["blurSampleCount"].Value);
-                        this._depthOfField.dx11BokehScale = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehScale"].Value);
-                        this._depthOfField.dx11BokehIntensity = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehIntensity"].Value);
-                        this._depthOfField.dx11BokehThreshold = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehThreshold"].Value);
-                        this._depthOfField.dx11SpawnHeuristic = XmlConvert.ToSingle(moduleNode.Attributes["dx11SpawnHeuristic"].Value);
-                        Studio.Studio.Instance.sceneInfo.enableDepth = this._depthOfField.enabled;
-                        Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
-                        Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
+                        if (this._depthOfField != null)
+                        {
+                            if (moduleNode.Attributes["enabled"] != null)
+                                this._depthOfField.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            this._depthOfField.visualizeFocus = XmlConvert.ToBoolean(moduleNode.Attributes["visualizeFocus"].Value);
+                            this._depthOfField.focalLength = XmlConvert.ToSingle(moduleNode.Attributes["focalLength"].Value);
+                            this._depthOfField.focalSize = XmlConvert.ToSingle(moduleNode.Attributes["focalSize"].Value);
+                            this._depthOfField.aperture = XmlConvert.ToSingle(moduleNode.Attributes["aperture"].Value);
+                            this._depthOfField.maxBlurSize = XmlConvert.ToSingle(moduleNode.Attributes["maxBlurSize"].Value);
+                            this._depthOfField.highResolution = XmlConvert.ToBoolean(moduleNode.Attributes["highResolution"].Value);
+                            this._depthOfField.nearBlur = XmlConvert.ToBoolean(moduleNode.Attributes["nearBlur"].Value);
+                            this._depthOfField.foregroundOverlap = XmlConvert.ToSingle(moduleNode.Attributes["foregroundOverlap"].Value);
+                            this._depthOfField.blurType = (DepthOfField.BlurType)XmlConvert.ToInt32(moduleNode.Attributes["blurType"].Value);
+                            this._depthOfField.blurSampleCount = (DepthOfField.BlurSampleCount)XmlConvert.ToInt32(moduleNode.Attributes["blurSampleCount"].Value);
+                            this._depthOfField.dx11BokehScale = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehScale"].Value);
+                            this._depthOfField.dx11BokehIntensity = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehIntensity"].Value);
+                            this._depthOfField.dx11BokehThreshold = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehThreshold"].Value);
+                            this._depthOfField.dx11SpawnHeuristic = XmlConvert.ToSingle(moduleNode.Attributes["dx11SpawnHeuristic"].Value);
+                            Studio.Studio.Instance.sceneInfo.enableDepth = this._depthOfField.enabled;
+                            Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
+                            Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
+                        }
                         break;
                     case "ssr":
-                        if (moduleNode.Attributes["enabled"] != null)
-                            this._ssr.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                        if (this._ssr != null)
+                        {
+                            if (moduleNode.Attributes["enabled"] != null)
+                                this._ssr.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
 
-                        ScreenSpaceReflection.SSRSettings ssrSettings = this._ssr.settings;
+                            ScreenSpaceReflection.SSRSettings ssrSettings = this._ssr.settings;
 
-                        ScreenSpaceReflection.BasicSettings basicSettings = ssrSettings.basicSettings;
-                        basicSettings.reflectionMultiplier = XmlConvert.ToSingle(moduleNode.Attributes["reflectionMultiplier"].Value);
-                        basicSettings.maxDistance = XmlConvert.ToSingle(moduleNode.Attributes["maxDistance"].Value);
-                        basicSettings.fadeDistance = XmlConvert.ToSingle(moduleNode.Attributes["fadeDistance"].Value);
-                        basicSettings.screenEdgeFading = XmlConvert.ToSingle(moduleNode.Attributes["screenEdgeFading"].Value);
-                        basicSettings.enableHDR = XmlConvert.ToBoolean(moduleNode.Attributes["enableHDR"].Value);
-                        basicSettings.additiveReflection = XmlConvert.ToBoolean(moduleNode.Attributes["additiveReflection"].Value);
+                            ScreenSpaceReflection.BasicSettings basicSettings = ssrSettings.basicSettings;
+                            basicSettings.reflectionMultiplier = XmlConvert.ToSingle(moduleNode.Attributes["reflectionMultiplier"].Value);
+                            basicSettings.maxDistance = XmlConvert.ToSingle(moduleNode.Attributes["maxDistance"].Value);
+                            basicSettings.fadeDistance = XmlConvert.ToSingle(moduleNode.Attributes["fadeDistance"].Value);
+                            basicSettings.screenEdgeFading = XmlConvert.ToSingle(moduleNode.Attributes["screenEdgeFading"].Value);
+                            basicSettings.enableHDR = XmlConvert.ToBoolean(moduleNode.Attributes["enableHDR"].Value);
+                            basicSettings.additiveReflection = XmlConvert.ToBoolean(moduleNode.Attributes["additiveReflection"].Value);
 
-                        ScreenSpaceReflection.ReflectionSettings reflectionSettings = ssrSettings.reflectionSettings;
-                        reflectionSettings.maxSteps = XmlConvert.ToInt32(moduleNode.Attributes["maxSteps"].Value);
-                        reflectionSettings.rayStepSize = XmlConvert.ToInt32(moduleNode.Attributes["rayStepSize"].Value);
-                        reflectionSettings.widthModifier = XmlConvert.ToSingle(moduleNode.Attributes["widthModifier"].Value);
-                        reflectionSettings.smoothFallbackThreshold = XmlConvert.ToSingle(moduleNode.Attributes["smoothFallbackThreshold"].Value);
-                        reflectionSettings.smoothFallbackDistance = XmlConvert.ToSingle(moduleNode.Attributes["smoothFallbackDistance"].Value);
-                        reflectionSettings.fresnelFade = XmlConvert.ToSingle(moduleNode.Attributes["fresnelFade"].Value);
-                        reflectionSettings.fresnelFadePower = XmlConvert.ToSingle(moduleNode.Attributes["fresnelFadePower"].Value);
-                        reflectionSettings.distanceBlur = XmlConvert.ToSingle(moduleNode.Attributes["distanceBlur"].Value);
+                            ScreenSpaceReflection.ReflectionSettings reflectionSettings = ssrSettings.reflectionSettings;
+                            reflectionSettings.maxSteps = XmlConvert.ToInt32(moduleNode.Attributes["maxSteps"].Value);
+                            reflectionSettings.rayStepSize = XmlConvert.ToInt32(moduleNode.Attributes["rayStepSize"].Value);
+                            reflectionSettings.widthModifier = XmlConvert.ToSingle(moduleNode.Attributes["widthModifier"].Value);
+                            reflectionSettings.smoothFallbackThreshold = XmlConvert.ToSingle(moduleNode.Attributes["smoothFallbackThreshold"].Value);
+                            reflectionSettings.smoothFallbackDistance = XmlConvert.ToSingle(moduleNode.Attributes["smoothFallbackDistance"].Value);
+                            reflectionSettings.fresnelFade = XmlConvert.ToSingle(moduleNode.Attributes["fresnelFade"].Value);
+                            reflectionSettings.fresnelFadePower = XmlConvert.ToSingle(moduleNode.Attributes["fresnelFadePower"].Value);
+                            reflectionSettings.distanceBlur = XmlConvert.ToSingle(moduleNode.Attributes["distanceBlur"].Value);
 
-                        ScreenSpaceReflection.AdvancedSettings advancedSettings = ssrSettings.advancedSettings;
-                        advancedSettings.temporalFilterStrength = XmlConvert.ToSingle(moduleNode.Attributes["temporalFilterStrength"].Value);
-                        advancedSettings.useTemporalConfidence = XmlConvert.ToBoolean(moduleNode.Attributes["useTemporalConfidence"].Value);
-                        advancedSettings.traceBehindObjects = XmlConvert.ToBoolean(moduleNode.Attributes["traceBehindObjects"].Value);
-                        advancedSettings.highQualitySharpReflections = XmlConvert.ToBoolean(moduleNode.Attributes["highQualitySharpReflections"].Value);
-                        advancedSettings.traceEverywhere = XmlConvert.ToBoolean(moduleNode.Attributes["traceEverywhere"].Value);
-                        advancedSettings.treatBackfaceHitAsMiss = XmlConvert.ToBoolean(moduleNode.Attributes["treatBackfaceHitAsMiss"].Value);
-                        advancedSettings.allowBackwardsRays = XmlConvert.ToBoolean(moduleNode.Attributes["allowBackwardsRays"].Value);
-                        advancedSettings.improveCorners = XmlConvert.ToBoolean(moduleNode.Attributes["improveCorners"].Value);
-                        advancedSettings.resolution = (ScreenSpaceReflection.SSRResolution)XmlConvert.ToInt32(moduleNode.Attributes["resolution"].Value);
-                        advancedSettings.bilateralUpsample = XmlConvert.ToBoolean(moduleNode.Attributes["bilateralUpsample"].Value);
-                        advancedSettings.reduceBanding = XmlConvert.ToBoolean(moduleNode.Attributes["reduceBanding"].Value);
-                        advancedSettings.highlightSuppression = XmlConvert.ToBoolean(moduleNode.Attributes["highlightSuppression"].Value);
+                            ScreenSpaceReflection.AdvancedSettings advancedSettings = ssrSettings.advancedSettings;
+                            advancedSettings.temporalFilterStrength = XmlConvert.ToSingle(moduleNode.Attributes["temporalFilterStrength"].Value);
+                            advancedSettings.useTemporalConfidence = XmlConvert.ToBoolean(moduleNode.Attributes["useTemporalConfidence"].Value);
+                            advancedSettings.traceBehindObjects = XmlConvert.ToBoolean(moduleNode.Attributes["traceBehindObjects"].Value);
+                            advancedSettings.highQualitySharpReflections = XmlConvert.ToBoolean(moduleNode.Attributes["highQualitySharpReflections"].Value);
+                            advancedSettings.traceEverywhere = XmlConvert.ToBoolean(moduleNode.Attributes["traceEverywhere"].Value);
+                            advancedSettings.treatBackfaceHitAsMiss = XmlConvert.ToBoolean(moduleNode.Attributes["treatBackfaceHitAsMiss"].Value);
+                            advancedSettings.allowBackwardsRays = XmlConvert.ToBoolean(moduleNode.Attributes["allowBackwardsRays"].Value);
+                            advancedSettings.improveCorners = XmlConvert.ToBoolean(moduleNode.Attributes["improveCorners"].Value);
+                            advancedSettings.resolution = (ScreenSpaceReflection.SSRResolution)XmlConvert.ToInt32(moduleNode.Attributes["resolution"].Value);
+                            advancedSettings.bilateralUpsample = XmlConvert.ToBoolean(moduleNode.Attributes["bilateralUpsample"].Value);
+                            advancedSettings.reduceBanding = XmlConvert.ToBoolean(moduleNode.Attributes["reduceBanding"].Value);
+                            advancedSettings.highlightSuppression = XmlConvert.ToBoolean(moduleNode.Attributes["highlightSuppression"].Value);
 
-                        ssrSettings.basicSettings = basicSettings;
-                        ssrSettings.reflectionSettings = reflectionSettings;
-                        ssrSettings.advancedSettings = advancedSettings;
-                        this._ssr.settings = ssrSettings;
-                        Studio.Studio.Instance.sceneInfo.enableSSR = this._ssr.enabled;
+                            ssrSettings.basicSettings = basicSettings;
+                            ssrSettings.reflectionSettings = reflectionSettings;
+                            ssrSettings.advancedSettings = advancedSettings;
+                            this._ssr.settings = ssrSettings;
+                            Studio.Studio.Instance.sceneInfo.enableSSR = this._ssr.enabled;
+                        }
 
                         break;
                 }
@@ -1818,6 +1856,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._colorCorrectionCurves != null)
             {
                 writer.WriteStartElement("lens");
 
@@ -1844,6 +1883,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._colorCorrectionCurves != null)
             {
                 writer.WriteStartElement("tonemapping");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._toneMappingManager.tonemapping.enabled));
@@ -1852,6 +1892,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._colorCorrectionCurves != null)
             {
                 TonemappingColorGrading.ColorGradingSettings colorGrading = this._toneMappingManager.colorGrading;
                 TonemappingColorGrading.BasicsSettings settings = colorGrading.basics;
@@ -1870,6 +1911,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._colorCorrectionCurves != null)
             {
                 writer.WriteStartElement("eyeAdaptation");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._toneMappingManager.eyeAdaptation.enabled));
@@ -1880,6 +1922,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._colorCorrectionCurves != null)
             {
                 writer.WriteStartElement("bloom");
                 writer.WriteAttributeString("intensity", XmlConvert.ToString(this._bloomManager.settings.intensity));
@@ -1890,6 +1933,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._ssao != null)
             {
                 writer.WriteStartElement("ssao");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._ssao.enabled));
@@ -1914,6 +1958,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._sunShafts != null)
             {
                 writer.WriteStartElement("sunShafts");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._sunShafts.enabled));
@@ -1933,6 +1978,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._depthOfField != null)
             {
                 writer.WriteStartElement("depthOfField");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._depthOfField.enabled));
@@ -1953,6 +1999,7 @@ namespace HSIBL
                 writer.WriteEndElement();
             }
 
+            if (this._ssr != null)
             {
                 writer.WriteStartElement("ssr");
 
@@ -2003,3 +2050,4 @@ namespace HSIBL
         #endregion
     }
 }
+

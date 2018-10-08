@@ -155,7 +155,7 @@ namespace MoreAccessories
         private void OnEnable()
         {
             if (this.initEnd)
-                MoreAccessories.self.CustomControl_UpdateAcsName();
+                MoreAccessories._self.CustomControl_UpdateAcsName();
             this.DebugParentChanged(true);
         }
 
@@ -414,7 +414,6 @@ namespace MoreAccessories
 
         public virtual void Init()
         {
-            UnityEngine.Debug.LogError("Before HSUS stuff");
             Type type = Type.GetType("HSUS.HSUS,HSUS");
             if (type != null)
             {
@@ -444,16 +443,12 @@ namespace MoreAccessories
                     }
                 }
             }
-            UnityEngine.Debug.LogError("Before real init stuff");
 
             {
-                UnityEngine.Debug.LogError("INIT 1");
                 RectTransform parentCategory = this.transform.Find("TabControl/TabItem02/ParentCategory") as RectTransform;
-                UnityEngine.Debug.LogError("INIT 2");
                 RectTransform defaultContainer = UIUtility.CreateNewUIObject(parentCategory, "Default Container");
                 defaultContainer.SetRect(0f, 1f, 1f, 1f, 0f, -196f, -4f, 0f);
                 defaultContainer.gameObject.AddComponent<LayoutElement>().preferredHeight = 196f;
-                UnityEngine.Debug.LogError("INIT 3");
                 int i = 0;
                 while (parentCategory.childCount != 1)
                 {
@@ -466,13 +461,11 @@ namespace MoreAccessories
                     else
                         ++i;
                 }
-                UnityEngine.Debug.LogError("INIT 4");
 
                 ScrollRect scrollRect = UIUtility.CreateScrollView("ScrollView", parentCategory);
                 scrollRect.transform.SetRect(defaultContainer);
                 Destroy(scrollRect.GetComponent<Image>());
                 scrollRect.scrollSensitivity *= 30f;
-                UnityEngine.Debug.LogError("INIT 5");
 
                 foreach (Sprite s in Resources.FindObjectsOfTypeAll<Sprite>())
                 {
@@ -486,7 +479,6 @@ namespace MoreAccessories
                             break;
                     }
                 }
-                UnityEngine.Debug.LogError("INIT 6");
 
                 defaultContainer.SetParent(scrollRect.content, true);
                 VerticalLayoutGroup group = scrollRect.content.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -495,15 +487,12 @@ namespace MoreAccessories
                 group.padding = new RectOffset(8, 0, 0, 0);
                 group.spacing = 2f;
                 scrollRect.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                UnityEngine.Debug.LogError("INIT 7");
 
                 RawImage separator = UIUtility.CreateRawImage("Separator", scrollRect.content);
                 separator.gameObject.AddComponent<LayoutElement>().preferredHeight = 2f;
-                UnityEngine.Debug.LogError("INIT 8");
 
-                List<string> moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths;
-                Dictionary<string, string> moreAttachPointsAliases = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsAliases : MoreAccessories.self.maleMoreAttachPointsAliases;
-                UnityEngine.Debug.LogError("INIT 9");
+                List<string> moreAttachPointsPaths = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories._self._femaleMoreAttachPointsPaths : MoreAccessories._self._maleMoreAttachPointsPaths;
+                Dictionary<string, string> moreAttachPointsAliases = Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories._self._femaleMoreAttachPointsAliases : MoreAccessories._self._maleMoreAttachPointsAliases;
                 for (int index = 0; index < moreAttachPointsPaths.Count; index++)
                 {
                     string path = moreAttachPointsPaths[index];
@@ -524,12 +513,10 @@ namespace MoreAccessories
                 }
             }
 
-            UnityEngine.Debug.LogError("INIT 10");
 
             for (int i = 0; i < this.strParentKey.Length; i++)
                 this.dictParentKey[this.strParentKey[i]] = i;
             GameObject gameObject = this.transform.FindLoop("TypeCategory");
-            UnityEngine.Debug.LogError("INIT 11");
             if (gameObject)
             {
                 for (int j = 0; j < this.tglType.Length; j++)
@@ -541,7 +528,6 @@ namespace MoreAccessories
                 }
             }
             GameObject gameObject3 = this.transform.FindLoop("ParentCategory");
-            UnityEngine.Debug.LogError("INIT 12");
             if (gameObject3)
             {
                 for (int k = 0; k < this.tglParent.Length; k++)
@@ -553,20 +539,19 @@ namespace MoreAccessories
                 }
             }
             this.initEnd = true;
-            UnityEngine.Debug.LogError("INIT 13");
         }
 
 
         public virtual void OnEnableSetListAccessoryName()
         {
-            int count = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory.Count + 10;
+            int count = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count + 10;
             for (int i = 0; i < count; i++)
             {
                 string acsName;
                 if (i < 10)
                     acsName = this.customControl.GetAcsName(i, 14, true, false);
                 else
-                    acsName = MoreAccessories.self.CustomControl_GetAcsName(i - 10, 14, true, false);
+                    acsName = MoreAccessories._self.CustomControl_GetAcsName(i - 10, 14, true, false);
                 this._dstCopy[i].text.text = acsName;
                 this._srcCopy[i].text.text = acsName;
             }
@@ -574,7 +559,7 @@ namespace MoreAccessories
 
         public void UpdateUI()
         {
-            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.charaMakerAdditionalData;
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories._self._charaMakerAdditionalData;
             int i;
             for (i = 0; i < additionalData.clothesInfoAccessory.Count + 10; i++)
             {
@@ -644,12 +629,12 @@ namespace MoreAccessories
             if (num2 < 10)
                 src = this.clothesInfo.accessory[num2];
             else
-                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+                src = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
             CharFileInfoClothes.Accessory dst;
             if (num < 10)
                 dst = this.clothesInfo.accessory[num];
             else
-                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+                dst = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num - 10];
             dst.Copy(src);
             if (this.tglReversal.isOn)
             {
@@ -726,9 +711,9 @@ namespace MoreAccessories
             if (num < 10)
                 this.chaInfo.chaBody.ChangeAccessory(num, dst.type, dst.id, dst.parentKey, true);
             else
-                CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaInfo.chaBody, MoreAccessories.self.charaMakerAdditionalData, num - 10, dst.type, dst.id, dst.parentKey, true);
+                CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaInfo.chaBody, MoreAccessories._self._charaMakerAdditionalData, num - 10, dst.type, dst.id, dst.parentKey, true);
 
-            MoreAccessories.self.CustomControl_UpdateAcsName();
+            MoreAccessories._self.CustomControl_UpdateAcsName();
             this.OnEnableSetListAccessoryName();
             this.UpdateCharaInfoSub();
                 
@@ -746,12 +731,12 @@ namespace MoreAccessories
             if (num2 < 10)
                 src = this.clothesInfo.accessory[num2];
             else
-                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+                src = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
             CharFileInfoClothes.Accessory dst;
             if (num < 10)
                 dst = this.clothesInfo.accessory[num];
             else
-                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+                dst = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num - 10];
 
             dst.addPos = src.addPos;
             dst.addRot = src.addRot;
@@ -771,12 +756,12 @@ namespace MoreAccessories
             if (num2 < 10)
                 src = this.clothesInfo.accessory[num2];
             else
-                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+                src = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
             CharFileInfoClothes.Accessory dst;
             if (num < 10)
                 dst = this.clothesInfo.accessory[num];
             else
-                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+                dst = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num - 10];
 
             dst.addPos = src.addPos;
             dst.addRot = src.addRot + new Vector3(0f, 180f, 0f);
@@ -799,12 +784,12 @@ namespace MoreAccessories
             if (num2 < 10)
                 src = this.clothesInfo.accessory[num2];
             else
-                src = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
+                src = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num2 - 10];
             CharFileInfoClothes.Accessory dst;
             if (num < 10)
                 dst = this.clothesInfo.accessory[num];
             else
-                dst = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num - 10];
+                dst = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[num - 10];
 
             dst.addPos = src.addPos;
             dst.addRot = src.addRot + new Vector3(180f, 0f, 0f);
@@ -834,16 +819,16 @@ namespace MoreAccessories
             if (null == toggle || !toggle.isOn)
                 return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            if (MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type == newType)
+            if (MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type == newType)
                 return;
             this.nowLoading = true;
             this.ChangeAccessoryTypeList(newType, -1);
             this.nowLoading = false;
-            CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaBody, MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect, newType, this.firstIndex, string.Empty);
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect]);
+            CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaBody, MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect, newType, this.firstIndex, string.Empty);
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].Copy(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect]);
             this.UpdateShowTab();
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
-            MoreAccessories.self.CustomControl_UpdateAcsName();
+            MoreAccessories._self.CustomControl_UpdateAcsName();
             this.UpdateDebugParentLines();
         }
 
@@ -858,7 +843,7 @@ namespace MoreAccessories
                 toggle.isOn = false;
             this.nowTglAllSet = false;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            int parentIndexFromParentKey = this.GetParentIndexFromParentKey(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey);
+            int parentIndexFromParentKey = this.GetParentIndexFromParentKey(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey);
             this.updateVisualOnly = true;
             if (parentIndexFromParentKey < 29)
                 this.tglParent[parentIndexFromParentKey].isOn = true;
@@ -879,7 +864,7 @@ namespace MoreAccessories
                 toggle.isOn = false;
             this.nowTglAllSet = false;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            int id = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id;
+            int id = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id;
             string accessoryDefaultParentStr = this.chaClothes.GetAccessoryDefaultParentStr(this.acsType, id);
             int parentIndexFromParentKey = this.GetParentIndexFromParentKey(accessoryDefaultParentStr);
             this.tglParent[parentIndexFromParentKey].isOn = true;
@@ -898,15 +883,15 @@ namespace MoreAccessories
             if (null == toggle || !toggle.isOn)
                 return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            string parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
+            string parentKey = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
             string newParentKey;
             if (newParent < 29)
                 newParentKey = this.strParentKey[newParent];
             else
-                newParentKey = (Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories.self.femaleMoreAttachPointsPaths : MoreAccessories.self.maleMoreAttachPointsPaths)[newParent - 29];
+                newParentKey = (Manager.Game.Instance.customSceneInfo.isFemale ? MoreAccessories._self._femaleMoreAttachPointsPaths : MoreAccessories._self._maleMoreAttachPointsPaths)[newParent - 29];
             if (parentKey == newParentKey)
                 return;
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryParent(this.chaBody, MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect, newParentKey);
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryParent(this.chaBody, MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect, newParentKey);
             //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
             this.UpdateDebugParentLines();
@@ -923,8 +908,8 @@ namespace MoreAccessories
             if (this.clothesInfo != null)
             {
                 int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-                string parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
-                int id = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id;
+                string parentKey = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
+                int id = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id;
                 string accessoryDefaultParentStr = this.chaClothes.GetAccessoryDefaultParentStr(this.acsType, id);
                 string parentKey2;
                 string b = parentKey2 = this.chaClothes.GetAccessoryDefaultParentStr(this.acsType, component2.id);
@@ -932,8 +917,8 @@ namespace MoreAccessories
                     parentKey2 = parentKey;
                 if (!this.nowLoading)
                 {
-                    CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaBody, MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect, this.acsType, component2.id, parentKey2);
-                    MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect]);
+                    CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaBody, MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect, this.acsType, component2.id, parentKey2);
+                    MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].Copy(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect]);
                     this.UpdateShowTab();
                 }
             }
@@ -944,7 +929,7 @@ namespace MoreAccessories
                 if (transform)
                     transform.gameObject.SetActive(false);
             }
-            MoreAccessories.self.CustomControl_UpdateAcsName();
+            MoreAccessories._self.CustomControl_UpdateAcsName();
         }
 
         public virtual void OnClickColorDiffuse(int no)
@@ -958,12 +943,12 @@ namespace MoreAccessories
             if (this.selectColorNo == 0)
             {
                 this.colorMenu.ChangeWindowTitle("[Accessory " + (11 + slotNoFromSubMenuSelect) + "] Color");
-                white = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.rgbDiffuse;
+                white = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.rgbDiffuse;
             }
             else
             {
                 this.colorMenu.ChangeWindowTitle("[Accessory " + (11 + slotNoFromSubMenuSelect) + "] Shine Color");
-                white = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.rgbDiffuse;
+                white = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.rgbDiffuse;
             }
             this.colorMenu.SetColor(white, UI_ColorInfo.ControlType.PresetsSample);
         }
@@ -977,15 +962,15 @@ namespace MoreAccessories
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             if (this.selectColorNo == 0)
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.SetDiffuseRGB(color);
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.SetDiffuseRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.SetDiffuseRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.SetDiffuseRGB(color);
             }
             else
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.SetDiffuseRGB(color);
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.SetDiffuseRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.SetDiffuseRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.SetDiffuseRGB(color);
             }
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
         }
 
         public virtual void OnClickColorSpecular(int no)
@@ -999,12 +984,12 @@ namespace MoreAccessories
             if (this.selectColorNo == 0)
             {
                 this.colorMenu.ChangeWindowTitle("【アクセサリ(スロット" + (11 + slotNoFromSubMenuSelect) + ")】ツヤの色");
-                white = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.rgbSpecular;
+                white = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.rgbSpecular;
             }
             else
             {
                 this.colorMenu.ChangeWindowTitle("【アクセサリ(スロット" + (11 + slotNoFromSubMenuSelect) + ")】サブカラ\u30fcのツヤの色");
-                white = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.rgbSpecular;
+                white = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.rgbSpecular;
             }
             this.colorMenu.SetColor(white, UI_ColorInfo.ControlType.PresetsSample);
         }
@@ -1018,15 +1003,15 @@ namespace MoreAccessories
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             if (this.selectColorNo == 0)
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.SetSpecularRGB(color);
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.SetSpecularRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.SetSpecularRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.SetSpecularRGB(color);
             }
             else
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.SetSpecularRGB(color);
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.SetSpecularRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.SetSpecularRGB(color);
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.SetSpecularRGB(color);
             }
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
         }
 
         public virtual void OnValueChangeIntensity(float value)
@@ -1036,9 +1021,9 @@ namespace MoreAccessories
             if (this.clothesInfo != null)
             {
                 int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = value;
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = value;
-                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = value;
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = value;
+                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             }
             this.nowChanging = true;
             if (this.inputIntensity)
@@ -1055,9 +1040,9 @@ namespace MoreAccessories
             {
                 float specularIntensity = num;
                 int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = specularIntensity;
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = specularIntensity;
-                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = specularIntensity;
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = specularIntensity;
+                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             }
             this.nowChanging = true;
             if (this.sldIntensity)
@@ -1071,9 +1056,9 @@ namespace MoreAccessories
         {
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             float num = this.chaInfo.Sex != 0 ? this.defClothesInfoF.accessory[slotNoFromSubMenuSelect].color.specularIntensity : this.defClothesInfoM.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
-            MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = num;
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = num;
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+            MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity = num;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularIntensity = num;
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             this.nowChanging = true;
             float value = num;
             if (this.sldIntensity)
@@ -1092,15 +1077,15 @@ namespace MoreAccessories
                 int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
                 if (no == 0)
                 {
-                    MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = value;
-                    MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = value;
+                    MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = value;
+                    MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = value;
                 }
                 else
                 {
-                    MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = value;
-                    MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = value;
+                    MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = value;
+                    MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = value;
                 }
-                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             }
             this.nowChanging = true;
             if (this.inputSharpness[no])
@@ -1119,15 +1104,15 @@ namespace MoreAccessories
                 int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
                 if (no == 0)
                 {
-                    MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = specularSharpness;
-                    MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = specularSharpness;
+                    MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = specularSharpness;
+                    MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = specularSharpness;
                 }
                 else
                 {
-                    MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = specularSharpness;
-                    MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = specularSharpness;
+                    MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = specularSharpness;
+                    MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = specularSharpness;
                 }
-                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+                CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             }
             this.nowChanging = true;
             if (this.sldSharpness[no])
@@ -1140,19 +1125,19 @@ namespace MoreAccessories
         public virtual void OnClickSharpness(int no)
         {
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            float num = no != 0 ? MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
+            float num = no != 0 ? MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
                
             if (no == 0)
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = num;
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = num;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness = num;
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color.specularSharpness = num;
             }
             else
             {
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = num;
-                MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = num;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness = num;
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].color2.specularSharpness = num;
             }
-            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+            CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             this.nowChanging = true;
             float value = num;
             if (this.sldSharpness[no])
@@ -1259,7 +1244,7 @@ namespace MoreAccessories
                 case 0:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 1);
                     this.nowChanging = true;
-                    float value = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
+                    float value = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
                     if (this.inputPosX)
                         this.inputPosX.text = this.GetTextFormValue(value, 1);
                     this.nowChanging = false;
@@ -1267,7 +1252,7 @@ namespace MoreAccessories
                 case 1:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num, true, 1);
                     this.nowChanging = true;
-                    float value2 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
+                    float value2 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
                     if (this.inputPosX)
                         this.inputPosX.text = this.GetTextFormValue(value2, 1);
                     this.nowChanging = false;
@@ -1275,7 +1260,7 @@ namespace MoreAccessories
                 case 2:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 2);
                     this.nowChanging = true;
-                    float value3 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
+                    float value3 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
                     if (this.inputPosY)
                         this.inputPosY.text = this.GetTextFormValue(value3, 1);
                     this.nowChanging = false;
@@ -1283,7 +1268,7 @@ namespace MoreAccessories
                 case 3:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num, true, 2);
                     this.nowChanging = true;
-                    float value4 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
+                    float value4 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
                     if (this.inputPosY)
                         this.inputPosY.text = this.GetTextFormValue(value4, 1);
                     this.nowChanging = false;
@@ -1291,7 +1276,7 @@ namespace MoreAccessories
                 case 4:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 4);
                     this.nowChanging = true;
-                    float value5 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
+                    float value5 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
                     if (this.inputPosZ)
                         this.inputPosZ.text = this.GetTextFormValue(value5, 1);
                     this.nowChanging = false;
@@ -1299,13 +1284,13 @@ namespace MoreAccessories
                 case 5:
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num, true, 4);
                     this.nowChanging = true;
-                    float value6 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
+                    float value6 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
                     if (this.inputPosZ)
                         this.inputPosZ.text = this.GetTextFormValue(value6, 1);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
         }
 
         public virtual void OnClickRot(int index)
@@ -1317,7 +1302,7 @@ namespace MoreAccessories
                 case 0:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 1);
                     this.nowChanging = true;
-                    float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
+                    float x = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
                     if (this.inputRotX)
                         this.inputRotX.text = this.GetTextFormValue(x);
                     this.nowChanging = false;
@@ -1325,7 +1310,7 @@ namespace MoreAccessories
                 case 1:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num, true, 1);
                     this.nowChanging = true;
-                    float x2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
+                    float x2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
                     if (this.inputRotX)
                         this.inputRotX.text = this.GetTextFormValue(x2);
                     this.nowChanging = false;
@@ -1333,7 +1318,7 @@ namespace MoreAccessories
                 case 2:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 2);
                     this.nowChanging = true;
-                    float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
+                    float y = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
                     if (this.inputRotY)
                         this.inputRotY.text = this.GetTextFormValue(y);
                     this.nowChanging = false;
@@ -1341,7 +1326,7 @@ namespace MoreAccessories
                 case 3:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num, true, 2);
                     this.nowChanging = true;
-                    float y2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
+                    float y2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
                     if (this.inputRotY)
                         this.inputRotY.text = this.GetTextFormValue(y2);
                     this.nowChanging = false;
@@ -1349,7 +1334,7 @@ namespace MoreAccessories
                 case 4:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 4);
                     this.nowChanging = true;
-                    float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
+                    float z = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
                     if (this.inputRotZ)
                         this.inputRotZ.text = this.GetTextFormValue(z);
                     this.nowChanging = false;
@@ -1357,13 +1342,13 @@ namespace MoreAccessories
                 case 5:
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num, true, 4);
                     this.nowChanging = true;
-                    float z2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
+                    float z2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
                     if (this.inputRotZ)
                         this.inputRotZ.text = this.GetTextFormValue(z2);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
         }
 
         public virtual void OnClickScl(int index)
@@ -1375,7 +1360,7 @@ namespace MoreAccessories
                 case 0:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 1);
                     this.nowChanging = true;
-                    float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
+                    float x = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
                     if (this.inputSclX)
                         this.inputSclX.text = this.GetTextFormValue(x, 2);
                     this.nowChanging = false;
@@ -1383,7 +1368,7 @@ namespace MoreAccessories
                 case 1:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num, true, 1);
                     this.nowChanging = true;
-                    float x2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
+                    float x2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
                     if (this.inputSclX)
                         this.inputSclX.text = this.GetTextFormValue(x2, 2);
                     this.nowChanging = false;
@@ -1391,7 +1376,7 @@ namespace MoreAccessories
                 case 2:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 2);
                     this.nowChanging = true;
-                    float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
+                    float y = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
                     if (this.inputSclY)
                         this.inputSclY.text = this.GetTextFormValue(y, 2);
                     this.nowChanging = false;
@@ -1399,7 +1384,7 @@ namespace MoreAccessories
                 case 3:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num, true, 2);
                     this.nowChanging = true;
-                    float y2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
+                    float y2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
                     if (this.inputSclY)
                         this.inputSclY.text = this.GetTextFormValue(y2, 2);
                     this.nowChanging = false;
@@ -1407,7 +1392,7 @@ namespace MoreAccessories
                 case 4:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, (float)(0.0 - num), true, 4);
                     this.nowChanging = true;
-                    float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
+                    float z = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
                     if (this.inputSclZ)
                         this.inputSclZ.text = this.GetTextFormValue(z, 2);
                     this.nowChanging = false;
@@ -1415,13 +1400,13 @@ namespace MoreAccessories
                 case 5:
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num, true, 4);
                     this.nowChanging = true;
-                    float z2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
+                    float z2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
                     if (this.inputSclZ)
                         this.inputSclZ.text = this.GetTextFormValue(z2, 2);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
         }
 
         public virtual void OnInputEndPos(int index)
@@ -1435,7 +1420,7 @@ namespace MoreAccessories
                     float num = (float)(string.Empty != this.inputPosX.text ? (float)double.Parse(this.inputPosX.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
-                    float value = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
+                    float value = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
                     if (this.inputPosX)
                         this.inputPosX.text = this.GetTextFormValue(value, 1);
                     this.nowChanging = false;
@@ -1444,7 +1429,7 @@ namespace MoreAccessories
                     float num2 = (float)(string.Empty != this.inputPosY.text ? (float)double.Parse(this.inputPosY.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
-                    float value2 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
+                    float value2 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
                     if (this.inputPosY)
                         this.inputPosY.text = this.GetTextFormValue(value2, 1);
                     this.nowChanging = false;
@@ -1453,13 +1438,13 @@ namespace MoreAccessories
                     float num3 = (float)(string.Empty != this.inputPosZ.text ? (float)double.Parse(this.inputPosZ.text) * 0.0099999997764825821 : 0.0);
                     this.CharClothes_SetAccessoryPos(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
-                    float value3 = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
+                    float value3 = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
                     if (this.inputPosZ)
                         this.inputPosZ.text = this.GetTextFormValue(value3, 1);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
         }
 
         public virtual void OnInputEndRot(int index)
@@ -1473,7 +1458,7 @@ namespace MoreAccessories
                     float num = (float)(string.Empty != this.inputRotX.text ? (float)double.Parse(this.inputRotX.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
-                    float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
+                    float x = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
                     if (this.inputRotX)
                         this.inputRotX.text = this.GetTextFormValue(x);
                     this.nowChanging = false;
@@ -1482,7 +1467,7 @@ namespace MoreAccessories
                     float num2 = (float)(string.Empty != this.inputRotY.text ? (float)double.Parse(this.inputRotY.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
-                    float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
+                    float y = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
                     if (this.inputRotY)
                         this.inputRotY.text = this.GetTextFormValue(y);
                     this.nowChanging = false;
@@ -1491,13 +1476,13 @@ namespace MoreAccessories
                     float num3 = (float)(string.Empty != this.inputRotZ.text ? (float)double.Parse(this.inputRotZ.text) : 0.0);
                     this.CharClothes_SetAccessoryRot(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
-                    float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
+                    float z = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
                     if (this.inputRotZ)
                         this.inputRotZ.text = this.GetTextFormValue(z);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
         }
 
         public virtual void OnInputEndScl(int index)
@@ -1511,7 +1496,7 @@ namespace MoreAccessories
                     float num = (float)(string.Empty != this.inputSclX.text ? (float)double.Parse(this.inputSclX.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num, false, 1);
                     this.nowChanging = true;
-                    float x = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
+                    float x = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
                     if (this.inputSclX)
                         this.inputSclX.text = this.GetTextFormValue(x, 2);
                     this.nowChanging = false;
@@ -1520,7 +1505,7 @@ namespace MoreAccessories
                     float num2 = (float)(string.Empty != this.inputSclY.text ? (float)double.Parse(this.inputSclY.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num2, false, 2);
                     this.nowChanging = true;
-                    float y = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
+                    float y = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
                     if (this.inputSclY)
                         this.inputSclY.text = this.GetTextFormValue(y, 2);
                     this.nowChanging = false;
@@ -1529,13 +1514,13 @@ namespace MoreAccessories
                     float num3 = (float)(string.Empty != this.inputSclZ.text ? (float)double.Parse(this.inputSclZ.text) : 0.0);
                     this.CharClothes_SetAccessoryScl(slotNoFromSubMenuSelect, num3, false, 4);
                     this.nowChanging = true;
-                    float z = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
+                    float z = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
                     if (this.inputSclZ)
                         this.inputSclZ.text = this.GetTextFormValue(z, 2);
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
         }
 
         public virtual void OnClickResetPos(int index)
@@ -1565,7 +1550,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addPos = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos;
         }
 
         public virtual void OnClickResetRot(int index)
@@ -1595,7 +1580,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addRot = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot;
         }
 
         public virtual void OnClickResetScl(int index)
@@ -1625,7 +1610,7 @@ namespace MoreAccessories
                     this.nowChanging = false;
                     break;
             }
-            MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
+            MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].addScl = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl;
         }
 
         public virtual void MoveInfoAllSet()
@@ -1634,31 +1619,31 @@ namespace MoreAccessories
                 return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             this.nowChanging = true;
-            float num = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
+            float num = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.x * 100.0);
             if (this.inputPosX)
                 this.inputPosX.text = this.GetTextFormValue(num, 1);
-            num = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
+            num = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.y * 100.0);
             if (this.inputPosY)
                 this.inputPosY.text = this.GetTextFormValue(num, 1);
-            num = (float)(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
+            num = (float)(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addPos.z * 100.0);
             if (this.inputPosZ)
                 this.inputPosZ.text = this.GetTextFormValue(num, 1);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.x;
             if (this.inputRotX)
                 this.inputRotX.text = this.GetTextFormValue(num);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.y;
             if (this.inputRotY)
                 this.inputRotY.text = this.GetTextFormValue(num);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addRot.z;
             if (this.inputRotZ)
                 this.inputRotZ.text = this.GetTextFormValue(num);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.x;
             if (this.inputSclX)
                 this.inputSclX.text = this.GetTextFormValue(num, 2);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.y;
             if (this.inputSclY)
                 this.inputSclY.text = this.GetTextFormValue(num, 2);
-            num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
+            num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].addScl.z;
             if (this.inputSclZ)
                 this.inputSclZ.text = this.GetTextFormValue(num, 2);
             this.nowChanging = false;
@@ -1675,10 +1660,10 @@ namespace MoreAccessories
                 this.tab04.gameObject.SetActive(false);
             bool flag = false;
             
-            GameObject exists = MoreAccessories.self.charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
+            GameObject exists = MoreAccessories._self._charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
             if (exists)
             {
-                ListTypeFbxComponent component = MoreAccessories.self.charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect].GetComponent<ListTypeFbxComponent>();
+                ListTypeFbxComponent component = MoreAccessories._self._charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect].GetComponent<ListTypeFbxComponent>();
                 if (component && "0" == component.ltfData.Parent)
                     flag = true;
             }
@@ -1689,7 +1674,7 @@ namespace MoreAccessories
             if (this.tab03)
                 this.tab03.gameObject.SetActive(!flag);
             this.lstTagColor.Clear();
-            this.lstTagColor = CharBody_ChangeAccessory_Patches.CharInfo_GetTagInfo(MoreAccessories.self.charaMakerAdditionalData, slotNoFromSubMenuSelect);
+            this.lstTagColor = CharBody_ChangeAccessory_Patches.CharInfo_GetTagInfo(MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect);
             if (this.tab04)
                 this.tab04.gameObject.SetActive((byte)(this.lstTagColor.Count != 0 ? 1 : 0) != 0);
             bool active = ColorChange.CheckChangeSubColor(this.lstTagColor);
@@ -1707,13 +1692,13 @@ namespace MoreAccessories
             if (null != this.tglTab)
                 this.tglTab.isOn = true;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            int num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type + 1;
+            int num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type + 1;
             this.nowTglAllSet = true;
             for (int i = 0; i < this.tglType.Length; i++)
                 this.tglType[i].isOn = false;
             this.nowTglAllSet = false;
             this.tglType[num].isOn = true;
-            this.ChangeAccessoryTypeList(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
+            this.ChangeAccessoryTypeList(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
             this.UpdateShowTab();
             this.MoveInfoAllSet();
             this.UpdateDebugParentLines();
@@ -1856,9 +1841,9 @@ namespace MoreAccessories
             this.nowChanging = true;
             if (this.clothesInfo != null)
             {
-                float specularIntensity = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
-                float specularSharpness = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
-                float specularSharpness2 = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
+                float specularIntensity = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
+                float specularSharpness = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
+                float specularSharpness2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
                 if (this.sldIntensity)
                     this.sldIntensity.value = specularIntensity;
                 if (this.inputIntensity)
@@ -1889,13 +1874,13 @@ namespace MoreAccessories
             if (null != this.tab05)
                 this.tab05.isOn = true;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            int num = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type + 1;
+            int num = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type + 1;
             this.nowTglAllSet = true;
             for (int i = 0; i < this.tglType.Length; i++)
                 this.tglType[i].isOn = false;
             this.nowTglAllSet = false;
             this.tglType[num].isOn = true;
-            this.ChangeAccessoryTypeList(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
+            this.ChangeAccessoryTypeList(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
             this.UpdateShowTab();
             this.MoveInfoAllSet();
             this.initFlags = false;
@@ -1943,7 +1928,7 @@ namespace MoreAccessories
         private void UpdateDebugParentLines()
         {
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
-            GameObject obj = MoreAccessories.self.charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
+            GameObject obj = MoreAccessories._self._charaMakerAdditionalData.objAccessory[slotNoFromSubMenuSelect];
             
             Transform t = null;
             if (obj != null)
@@ -1991,73 +1976,73 @@ namespace MoreAccessories
 
         public bool CharClothes_SetAccessoryPos(int slotNo, float value, bool _add, int flags = 7)
         {
-            GameObject gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo];
+            GameObject gameObject = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNo];
             if (null == gameObject)
                 return false;
             if ((flags & 1) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x = Mathf.Clamp(num, -1f, 1f);
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x = Mathf.Clamp(num, -1f, 1f);
             }
             if ((flags & 2) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y = Mathf.Clamp(num, -1f, 1f);
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y = Mathf.Clamp(num, -1f, 1f);
             }
             if ((flags & 4) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z = Mathf.Clamp(num, -1f, 1f);
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z = Mathf.Clamp(num, -1f, 1f);
             }
-            gameObject.transform.SetLocalPosition(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z);
+            gameObject.transform.SetLocalPosition(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.x, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.y, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addPos.z);
             return true;
         }
 
         private bool CharClothes_SetAccessoryRot(int slotNo, float value, bool _add, int flags = 7)
         {
-            GameObject gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo];
+            GameObject gameObject = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNo];
             if (null == gameObject)
                 return false;
             if ((flags & 1) != 0)
             {
-                float t = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x = Mathf.Repeat(t, 360f);
+                float t = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x = Mathf.Repeat(t, 360f);
             }
             if ((flags & 2) != 0)
             {
-                float t = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y = Mathf.Repeat(t, 360f);
+                float t = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y = Mathf.Repeat(t, 360f);
             }
             if ((flags & 4) != 0)
             {
-                float t = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z = Mathf.Repeat(t, 360f);
+                float t = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z = Mathf.Repeat(t, 360f);
             }
-            gameObject.transform.SetLocalRotation(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z);
+            gameObject.transform.SetLocalRotation(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.x, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.y, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addRot.z);
             return true;
         }
 
         private bool CharClothes_SetAccessoryScl(int slotNo, float value, bool _add, int flags = 7)
         {
-            GameObject gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo];
+            GameObject gameObject = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNo];
             if (null == gameObject)
                 return false;
             if ((flags & 1) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x = num;
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x = num;
             }
             if ((flags & 2) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y = num;
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y = num;
             }
             if ((flags & 4) != 0)
             {
-                float num = (!_add ? 0.0f : MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z) + value;
-                MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z = num;
+                float num = (!_add ? 0.0f : MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z) + value;
+                MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z = num;
             }
-            gameObject.transform.SetLocalScale(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y, MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z);
+            gameObject.transform.SetLocalScale(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.x, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.y, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo].addScl.z);
             return true;
         }
 
@@ -2067,14 +2052,14 @@ namespace MoreAccessories
             if (slotNo < 10)
                 gameObject = this.chaInfo.chaBody.objAcsMove[slotNo];
             else
-                gameObject = MoreAccessories.self.charaMakerAdditionalData.objAcsMove[slotNo - 10];
+                gameObject = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNo - 10];
             if (null == gameObject)
                 return false;
             CharFileInfoClothes.Accessory accessory;
             if (slotNo < 10)
                 accessory = this.clothesInfo.accessory[slotNo];
             else
-                accessory = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo - 10];
+                accessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo - 10];
             gameObject.transform.SetLocalPosition(accessory.addPos.x, accessory.addPos.y, accessory.addPos.z);
             gameObject.transform.SetLocalRotation(accessory.addRot.x, accessory.addRot.y, accessory.addRot.z);
             gameObject.transform.SetLocalScale(accessory.addScl.x, accessory.addScl.y, accessory.addScl.z);

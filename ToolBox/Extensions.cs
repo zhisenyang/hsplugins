@@ -77,6 +77,7 @@ namespace ToolBox
             }
             return info.GetValue(self);
         }
+
         public static object CallPrivateExplicit<T>(this T self, string name, params object[] p)
         {
             return typeof(T).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(self, p);

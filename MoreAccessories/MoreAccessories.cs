@@ -8,6 +8,7 @@ using System.Xml;
 using CustomMenu;
 using Harmony;
 using IllusionPlugin;
+using IllusionUtility.GetUtility;
 using Manager;
 using Studio;
 using ToolBox;
@@ -50,32 +51,30 @@ namespace MoreAccessories
 
             public Dictionary<CharDefine.CoordinateType, List<CharFileInfoClothes.Accessory>> rawAccessoriesInfos = new Dictionary<CharDefine.CoordinateType, List<CharFileInfoClothes.Accessory>>();
         }
+
         public class MakerSlotData
         {
             public Button button;
             public Text text;
             public UI_TreeView treeView;
+
+            public Toggle copyToggle;
+            public Text copyText;
+            public UI_OnMouseOverMessage copyOnMouseOver;
+
+            public Toggle bulkColorToggle;
+            public Text bulkColorText;
+            public UI_OnMouseOverMessage bulkColorOnMouseOver;
         }
         #endregion
 
         #region Private Variables
-        private Dictionary<CharFile, CharAdditionalData> _accessoriesByChar = new Dictionary<CharFile, CharAdditionalData>();
-        private RectTransform _prefab;
-        private Binary _binary;
-        private SubMenuControl _smControl;
-        private SmMoreAccessories _smMoreAccessories;
-        private CharInfo _charaMakerCharInfo;
-        private MainMenuSelect _mainMenuSelect;
-        private bool _ready = false;
-        private readonly List<MakerSlotData> _displayedMakerSlots = new List<MakerSlotData>();
-        private int _level;
-        private RectTransform _addButtons;
-        private RoutinesComponent _routines;
-        private Studio.OCIChar _selectedStudioCharacter;
-        private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
-        private StudioSlotData _toggleAll;
-        private TranslationDelegate _translationMethod;
-        private readonly Dictionary<string, string> _femaleMoreAttachPointsAliases = new Dictionary<string, string>()
+        internal static MoreAccessories _self;
+        internal Dictionary<CharFile, CharAdditionalData> _accessoriesByChar = new Dictionary<CharFile, CharAdditionalData>();
+        internal CharAdditionalData _charaMakerAdditionalData;
+        internal readonly SubMenuItem _smItem = new SubMenuItem();
+        internal readonly List<MakerSlotData> _displayedMakerSlots = new List<MakerSlotData>();
+        internal readonly Dictionary<string, string> _femaleMoreAttachPointsAliases = new Dictionary<string, string>()
         {
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top", "Skirt Top"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_00_00_dam/cf_J_sk_00_00", "Skirt Front 0"},
@@ -113,7 +112,7 @@ namespace MoreAccessories
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02", "Skirt Back Right 2"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03", "Skirt Back Right 3"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03/cf_J_sk_03_04", "Skirt Back Right 4"},
-            { "BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03/cf_J_sk_03_04/cf_J_sk_03_05", "Skirt Back Right 5"},
+            {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_03_00_dam/cf_J_sk_03_00/cf_J_sk_03_01/cf_J_sk_03_02/cf_J_sk_03_03/cf_J_sk_03_04/cf_J_sk_03_05", "Skirt Back Right 5"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00", "Skirt Back 0"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01", "Skirt Back 1"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_sk_top/cf_J_sk_siri_dam/cf_J_sk_04_00_dam/cf_J_sk_04_00/cf_J_sk_04_01/cf_J_sk_04_02", "Skirt Back 2"},
@@ -224,10 +223,10 @@ namespace MoreAccessories
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmLow01_R/cf_J_Hand_R/cf_J_Hand_s_R/cf_J_Hand_Thumb01_R/cf_J_Hand_Thumb02_R/cf_J_Hand_Thumb03_R", "Right Thumb 3"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmUp01_dam_R", "Right Arm Up Dam"},
             {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_ShoulderIK_R/cf_J_Shoulder_R/cf_J_ArmUp00_R/cf_J_ArmUp03_dam_R", "Right Arm Up 2"},
-            {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_SpineSk00_dam",  "Collar Bone"}
+            {"BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Spine01/cf_J_Spine02/cf_J_Spine03/cf_J_SpineSk00_dam", "Collar Bone"}
         };
-        private List<string> _femaleMoreAttachPointsPaths = new List<string>();
-        private readonly Dictionary<string, string> _maleMoreAttachPointsAliases = new Dictionary<string, string>()
+        internal List<string> _femaleMoreAttachPointsPaths = new List<string>();
+        internal readonly Dictionary<string, string> _maleMoreAttachPointsAliases = new Dictionary<string, string>()
         {
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02", "Pelvis"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kokan/cm_J_dan_s/cm_J_dan_top", "Dick Base"},
@@ -249,7 +248,7 @@ namespace MoreAccessories
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R", "Right Lower Leg 1"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R", "Right Ankle 2"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R/cm_J_Foot02_R", "Right Heel"},
-                {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R/cm_J_Foot02_R/cm_J_Toes01_R", "Right Toes"},
+            {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_Foot01_R/cm_J_Foot02_R/cm_J_Toes01_R", "Right Toes"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_LegLow02_s_R", "Right Lower Leg 2"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegLow01_R/cm_J_LegLow03_s_R", "Right Lower Leg 3"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_LegUp00_R/cm_J_LegUp01_R", "Right Upper Leg 1"},
@@ -289,7 +288,7 @@ namespace MoreAccessories
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Index01_L/cm_J_Hand_Index02_L/cm_J_Hand_Index03_L", "Left Index 3"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L", "Left Pinky 1"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L/cm_J_Hand_Little02_L", "Left Pinky 2"},
-                {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L/cm_J_Hand_Little02_L/cm_J_Hand_Little03_L", "Left Pinky 3"},
+            {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Little01_L/cm_J_Hand_Little02_L/cm_J_Hand_Little03_L", "Left Pinky 3"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L", "Left Middle Finger 1"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L/cm_J_Hand_Middle02_L", "Left Middle Finger 2"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_L/cm_J_Shoulder_L/cm_J_ArmUp00_L/cm_J_ArmLow01_L/cm_J_Hand_L/cm_J_Hand_s_L/cm_J_Hand_Middle01_L/cm_J_Hand_Middle02_L/cm_J_Hand_Middle03_L", "Left Middle Finger 3"},
@@ -324,18 +323,32 @@ namespace MoreAccessories
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmUp02_dam_R", "Right Arm Up 2"},
             {"BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Spine01/cm_J_Spine02/cm_J_Spine03/cm_J_ShoulderIK_R/cm_J_Shoulder_R/cm_J_ArmUp00_R/cm_J_ArmUp03_dam_R", "Right Arm Up 3"},
         };
-        private List<string> _maleMoreAttachPointsPaths = new List<string>();
+        internal List<string> _maleMoreAttachPointsPaths = new List<string>();
+        internal bool _loadAdditionalAccessories = true;
+        private RectTransform _prefab;
+        private Binary _binary;
+        private SubMenuControl _smControl;
+        private SmMoreAccessories _smMoreAccessories;
+        private CharInfo _charaMakerCharInfo;
+        private MainMenuSelect _mainMenuSelect;
+        private bool _ready = false;
+        private int _level;
+        private RectTransform _addButtons;
+        private RoutinesComponent _routines;
+        private Studio.OCIChar _selectedStudioCharacter;
+        private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
+        private StudioSlotData _toggleAll;
+        private TranslationDelegate _translationMethod;
+        private ScrollRect _charaMakerCopyScrollView;
+        private GameObject _charaMakerCopySlotTemplate;
+        private LayoutElement _charaMakerBulkColorContainer;
+        private GameObject _charaMakerBulkColorSlotTemplate;
         #endregion
 
         #region Public Accessors
-        public static MoreAccessories self { get; private set; }
-        public Dictionary<CharFile, CharAdditionalData> accessoriesByChar { get { return (this._accessoriesByChar); } }
-        public CharAdditionalData charaMakerAdditionalData { get; private set; }
-        public SubMenuItem smItem { get; } = new SubMenuItem();
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64" }; } }
+        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
         public string Name { get { return "MoreAccessories"; } }
-        public string Version { get { return "1.1.1"; } }
-        public List<MakerSlotData> displayedMakerSlots { get { return this._displayedMakerSlots; } }
+        public string Version { get { return "1.2.0"; } }
         public CharInfo charaMakerCharInfo
         {
             get { return this._charaMakerCharInfo; }
@@ -349,19 +362,15 @@ namespace MoreAccessories
                     this._accessoriesByChar.Add(this._charaMakerCharInfo.chaFile, additionalData);
                 }
 
-                this.charaMakerAdditionalData = additionalData;
+                this._charaMakerAdditionalData = additionalData;
             }
         }
-        public List<string> femaleMoreAttachPointsPaths { get { return this._femaleMoreAttachPointsPaths; } }
-        public Dictionary<string, string> femaleMoreAttachPointsAliases { get { return this._femaleMoreAttachPointsAliases; } }
-        public List<string> maleMoreAttachPointsPaths { get { return this._maleMoreAttachPointsPaths; } }
-        public Dictionary<string, string> maleMoreAttachPointsAliases { get { return this._maleMoreAttachPointsAliases; } }
         #endregion
 
         #region Unity Methods
         public void OnApplicationStart()
         {
-            self = this;
+            _self = this;
 
             switch (Process.GetCurrentProcess().ProcessName)
             {
@@ -381,7 +390,7 @@ namespace MoreAccessories
 
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
-
+            //HSStudioNEOAddon_Patches.ManualPatch(harmony);
             Type t = Type.GetType("UnityEngine.UI.Translation.TextTranslator,UnityEngine.UI.Translation");
             if (t != null)
             {
@@ -399,112 +408,16 @@ namespace MoreAccessories
         {
             this._routines = new GameObject("Routines", typeof(RoutinesComponent)).GetComponent<RoutinesComponent>();
             this._level = level;
-            if (this._binary == Binary.Game)
+            switch (this._binary)
             {
-                if (level == 21)
-                {
-                    UIUtility.SetCustomFont("mplus-1c-medium");
-                    if (Game.Instance.customSceneInfo.isFemale)
-                        this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
-                    else
-                        this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
-
-                    Dictionary<CharFile, CharAdditionalData> newDic = new Dictionary<CharFile, CharAdditionalData>();
-                    foreach (KeyValuePair<CharFile, CharAdditionalData> pair in this._accessoriesByChar)
-                    {
-                        if (pair.Key != null)
-                            newDic.Add(pair.Key, pair.Value);
-                    }
-                    this._accessoriesByChar = newDic;
-                    this._displayedMakerSlots.Clear();
-
-                    foreach (SubMenuControl subMenuControl in Resources.FindObjectsOfTypeAll<SubMenuControl>())
-                    {
-                        this._smControl = subMenuControl;
-                        break;
-                    }
-
-                    foreach (SmAccessory smAccessory in Resources.FindObjectsOfTypeAll<SmAccessory>())
-                    {
-                        GameObject obj = GameObject.Instantiate(smAccessory.gameObject);
-                        obj.transform.SetParent(smAccessory.transform.parent);
-                        obj.transform.localScale = smAccessory.transform.localScale;
-                        obj.transform.localPosition = smAccessory.transform.localPosition;
-                        obj.transform.localRotation = smAccessory.transform.localRotation;
-                        (obj.transform as RectTransform).SetRect(smAccessory.transform as RectTransform);
-                        SmAccessory original = obj.GetComponent<SmAccessory>();
-                        this._smMoreAccessories = obj.AddComponent<SmMoreAccessories>();
-                        this._smMoreAccessories.ReplaceEventsOf(original);
-                        this._smMoreAccessories.LoadWith<SubMenuBase>(smAccessory);
-                        this._smMoreAccessories.PreInit(smAccessory);
-                        GameObject.Destroy(original);
-                        this.smItem.menuName = "MoreAccessories";
-                        this.smItem.objTop = obj;
-                        break;
-                    }
-
-                    Selectable template = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/TabMenu/Tab01").GetComponent<Selectable>();
-
-                    this._addButtons = UIUtility.CreateNewUIObject(this._prefab.parent, "AddAccessories");
-                    this._addButtons.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
-                    this._addButtons.pivot = new Vector2(0.5f, 1f);
-                    this._addButtons.gameObject.AddComponent<UI_TreeView>();
-
-                    Button addButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "+ Add accessory");
-                    addButton.transform.SetRect(Vector2.zero, new Vector2(0.70f, 1f), Vector2.zero, Vector2.zero);
-                    addButton.onClick.AddListener(this.AddSlot);
-                    addButton.colors = template.colors;
-                    ((Image)addButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
-                    Text text = addButton.GetComponentInChildren<Text>();
-                    text.resizeTextForBestFit = true;
-                    text.resizeTextMaxSize = 200;
-                    text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
-
-                    Button addTenButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "Add 10");
-                    addTenButton.transform.SetRect(new Vector2(0.70f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
-                    addTenButton.onClick.AddListener(this.AddTenSlots);
-                    addTenButton.colors = template.colors;
-                    ((Image)addTenButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
-                    text = addTenButton.GetComponentInChildren<Text>();
-                    text.resizeTextForBestFit = true;
-                    text.resizeTextMaxSize = 200;
-                    text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
-                }
-            }
-            else
-            {
-                if (level == 3)
-                {
-                    Transform accList = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/01_State/Viewport/Content/Slot");
-                    this._prefab = accList.Find("Slot10") as RectTransform;
-
-                    MPCharCtrl ctrl = ((MPCharCtrl)Studio.Studio.Instance.rootButtonCtrl.GetPrivate("manipulate").GetPrivate("m_ManipulatePanelCtrl").GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
-
-                    this._toggleAll = new StudioSlotData();
-                    this._toggleAll.slot = (RectTransform)GameObject.Instantiate(this._prefab.gameObject).transform;
-                    this._toggleAll.name = this._toggleAll.slot.GetComponentInChildren<Text>();
-                    this._toggleAll.onButton = this._toggleAll.slot.GetChild(1).GetComponent<Button>();
-                    this._toggleAll.offButton = this._toggleAll.slot.GetChild(2).GetComponent<Button>();
-                    this._toggleAll.name.text = "All";
-                    this._toggleAll.slot.SetParent(this._prefab.parent);
-                    this._toggleAll.slot.localPosition = Vector3.zero;
-                    this._toggleAll.slot.localScale = Vector3.one;
-                    this._toggleAll.onButton.onClick = new Button.ButtonClickedEvent();
-                    this._toggleAll.onButton.onClick.AddListener(() =>
-                    {
-                        this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(true);
-                        ctrl.UpdateInfo();
-                        this.UpdateStudioUI();
-                    });
-                    this._toggleAll.offButton.onClick = new Button.ButtonClickedEvent();
-                    this._toggleAll.offButton.onClick.AddListener(() =>
-                    {
-                        this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(false);
-                        ctrl.UpdateInfo();
-                        this.UpdateStudioUI();
-                    });
-                    this._toggleAll.slot.SetAsLastSibling();
-                }
+                case Binary.Game:
+                    if (level == 21)
+                        this.SpawnMakerGUI();
+                    break;
+                case Binary.Neo:
+                    if (level == 3)
+                        this.SpawnStudioGUI();
+                    break;
             }
             this._ready = true;
         }
@@ -548,6 +461,261 @@ namespace MoreAccessories
         #endregion
 
         #region Private Methods
+        private void SpawnMakerGUI()
+        {
+            UIUtility.SetCustomFont("mplus-1c-medium");
+            if (Game.Instance.customSceneInfo.isFemale)
+                this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
+            else
+                this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
+
+            Dictionary<CharFile, CharAdditionalData> newDic = new Dictionary<CharFile, CharAdditionalData>();
+            foreach (KeyValuePair<CharFile, CharAdditionalData> pair in this._accessoriesByChar)
+            {
+                if (pair.Key != null)
+                    newDic.Add(pair.Key, pair.Value);
+            }
+            this._accessoriesByChar = newDic;
+            this._displayedMakerSlots.Clear();
+
+            foreach (SubMenuControl subMenuControl in Resources.FindObjectsOfTypeAll<SubMenuControl>())
+            {
+                this._smControl = subMenuControl;
+                break;
+            }
+
+            foreach (SmAccessory smAccessory in Resources.FindObjectsOfTypeAll<SmAccessory>())
+            {
+                GameObject obj = GameObject.Instantiate(smAccessory.gameObject);
+                obj.transform.SetParent(smAccessory.transform.parent);
+                obj.transform.localScale = smAccessory.transform.localScale;
+                obj.transform.localPosition = smAccessory.transform.localPosition;
+                obj.transform.localRotation = smAccessory.transform.localRotation;
+                (obj.transform as RectTransform).SetRect(smAccessory.transform as RectTransform);
+                SmAccessory original = obj.GetComponent<SmAccessory>();
+                this._smMoreAccessories = obj.AddComponent<SmMoreAccessories>();
+                this._smMoreAccessories.ReplaceEventsOf(original);
+                this._smMoreAccessories.LoadWith<SubMenuBase>(smAccessory);
+                this._smMoreAccessories.PreInit(smAccessory);
+                GameObject.Destroy(original);
+                this._smItem.menuName = "MoreAccessories";
+                this._smItem.objTop = obj;
+                break;
+            }
+
+            Selectable template = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/TabMenu/Tab01").GetComponent<Selectable>();
+
+            this._addButtons = UIUtility.CreateNewUIObject(this._prefab.parent, "AddAccessories");
+            this._addButtons.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
+            this._addButtons.pivot = new Vector2(0.5f, 1f);
+            this._addButtons.gameObject.AddComponent<UI_TreeView>();
+
+            Button addButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "+ Add accessory");
+            addButton.transform.SetRect(Vector2.zero, new Vector2(0.70f, 1f), Vector2.zero, Vector2.zero);
+            addButton.onClick.AddListener(this.AddSlot);
+            addButton.colors = template.colors;
+            ((Image)addButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
+            Text text = addButton.GetComponentInChildren<Text>();
+            text.resizeTextForBestFit = true;
+            text.resizeTextMaxSize = 200;
+            text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
+
+            Button addTenButton = UIUtility.CreateButton("AddAccessoriesButton", this._addButtons, "Add 10");
+            addTenButton.transform.SetRect(new Vector2(0.70f, 0f), Vector2.one, Vector2.zero, Vector2.zero);
+            addTenButton.onClick.AddListener(this.AddTenSlots);
+            addTenButton.colors = template.colors;
+            ((Image)addTenButton.targetGraphic).sprite = ((Image)template.targetGraphic).sprite;
+            text = addTenButton.GetComponentInChildren<Text>();
+            text.resizeTextForBestFit = true;
+            text.resizeTextMaxSize = 200;
+            text.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(1f, 1f), new Vector2(-1f, -1f));
+
+            RectTransform container = (RectTransform)GameObject.Find($"CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/ClothesCopy_{(Game.Instance.customSceneInfo.isFemale ? "F" : "M")}/Menu").transform;
+            this._charaMakerCopyScrollView = UIUtility.CreateScrollView("Toggles", container);
+            this._charaMakerCopyScrollView.movementType = ScrollRect.MovementType.Clamped;
+            this._charaMakerCopyScrollView.horizontal = false;
+            this._charaMakerCopyScrollView.scrollSensitivity = 18f;
+            if (this._charaMakerCopyScrollView.horizontalScrollbar != null)
+                GameObject.Destroy(this._charaMakerCopyScrollView.horizontalScrollbar.gameObject);
+            if (this._charaMakerCopyScrollView.verticalScrollbar != null)
+                GameObject.Destroy(this._charaMakerCopyScrollView.verticalScrollbar.gameObject);
+            GameObject.Destroy(this._charaMakerCopyScrollView.GetComponent<Image>());
+            this._charaMakerCopyScrollView.transform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, -183f), new Vector2(0f, -24f));
+            this._charaMakerCopySlotTemplate = container.Find("accessory00").gameObject;
+            _self._charaMakerCopyScrollView.content.offsetMin = new Vector2(0f, -158f);
+
+            container = (RectTransform)GameObject.Find($"CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/ClothesColorCtrl_{(Game.Instance.customSceneInfo.isFemale ? "F" : "M")}/Menu/Top/ScrollView/ControlPanel/select").transform;
+            this._charaMakerBulkColorContainer = UIUtility.CreateNewUIObject(container, "Toggles").gameObject.AddComponent<LayoutElement>();
+            VerticalLayoutGroup group = container.parent.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandHeight = false;
+            group.childForceExpandWidth = true;
+            ContentSizeFitter contentSizeFitter = container.parent.gameObject.AddComponent<ContentSizeFitter>();
+            contentSizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            container.parent.Find("Color01").gameObject.AddComponent<LayoutElement>().preferredHeight = 122;
+            container.parent.Find("Color02").gameObject.AddComponent<LayoutElement>().preferredHeight = 96;
+            container.parent.Find("TglReflectColor").gameObject.AddComponent<LayoutElement>().preferredHeight = 20;
+            container.parent.Find("Panel").gameObject.AddComponent<LayoutElement>().preferredHeight = 22;
+            Transform t = container.parent.Find("PanelComment");
+            t.SetParent(container.parent.Find("Panel"));
+            t.SetRect();
+
+            group = container.gameObject.AddComponent<VerticalLayoutGroup>();
+            group.childForceExpandHeight = false;
+            group.childForceExpandWidth = true;
+            contentSizeFitter = container.gameObject.AddComponent<ContentSizeFitter>();
+            contentSizeFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            this._charaMakerBulkColorContainer.transform.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -182f), new Vector2(308f, 0f));
+            this._charaMakerBulkColorContainer.preferredHeight = 182f;
+            this._charaMakerBulkColorContainer.preferredWidth = 308;
+
+            this._charaMakerBulkColorSlotTemplate = container.Find("accessory00").gameObject;
+
+
+            while (container.GetChild(0).name.Equals("all_on") == false)
+                container.GetChild(0).SetParent(this._charaMakerBulkColorContainer.transform);
+            this._charaMakerBulkColorContainer.transform.SetAsFirstSibling();
+
+
+            RectTransform buttonsContainer = UIUtility.CreateNewUIObject(container, "Buttons");
+            buttonsContainer.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(4f, -228f), new Vector2(304f, -184f));
+            LayoutElement element = buttonsContainer.gameObject.AddComponent<LayoutElement>();
+            element.preferredWidth = 300f;
+            element.preferredHeight = 44f;
+            container.Find("all_on").SetParent(buttonsContainer);
+            container.Find("all_off").SetParent(buttonsContainer);
+            container.Find("clothes_on").SetParent(buttonsContainer);
+            container.Find("accessory_on").SetParent(buttonsContainer);
+
+        }
+
+        [HarmonyPatch(typeof(SmClothesCopy), "Init")]
+        private class SmClothesCopy_Init_Patches
+        {
+            private static void Postfix(SmClothesCopy __instance)
+            {
+                while (__instance.objMenu.transform.GetChild(2).name.Equals("all_on") == false)
+                    __instance.objMenu.transform.GetChild(2).SetParent(_self._charaMakerCopyScrollView.content);
+                foreach (MakerSlotData slot in _self._displayedMakerSlots)
+                {
+                    slot.copyOnMouseOver.imgComment = __instance.imgComment;
+                    slot.copyOnMouseOver.txtComment = __instance.txtComment;
+                }
+            }
+        }
+
+        [HarmonyPatch(typeof(SmClothesColorCtrl), "Init")]
+        private class SmClothesColorCtrl_Init_Patches
+        {
+            private static void Postfix(SmClothesColorCtrl __instance, Toggle[] ___tglClothes, Text[] ___txtClothes, Image[] ___imgClothes, UI_OnMouseOverMessage[] ___ui_OverMsgClothes, Toggle[] ___tglHairAcs, Text[] ___txtHairAcs, Image[] ___imgHairAcs, Toggle[] ___tglAccessory, UI_OnMouseOverMessage[] ___ui_OverMsgAccessory)
+            {
+                if (__instance.objSelect)
+                {
+                    for (int j = 0; j < ___tglClothes.Length; j++)
+                    {
+                        Transform transform = _self._charaMakerBulkColorContainer.transform.FindChild("clothes" + j.ToString("00"));
+                        if (transform)
+                        {
+                            ___tglClothes[j] = transform.GetComponent<Toggle>();
+                            if (___tglClothes[j])
+                            {
+                                GameObject gameObject = transform.FindLoop("SubItem");
+                                if (gameObject)
+                                {
+                                    ___txtClothes[j] = gameObject.GetComponent<Text>();
+                                }
+                                gameObject = transform.FindLoop("Checkmark");
+                                if (gameObject)
+                                {
+                                    ___imgClothes[j] = gameObject.GetComponent<Image>();
+                                }
+                            }
+                            ___ui_OverMsgClothes[j] = transform.gameObject.AddComponent<global::UI_OnMouseOverMessage>();
+                            if (___ui_OverMsgClothes[j])
+                            {
+                                ___ui_OverMsgClothes[j].imgComment = __instance.imgComment;
+                                ___ui_OverMsgClothes[j].txtComment = __instance.txtComment;
+                            }
+                        }
+                    }
+                    for (int k = 0; k < ___tglHairAcs.Length; k++)
+                    {
+                        Transform transform = _self._charaMakerBulkColorContainer.transform.FindChild("hairacs" + k.ToString("00"));
+                        if (transform)
+                        {
+                            ___tglHairAcs[k] = transform.GetComponent<Toggle>();
+                            if (___tglHairAcs[k])
+                            {
+                                GameObject gameObject = transform.FindLoop("SubItem");
+                                if (gameObject)
+                                {
+                                    ___txtHairAcs[k] = gameObject.GetComponent<Text>();
+                                }
+                                gameObject = transform.FindLoop("Checkmark");
+                                if (gameObject)
+                                {
+                                    ___imgHairAcs[k] = gameObject.GetComponent<Image>();
+                                }
+                            }
+                        }
+                    }
+                    for (int l = 0; l < ___tglAccessory.Length; l++)
+                    {
+                        Transform transform = _self._charaMakerBulkColorContainer.transform.FindChild("accessory" + l.ToString("00"));
+                        if (transform)
+                        {
+                            ___tglAccessory[l] = transform.GetComponent<Toggle>();
+                            ___ui_OverMsgAccessory[l] = transform.gameObject.AddComponent<global::UI_OnMouseOverMessage>();
+                            if (___ui_OverMsgAccessory[l])
+                            {
+                                ___ui_OverMsgAccessory[l].imgComment = __instance.imgComment;
+                                ___ui_OverMsgAccessory[l].txtComment = __instance.txtComment;
+                            }
+                        }
+                    }
+                }
+                foreach (MakerSlotData slot in _self._displayedMakerSlots)
+                {
+                    slot.bulkColorOnMouseOver.imgComment = __instance.imgComment;
+                    slot.bulkColorOnMouseOver.txtComment = __instance.txtComment;
+                }
+            }
+        }
+
+        private void SpawnStudioGUI()
+        {
+            Transform accList = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/01_State/Viewport/Content/Slot");
+            this._prefab = accList.Find("Slot10") as RectTransform;
+
+            MPCharCtrl ctrl = ((MPCharCtrl)Studio.Studio.Instance.rootButtonCtrl.GetPrivate("manipulate").GetPrivate("m_ManipulatePanelCtrl").GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
+
+            this._toggleAll = new StudioSlotData();
+            this._toggleAll.slot = (RectTransform)GameObject.Instantiate(this._prefab.gameObject).transform;
+            this._toggleAll.name = this._toggleAll.slot.GetComponentInChildren<Text>();
+            this._toggleAll.onButton = this._toggleAll.slot.GetChild(1).GetComponent<Button>();
+            this._toggleAll.offButton = this._toggleAll.slot.GetChild(2).GetComponent<Button>();
+            this._toggleAll.name.text = "All";
+            this._toggleAll.slot.SetParent(this._prefab.parent);
+            this._toggleAll.slot.localPosition = Vector3.zero;
+            this._toggleAll.slot.localScale = Vector3.one;
+            this._toggleAll.onButton.onClick = new Button.ButtonClickedEvent();
+            this._toggleAll.onButton.onClick.AddListener(() =>
+            {
+                this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(true);
+                ctrl.UpdateInfo();
+                this.UpdateStudioUI();
+            });
+            this._toggleAll.offButton.onClick = new Button.ButtonClickedEvent();
+            this._toggleAll.offButton.onClick.AddListener(() =>
+            {
+                this._selectedStudioCharacter.charInfo.chaClothes.SetAccessoryStateAll(false);
+                ctrl.UpdateInfo();
+                this.UpdateStudioUI();
+            });
+            this._toggleAll.slot.SetAsLastSibling();
+
+        }
+
         internal void UpdateMakerGUI()
         {
             if (this._binary != Binary.Game || this._level != 21 || this._ready == false || this._charaMakerCharInfo == null || this._prefab == null)
@@ -556,11 +724,16 @@ namespace MoreAccessories
             int i;
             for (i = 0; i < additionalData.clothesInfoAccessory.Count; i++)
             {
-                if (i < this.displayedMakerSlots.Count)
-                    this.displayedMakerSlots[i].treeView.SetUnused(false);
+                MakerSlotData sd;
+                if (i < this._displayedMakerSlots.Count)
+                {
+                    sd = this._displayedMakerSlots[i];
+                    sd.treeView.SetUnused(false);
+                    sd.copyToggle.gameObject.SetActive(true);
+                }
                 else
                 {
-                    MakerSlotData sd = new MakerSlotData();
+                    sd = new MakerSlotData();
                     GameObject obj = GameObject.Instantiate(this._prefab.gameObject);
                     obj.transform.SetParent(this._prefab.parent);
                     obj.transform.localPosition = Vector3.zero;
@@ -582,11 +755,45 @@ namespace MoreAccessories
                         this._mainMenuSelect.OnClick(rt);
                     });
 
-                    this.displayedMakerSlots.Add(sd);
+
+                    int i2 = i + 1;
+
+                    sd.copyToggle = GameObject.Instantiate(this._charaMakerCopySlotTemplate).GetComponent<Toggle>();
+                    sd.copyText = sd.copyToggle.GetComponentInChildren<Text>();
+                    sd.copyOnMouseOver = sd.copyToggle.GetComponent<UI_OnMouseOverMessage>();
+                    if (sd.copyOnMouseOver == null)
+                        sd.copyOnMouseOver = sd.copyToggle.gameObject.AddComponent<UI_OnMouseOverMessage>();
+                    sd.copyToggle.transform.SetParent(this._charaMakerCopyScrollView.content);
+                    ((RectTransform)sd.copyToggle.transform).anchoredPosition = new Vector2(4f + 104f * (i2 % 3), -140f - 20f * (i2 / 3));
+                    sd.copyToggle.transform.localScale = this._charaMakerCopySlotTemplate.transform.localScale;
+                    sd.copyToggle.gameObject.name = "accessory" + (i + 10);
+                    sd.copyText.text = " Accessory " + (i + 11);
+
+                    sd.bulkColorToggle = GameObject.Instantiate(this._charaMakerBulkColorSlotTemplate).GetComponent<Toggle>();
+                    sd.bulkColorText = sd.bulkColorToggle.GetComponentInChildren<Text>();
+                    sd.bulkColorOnMouseOver = sd.bulkColorToggle.GetComponent<UI_OnMouseOverMessage>();
+                    if (sd.bulkColorOnMouseOver == null)
+                        sd.bulkColorOnMouseOver = sd.bulkColorToggle.gameObject.AddComponent<UI_OnMouseOverMessage>();
+                    sd.bulkColorToggle.transform.SetParent(this._charaMakerBulkColorContainer.transform);
+                    ((RectTransform)sd.bulkColorToggle.transform).anchoredPosition = new Vector2(4f + 100f * (i2 % 3), -164f - 20f * (i2 / 3));
+                    sd.bulkColorToggle.transform.localScale = this._charaMakerBulkColorSlotTemplate.transform.localScale;
+                    sd.bulkColorToggle.gameObject.name = "accessory" + (i + 10);
+                    sd.bulkColorText.text = " Accessory " + (i + 11);
+
+                    this._displayedMakerSlots.Add(sd);
                 }
             }
-            for (; i < this.displayedMakerSlots.Count; i++)
-                this.displayedMakerSlots[i].treeView.SetUnused(true);
+            this._charaMakerCopyScrollView.content.offsetMin = new Vector2(0f, -158f - 20f * (i / 3));
+            this._charaMakerBulkColorContainer.preferredHeight = 184 + 20f * (i / 3);
+
+
+            for (; i < this._displayedMakerSlots.Count; i++)
+            {
+                MakerSlotData sd = this._displayedMakerSlots[i];
+                sd.treeView.SetUnused(true);
+                sd.copyToggle.gameObject.SetActive(false);
+                sd.bulkColorToggle.gameObject.SetActive(false);
+            }
             this.CustomControl_UpdateAcsName();
             this._addButtons.SetAsLastSibling();
             this._prefab.parent.GetComponent<UI_TreeView>().UpdateView();
@@ -652,17 +859,16 @@ namespace MoreAccessories
             this._smControl.ExecuteDelayed(() =>
             {
                 if (Manager.Game.Instance.customSceneInfo.isFemale)
-                this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform);
+                    this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform);
                 else
                     this._mainMenuSelect.OnClickScript(GameObject.Find("CustomScene").transform.Find("CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_System/SaveDelete") as RectTransform);
             }, 2);
         }
 
-
         internal void CustomControl_UpdateAcsName()
         {
-            for (int i = 0; i < this.charaMakerAdditionalData.clothesInfoAccessory.Count; ++i)
-                this.displayedMakerSlots[i].text.text = this.CustomControl_GetAcsName(i, 14);
+            for (int i = 0; i < this._charaMakerAdditionalData.clothesInfoAccessory.Count; ++i)
+                this._displayedMakerSlots[i].text.text = this.CustomControl_GetAcsName(i, 14);
         }
 
         internal string CustomControl_GetAcsName(int slotNo, int limit, bool addType = false, bool addNo = true)
@@ -673,7 +879,7 @@ namespace MoreAccessories
                 Debug.LogWarning("まだ初期化されてない");
                 return str1;
             }
-            CharFileInfoClothes.Accessory accessory = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNo];
+            CharFileInfoClothes.Accessory accessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNo];
             string str2;
             if (this._charaMakerCharInfo.Sex == 0)
             {
@@ -792,7 +998,9 @@ namespace MoreAccessories
             }
             this.UpdateMakerGUI();
         }
+        #endregion
 
+        #region Saves
         private void OnCharaSave(CharFile charFile, XmlTextWriter writer)
         {
             this.OnCharaSaveGeneric(charFile, writer);
@@ -884,7 +1092,7 @@ namespace MoreAccessories
                 foreach (KeyValuePair<CharDefine.CoordinateType, List<CharFileInfoClothes.Accessory>> pair in additionalData.rawAccessoriesInfos) // Useful only in the chara maker
                     pair.Value.Clear();
             }
-            if (node != null)
+            if (node != null && this._loadAdditionalAccessories)
             {
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
@@ -1079,7 +1287,7 @@ namespace MoreAccessories
                     {
                         case 21:
                             if (clothesinfo == this.charaMakerCharInfo.clothesInfo)
-                                additionalData = this.charaMakerAdditionalData;
+                                additionalData = this._charaMakerAdditionalData;
                             break;
                         case 15:
                             if (HSceneClothChange_InitCharaList_Patches._isInitializing == false)
@@ -1106,7 +1314,7 @@ namespace MoreAccessories
                 return;
             List<CharFileInfoClothes.Accessory> accessories2 = additionalData.clothesInfoAccessory;
             accessories2.Clear();
-            if (node != null)
+            if (node != null && this._loadAdditionalAccessories)
             {
                 node = node.FirstChild;
                 foreach (XmlNode childNode in node.ChildNodes)
@@ -1192,7 +1400,7 @@ namespace MoreAccessories
 
         private void OnCoordSave(CharFileInfoClothes clothesinfo, XmlTextWriter writer)
         {
-            CharAdditionalData additionalData = this.charaMakerAdditionalData;
+            CharAdditionalData additionalData = this._charaMakerAdditionalData;
             writer.WriteStartElement("accessorySet");
             foreach (CharFileInfoClothes.Accessory accessory in additionalData.clothesInfoAccessory)
             {
@@ -1238,6 +1446,5 @@ namespace MoreAccessories
             writer.WriteEndElement();
         }
         #endregion
-
     }
 }

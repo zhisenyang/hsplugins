@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
@@ -8,6 +9,7 @@ using IllusionUtility.SetUtility;
 using Studio;
 using ToolBox;
 using UnityEngine;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 namespace MoreAccessories
@@ -22,10 +24,10 @@ namespace MoreAccessories
             if (__result)
             {
                 MoreAccessories.CharAdditionalData additionalData;
-                if (MoreAccessories.self.accessoriesByChar.TryGetValue(__instance, out additionalData) == false)
+                if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance, out additionalData) == false)
                 {
                     additionalData = new MoreAccessories.CharAdditionalData();
-                    MoreAccessories.self.accessoriesByChar.Add(__instance, additionalData);
+                    MoreAccessories._self._accessoriesByChar.Add(__instance, additionalData);
                 }
                 if (additionalData.rawAccessoriesInfos.TryGetValue(type, out additionalData.clothesInfoAccessory) == false)
                 {
@@ -40,7 +42,7 @@ namespace MoreAccessories
                     additionalData.objAcsMove.Add(null);
                 while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
                     additionalData.showAccessory.Add(true);
-                MoreAccessories.self.UpdateMakerGUI();
+                MoreAccessories._self.UpdateMakerGUI();
             }
         }
 
@@ -53,7 +55,7 @@ namespace MoreAccessories
         public static void Postfix(CharBody __instance, bool forceChange)
         {
             MoreAccessories.CharAdditionalData additionalData;
-            if (MoreAccessories.self.accessoriesByChar.TryGetValue(__instance.chaFile, out additionalData))
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out additionalData))
             {
                 int i;
                 for (i = 0; i < additionalData.clothesInfoAccessory.Count; i++)
@@ -208,8 +210,9 @@ namespace MoreAccessories
         public static void CharClothes_ChangeAccessoryColor(MoreAccessories.CharAdditionalData data, int slotNo)
         {
             List<GameObject> tagInfo = CharInfo_GetTagInfo(data, slotNo);
-            ColorChange.SetHSColor(tagInfo, data.clothesInfoAccessory[slotNo].color, true, true, data.clothesInfoAccessory[slotNo].color2, true, true);
-            ColorChange.SetHSColor(tagInfo, data.clothesInfoAccessory[slotNo].color, true, true, data.clothesInfoAccessory[slotNo].color2, true, true);
+            CharFileInfoClothes.Accessory accessory = data.clothesInfoAccessory[slotNo];
+            ColorChange.SetHSColor(tagInfo, accessory.color, true, true, accessory.color2, true, true);
+            ColorChange.SetHSColor(tagInfo, accessory.color, true, true, accessory.color2, true, true);
         }
 
         public static bool CharClothes_ChangeAccessoryParent(CharBody charBody, MoreAccessories.CharAdditionalData data, int slotNo, string parentStr)
@@ -272,7 +275,7 @@ namespace MoreAccessories
             if (subMenuStr.StartsWith("SM_MoreAccessories_"))
             {
                 int nowSubMenuTypeId = int.Parse(subMenuStr.Substring(19));
-                if (nowSubMenuTypeId < MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory.Count)
+                if (nowSubMenuTypeId < MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count)
                 {
                     bool sameSubMenu = __instance.nowSubMenuTypeStr == subMenuStr;
                     __instance.nowSubMenuTypeStr = subMenuStr;
@@ -280,17 +283,17 @@ namespace MoreAccessories
                     for (int i = 0; i < __instance.smItem.Length; i++)
                         if (__instance.smItem[i] != null && !(null == __instance.smItem[i].objTop))
                             __instance.smItem[i].objTop.SetActive(false);
-                    if (MoreAccessories.self.smItem != null)
+                    if (MoreAccessories._self._smItem != null)
                     {
                         if (null != __instance.textTitle)
-                            __instance.textTitle.text = MoreAccessories.self.smItem.menuName;
-                        if (null != MoreAccessories.self.smItem.objTop)
+                            __instance.textTitle.text = MoreAccessories._self._smItem.menuName;
+                        if (null != MoreAccessories._self._smItem.objTop)
                         {
-                            MoreAccessories.self.smItem.objTop.SetActive(true);
-                            __instance.SetPrivate("objActiveSubItem", MoreAccessories.self.smItem.objTop);
+                            MoreAccessories._self._smItem.objTop.SetActive(true);
+                            __instance.SetPrivate("objActiveSubItem", MoreAccessories._self._smItem.objTop);
                             if (null != __instance.rtfBasePanel)
                             {
-                                RectTransform rectTransform = MoreAccessories.self.smItem.objTop.transform as RectTransform;
+                                RectTransform rectTransform = MoreAccessories._self._smItem.objTop.transform as RectTransform;
                                 Vector2 sizeDelta = rectTransform.sizeDelta;
                                 __instance.SetPrivate("sizeBasePanelHeight", sizeDelta.y);
                             }
@@ -309,13 +312,13 @@ namespace MoreAccessories
                 }
                 else
                 {
-                    MoreAccessories.self.UIFallbackToCoordList();
+                    MoreAccessories._self.UIFallbackToCoordList();
                     
                 }
                 return false;
             }
             //if (__instance.nowSubMenuTypeStr.StartsWith("SM_MoreAccessories_"))
-                MoreAccessories.self.smItem.objTop.SetActive(false);
+                MoreAccessories._self._smItem.objTop.SetActive(false);
             return true;
         }
     }
@@ -325,7 +328,7 @@ namespace MoreAccessories
     {
         public static void Prefix(CharInfo _chainfo, string _charaFile, int _modeCustom, bool _modeOverScene = false)
         {
-            MoreAccessories.self.charaMakerCharInfo = _chainfo;
+            MoreAccessories._self.charaMakerCharInfo = _chainfo;
         }
     }
 
@@ -334,7 +337,7 @@ namespace MoreAccessories
     {
         public static void Prefix(CharInfo _chainfo, string _charaFile)
         {
-            MoreAccessories.self.charaMakerCharInfo = _chainfo;
+            MoreAccessories._self.charaMakerCharInfo = _chainfo;
         }
     }
 
@@ -344,7 +347,7 @@ namespace MoreAccessories
         public static void Prefix(CharClothes __instance, bool show)
         {
             CharFile chaFile = (CharFile)__instance.GetPrivate("chaFile");
-            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[chaFile];
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories._self._accessoriesByChar[chaFile];
             for (int i = 0; i < additionalData.showAccessory.Count; i++)
                 additionalData.showAccessory[i] = show;
         }
@@ -355,7 +358,7 @@ namespace MoreAccessories
     {
         public static void Postfix(CharFemaleBody __instance)
         {
-            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories._self._accessoriesByChar[__instance.chaFile];
             for (int i = 0; i < additionalData.objAccessory.Count; i++)
                 additionalData.objAccessory[i]?.SetActive(__instance.chaInfo.visibleAll && additionalData.showAccessory[i]);
         }
@@ -366,7 +369,7 @@ namespace MoreAccessories
     {
         public static void Postfix(CharMaleBody __instance)
         {
-            MoreAccessories.CharAdditionalData additionalData = MoreAccessories.self.accessoriesByChar[__instance.chaFile];
+            MoreAccessories.CharAdditionalData additionalData = MoreAccessories._self._accessoriesByChar[__instance.chaFile];
             for (int i = 0; i < additionalData.objAccessory.Count; i++)
                 additionalData.objAccessory[i]?.SetActive(__instance.chaInfo.visibleAll && additionalData.showAccessory[i]);
         }
@@ -409,7 +412,7 @@ namespace MoreAccessories
             {
                 OICharInfo dest = keyValuePair.Value as OICharInfo;
                 if (dest != null && enumerator.MoveNext())
-                    MoreAccessories.self.DuplicateCharacter(charFileToInfo[enumerator.Current.Value], charFileToInfo[dest.charFile]);
+                    MoreAccessories._self.DuplicateCharacter(charFileToInfo[enumerator.Current.Value], charFileToInfo[dest.charFile]);
             }
             enumerator.Dispose();
         }
@@ -429,4 +432,251 @@ namespace MoreAccessories
             _isInitializing = false;
         }
     }
+
+    [HarmonyPatch(typeof(SmClothesCopy), "UpdateCharaInfoSub")]
+    public class SmClothesCopy_UpdateCharaInfoSub_Patches
+    {
+        public static void Postfix(SmClothesCopy __instance)
+        {
+            for (int k = 0; k < MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count; k++)
+            {
+                CharFileInfoClothes.Accessory accessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[k];
+                UI_OnMouseOverMessage mouseOver = MoreAccessories._self._displayedMakerSlots[k].copyOnMouseOver;
+                if (accessory != null)
+                {
+                    if (accessory.type == -1)
+                    {
+                        mouseOver.active = true;
+                        mouseOver.comment = "なし";
+                    }
+                    else
+                    {
+                        Dictionary<int, ListTypeFbx> accessoryFbxList = MoreAccessories._self.charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type, true);
+                        ListTypeFbx listTypeFbx2 = null;
+                        accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx2);
+                        if (listTypeFbx2 != null)
+                        {
+                            mouseOver.active = true;
+                            mouseOver.comment = CharDefine.AccessoryTypeName[accessory.type + 1] + "：" + listTypeFbx2.Name;
+                        }
+                        else
+                            mouseOver.active = false;
+                    }
+                }
+                else
+                {
+                    mouseOver.active = false;
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesCopy), "OnClickAllCheck")]
+    public class SmClothesCopy_OnClickAllCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.copyToggle.isOn = true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesCopy), "OnClickOnlyAccessoryCheck")]
+    public class SmClothesCopy_OnClickOnlyAccessoryCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.copyToggle.isOn = true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesCopy), "OnClickAllExclude")]
+    public class SmClothesCopy_OnClickAllExclude_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.copyToggle.isOn = false;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesCopy), "OnClickOnlyClothesCheck")]
+    public class SmClothesCopy_OnClickOnlyClothesCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.copyToggle.isOn = false;
+            }
+        }
+    }
+    [HarmonyPatch(typeof(SmClothesCopy), "OnClickCopy", new []{typeof(int)})]
+    public class SmClothesCopy_OnClickCopy_Patches
+    {
+        public static void Prefix(int id, CharDefine.CoordinateType[] ___copyType)
+        {
+            CharDefine.CoordinateType destinationCoords = ___copyType[id];
+            List<CharFileInfoClothes.Accessory> destination;
+            if (MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos.TryGetValue(destinationCoords, out destination) == false)
+            {
+                destination = new List<CharFileInfoClothes.Accessory>();
+                MoreAccessories._self._charaMakerAdditionalData.rawAccessoriesInfos.Add(destinationCoords, destination);
+            }
+            for (int k = 0; k < MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count; k++)
+            {
+                if (MoreAccessories._self._displayedMakerSlots[k].copyToggle.isOn)
+                {
+                    if (k >= destination.Count)
+                        destination.Add(new CharFileInfoClothes.Accessory());
+                    destination[k].Copy(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[k]);
+                }
+            }
+        }
+    }
+
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "UpdateCharaInfoSub")]
+    public class SmClothesColorCtrl_UpdateCharaInfoSub_Patches
+    {
+        public static void Postfix(SmClothesCopy __instance)
+        {
+            for (int k = 0; k < MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count; k++)
+            {
+                CharFileInfoClothes.Accessory accessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[k];
+                UI_OnMouseOverMessage mouseOver = MoreAccessories._self._displayedMakerSlots[k].bulkColorOnMouseOver;
+                if (accessory != null)
+                {
+                    if (accessory.type == -1)
+                    {
+                        mouseOver.active = true;
+                        mouseOver.comment = "なし";
+                    }
+                    else
+                    {
+                        Dictionary<int, ListTypeFbx> accessoryFbxList = MoreAccessories._self.charaMakerCharInfo.ListInfo.GetAccessoryFbxList((CharaListInfo.TypeAccessoryFbx)accessory.type, true);
+                        ListTypeFbx listTypeFbx2 = null;
+                        accessoryFbxList.TryGetValue(accessory.id, out listTypeFbx2);
+                        if (listTypeFbx2 != null)
+                        {
+                            mouseOver.active = true;
+                            mouseOver.comment = CharDefine.AccessoryTypeName[accessory.type + 1] + "：" + listTypeFbx2.Name;
+                        }
+                        else
+                            mouseOver.active = false;
+                    }
+                }
+                else
+                {
+                    mouseOver.active = false;
+                }
+            }
+        }
+    }
+
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "OnClickAllCheck")]
+    public class SmClothesColorCtrl_OnClickAllCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.bulkColorToggle.isOn = true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "OnClickOnlyAccessoryCheck")]
+    public class SmClothesColorCtrl_OnClickOnlyAccessoryCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.bulkColorToggle.isOn = true;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "OnClickAllExclude")]
+    public class SmClothesColorCtrl_OnClickAllExclude_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.bulkColorToggle.isOn = false;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "OnClickOnlyClothesCheck")]
+    public class SmClothesColorCtrl_OnClickOnlyClothesCheck_Patches
+    {
+        public static void Postfix()
+        {
+            foreach (MoreAccessories.MakerSlotData slot in MoreAccessories._self._displayedMakerSlots)
+            {
+                slot.bulkColorToggle.isOn = false;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesColorCtrl), "UpdateColorSetting")]
+    public class SmClothesColorCtrl_UpdateColorSetting_Patches
+    {
+        public static void Postfix(SmClothesColorCtrl __instance, HSColorSet[] ___hsColor)
+        {
+            for (int k = 0; k < MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory.Count; k++)
+            {
+                Toggle toggle = MoreAccessories._self._displayedMakerSlots[k].bulkColorToggle;
+                CharFileInfoClothes.Accessory accessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[k];
+                if (toggle.isOn && toggle.interactable)
+                {
+                    accessory.color.Copy(___hsColor[0]);
+                    accessory.color2.Copy(___hsColor[1]);
+                    accessory.color.Copy(___hsColor[0]);
+                    accessory.color2.Copy(___hsColor[1]);
+                    CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryColor(MoreAccessories._self._charaMakerAdditionalData, k);
+                }
+            }
+        }
+    }
+
+
+    //internal class HSStudioNEOAddon_Patches
+    //{
+    //    internal static void ManualPatch(HarmonyInstance harmony)
+    //    {
+    //        Type t = Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon");
+    //        if (t != null)
+    //        {
+    //            harmony.Patch(t.GetMethod("LoadAndChangeCloth", BindingFlags.Instance | BindingFlags.Public), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(LoadAndChangeCloth_Prefix), new[] {typeof(bool), typeof(bool)}), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(GenericPostfix)));
+    //            harmony.Patch(t.GetMethod("ReplaceBodyOnly", BindingFlags.Instance | BindingFlags.Public), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(ReplaceBodyOnly_Prefix)), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(GenericPostfix)));
+    //        }
+    //    }
+
+    //    private static void LoadAndChangeCloth_Prefix(bool clothOnly, bool accessoryOnly)
+    //    {
+    //        MoreAccessories._self._loadAdditionalAccessories = accessoryOnly;
+    //    }
+
+    //    private static void ReplaceBodyOnly_Prefix()
+    //    {
+    //        MoreAccessories._self._loadAdditionalAccessories = false;
+    //    }
+
+    //    private static void GenericPostfix()
+    //    {
+    //        MoreAccessories._self._loadAdditionalAccessories = true;
+    //    }
+    //}
 }

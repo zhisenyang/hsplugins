@@ -24,69 +24,64 @@ namespace HSPE.AMModules
 
             public void Init()
             {
+                const float radius = 1f;
+                const float num = 2f * 0.5f - 1f;
+                Vector3 position1 = Vector3.zero;
+                Vector3 position2 = Vector3.zero;
+                position1.x -= num;
+                position2.x += num;
+                Quaternion orientation = Quaternion.AngleAxis(90f, Vector3.up);
+                Vector3 dir = Vector3.right;
+                this.centerCircles = new List<VectorLine>();
+                for (int i = 1; i < 10; ++i)
                 {
+                    VectorLine circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
+                    circle.MakeCircle(Vector3.Lerp(position1, position2, i / 10f), dir, radius);
+                    this.centerCircles.Add(circle);
+                }
+                this.centerLines = new List<VectorLine>();
+                for (int i = 0; i < 8; ++i)
+                {
+                    float angle = 360 * (i / 8f) * Mathf.Deg2Rad;
+                    Vector3 offset = orientation * (new Vector3(Mathf.Cos(angle), Mathf.Sin(angle))) * radius;
+                    this.centerLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, position1 + offset, position2 + offset));
+                }
+                Vector3[] prev = new Vector3[8];
+                Vector3 prevCenter1 = Vector3.zero;
+                Vector3 prevCenter2 = Vector3.zero;
+                for (int i = 0; i < 8; ++i)
+                {
+                    float angle = 360 * (i / 8f) * Mathf.Deg2Rad;
+                    prev[i] = orientation * (new Vector3(Mathf.Cos(angle), Mathf.Sin(angle))) * radius;
+                }
+                this.capsCircles = new List<VectorLine>();
+                this.capsLines = new List<VectorLine>();
+                for (int i = 0; i < 6; ++i)
+                {
+                    float v = (i / 5f) * 0.95f;
+                    float angle = Mathf.Asin(v);
+                    float radius2 = radius * Mathf.Cos(angle);
+                    Vector3 center1 = position1 - dir * v * radius;
+                    Vector3 center2 = position2 + dir * v * radius;
+                    VectorLine circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
+                    circle.MakeCircle(center1, dir, radius2);
+                    this.capsCircles.Add(circle);
 
-                    const float radius = 1f;
-                    const float num = 2f * 0.5f - 1f;
-                    {
-                        Vector3 position1 = Vector3.zero;
-                        Vector3 position2 = Vector3.zero;
-                        position1.x -= num;
-                        position2.x += num;
-                        Quaternion orientation = Quaternion.AngleAxis(90f, Vector3.up);
-                        Vector3 dir = Vector3.right;
-                        this.centerCircles = new List<VectorLine>();
-                        for (int i = 1; i < 10; ++i)
-                        {
-                            VectorLine circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
-                            circle.MakeCircle(Vector3.Lerp(position1, position2, i / 10f), dir, radius);
-                            this.centerCircles.Add(circle);
-                        }
-                        this.centerLines = new List<VectorLine>();
-                        for (int i = 0; i < 8; ++i)
-                        {
-                            float angle = 360 * (i / 8f) * Mathf.Deg2Rad;
-                            Vector3 offset = orientation * (new Vector3(Mathf.Cos(angle), Mathf.Sin(angle))) * radius;
-                            this.centerLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, position1 + offset, position2 + offset));
-                        }
-                        Vector3[] prev = new Vector3[8];
-                        Vector3 prevCenter1 = Vector3.zero;
-                        Vector3 prevCenter2 = Vector3.zero;
-                        for (int i = 0; i < 8; ++i)
-                        {
-                            float angle = 360 * (i / 8f) * Mathf.Deg2Rad;
-                            prev[i] = orientation * (new Vector3(Mathf.Cos(angle), Mathf.Sin(angle))) * radius;
-                        }
-                        this.capsCircles = new List<VectorLine>();
-                        this.capsLines = new List<VectorLine>();
-                        for (int i = 0; i < 6; ++i)
-                        {
-                            float v = (i / 5f) * 0.95f;
-                            float angle = Mathf.Asin(v);
-                            float radius2 = radius * Mathf.Cos(angle);
-                            Vector3 center1 = position1 - dir * v * radius;
-                            Vector3 center2 = position2 + dir * v * radius;
-                            VectorLine circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
-                            circle.MakeCircle(center1, dir, radius2);
-                            this.capsCircles.Add(circle);
+                    circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
+                    circle.MakeCircle(center2, dir, radius2);
+                    this.capsCircles.Add(circle);
 
-                            circle = VectorLine.SetLine(BonesEditor._colliderColor, new Vector3[37]);
-                            circle.MakeCircle(center2, dir, radius2);
-                            this.capsCircles.Add(circle);
-
-                            if (i != 0)
-                                for (int j = 0; j < 8; ++j)
-                                {
-                                    float angle2 = 360 * (j / 8f) * Mathf.Deg2Rad;
-                                    Vector3 offset = orientation * (new Vector3(Mathf.Cos(angle2), Mathf.Sin(angle2))) * radius2;
-                                    this.capsLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, prevCenter1 + prev[j], center1 + offset));
-                                    this.capsLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, prevCenter2 + prev[j], center2 + offset));
-                                    prev[j] = offset;
-                                }
-                            prevCenter1 = center1;
-                            prevCenter2 = center2;
+                    if (i != 0)
+                        for (int j = 0; j < 8; ++j)
+                        {
+                            float angle2 = 360 * (j / 8f) * Mathf.Deg2Rad;
+                            Vector3 offset = orientation * (new Vector3(Mathf.Cos(angle2), Mathf.Sin(angle2))) * radius2;
+                            this.capsLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, prevCenter1 + prev[j], center1 + offset));
+                            this.capsLines.Add(VectorLine.SetLine(BonesEditor._colliderColor, prevCenter2 + prev[j], center2 + offset));
+                            prev[j] = offset;
                         }
-                    }
+                    prevCenter1 = center1;
+                    prevCenter2 = center2;
                 }
             }
 
@@ -311,48 +306,46 @@ namespace HSPE.AMModules
         {
             foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
+            float size = 0.012f;
+            Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
+                topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
+                bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
+                bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
+                topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
+                topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
+                bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
+                bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftForward, topRightForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightForward, bottomRightForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightForward, bottomLeftForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftForward, topLeftForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topRightBack));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, bottomRightBack));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomLeftBack));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, topLeftBack));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topLeftForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, topRightForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
+            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
 
+            VectorLine l = VectorLine.SetLine(AdvancedModeModule._redColor, Vector3.zero, Vector3.right * size * 2);
+            l.endCap = "vector";
+            this._cubeDebugLines.Add(l);
+            l = VectorLine.SetLine(AdvancedModeModule._greenColor, Vector3.zero, Vector3.up * size * 2);
+            l.endCap = "vector";
+            this._cubeDebugLines.Add(l);
+            l = VectorLine.SetLine(AdvancedModeModule._blueColor, Vector3.zero, Vector3.forward * size * 2);
+            l.endCap = "vector";
+            this._cubeDebugLines.Add(l);
+
+            foreach (VectorLine line in this._cubeDebugLines)
             {
-                float size = 0.012f;
-                Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
-                    topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
-                    bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
-                    bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
-                    topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
-                    topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
-                    bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
-                    bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftForward, topRightForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightForward, bottomRightForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightForward, bottomLeftForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftForward, topLeftForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topRightBack));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, bottomRightBack));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomLeftBack));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, topLeftBack));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topLeftForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, topRightForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
-                this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
-
-                VectorLine l = VectorLine.SetLine(AdvancedModeModule._redColor, Vector3.zero, Vector3.right * size * 2);
-                l.endCap = "vector";
-                this._cubeDebugLines.Add(l);
-                l = VectorLine.SetLine(AdvancedModeModule._greenColor, Vector3.zero, Vector3.up * size * 2);
-                l.endCap = "vector";
-                this._cubeDebugLines.Add(l);
-                l = VectorLine.SetLine(AdvancedModeModule._blueColor, Vector3.zero, Vector3.forward * size * 2);
-                l.endCap = "vector";
-                this._cubeDebugLines.Add(l);
-
-                foreach (VectorLine line in this._cubeDebugLines)
-                {
-                    line.lineWidth = 2f;
-                    line.active = false;
-                }
-                this._colliderDebugLines.Init();
-                this._colliderDebugLines.SetActive(false);
+                line.lineWidth = 2f;
+                line.active = false;
             }
+            this._colliderDebugLines.Init();
+            this._colliderDebugLines.SetActive(false);
+
         }
 
         void Start()
@@ -384,6 +377,7 @@ namespace HSPE.AMModules
             this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_j_foot_R"), "R. Foot");
             this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceBase"), "Face");
 #endif
+
             foreach (OCIChar.BoneInfo bone in this.chara.listBones)
             {
                 if (bone.guideObject != null && bone.guideObject.transformTarget != null)
