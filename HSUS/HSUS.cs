@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -47,6 +48,8 @@ namespace HSUS
             public float scaleFactor2;
             public Vector2 referenceResolution;
         }
+        internal delegate bool TranslationDelegate(ref string text);
+
         #endregion
 
         #region Private Variables
@@ -57,66 +60,54 @@ namespace HSUS
         private const string _pluginDir = "BepInEx\\KKUS\\";
 #endif
 
-        private bool _optimizeCharaMaker = true;
-        private float _gameUIScale = 1f;
-        private float _neoUIScale = 1f;
-        private bool _deleteConfirmation = true;
-        private bool _disableShortcutsWhenTyping = true;
-        private string _defaultFemaleChar = "";
-        private bool _improveNeoUI = true;
-        private bool _optimizeNeo = true;
-        private bool _enableGenericFK = true;
-        private KeyCode _debugShortcut = KeyCode.RightControl;
-        private bool _improvedTransformOperations = true;
-        private bool _autoJointCorrection = true;
-        private bool _eyesBlink = false;
-        private bool _cameraSpeedShortcuts = true;
-        private bool _alternativeCenterToObject = true;
-        private bool _fingersFkCopyButtons = true;
-        private bool _fourKManagerDithering = true;
+        internal bool _optimizeCharaMaker = true;
+        internal bool _asyncLoading = true;
+        internal float _gameUIScale = 1f;
+        internal float _neoUIScale = 1f;
+        internal bool _deleteConfirmation = true;
+        internal bool _disableShortcutsWhenTyping = true;
+        internal string _defaultFemaleChar = "";
+        internal bool _improveNeoUI = true;
+        internal bool _optimizeNeo = true;
+        internal bool _enableGenericFK = true;
+        internal KeyCode _debugShortcut = KeyCode.RightControl;
+        internal bool _improvedTransformOperations = true;
+        internal bool _autoJointCorrection = true;
+        internal bool _eyesBlink = false;
+        internal bool _cameraSpeedShortcuts = true;
+        internal bool _alternativeCenterToObject = true;
+        internal bool _fingersFkCopyButtons = true;
+        internal bool _fourKManagerDithering = true;
 
-        private bool _ssaoEnabled = true;
-        private bool _bloomEnabled = true;
-        private bool _ssrEnabled = true;
-        private bool _dofEnabled = true;
-        private bool _vignetteEnabled = true;
-        private bool _fogEnabled = true;
-        private bool _sunShaftsEnabled = false;
+        internal bool _ssaoEnabled = true;
+        internal bool _bloomEnabled = true;
+        internal bool _ssrEnabled = true;
+        internal bool _dofEnabled = true;
+        internal bool _vignetteEnabled = true;
+        internal bool _fogEnabled = true;
+        internal bool _sunShaftsEnabled = false;
 
-        private GameObject _go;
-        private RoutinesComponent _routines;
+        internal static HSUS _self;
+        internal GameObject _go;
+        internal RoutinesComponent _routines;
         private Binary _binary;
-        private Sprite _searchBarBackground;
+        internal Sprite _searchBarBackground;
         private float _lastCleanup;
         private Dictionary<Canvas, CanvasData> _scaledCanvases = new Dictionary<Canvas, CanvasData>();
         private int _lastScreenWidth;
         private int _lastScreenHeight;
+        internal TranslationDelegate _translationMethod;
+        internal readonly List<IEnumerator> _asyncMethods = new List<IEnumerator>();
         #endregion
 
         #region Public Accessors
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.5.0"; } }
+        public string Version { get { return "1.6.0"; } }
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
-        public static HSUS self { get; private set; }
-        public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
-        public Sprite searchBarBackground { get { return this._searchBarBackground; } }
-        public bool improveNeoUI { get { return this._improveNeoUI; } }
-        public bool optimizeNeo { get { return this._optimizeNeo; } }
-        public bool enableGenericFK { get { return this._enableGenericFK; } }
+        public static HSUS self { get { return _self; } } //Keeping this for legacy
+        public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } } //Keeping this for legacy
+        public Sprite searchBarBackground { get { return this._searchBarBackground; } } //Keeping this for legacy
         public KeyCode debugShortcut { get { return this._debugShortcut; } }
-        public bool improvedTransformOperations { get { return this._improvedTransformOperations; } }
-        public bool autoJointCorrection { get { return this._autoJointCorrection; } }
-        public bool eyesBlink { get { return this._eyesBlink; } }
-        public bool cameraSpeedShortcuts { get { return this._cameraSpeedShortcuts; } }
-        public bool alternativeCenterToObject { get { return this._alternativeCenterToObject; } }
-        public bool fourKManagerDithering { get { return this._fourKManagerDithering; } }
-        public bool dofEnabled { get { return this._dofEnabled; } }
-        public bool ssaoEnabled { get { return this._ssaoEnabled; } }
-        public bool bloomEnabled { get { return this._bloomEnabled; } }
-        public bool ssrEnabled { get { return this._ssrEnabled; } }
-        public bool vignetteEnabled { get { return this._vignetteEnabled; } }
-        public bool fogEnabled { get { return this._fogEnabled; } }
-        public bool sunShaftsEnabled { get { return this._sunShaftsEnabled; } }
         #endregion
 
         #region Unity Methods
@@ -127,7 +118,7 @@ namespace HSUS
         
 #endif 
         {
-            self = this;
+            _self = this;
 #if KOIKATSU
             SceneManager.sceneLoaded += this.SceneLoaded;
 #endif
@@ -150,6 +141,18 @@ namespace HSUS
                     this._binary = Binary.Neo;
                     break;
             }
+
+            Type t = Type.GetType("UnityEngine.UI.Translation.TextTranslator,UnityEngine.UI.Translation");
+            if (t != null)
+            {
+                MethodInfo info = t.GetMethod("Translate", BindingFlags.Public | BindingFlags.Static);
+                if (info != null)
+                {
+                    this._translationMethod = (TranslationDelegate)Delegate.CreateDelegate(typeof(TranslationDelegate), info);
+                    this._asyncLoading = false;
+                }
+            }
+
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
                 return;
@@ -163,6 +166,16 @@ namespace HSUS
                     case "optimizeCharaMaker":
                         if (node.Attributes["enabled"] != null)
                             this._optimizeCharaMaker = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                        foreach (XmlNode childNode in node.ChildNodes)
+                        {
+                            switch (childNode.Name)
+                            {
+                                case "asyncLoading":
+                                    if (childNode.Attributes["enabled"] != null)
+                                        this._asyncLoading = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    break;
+                            }
+                        }
                         break;
                     case "uiScale":
                         foreach (XmlNode n in node.ChildNodes)
@@ -304,20 +317,18 @@ namespace HSUS
             //Manual Patching for various reasons:
             {
                 ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
-                //ItemFKCtrl_LateUpdate_Patches.ManualPatch(harmony);
-                //ItemFKCtrl_OnDisable_Patches.ManualPatch(harmony);
                 if (this._binary == Binary.Neo)
                 {
-  
                     HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
                     ABMStudioNEOSaveLoadHandler_OnLoad_Patches.ManualPatch(harmony);
                 }
 #if HONEYSELECT
                 TonemappingColorGrading_Ctor_Patches.ManualPatch(harmony);
 #endif
-
+                UI_ColorInfo_ConvertValueFromText_Patches.ManualPatch(harmony);
             }
         }
+
 #if KOIKATSU
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
@@ -345,6 +356,13 @@ namespace HSUS
                     {
                         xmlWriter.WriteStartElement("optimizeCharaMaker");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._optimizeCharaMaker));
+
+                        {
+                            xmlWriter.WriteStartElement("asyncLoading");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._asyncLoading));
+                            xmlWriter.WriteEndElement();
+                        }
+
                         xmlWriter.WriteEndElement();
                     }
 
@@ -576,6 +594,13 @@ namespace HSUS
                 this.OnWindowResize();
             this._lastScreenWidth = Screen.width;
             this._lastScreenHeight = Screen.height;
+
+            if (this._asyncMethods.Count != 0)
+            {
+                IEnumerator method = this._asyncMethods[0];
+                if (method.MoveNext() == false)
+                    this._asyncMethods.RemoveAt(0);
+            }
         }
 
         public void OnLateUpdate()
@@ -617,9 +642,9 @@ namespace HSUS
                     if (shouldBreak)
                         break;
                 }
-                foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
+                foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
                 {
-                    SmClothes_F_Data.Init(f);
+                    SmClothesLoad_Data.Init(f);
                     break;
                 }
                 foreach (SmCharaLoad f in Resources.FindObjectsOfTypeAll<SmCharaLoad>())
@@ -627,9 +652,19 @@ namespace HSUS
                     SmCharaLoad_Data.Init(f);
                     break;
                 }
+                foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
+                {
+                    SmClothes_F_Data.Init(f);
+                    break;
+                }
                 foreach (SmAccessory f in Resources.FindObjectsOfTypeAll<SmAccessory>())
                 {
                     SmAccessory_Data.Init(f);
+                    break;
+                }
+                foreach (SmSwimsuit f in Resources.FindObjectsOfTypeAll<SmSwimsuit>())
+                {
+                    SmSwimsuit_Data.Init(f);
                     break;
                 }
                 foreach (SmHair_F f in Resources.FindObjectsOfTypeAll<SmHair_F>())
@@ -650,16 +685,6 @@ namespace HSUS
                 foreach (SmFaceSkin f in Resources.FindObjectsOfTypeAll<SmFaceSkin>())
                 {
                     SmFaceSkin_Data.Init(f);
-                    break;
-                }
-                foreach (SmSwimsuit f in Resources.FindObjectsOfTypeAll<SmSwimsuit>())
-                {
-                    SmSwimsuit_Data.Init(f);
-                    break;
-                }
-                foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
-                {
-                    SmClothesLoad_Data.Init(f);
                     break;
                 }
             }, 10);
@@ -746,7 +771,7 @@ namespace HSUS
         private bool ShouldScaleUI(Canvas c)
         {
             bool ok = true;
-            string path = c.transform.GetPathFrom(null);
+            string path = c.transform.GetPathFrom((Transform)null);
             if (this._binary == Binary.Neo)
             {
                 switch (path)

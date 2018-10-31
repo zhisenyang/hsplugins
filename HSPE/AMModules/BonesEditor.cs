@@ -250,6 +250,13 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Variables
+        private static int _positionIncIndex = 0;
+        private static float _positionInc = 1f;
+        private static int _rotationIncIndex = 0;
+        private static float _rotationInc = 1f;
+        private static int _scaleIncIndex = 0;
+        private static float _scaleInc = 1f;
+
         private Vector2 _boneEditionScroll;
         private string _currentAlias = "";
         private Transform _boneTarget;
@@ -540,15 +547,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X:\t" + position.x.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position -= _inc * Vector3.right;
+                            position -= _positionInc * Vector3.right;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position += _inc * Vector3.right;
+                            position += _positionInc * Vector3.right;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -558,15 +565,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y:\t" + position.y.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position -= _inc * Vector3.up;
+                            position -= _positionInc * Vector3.up;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position += _inc * Vector3.up;
+                            position += _positionInc * Vector3.up;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -576,15 +583,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z:\t" + position.z.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position -= _inc * Vector3.forward;
+                            position -= _positionInc * Vector3.forward;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            position += _inc * Vector3.forward;
+                            position += _positionInc * Vector3.forward;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -629,17 +636,17 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X (Pitch):\t" + rotation.eulerAngles.x.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_inc, Vector3.right);
+                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.right);
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_inc, Vector3.right);
+                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.right);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -649,17 +656,17 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y (Yaw):\t" + rotation.eulerAngles.y.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_inc, Vector3.up);
+                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.up);
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_inc, Vector3.up);
+                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.up);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -669,17 +676,17 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z (Roll):\t" + rotation.eulerAngles.z.ToString("0.00"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_inc, Vector3.forward);
+                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.forward);
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
                             if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_inc, Vector3.forward);
+                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.forward);
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -763,15 +770,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X:\t" + scale.x.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale -= _inc * Vector3.right;
+                            scale -= _scaleInc * Vector3.right;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale += _inc * Vector3.right;
+                            scale += _scaleInc * Vector3.right;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -781,15 +788,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Y:\t" + scale.y.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale -= _inc * Vector3.up;
+                            scale -= _scaleInc * Vector3.up;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale += _inc * Vector3.up;
+                            scale += _scaleInc * Vector3.up;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -799,15 +806,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("Z:\t" + scale.z.ToString("0.00000"));
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale -= _inc * Vector3.forward;
+                            scale -= _scaleInc * Vector3.forward;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale += _inc * Vector3.forward;
+                            scale += _scaleInc * Vector3.forward;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -816,15 +823,15 @@ namespace HSPE.AMModules
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X/Y/Z");
                         GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale -= _inc * Vector3.one;
+                            scale -= _scaleInc * Vector3.one;
                         }
-                        if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
                         {
                             shouldSaveValue = true;
-                            scale += _inc * Vector3.one;
+                            scale += _scaleInc * Vector3.one;
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
@@ -853,8 +860,18 @@ namespace HSPE.AMModules
                         break;
                 }
                 GUILayout.EndVertical();
-
-                this.IncEditor();
+                switch (this._boneEditionCoordType)
+                {
+                    case CoordType.Position:
+                        this.IncEditor(ref _positionIncIndex, out _positionInc);
+                        break;
+                    case CoordType.Rotation:
+                        this.IncEditor(ref _rotationIncIndex, out _rotationInc);
+                        break;
+                    case CoordType.Scale:
+                        this.IncEditor(ref _scaleIncIndex, out _scaleInc);
+                        break;
+                }
 
                 GUILayout.EndHorizontal();
                 this._symmetricalEdition = GUILayout.Toggle(this._symmetricalEdition, "Symmetrical");
@@ -1290,14 +1307,13 @@ namespace HSPE.AMModules
             {
                 foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
                 {
-                    if (pair.Key.transform.IsChildOf(bone))
-                    {
-                        Transform childBone = pair.Key.transform;
-                        Transform twinChildBone = this.GetTwinBone(childBone);
-                        if (twinChildBone == childBone)
-                            twinChildBone = null;
-                        this.ResetBoneScale(childBone, twinChildBone, false);
-                    }
+                    if (!pair.Key.transform.IsChildOf(bone))
+                        continue;
+                    Transform childBone = pair.Key.transform;
+                    Transform twinChildBone = this.GetTwinBone(childBone);
+                    if (twinChildBone == childBone)
+                        twinChildBone = null;
+                    this.ResetBoneScale(childBone, twinChildBone, false);
                 }
             }
 

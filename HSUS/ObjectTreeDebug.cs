@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Text;
 using ToolBox;
@@ -25,6 +26,7 @@ namespace HSUS
         private static readonly Process _process;
         private static readonly byte _bits;
         private readonly HashSet<Component> _openedComponents = new HashSet<Component>();
+        private static string _goSearch = "";
 
 #if HONEYSELECT
         private static readonly bool _has630Patch;
@@ -39,7 +41,7 @@ namespace HSUS
             else if (IntPtr.Size == 8)
                 _bits = 64;
 #if HONEYSELECT
-            _has630Patch = Type.GetType("Vectrosity.VectorLine,Vectrosity") != null;
+            _has630Patch = File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "HoneySelect_" + _bits + "_Data\\Managed\\Vectrosity.dll"));
 #endif
         }
 
@@ -68,35 +70,51 @@ namespace HSUS
 
         private void DisplayObjectTree(GameObject go, int indent)
         {
-            Color c = GUI.color;
-            if (this._target == go.transform)
-                GUI.color = Color.cyan;
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(indent * 20f);
-            if (go.transform.childCount != 0)
+            if (_goSearch.Length == 0 || go.name.IndexOf(_goSearch, StringComparison.OrdinalIgnoreCase) != -1)
             {
-                if (GUILayout.Toggle(this._openedObjects.Contains(go), "", GUILayout.ExpandWidth(false)))
-                {
-                    if (this._openedObjects.Contains(go) == false)
-                        this._openedObjects.Add(go);
-                }
-                else
-                {
-                    if (this._openedObjects.Contains(go))
-                        this._openedObjects.Remove(go);
+                Color c = GUI.color;
+                if (this._target == go.transform)
+                    GUI.color = Color.cyan;
+                GUILayout.BeginHorizontal();
 
+                if (_goSearch.Length == 0)
+                {
+                    GUILayout.Space(indent * 20f);
+                    if (go.transform.childCount != 0)
+                    {
+                        if (GUILayout.Toggle(this._openedObjects.Contains(go), "", GUILayout.ExpandWidth(false)))
+                        {
+                            if (this._openedObjects.Contains(go) == false)
+                                this._openedObjects.Add(go);
+                        }
+                        else
+                        {
+                            if (this._openedObjects.Contains(go))
+                                this._openedObjects.Remove(go);
+                        }
+                    }
+                    else
+                        GUILayout.Space(20f);
                 }
+                if (GUILayout.Button(go.name, GUILayout.ExpandWidth(false)))
+                {
+                    this._target = go.transform;
+                    if (_goSearch.Length != 0)
+                    {
+                        Transform t = this._target.parent;
+                        while (t != null)
+                        {
+                            if (this._openedObjects.Contains(t.gameObject) == false)
+                                this._openedObjects.Add(t.gameObject);
+                            t = t.parent;
+                        }
+                    }
+                }
+                GUI.color = c;
+                go.SetActive(GUILayout.Toggle(go.activeSelf, "", GUILayout.ExpandWidth(false)));
+                GUILayout.EndHorizontal();
             }
-            else
-                GUILayout.Space(20f);
-            if (GUILayout.Button(go.name, GUILayout.ExpandWidth(false)))
-            {
-                this._target = go.transform;
-            }
-            GUI.color = c;
-            go.SetActive(GUILayout.Toggle(go.activeSelf, "", GUILayout.ExpandWidth(false)));
-            GUILayout.EndHorizontal();
-            if (this._openedObjects.Contains(go))
+            if (_goSearch.Length != 0 || this._openedObjects.Contains(go))
                 for (int i = 0; i < go.transform.childCount; ++i)
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
@@ -115,11 +133,16 @@ namespace HSUS
         private void WindowFunc(int id)
         {
             GUILayout.BeginHorizontal();
+
+            GUILayout.BeginVertical();
+            _goSearch = GUILayout.TextField(_goSearch);
             this._scroll = GUILayout.BeginScrollView(this._scroll, GUI.skin.box, GUILayout.ExpandHeight(true), GUILayout.MinWidth(300));
             foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
                 if (t.parent == null)
                     this.DisplayObjectTree(t.gameObject, 0);
             GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+
             GUILayout.BeginVertical();
             this._scroll2 = GUILayout.BeginScrollView(this._scroll2, GUI.skin.box);
             if (this._target != null)
@@ -273,6 +296,22 @@ namespace HSUS
                         GUILayout.Label("localPosition " + tr.localPosition);
                         GUILayout.Label("localRotation " + tr.localEulerAngles);
                         GUILayout.Label("localScale " + tr.localScale);
+                    }
+                    else if (c is UI_OnEnableEvent)
+                    {
+                        UI_OnEnableEvent e = c as UI_OnEnableEvent;
+                        if (e._event != null)
+                        {
+                            for (int i = 0; i < e._event.GetPersistentEventCount(); ++i)
+                                GUILayout.Label("_event " + e._event.GetPersistentTarget(i).GetType().FullName + "." + e._event.GetPersistentMethodName(i));
+                            IList calls = e._event.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                            for (int i = 0; i < calls.Count; ++i)
+                            {
+                                UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
+                                GUILayout.Label("_event " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
+                            }
+                            
+                        }
                     }
                     GUILayout.EndHorizontal();
 

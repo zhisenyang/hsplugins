@@ -388,7 +388,6 @@ namespace HSPE
                 }
 
                 this.InitJointCorrection();
-                
             }
         }
 

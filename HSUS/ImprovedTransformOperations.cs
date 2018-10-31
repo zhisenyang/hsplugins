@@ -20,12 +20,12 @@ namespace HSUS
 
         public static bool Prepare()
         {
-            if (HSUS.self.improvedTransformOperations)
+            if (HSUS._self._improvedTransformOperations)
             {
                 _hashSelectObject = typeof(GuideInput).GetField("hashSelectObject", BindingFlags.Instance | BindingFlags.NonPublic);
                 _inputScale = typeof(GuideInput).GetField("inputScale", BindingFlags.Instance | BindingFlags.NonPublic);
             }
-            return HSUS.self.improvedTransformOperations;
+            return HSUS._self._improvedTransformOperations;
         }
 
         public static bool Prefix(GuideInput __instance, int _target)
@@ -63,7 +63,7 @@ namespace HSUS
             }
 
             GuideObject guideObj = hashSelectObject.ElementAtOrDefault(0);
-            Vector3 vector = (!guideObj) ? Vector3.zero : guideObj.changeAmount.scale;
+            Vector3 vector = !guideObj ? Vector3.zero : guideObj.changeAmount.scale;
             bool[] array = new bool[]
             {
                 true,
@@ -75,12 +75,12 @@ namespace HSUS
                 Vector3 scale = guideObject2.changeAmount.scale;
                 for (int i = 0; i < 3; i++)
                 {
-                    array[i] = (vector[i] == scale[i]);
+                    array[i] = vector[i] == scale[i];
                 }
             }
             for (int j = 0; j < 3; j++)
             {
-                inputScale[j].text = ((!array[j]) ? "-" : vector[j].ToString("0.000"));
+                inputScale[j].text = !array[j] ? "-" : vector[j].ToString("0.000");
             }
 
             return false;
@@ -88,7 +88,7 @@ namespace HSUS
 
         private static float InputToFloat(InputField _input)
         {
-            return (!float.TryParse(_input.text, out float num)) ? 0f : num;
+            return !float.TryParse(_input.text, out float num) ? 0f : num;
         }
     }
 
@@ -101,13 +101,13 @@ namespace HSUS
 
         public static bool Prepare()
         {
-            if (HSUS.self.improvedTransformOperations)
+            if (HSUS._self._improvedTransformOperations)
             {
                 _prevPos = typeof(GuideScale).GetField("prevPos", BindingFlags.Instance | BindingFlags.NonPublic);
                 _speed = typeof(GuideScale).GetField("speed", BindingFlags.Instance | BindingFlags.NonPublic);
                 _dicChangeAmount = typeof(GuideScale).GetField("dicChangeAmount", BindingFlags.Instance | BindingFlags.NonPublic);
             }
-            return HSUS.self.improvedTransformOperations;
+            return HSUS._self._improvedTransformOperations;
         }
 
         public static bool Prefix(GuideScale __instance, PointerEventData _eventData)
@@ -139,7 +139,7 @@ namespace HSUS
             Plane plane = new Plane(Camera.main.transform.forward * -1f, position);
             Ray ray = RectTransformUtility.ScreenPointToRay(Camera.main, _screenPos);
             float distance = 0f;
-            Vector3 a = (!plane.Raycast(ray, out distance)) ? position : ray.GetPoint(distance);
+            Vector3 a = !plane.Raycast(ray, out distance) ? position : ray.GetPoint(distance);
             Vector3 vector = a - position;
             Vector3 onNormal = __instance.transform.up;
             switch (__instance.axis)
@@ -164,7 +164,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.improvedTransformOperations;
+            return HSUS._self._improvedTransformOperations;
         }
 
         public static bool Prefix(CharClothes __instance, ref bool __result, int slotNo, float value, bool _add, int flags, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo)
@@ -182,21 +182,51 @@ namespace HSUS
             }
             if ((flags & 1) != 0)
             {
-                float num = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.x) + value;
+                float num = (!_add ? 0f : ___clothesInfo.accessory[slotNo].addScl.x) + value;
                 ___clothesInfo.accessory[slotNo].addScl.x = num;
             }
             if ((flags & 2) != 0)
             {
-                float num2 = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.y) + value;
+                float num2 = (!_add ? 0f : ___clothesInfo.accessory[slotNo].addScl.y) + value;
                 ___clothesInfo.accessory[slotNo].addScl.y = num2;
             }
             if ((flags & 4) != 0)
             {
-                float num3 = ((!_add) ? 0f : ___clothesInfo.accessory[slotNo].addScl.z) + value;
+                float num3 = (!_add ? 0f : ___clothesInfo.accessory[slotNo].addScl.z) + value;
                 ___clothesInfo.accessory[slotNo].addScl.z = num3;
             }
             gameObject.transform.SetLocalScale(___clothesInfo.accessory[slotNo].addScl.x, ___clothesInfo.accessory[slotNo].addScl.y, ___clothesInfo.accessory[slotNo].addScl.z);
             __result = true;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(TreeNodeCtrl), "CopyChangeAmount")]
+    internal static class TreeNodeCtrl_CopyChangeAmount_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS._self._improvedTransformOperations;
+        }
+
+        private static bool Prefix(TreeNodeCtrl __instance)
+        {
+            TreeNodeObject[] selectNodes = __instance.selectNodes;
+            ObjectCtrlInfo objectCtrlInfo = null;
+            if (!Studio.Studio.Instance.dicInfo.TryGetValue(selectNodes[0], out objectCtrlInfo))
+            {
+                return false;
+            }
+            List<TreeNodeCommand.MoveCopyInfo> list = new List<TreeNodeCommand.MoveCopyInfo>();
+            for (int i = 1; i < selectNodes.Length; i++)
+            {
+                ObjectCtrlInfo objectCtrlInfo2 = null;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(selectNodes[i], out objectCtrlInfo2))
+                {
+                    list.Add(new TreeNodeCommand.MoveCopyInfo(objectCtrlInfo2.objectInfo.dicKey, objectCtrlInfo2.objectInfo.changeAmount, objectCtrlInfo.objectInfo.changeAmount));
+                }
+            }
+            UndoRedoManager.Instance.Do(new TreeNodeCommand.MoveCopyCommand(list.ToArray()));
             return false;
         }
     }

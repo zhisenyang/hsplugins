@@ -15,7 +15,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.cameraSpeedShortcuts;
+            return HSUS._self._cameraSpeedShortcuts;
         }
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -52,7 +52,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.cameraSpeedShortcuts;
+            return HSUS._self._cameraSpeedShortcuts;
         }
 
 #if HONEYSELECT
@@ -78,7 +78,7 @@ namespace HSUS
         private static readonly object[] _params = {4};
         public static void ManualPatch(HarmonyInstance harmony)
         {
-            if (HSUS.self.alternativeCenterToObject == false)
+            if (HSUS._self._alternativeCenterToObject == false)
                 return;
             Type t = Type.GetType("HSStudioNEOAddon.ShortcutKey.HSSNAShortcutKeyCtrlOverride,HSStudioNEOAddon");
             if (t != null)

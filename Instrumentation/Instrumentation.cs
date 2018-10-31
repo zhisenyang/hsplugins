@@ -99,7 +99,7 @@ namespace Instrumentation
 #if HONEYSELECT
         public string Name { get { return "Instrumentation"; } }
         public string Version { get { return versionNum; } }
-        public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
+        public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64", "HoneySelect_64", "HoneySelect_32"}; } }
 
         public void OnLevelWasInitialized(int level)
         {
@@ -224,7 +224,7 @@ namespace Instrumentation
                     list.Sort((a, b) => b.Value.CompareTo(a.Value));
                     foreach (KeyValuePair<Type, ulong> pair in list)
                     {
-                        sb.AppendLine(pair.Key.Name + "." + this._methods[i].name + "," + (pair.Value / 59));
+                        sb.AppendLine(pair.Key.FullName + "." + this._methods[i].name + "," + (pair.Value / 59));
                     }
                 }
                 UnityEngine.Debug.Log(sb.ToString());
@@ -241,7 +241,7 @@ namespace Instrumentation
                         if (times[j].TryGetValue(Time.frameCount - i, out dic))
                         {
                             foreach (KeyValuePair<Type, ulong> pair in dic)
-                                sb.AppendLine(pair.Key.Name + "." + this._methods[j].name + "," + pair.Value);
+                                sb.AppendLine(pair.Key.FullName + "." + this._methods[j].name + "," + pair.Value);
                         }
                     }
                 }

@@ -91,6 +91,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_BaseColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_ReflectionColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecularColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_TintColor", type = ShaderProperty.Type.Color},
             //Textures
             new ShaderProperty() {name = "_MainTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_SpecGlossMap", type = ShaderProperty.Type.Texture},
@@ -111,6 +112,9 @@ namespace RendererEditor
             new ShaderProperty() {name = "_ParallaxMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_EmissionMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailAlbedoMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DetailAlbedoMap_2", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DetailAlbedoMap_3", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DetailAlbedoMap_4", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_ReflectionTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_ShoreTex", type = ShaderProperty.Type.Texture},
             //Float
@@ -141,6 +145,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_FresnelScale", floatRange = new Vector2(0.15f, 4), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_GerstnerIntensity", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Shininess", floatRange = new Vector2(2, 500), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_InvFade", floatRange = new Vector2(0.01f, 3.0f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             //Bools
             new ShaderProperty() {name = "_HairEffect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_GlossUseAlpha", type = ShaderProperty.Type.Boolean},
@@ -191,7 +196,6 @@ namespace RendererEditor
         private Vector2 _propertiesScroll;
         private readonly Texture2D _simpleTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
         private Action<string, Texture> _selectTextureCallback;
-        private bool _texturesLoaded = false;
         private readonly Dictionary<string, Texture2D> _textures = new Dictionary<string, Texture2D>();
         private Vector2 _textureScroll;
         private string _textureFilter = "";
@@ -204,6 +208,8 @@ namespace RendererEditor
         private string[] _localFiles;
         private string[] _localFolders;
         private string _currentDirectory;
+        private GUIStyle _multiLineButton;
+        private bool _stylesInitialized;
         #endregion
 
         #region Unity Methods
@@ -320,6 +326,11 @@ namespace RendererEditor
 
         void OnGUI()
         {
+            if (this._stylesInitialized == false)
+            {
+                this.InitializeStyles();
+                this._stylesInitialized = true;
+            }
             if (!this._enabled || Studio.Studio.Instance.treeNodeCtrl.selectNode == null)
                 return;
             GUI.Box(this._windowRect, "", GUI.skin.window);
@@ -340,6 +351,12 @@ namespace RendererEditor
         #endregion
 
         #region Private Methods
+        private void InitializeStyles()
+        {
+            this._multiLineButton = new GUIStyle(GUI.skin.button);
+            this._multiLineButton.wordWrap = true;
+        }
+
         private void WindowFunction(int id)
         {
             GUILayout.BeginHorizontal();
@@ -681,10 +698,18 @@ namespace RendererEditor
                 foreach (string folder in this._localFolders)
                 {
                     string directoryName = folder.Substring(this._pwd.Length);
-                    if (directoryName.IndexOf(this._textureFilter, StringComparison.OrdinalIgnoreCase) != -1 && GUILayout.Button(directoryName))
+                    if (directoryName.IndexOf(this._textureFilter, StringComparison.OrdinalIgnoreCase) != -1)
                     {
-                        this._pwd = folder;
-                        this.ExploreCurrentFolder();
+                        GUILayout.BeginHorizontal();
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button(directoryName, this._multiLineButton, GUILayout.Width(178)))
+                        {
+                            this._pwd = folder;
+                            this.ExploreCurrentFolder();
+                            
+                        }
+                        GUILayout.FlexibleSpace();
+                        GUILayout.EndHorizontal();
                     }
                 }
                 GUI.color = c;
@@ -693,28 +718,43 @@ namespace RendererEditor
                     string localFileName = Path.GetFileName(file);
                     if (localFileName.IndexOf(this._textureFilter, StringComparison.OrdinalIgnoreCase) == -1)
                         continue;
-                    Texture2D texture = this.GetTexture(file);
-                    if (texture != null)
+                    if (RendererEditor.previewTextures)
                     {
-                        GUILayout.BeginVertical(GUI.skin.box);
-                        GUILayout.Label(localFileName);
+                        Texture2D texture = this.GetTexture(file);
+                        if (texture != null)
+                        {
+                            GUILayout.BeginVertical(GUI.skin.box);
+                            GUILayout.Label(localFileName);
+                            GUILayout.BeginHorizontal();
+                            GUILayout.FlexibleSpace();
+                            if (GUILayout.Button(GUIContent.none, GUILayout.Width(178), GUILayout.Height(178)))
+                            {
+                                this._selectTextureCallback(file, texture);
+                                this._selectTextureCallback = null;
+                            }
+                            Rect layoutRectangle = GUILayoutUtility.GetLastRect();
+                            GUILayout.FlexibleSpace();
+                            GUILayout.EndHorizontal();
+
+                            layoutRectangle.xMin += 4;
+                            layoutRectangle.xMax -= 4;
+                            layoutRectangle.yMin += 4;
+                            layoutRectangle.yMax -= 4;
+                            GUI.DrawTexture(layoutRectangle, texture, ScaleMode.StretchToFill, true);
+                            GUILayout.EndVertical();
+                        }
+                    }
+                    else
+                    {
                         GUILayout.BeginHorizontal();
                         GUILayout.FlexibleSpace();
-                        if (GUILayout.Button(GUIContent.none, GUILayout.Width(178), GUILayout.Height(178)))
+                        if (GUILayout.Button(localFileName, this._multiLineButton, GUILayout.Width(178)))
                         {
-                            this._selectTextureCallback(file, texture);
+                            this._selectTextureCallback(file, this.GetTexture(file));
                             this._selectTextureCallback = null;
                         }
-                        Rect layoutRectangle = GUILayoutUtility.GetLastRect();
                         GUILayout.FlexibleSpace();
                         GUILayout.EndHorizontal();
-
-                        layoutRectangle.xMin += 4;
-                        layoutRectangle.xMax -= 4;
-                        layoutRectangle.yMin += 4;
-                        layoutRectangle.yMax -= 4;
-                        GUI.DrawTexture(layoutRectangle, texture, ScaleMode.StretchToFill, true);
-                        GUILayout.EndVertical();
                     }
                 }
                 GUILayout.EndScrollView();
@@ -725,8 +765,37 @@ namespace RendererEditor
             if (GUILayout.Button("Cancel"))
                 this._selectTextureCallback = null;
             GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
             if (GUILayout.Button("Open folder"))
                 System.Diagnostics.Process.Start(this._pwd);
+            if (GUILayout.Button("Unload unused"))
+            {
+                HashSet<string> usedTextures = new HashSet<string>();
+                foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+                {
+                    foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                    {
+                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                        {
+                            if (usedTextures.Contains(pair3.Value.currentTexturePath) == false)
+                            {
+                                usedTextures.Add(pair3.Value.currentTexturePath);
+                            }
+                        }
+                    }
+                }
+                foreach (KeyValuePair<string, Texture2D> pair in new Dictionary<string, Texture2D>(this._textures))
+                {
+                    if (usedTextures.Contains(pair.Key) == false)
+                    {
+                        this._textures.Remove(pair.Key);
+                        Destroy(pair.Value);
+                    }
+                }
+                Resources.UnloadUnusedAssets();
+                GC.Collect();
+            }
+            GUILayout.EndHorizontal();
         }
 
         private void RefreshTextures()
@@ -738,19 +807,22 @@ namespace RendererEditor
         {
             this._loadingTextures = true;
             this.ExploreCurrentFolder();
-            foreach (string file in this._localFiles)
+            if (RendererEditor.previewTextures)
             {
-                Texture2D texture;
-                if (this._textures.TryGetValue(file, out texture))
+                foreach (string file in this._localFiles)
                 {
-                    Destroy(texture);
-                    this._textures.Remove(file);
+                    Texture2D texture;
+                    if (this._textures.TryGetValue(file, out texture))
+                    {
+                        Destroy(texture);
+                        this._textures.Remove(file);
+                    }
                 }
-            }
-            foreach (string file in this._localFiles)
-            {
-                yield return null;
-                this.LoadSingleTexture(file);
+                foreach (string file in this._localFiles)
+                {
+                    yield return null;
+                    this.LoadSingleTexture(file);
+                }
             }
             this._loadingTextures = false;
         }
@@ -1046,7 +1118,6 @@ namespace RendererEditor
                 }
             }
             GUILayout.EndHorizontal();
-
         }
 
         private void TextureDrawer(ShaderProperty property)
@@ -1344,9 +1415,16 @@ namespace RendererEditor
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
             Vector4 newValue = value;
 
+            GUILayout.FlexibleSpace();
+
+            GUILayout.BeginVertical();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+
             GUILayout.Label("W", GUILayout.ExpandWidth(false));
             string stringValue = value.w.ToString("0.00");
-            string stringNewValue = GUILayout.TextField(stringValue);
+            string stringNewValue = GUILayout.TextField(stringValue, GUILayout.MaxWidth(60));
             if (stringNewValue != stringValue)
             {
                 float parsedValue;
@@ -1356,7 +1434,7 @@ namespace RendererEditor
 
             GUILayout.Label("X", GUILayout.ExpandWidth(false));
             stringValue = value.x.ToString("0.00");
-            stringNewValue = GUILayout.TextField(stringValue);
+            stringNewValue = GUILayout.TextField(stringValue, GUILayout.MaxWidth(60));
             if (stringNewValue != stringValue)
             {
                 float parsedValue;
@@ -1364,9 +1442,14 @@ namespace RendererEditor
                     newValue.x = parsedValue;
             }
 
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+
             GUILayout.Label("Y", GUILayout.ExpandWidth(false));
             stringValue = value.y.ToString("0.00");
-            stringNewValue = GUILayout.TextField(stringValue);
+            stringNewValue = GUILayout.TextField(stringValue, GUILayout.MaxWidth(60));
             if (stringNewValue != stringValue)
             {
                 float parsedValue;
@@ -1376,13 +1459,17 @@ namespace RendererEditor
 
             GUILayout.Label("Z", GUILayout.ExpandWidth(false));
             stringValue = value.z.ToString("0.00");
-            stringNewValue = GUILayout.TextField(stringValue);
+            stringNewValue = GUILayout.TextField(stringValue, GUILayout.MaxWidth(60));
             if (stringNewValue != stringValue)
             {
                 float parsedValue;
                 if (float.TryParse(stringNewValue, out parsedValue))
                     newValue.z = parsedValue;
             }
+
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndVertical();
 
             if (value != newValue)
             {
@@ -1548,22 +1635,23 @@ namespace RendererEditor
                                                             {
                                                                 string key = property.Attributes["key"].Value;
                                                                 string texturePath = property.Attributes["path"].Value;
-                                                                if (string.IsNullOrEmpty(texturePath))
-                                                                    continue;
-                                                                int i = texturePath.IndexOf(_texturesDir, StringComparison.OrdinalIgnoreCase);
-                                                                if (i > 0) //Doing this because I fucked up an older version
-                                                                    texturePath = texturePath.Substring(i);
-                                                                texturePath = Path.GetFullPath(texturePath);
-                                                                Texture2D texture = this.GetTexture(texturePath);
-                                                                if (texture != null)
+                                                                Texture2D texture = null;
+                                                                if (!string.IsNullOrEmpty(texturePath))
                                                                 {
-                                                                    materialData.dirtyTextureProperties.Add(key, new RendererData.MaterialData.TextureData()
-                                                                    {
-                                                                        currentTexturePath = texturePath,
-                                                                        originalTexture = mat.GetTexture(key)
-                                                                    });
-                                                                    mat.SetTexture(key, texture);
+                                                                    int i = texturePath.IndexOf(_texturesDir, StringComparison.OrdinalIgnoreCase);
+                                                                    if (i > 0) //Doing this because I fucked up an older version
+                                                                        texturePath = texturePath.Substring(i);
+                                                                    texturePath = Path.GetFullPath(texturePath);
+                                                                    texture = this.GetTexture(texturePath);
+                                                                    if (texture == null)
+                                                                        continue;
                                                                 }
+                                                                materialData.dirtyTextureProperties.Add(key, new RendererData.MaterialData.TextureData()
+                                                                {
+                                                                    currentTexturePath = texturePath,
+                                                                    originalTexture = mat.GetTexture(key)
+                                                                });
+                                                                mat.SetTexture(key, texture);
                                                             }
                                                             break;
                                                         case "textureOffsets":
@@ -1711,7 +1799,7 @@ namespace RendererEditor
                         {
                             writer.WriteStartElement("texture");
                             writer.WriteAttributeString("key", pair.Key);
-                            writer.WriteAttributeString("path", pair.Value.currentTexturePath.Substring(this._currentDirectory.Length + 1));
+                            writer.WriteAttributeString("path", string.IsNullOrEmpty(pair.Value.currentTexturePath) ? pair.Value.currentTexturePath : pair.Value.currentTexturePath.Substring(this._currentDirectory.Length + 1));
                             writer.WriteEndElement();
                         }
                         writer.WriteEndElement();

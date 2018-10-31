@@ -14,7 +14,7 @@ namespace Studio
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.enableGenericFK;
+            return HSUS.HSUS.self._enableGenericFK;
         }
 
         public static void Postfix(OCIItem __result, OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition)
@@ -31,7 +31,7 @@ namespace Studio
     {
         public static void ManualPatch(HarmonyInstance harmony)
         {
-            if (HSUS.HSUS.self.enableGenericFK == false)
+            if (HSUS.HSUS.self._enableGenericFK == false)
                 return;
             Type t = Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp");
             if (t != null)

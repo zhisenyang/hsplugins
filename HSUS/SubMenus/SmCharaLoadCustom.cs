@@ -1,8 +1,9 @@
 ﻿#if HONEYSELECT
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Threading;
 using CustomMenu;
@@ -24,6 +25,8 @@ namespace HSUS
         public static List<SmCharaLoad.FileInfo> fileInfos;
         public static List<RectTransform> rectTransforms;
         public static InputField searchBar;
+        internal static IEnumerator _createListObject;
+        internal static PropertyInfo _translateProperty = null;
 
         private static SmCharaLoad _originalComponent;
 
@@ -68,6 +71,16 @@ namespace HSUS
             searchBar.onValueChanged.AddListener(SearchChanged);
             foreach (Text te in searchBar.GetComponentsInChildren<Text>())
                 te.color = Color.white;
+
+            _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+
+            if (HSUS._self._asyncLoading)
+            {
+                originalComponent.SetPrivate("chaInfo", originalComponent.customControl.chainfo);
+                originalComponent.Init();
+                _createListObject = SmCharaLoad_CreateListObject_Patches.CreateListObject(originalComponent);
+                HSUS._self._asyncMethods.Add(_createListObject);
+            }
         }
         private static void Reset()
         {
@@ -75,6 +88,7 @@ namespace HSUS
             created = false;
             fileInfos = null;
             rectTransforms = null;
+            _createListObject = null;
         }
 
         public static void SearchChanged(string arg0)
@@ -102,17 +116,35 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static void Prefix(SmCharaLoad __instance)
+        public static bool Prefix(SmCharaLoad __instance)
         {
             SmCharaLoad_Data.searchBar.text = "";
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             if (SmCharaLoad_Data.lastMenuType == nowSubMenuTypeId && SmCharaLoad_Data.created)
-                return;
+                return false;
             if (__instance.imgPrev)
                 __instance.imgPrev.enabled = false;
-            ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
+
+            if (SmCharaLoad_Data._createListObject == null || SmCharaLoad_Data._createListObject.MoveNext() == false)
+                SmCharaLoad_Data._createListObject = CreateListObject(__instance);
+
+            while (SmCharaLoad_Data._createListObject.MoveNext()) ;
+
+            SmCharaLoad_Data._createListObject = null;
+
+            foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
+                SmCharaLoad_Data.objects[fi].SetActive(!fi.noAccess);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
+            SmCharaLoad_Data.lastMenuType = nowSubMenuTypeId;
+            return false;
+        }
+
+        internal static IEnumerator CreateListObject(SmCharaLoad __instance)
+        {
             if (SmCharaLoad_Data.created == false)
             {
+                ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
+
                 if (SmCharaLoad_Data.fileInfos.Count > SmCharaLoad_Data.objects.Count)
                 {
                     foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
@@ -144,11 +176,19 @@ namespace HSUS
                         gameObject.transform.SetParent(__instance.objListTop.transform, false);
                         gameObject.transform.localScale = Vector3.one;
                         (gameObject.transform as RectTransform).sizeDelta = new Vector2(SmCharaLoad_Data.container.rect.width, 24f);
-                        Text component2 = gameObject.transform.FindChild("Label").GetComponent<Text>();
-                        component2.text = fileInfoComponent.info.CharaName;
+                        if (HSUS._self._asyncLoading && SmCharaLoad_Data._translateProperty != null) // Fuck you translation plugin
+                        {
+                            SmCharaLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
+                            string t = fileInfoComponent.info.CharaName;
+                            HSUS._self._translationMethod(ref t);
+                            fileInfoComponent.text.text = t;
+                        }
+                        else
+                            fileInfoComponent.text.text = fileInfoComponent.info.CharaName;
                         __instance.CallPrivate("SetButtonClickHandler", gameObject);
                         gameObject.SetActive(true);
                         SmCharaLoad_Data.rectTransforms.Add(gameObject.transform as RectTransform);
+                        yield return null;
                     }
                 }
                 else if (SmCharaLoad_Data.fileInfos.Count < SmCharaLoad_Data.objects.Count)
@@ -165,15 +205,7 @@ namespace HSUS
                 }
                 SmCharaLoad_Data.created = true;
             }
-            foreach (SmCharaLoad.FileInfo fi in SmCharaLoad_Data.fileInfos)
-                SmCharaLoad_Data.objects[fi].SetActive(!fi.noAccess);
-            LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
-            SmCharaLoad_Data.lastMenuType = nowSubMenuTypeId;
-        }
 
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            yield return new CodeInstruction(OpCodes.Ret);
         }
     }
 

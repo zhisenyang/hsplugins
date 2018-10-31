@@ -19,7 +19,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         public static void Prefix(ItemList __instance)
@@ -44,7 +44,7 @@ namespace StudioFileCheck
             rt = data.searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
-            rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(HSUS.HSUS.self.improveNeoUI ? 10f : 7f, 16f), new Vector2(HSUS.HSUS.self.improveNeoUI ? -22f : -14f, newY));
+            rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(HSUS.HSUS.self._improveNeoUI ? 10f : 7f, 16f), new Vector2(HSUS.HSUS.self._improveNeoUI ? -22f : -14f, newY));
             data.searchBar.onValueChanged.AddListener(s => SearchChanged(__instance));
             foreach (Text t in data.searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
@@ -98,7 +98,7 @@ namespace StudioFileCheck
 
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         public static bool Prefix(ItemList __instance, int _group)
@@ -167,7 +167,7 @@ namespace StudioFileCheck
 
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         public static void Postfix(object __instance)
@@ -204,7 +204,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.autoJointCorrection;
+            return HSUS.HSUS.self._autoJointCorrection;
         }
 
         public static void Postfix(OICharInfo __instance, CharFile _charFile, int _key)
@@ -219,7 +219,7 @@ namespace StudioFileCheck
     {
         public static void Postfix(CharFileInfoStatus __instance)
         {
-            __instance.eyesBlink = HSUS.HSUS.self.eyesBlink;
+            __instance.eyesBlink = HSUS.HSUS.self._eyesBlink;
         }
     }
 
@@ -228,7 +228,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static bool Prefix(System.Object __instance)
         {
@@ -248,7 +248,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare(HarmonyInstance instance)
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -293,7 +293,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         private static readonly Dictionary<GuideObject, bool> _instanceData = new Dictionary<GuideObject, bool>(); //Apparently, doing this is faster than having a simple HashSet...
@@ -342,7 +342,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         public static void Postfix(Studio.Studio __instance)
@@ -360,7 +360,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
 
         public static void Postfix(ChangeAmount __instance)
@@ -389,7 +389,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -401,7 +401,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -413,7 +413,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -425,7 +425,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -442,7 +442,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
         {
@@ -458,7 +458,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
         {
@@ -474,7 +474,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(ObjectCtrlInfo __instance)
         {
@@ -486,7 +486,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self.optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo;
         }
         public static void Postfix(TreeNodeCtrl __instance, TreeNodeObject _node)
         {

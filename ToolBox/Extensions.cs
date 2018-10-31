@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 using UnityEngine;
 using UnityEngine.Events;
@@ -78,10 +79,6 @@ namespace ToolBox
             return info.GetValue(self);
         }
 
-        public static object CallPrivateExplicit<T>(this T self, string name, params object[] p)
-        {
-            return typeof(T).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(self, p);
-        }
         public static object CallPrivate(this object self, string name, params object[] p)
         {
             return self.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(self, p);
@@ -190,19 +187,57 @@ namespace ToolBox
                 }
             }
         }
-        public static string GetPathFrom(this Transform self, Transform root)
+        public static string GetPathFrom(this Transform self, Transform root, bool includeRoot = false)
         {
             if (self == root)
                 return "";
             Transform self2 = self;
-            string path = self2.name;
+            StringBuilder path = new StringBuilder(self2.name);
             self2 = self2.parent;
             while (self2 != root)
             {
-                path = self2.name + "/" + path;
+                path.Insert(0, "/");
+                path.Insert(0, self2.name);
                 self2 = self2.parent;
             }
-            return path;
+            if (self2 != null && includeRoot)
+            {
+                path.Insert(0, "/");
+                path.Insert(0, root.name);
+            }
+            return path.ToString();
+        }
+
+        public static bool IsChildOf(this Transform self, string parent)
+        {
+            while (self != null)
+            {
+                if (self.name.Equals(parent))
+                    return true;
+                self = self.parent;
+            }
+            return false;
+        }
+
+        public static string GetPathFrom(this Transform self, string root, bool includeRoot = false)
+        {
+            if (self.name.Equals(root))
+                return "";
+            Transform self2 = self;
+            StringBuilder path = new StringBuilder(self2.name);
+            self2 = self2.parent;
+            while (self2 != null && self2.name.Equals(root) == false)
+            {
+                path.Insert(0, "/");
+                path.Insert(0, self2.name);
+                self2 = self2.parent;
+            }
+            if (self2 != null && includeRoot)
+            {
+                path.Insert(0, "/");
+                path.Insert(0, root);
+            }
+            return path.ToString();
         }
 
         public static List<int> GetListPathFrom(this Transform self, Transform root)

@@ -18,13 +18,13 @@ namespace HSUS
     {
         public static void Postfix(SystemButtonCtrl __instance)
         {
-            __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", HSUS.self.dofEnabled);
-            __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", HSUS.self.ssaoEnabled);
-            __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", HSUS.self.bloomEnabled);
-            __instance.GetPrivate("ssrInfo").CallPrivate("OnValueChangedEnable", HSUS.self.ssrEnabled);
-            __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", HSUS.self.vignetteEnabled);
-            __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", HSUS.self.fogEnabled);
-            __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", HSUS.self.sunShaftsEnabled);
+            __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", HSUS._self._dofEnabled);
+            __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
+            __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", HSUS._self._bloomEnabled);
+            __instance.GetPrivate("ssrInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssrEnabled);
+            __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", HSUS._self._vignetteEnabled);
+            __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", HSUS._self._fogEnabled);
+            __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", HSUS._self._sunShaftsEnabled);
         }
     }
 
@@ -40,7 +40,7 @@ namespace HSUS
         public static void Postfix(object __instance)
         {
             object m_ColorGrading = __instance.GetPrivate("m_ColorGrading");
-            m_ColorGrading.SetPrivate("useDithering", HSUS.self.fourKManagerDithering);
+            m_ColorGrading.SetPrivate("useDithering", HSUS._self._fourKManagerDithering);
             __instance.SetPrivate("m_ColorGrading", m_ColorGrading);
         }
     }

@@ -104,6 +104,26 @@ namespace HSPE.AMModules
             GUILayout.EndVertical();
         }
 
+        protected void IncEditor(ref int incIndex, out float inc, int maxHeight = 75, bool label = false)
+        {
+            GUILayout.BeginVertical();
+            if (label)
+                GUILayout.Label("10^1", GUI.skin.box, GUILayout.MaxWidth(45));
+            Color c = GUI.color;
+            GUI.color = Color.white;
+            float maxWidth = label ? 45 : 20;
+            GUILayout.BeginHorizontal(GUILayout.MaxWidth(maxWidth));
+            GUILayout.FlexibleSpace();
+            incIndex = Mathf.RoundToInt(GUILayout.VerticalSlider(incIndex, 1f, -5f, GUILayout.MaxHeight(maxHeight)));
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+            GUI.color = c;
+            inc = Mathf.Pow(10, incIndex);
+            if (label)
+                GUILayout.Label("10^-5", GUI.skin.box, GUILayout.MaxWidth(45));
+            GUILayout.EndVertical();
+        }
+
         protected Vector3 Vector3Editor(Vector3 value)
         {
             GUILayout.BeginVertical();

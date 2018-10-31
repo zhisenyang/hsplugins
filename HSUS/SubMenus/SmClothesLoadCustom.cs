@@ -1,8 +1,9 @@
 ﻿#if HONEYSELECT
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Reflection.Emit;
+using System.Reflection;
 using System.Threading;
 using CustomMenu;
 using Harmony;
@@ -20,6 +21,8 @@ namespace HSUS
         public static RectTransform container;
         public static readonly Dictionary<SmClothesLoad.FileInfo, GameObject> objects = new Dictionary<SmClothesLoad.FileInfo, GameObject>();
         public static InputField searchBar;
+        internal static IEnumerator _createListObject;
+        internal static PropertyInfo _translateProperty = null;
 
         private static SmClothesLoad _originalComponent;
         public static void Init(SmClothesLoad originalComponent)
@@ -56,12 +59,21 @@ namespace HSUS
             searchBar.onValueChanged.AddListener(SearchChanged);
             foreach (Text t in searchBar.GetComponentsInChildren<Text>())
                 t.color = Color.white;
+
+            _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+
+            if (HSUS._self._asyncLoading)
+            {
+                _createListObject = SmClothesLoad_CreateListObject_Patches.CreateListObject(originalComponent);
+                HSUS._self._asyncMethods.Add(_createListObject);
+            }
         }
 
         private static void Reset()
         {
             objects.Clear();
             created = false;
+            _createListObject = null;
         }
 
         public static void SearchChanged(string arg0)
@@ -85,19 +97,42 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static void Prefix(SmClothesLoad __instance)
+        public static bool Prefix(SmClothesLoad __instance)
         {
             if (__instance.imgPrev)
                 __instance.imgPrev.enabled = false;
-            if (SmClothesLoad_Data.created)
-                return;
+            if (SmClothesLoad_Data.created == false)
+            {
+                if (SmClothesLoad_Data._createListObject == null || SmClothesLoad_Data._createListObject.MoveNext() == false)
+                    SmClothesLoad_Data._createListObject = CreateListObject(__instance);
+
+                while (SmClothesLoad_Data._createListObject.MoveNext());
+
+                SmClothesLoad_Data._createListObject = null;
+            }
+
+            if (SmClothesLoad_Data.searchBar != null)
+            {
+                SmClothesLoad_Data.searchBar.text = "";
+                SmClothesLoad_Data.SearchChanged("");
+            }
+
+            return false;
+        }
+
+        internal static IEnumerator CreateListObject(SmClothesLoad __instance)
+        {
             List<RectTransform> lstRtfTgl = ((List<RectTransform>)__instance.GetPrivate("lstRtfTgl"));
             if (__instance.objListTop.transform.childCount > 0 && SmClothesLoad_Data.objects.ContainsValue(__instance.objListTop.transform.GetChild(0).gameObject) == false)
             {
                 lstRtfTgl.Clear();
                 for (int i = 0; i < __instance.objListTop.transform.childCount; i++)
-                    GameObject.Destroy(__instance.objListTop.transform.GetChild(i).gameObject);
-                
+                {
+                    GameObject go = __instance.objListTop.transform.GetChild(i).gameObject;
+                    GameObject.Destroy(go);
+
+                }
+                yield return null;
             }
             List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
             ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
@@ -117,57 +152,47 @@ namespace HSUS
                     fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
                     gameObject2 = gameObject.transform.FindLoop("Background");
                     if (gameObject2)
-                    {
                         fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
-                    }
                     gameObject2 = gameObject.transform.FindLoop("Checkmark");
                     if (gameObject2)
-                    {
                         fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
-                    }
                     gameObject2 = gameObject.transform.FindLoop("Label");
                     if (gameObject2)
-                    {
                         fileInfoComponent.text = gameObject2.GetComponent<Text>();
-                    }
                     fileInfoComponent.tgl.group = component;
-                    gameObject.transform.SetParent(__instance.objListTop.transform, false);
-                    RectTransform rectTransform = gameObject.transform as RectTransform;
-                    rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                    rectTransform.anchoredPosition = new Vector3(0f, (float)(-24.0 * num2), 0f);
-                    Text component2 = rectTransform.FindChild("Label").GetComponent<Text>();
-                    component2.text = fileInfoComponent.info.comment;
+                    if (HSUS._self._asyncLoading && SmClothesLoad_Data._translateProperty != null) // Fuck you translation plugin
+                    {
+                        SmClothesLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
+                        string t = fileInfoComponent.info.comment;
+                        HSUS._self._translationMethod(ref t);
+                        fileInfoComponent.text.text = t;
+                    }
+                    else
+                        fileInfoComponent.text.text = fileInfoComponent.info.comment;
                     __instance.CallPrivate("SetButtonClickHandler", gameObject);
                     gameObject.SetActive(true);
+                    gameObject.transform.SetParent(__instance.objListTop.transform, false);
+                    RectTransform rectTransform = (RectTransform)gameObject.transform;
+                    rectTransform.localScale = Vector3.one;
                     lstRtfTgl.Add(rectTransform);
                     num2++;
-                }
+                    yield return null;
+                } 
             }
             else if (lstFileInfo.Count < SmClothesLoad_Data.objects.Count)
             {
                 foreach (KeyValuePair<SmClothesLoad.FileInfo, GameObject> pair in new Dictionary<SmClothesLoad.FileInfo, GameObject>(SmClothesLoad_Data.objects))
                 {
-                    int i;
-                    if ((i = lstFileInfo.IndexOf(pair.Key)) == -1)
-                    {
-                        lstRtfTgl.Remove(pair.Value.transform as RectTransform);
-                        GameObject.Destroy(pair.Value);
-                        SmClothesLoad_Data.objects.Remove(pair.Key);
-                    }
+                    if (lstFileInfo.IndexOf(pair.Key) != -1)
+                        continue;
+                    lstRtfTgl.Remove(pair.Value.transform as RectTransform);
+                    GameObject.Destroy(pair.Value);
+                    SmClothesLoad_Data.objects.Remove(pair.Key);
+                    yield return null;
                 }
             }
-            if (SmClothesLoad_Data.searchBar != null)
-            {
-                SmClothesLoad_Data.searchBar.text = "";
-                SmClothesLoad_Data.SearchChanged("");
-            }
-            LayoutRebuilder.ForceRebuildLayoutImmediate(__instance.rtfPanel);
             SmClothesLoad_Data.created = true;
-        }
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            yield return new CodeInstruction(OpCodes.Ret);
+            LayoutRebuilder.MarkLayoutForRebuild(__instance.rtfPanel);
         }
     }
 
@@ -225,12 +250,12 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static void Prefix(SmClothesLoad __instance, bool ascend)
+        public static bool Prefix(SmClothesLoad __instance, bool ascend)
         {
             __instance.SetPrivateExplicit<SmClothesLoad>("ascendDate", ascend);
             List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
             if (lstFileInfo.Count == 0)
-                return;
+                return false;
             __instance.SetPrivateExplicit<SmClothesLoad>("lastSort", (byte)1);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
@@ -248,11 +273,7 @@ namespace HSUS
                     go.transform.SetAsLastSibling();
                 ++i;
             }
-        }
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            yield return new CodeInstruction(OpCodes.Ret);
+            return false;
         }
     }
 
@@ -264,12 +285,12 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static void Prefix(SmClothesLoad __instance, bool ascend)
+        public static bool Prefix(SmClothesLoad __instance, bool ascend)
         {
             __instance.SetPrivate("ascendName", ascend);
             List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
             if (lstFileInfo.Count == 0)
-                return;
+                return false;
             __instance.SetPrivate("lastSort", (byte)0);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
@@ -287,11 +308,7 @@ namespace HSUS
                     go.transform.SetAsLastSibling();
                 ++i;
             }
-        }
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            yield return new CodeInstruction(OpCodes.Ret);
+            return false;
         }
     }
 }
