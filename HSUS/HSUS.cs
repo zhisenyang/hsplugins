@@ -61,7 +61,7 @@ namespace HSUS
 #endif
 
         internal bool _optimizeCharaMaker = true;
-        internal bool _asyncLoading = true;
+        internal bool _asyncLoading = false;
         internal float _gameUIScale = 1f;
         internal float _neoUIScale = 1f;
         internal bool _deleteConfirmation = true;
@@ -115,7 +115,6 @@ namespace HSUS
         public void OnApplicationStart()
 #elif KOIKATSU
         void Awake()
-        
 #endif 
         {
             _self = this;
@@ -147,10 +146,7 @@ namespace HSUS
             {
                 MethodInfo info = t.GetMethod("Translate", BindingFlags.Public | BindingFlags.Static);
                 if (info != null)
-                {
                     this._translationMethod = (TranslationDelegate)Delegate.CreateDelegate(typeof(TranslationDelegate), info);
-                    this._asyncLoading = false;
-                }
             }
 
             string path = _pluginDir + _config;

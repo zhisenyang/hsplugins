@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Xml;
 using Harmony;
 using Studio;
@@ -174,6 +175,10 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Variables
+        private static MethodInfo _initTransforms;
+        private static MethodInfo _updateDynamicBones;
+        private static object[] _paramArray = new object[1];
+
         private DynamicBone_Ver02 _rightBoob;
         private DynamicBone_Ver02 _leftBoob;
         private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyBoobs = new Dictionary<DynamicBone_Ver02, BoobData>(2);
@@ -217,11 +222,15 @@ namespace HSPE.AMModules
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
             this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+            if (_initTransforms == null)
+                _initTransforms = this._leftBoob.GetType().GetMethod("InitTransforms", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+            if (_updateDynamicBones == null)
+                _updateDynamicBones = this._leftBoob.GetType().GetMethod("UpdateDynamicBones", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
 #elif KOIKATSU
             this._leftBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
             this._rightBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
 #endif
-
+            
             this._debugLines.Init();
             this._debugLines.SetActive(false);
         }
@@ -258,13 +267,15 @@ namespace HSPE.AMModules
             {
                 if (this._leftBoob.GetWeight() > 0f)
                 {
-                    this._leftBoob.InitTransforms();
-                    this._leftBoob.UpdateDynamicBones(Time.deltaTime);
+                    _initTransforms.Invoke(this._leftBoob, new object[] { });
+                    _paramArray[0] = Time.deltaTime;
+                    _updateDynamicBones.Invoke(this._leftBoob, _paramArray);
                 }
                 if (this._rightBoob.GetWeight() > 0f)
                 {
-                    this._rightBoob.InitTransforms();
-                    this._rightBoob.UpdateDynamicBones(Time.deltaTime);
+                    _initTransforms.Invoke(this._rightBoob, new object[] { });
+                    _paramArray[0] = Time.deltaTime;
+                    _updateDynamicBones.Invoke(this._rightBoob, _paramArray);
                 }
             }
         }
@@ -275,13 +286,15 @@ namespace HSPE.AMModules
             {
                 if (this._leftBoob.GetWeight() > 0f)
                 {
-                    this._leftBoob.InitTransforms();
-                    this._leftBoob.UpdateDynamicBones(Time.deltaTime);
+                    _initTransforms.Invoke(this._leftBoob, new object[] { });
+                    _paramArray[0] = Time.deltaTime;
+                    _updateDynamicBones.Invoke(this._leftBoob, _paramArray);
                 }
                 if (this._rightBoob.GetWeight() > 0f)
                 {
-                    this._rightBoob.InitTransforms();
-                    this._rightBoob.UpdateDynamicBones(Time.deltaTime);
+                    _initTransforms.Invoke(this._rightBoob, new object[] { });
+                    _paramArray[0] = Time.deltaTime;
+                    _updateDynamicBones.Invoke(this._rightBoob, _paramArray);
                 }
             }
         }

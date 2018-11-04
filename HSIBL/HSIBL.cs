@@ -611,6 +611,7 @@ namespace HSIBL
                 }
                 GUILayout.Space(UIUtils.space);
                 this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity,"N3");
+                RenderSettings.reflectionBounces = Mathf.RoundToInt(UIUtils.SliderGUI(RenderSettings.reflectionBounces, 1, 5, 1, "Reflection Bounces", "The number of times a reflection includes other reflections. If set to 1, the scene will be rendered once, which means that a reflection will not be able to reflect another reflection and reflective objects will show up black, when seen in other reflective surfaces. If set to 2, the scene will be rendered twice and reflective objects will show reflections from the first pass, when seen in other reflective surfaces.", "0"));
             }
         }
 
@@ -1488,6 +1489,7 @@ namespace HSIBL
                                                                                   XmlConvert.ToSingle(moduleNode.Attributes["positionY"].Value),
                                                                                   XmlConvert.ToSingle(moduleNode.Attributes["positionZ"].Value)
                                                                                  );
+                        RenderSettings.reflectionBounces = moduleNode.Attributes["bounces"] != null ? XmlConvert.ToInt32(moduleNode["bounces"].Value) : 1;
                         break;
                     case "defaultLight":
                         bool frontAnchor = XmlConvert.ToBoolean(moduleNode.Attributes["frontAnchoredToCamera"].Value);
@@ -1831,6 +1833,7 @@ namespace HSIBL
                 writer.WriteAttributeString("positionX", XmlConvert.ToString(this.probeGameObject.transform.position.x));
                 writer.WriteAttributeString("positionY", XmlConvert.ToString(this.probeGameObject.transform.position.y));
                 writer.WriteAttributeString("positionZ", XmlConvert.ToString(this.probeGameObject.transform.position.z));
+                writer.WriteAttributeString("bounce", XmlConvert.ToString(RenderSettings.reflectionBounces));
                 writer.WriteEndElement();
             }
 

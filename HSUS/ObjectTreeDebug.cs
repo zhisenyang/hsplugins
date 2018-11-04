@@ -123,11 +123,15 @@ namespace HSUS
         {
             if (_debug == false)
                 return;
+            GUI.Box(this._rect, "", GUI.skin.window);
+            GUI.Box(this._rect, "", GUI.skin.window);
+            GUI.Box(this._rect, "", GUI.skin.window);
             this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console: " + _process.ProcessName + " | " + _bits + "bits"
 #if HONEYSELECT
                                                                                        + " | 630 patch: " + (_has630Patch ? "Yes" : "No")
 #endif
                                          );
+
         }
 
         private void WindowFunc(int id)
@@ -321,18 +325,40 @@ namespace HSUS
                         FieldInfo[] fields = c.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
                         foreach (FieldInfo field in fields)
                         {
-                            GUILayout.BeginHorizontal();
-                            GUILayout.Space(20);
-                            GUILayout.Label(field.Name + ": " + field.GetValue(c));
-                            GUILayout.EndHorizontal();
+                            object o = null;
+                            try
+                            {
+                                o = field.GetValue(c);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            if (o != null)
+                            {
+                                GUILayout.BeginHorizontal();
+                                GUILayout.Space(20);
+                                GUILayout.Label(field.Name + ": " + field.GetValue(c));
+                                GUILayout.EndHorizontal();
+                            }
                         }
                         PropertyInfo[] properties = c.GetType().GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
                         foreach (PropertyInfo property in properties)
                         {
-                            GUILayout.BeginHorizontal();
-                            GUILayout.Space(20);
-                            GUILayout.Label(property.Name + ": " + property.GetValue(c, null));
-                            GUILayout.EndHorizontal();
+                            object o = null;
+                            try
+                            {
+                                o = property.GetValue(c, null);
+                            }
+                            catch (Exception)
+                            {
+                            }
+                            if (o != null)
+                            {
+                                GUILayout.BeginHorizontal();
+                                GUILayout.Space(20);
+                                GUILayout.Label(property.Name + ": " + o);
+                                GUILayout.EndHorizontal();
+                            }
                         }
                         GUILayout.EndVertical();
                     }

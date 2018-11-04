@@ -92,8 +92,15 @@ namespace HSUS
     [HarmonyPatch(typeof(UI_ColorSlider), "ChangeSliderSliderPos", new[] { typeof(int) })]
     internal static class UI_ColorSlider_ChangeSliderSliderPos_Patches
     {
+        private static MethodInfo _getRateHSV;
+        private static MethodInfo _getRateRGB;
+
         private static bool Prefix(UI_ColorSlider __instance, int index)
         {
+            if (_getRateHSV == null)
+                _getRateHSV = __instance.GetType().GetMethod("GetRateHSV", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+            if (_getRateRGB == null)
+                _getRateRGB = __instance.GetType().GetMethod("GetRateRGB", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
             if (!MathfEx.RangeEqualOn(0, index, 3) || null == __instance.sliderSlider[index])
             {
                 return false;
@@ -107,14 +114,14 @@ namespace HSUS
                 switch (__instance.sliderMode)
                 {
                     case UI_ColorSlider.SliderMode.ModeHSV:
-                        float[] rateHSV = __instance.GetRateHSV();
+                        float[] rateHSV = (float[])_getRateHSV.Invoke(__instance, new object[]{});
                         Slider slider = __instance.sliderSlider[index];
                         if (rateHSV[index] > slider.maxValue)
                             slider.maxValue = rateHSV[index];
                         slider.value = rateHSV[index];
                         break;
                     case UI_ColorSlider.SliderMode.ModeRGB:
-                        float[] rateRGB = __instance.GetRateRGB();
+                        float[] rateRGB = (float[])_getRateRGB.Invoke(__instance, new object[]{});
                         slider = __instance.sliderSlider[index];
                         if (rateRGB[index] > slider.maxValue)
                             slider.maxValue = rateRGB[index];
