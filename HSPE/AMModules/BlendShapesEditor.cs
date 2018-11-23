@@ -100,7 +100,6 @@ namespace HSPE.AMModules
 #endif
         private int _eyesShapesCount = Int32.MaxValue;
         private SkinnedMeshRenderer _skinnedMeshTarget;
-        private bool _isFemale;
         private bool _linkEyesAndEyelashes = true;
         private SkinnedMeshRenderer _eyesMouthRenderer;
         private readonly Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> _links = new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper>();
@@ -118,12 +117,10 @@ namespace HSPE.AMModules
         void Start()
         {
 #if HONEYSELECT
-            this._isFemale = this.chara.charInfo.Sex == 1;
             _instanceByFaceBlendShape.Add(this.chara.charBody.fbsCtrl, this);
             foreach (FBSTargetInfo target in this.chara.charBody.eyesCtrl.FBSTarget)
 #elif KOIKATSU
             _instanceByFaceBlendShape.Add(this.chara.charInfo.fbsCtrl, this);
-            this._isFemale = this.chara.charInfo.sex == 1;
             foreach (FBSTargetInfo target in this.chara.charInfo.eyesCtrl.FBSTarget)
 #endif
             {
@@ -232,6 +229,7 @@ namespace HSPE.AMModules
                 switch (renderer.name)
                 {
                     case "cf_O_head":
+                    case "cf_O_face":
                         this._eyesMouthRenderer = renderer;
                         break;
                 }

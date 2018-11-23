@@ -4,6 +4,7 @@ using System.Reflection;
 using Harmony;
 using IllusionUtility.SetUtility;
 using Studio;
+using TMPro;
 using ToolBox;
 using UILib;
 using UnityEngine;
@@ -28,6 +29,7 @@ namespace HSUS
             return HSUS._self._improvedTransformOperations;
         }
 
+#if HONEYSELECT
         public static bool Prefix(GuideInput __instance, int _target)
         {
             HashSet<GuideObject> hashSelectObject = (HashSet<GuideObject>)_hashSelectObject.GetValue(__instance);
@@ -90,6 +92,73 @@ namespace HSUS
         {
             return !float.TryParse(_input.text, out float num) ? 0f : num;
         }
+
+#elif KOIKATSU
+
+        public static bool Prefix(GuideInput __instance, int _target)
+        {
+            HashSet<GuideObject> hashSelectObject = (HashSet<GuideObject>)_hashSelectObject.GetValue(__instance);
+            TMP_InputField[] inputScale = (TMP_InputField[])_inputScale.GetValue(__instance);
+
+            if (hashSelectObject.Count == 0)
+            {
+                return false;
+            }
+            float num = InputToFloat(inputScale[_target]);
+            List<GuideCommand.EqualsInfo> list = new List<GuideCommand.EqualsInfo>();
+            foreach (GuideObject guideObject in hashSelectObject)
+            {
+                if (guideObject.enableScale)
+                {
+                    Vector3 scale = guideObject.changeAmount.scale;
+                    if (scale[_target] != num)
+                    {
+                        scale[_target] = num;
+                        Vector3 scale2 = guideObject.changeAmount.scale;
+                        guideObject.changeAmount.scale = scale;
+                        list.Add(new GuideCommand.EqualsInfo
+                        {
+                            dicKey = guideObject.dicKey,
+                            oldValue = scale2,
+                            newValue = scale
+                        });
+                    }
+                }
+            }
+            if (!list.IsNullOrEmpty<GuideCommand.EqualsInfo>())
+            {
+                Singleton<UndoRedoManager>.Instance.Push(new GuideCommand.ScaleEqualsCommand(list.ToArray()));
+            }
+
+            GuideObject guideObject2 = hashSelectObject.ElementAtOrDefault(0);
+            Vector3 vector = (!guideObject2) ? Vector3.zero : guideObject2.changeAmount.scale;
+            bool[] array = new bool[]
+            {
+                true,
+                true,
+                true
+            };
+            foreach (GuideObject guideObject in hashSelectObject)
+            {
+                Vector3 scale = guideObject.changeAmount.scale;
+                for (int i = 0; i < 3; i++)
+                {
+                    array[i] = (vector[i] == scale[i]);
+                }
+            }
+            for (int j = 0; j < 3; j++)
+            {
+                inputScale[j].text = ((!array[j]) ? "-" : vector[j].ToString("0.000"));
+            }
+            return false;
+        }
+
+        private static float InputToFloat(TMP_InputField _input)
+        {
+            float num = 0f;
+            return (!float.TryParse(_input.text, out num)) ? 0f : num;
+        }
+#endif
     }
 
     [HarmonyPatch(typeof(GuideScale), "OnDrag", new[] {typeof(PointerEventData) })]
@@ -201,6 +270,7 @@ namespace HSUS
         }
     }
 
+#endif
     [HarmonyPatch(typeof(TreeNodeCtrl), "CopyChangeAmount")]
     internal static class TreeNodeCtrl_CopyChangeAmount_Patches
     {
@@ -230,7 +300,6 @@ namespace HSUS
             return false;
         }
     }
-#endif
 
     public class TransformOperations : MonoBehaviour
     {
@@ -252,12 +321,18 @@ namespace HSUS
             container.color = new Color32(59, 58, 56, 167);
             container.sprite = UIUtility.resources.inputField;
 
+#if HONEYSELECT
             for (int i = 0; i < this.transform.childCount; i++)
             {
                 RectTransform rt = this.transform.GetChild(i) as RectTransform;
                 if (rt != guideInput && rt != container.rectTransform)
                     rt.anchoredPosition += new Vector2(105, 0f);
             }
+#elif KOIKATSU
+            ((RectTransform)guideInput.Find("Button Move")).anchoredPosition += new Vector2(100f, 0f);
+            ((RectTransform)guideInput.Find("Button Rotation")).anchoredPosition += new Vector2(100f, 0f);
+            ((RectTransform)guideInput.Find("Button Scale")).anchoredPosition += new Vector2(100f, 0f);
+#endif
             Sprite background = null;
             foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
             {
@@ -274,8 +349,12 @@ namespace HSUS
             ((Image)this._copyTransform.targetGraphic).sprite = background;
             Text t = this._copyTransform.GetComponentInChildren<Text>();
             t.color = Color.white;
+#if HONEYSELECT
             t.resizeTextForBestFit = false;
             t.fontSize = 10;
+#elif KOIKATSU
+            t.alignByGeometry = true;
+#endif
             t.rectTransform.SetRect();
             this._copyTransform.onClick.AddListener(this.CopyTransform);
 
@@ -284,8 +363,12 @@ namespace HSUS
             ((Image)this._pasteTransform.targetGraphic).sprite = background;
             t = this._pasteTransform.GetComponentInChildren<Text>();
             t.color = Color.white;
+#if HONEYSELECT
             t.resizeTextForBestFit = false;
             t.fontSize = 10;
+#elif KOIKATSU
+            t.alignByGeometry = true;
+#endif
             t.rectTransform.SetRect();
             this._pasteTransform.onClick.AddListener(this.PasteTransform);
 
@@ -295,8 +378,12 @@ namespace HSUS
             ((Image)this._resetTransform.targetGraphic).color = Color.Lerp(Color.red, Color.white, 0.3f); 
             t = this._resetTransform.GetComponentInChildren<Text>();
             t.color = Color.white;
+#if HONEYSELECT
             t.resizeTextForBestFit = false;
             t.fontSize = 10;
+#elif KOIKATSU
+            t.alignByGeometry = true;
+#endif
             t.rectTransform.SetRect();
             this._resetTransform.onClick.AddListener(this.ResetTransform);
 

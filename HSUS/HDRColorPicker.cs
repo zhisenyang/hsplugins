@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Reflection;
 using Harmony;
 using Studio;
@@ -208,6 +209,5 @@ namespace HSUS
             }
         }
     }
-
-
 }
+#endif

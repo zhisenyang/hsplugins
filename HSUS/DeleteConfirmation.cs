@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using ToolBox;
+﻿using ToolBox;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +15,7 @@ namespace HSUS
         {
             this.transform.FindDescendant("YesButton").GetComponent<Button>().onClick.AddListener(this.YesPressed);
             this.transform.FindDescendant("NoButton").GetComponent<Button>().onClick.AddListener(this.NoPressed);
-            Button deleteButton = GameObject.Find("StudioScene").transform.Find("Canvas Object List/Image Bar/Button Delete").GetComponent<Button>();
+            Button deleteButton = GameObject.Find("StudioScene/Canvas Object List/Image Bar/Button Delete").GetComponent<Button>();
             this._deleteAction = deleteButton.onClick;
             deleteButton.onClick = new Button.ButtonClickedEvent();
             deleteButton.onClick.AddListener(this.DisplayDialog);

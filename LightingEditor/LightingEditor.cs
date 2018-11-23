@@ -14,9 +14,10 @@ using BepInEx;
 using UnityEngine.SceneManagement;
 using ExtensibleSaveFormat;
 using System.IO;
+using UnityEngine.Assertions.Must;
+using UnityEngine.Rendering;
 #endif
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 namespace LightingEditor
@@ -160,8 +161,10 @@ namespace LightingEditor
 #endif
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.lightingeditor");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
+#if HONEYSELECT
             QualitySettings.pixelLightCount = ModPrefs.GetInt("LightingEditor", "pixelLightCountOverride", 16, true);
             this._defaultShadowDistance = QualitySettings.shadowDistance;
+#endif
         }
 
         public void OnApplicationQuit()
@@ -339,8 +342,6 @@ namespace LightingEditor
             this._ambientIntensityInputField.onEndEdit.AddListener(this.AmbientIntensityChanged);
             globalContainer.Find("Ambient Intensity/Button").GetComponent<Button>().onClick.AddListener(this.ResetAmbientIntensity);
 
-            UnityEngine.Debug.LogError("hjfkdlsqf 2");
-
             this._ambientModeDropdown = globalContainer.Find("Ambient Mode/Dropdown").GetComponent<Dropdown>();
             this._ambientModeDropdown.onValueChanged.AddListener(this.AmbientModeChanged);
 
@@ -357,7 +358,6 @@ namespace LightingEditor
                 Studio.Studio.Instance.colorPalette.Setup("Sky Color", RenderSettings.ambientSkyColor, this.SkyColorChanged, false);
             });
             this._trilightColorContainer = this._skyColorImage.transform.parent.parent as RectTransform;
-            UnityEngine.Debug.LogError("hjfkdlsqf 3");
 
             this._equatorColorImage = globalContainer.Find("Trilight Color Container/Equator Color/RawImage").GetComponent<RawImage>();
             this._equatorColorImage.GetComponent<Button>().onClick.AddListener(() =>
@@ -376,7 +376,6 @@ namespace LightingEditor
             this._reflectionBouncesInputField = globalContainer.Find("Reflection Bounces/InputField").GetComponent<InputField>();
             this._reflectionBouncesInputField.onEndEdit.AddListener(this.ReflectionBouncesChanged);
             globalContainer.Find("Reflection Bounces/Button").GetComponent<Button>().onClick.AddListener(this.ResetReflectionBounces);
-            UnityEngine.Debug.LogError("hjfkdlsqf 4");
 
             this._reflectionIntensitySlider = globalContainer.Find("Reflection Intensity/Slider").GetComponent<Slider>();
             this._reflectionIntensitySlider.onValueChanged.AddListener(this.ReflectionIntensityChanged);
@@ -866,15 +865,25 @@ namespace LightingEditor
                 TreeNodeObject[] selectNodes = __instance.treeNodeCtrl.selectNodes;
                 for (int i = 0; i < selectNodes.Length; i++)
                 {
-                    ObjectCtrlInfo objectCtrlInfo = null;
-                    if (__instance.dicInfo.TryGetValue(selectNodes[i], out objectCtrlInfo))
+                    Recurse(selectNodes[i], (node) =>
                     {
-                        objectCtrlInfo.OnSavePreprocessing();
-                        OCILight ociLight = objectCtrlInfo as OCILight;
-                        if (ociLight != null)
-                            _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, ociLight);
-                    }
+                        ObjectCtrlInfo objectCtrlInfo = null;
+                        if (__instance.dicInfo.TryGetValue(node, out objectCtrlInfo))
+                        {
+                            objectCtrlInfo.OnSavePreprocessing();
+                            OCILight ociLight = objectCtrlInfo as OCILight;
+                            if (ociLight != null)
+                                _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, ociLight);
+                        }
+                    });
                 }
+            }
+
+            private static void Recurse(TreeNodeObject obj, Action<TreeNodeObject> action)
+            {
+                action(obj);
+                foreach (TreeNodeObject child in obj.child)
+                    Recurse(child, action);
             }
 
             public static void Postfix(Studio.Studio __instance)
@@ -882,15 +891,21 @@ namespace LightingEditor
                 IEnumerator<KeyValuePair<int, OCILight>> enumerator = _toDuplicate.GetEnumerator();
                 foreach (KeyValuePair<int, ObjectInfo> keyValuePair in new SortedDictionary<int, ObjectInfo>(__instance.sceneInfo.dicImport))
                 {
-                    OCILight dest = __instance.dicObjectCtrl[keyValuePair.Value.dicKey] as OCILight;
-                    if (dest != null && enumerator.MoveNext())
+                    Recurse(__instance.dicObjectCtrl[keyValuePair.Value.dicKey].treeNodeObject, (node) =>
                     {
-                        dest.light.shadowStrength = enumerator.Current.Value.light.shadowStrength;
-                        dest.light.shadowBias = enumerator.Current.Value.light.shadowBias;
-                        dest.light.shadowNormalBias = enumerator.Current.Value.light.shadowNormalBias;
-                        dest.light.shadowNearPlane = enumerator.Current.Value.light.shadowNearPlane;
-                        dest.light.cullingMask = enumerator.Current.Value.light.cullingMask;
-                    }
+                        ObjectCtrlInfo objectCtrlInfo = null;
+                        if (!__instance.dicInfo.TryGetValue(node, out objectCtrlInfo))
+                            return;
+                        OCILight dest = objectCtrlInfo as OCILight;
+                        if (dest != null && enumerator.MoveNext())
+                        {
+                            dest.light.shadowStrength = enumerator.Current.Value.light.shadowStrength;
+                            dest.light.shadowBias = enumerator.Current.Value.light.shadowBias;
+                            dest.light.shadowNormalBias = enumerator.Current.Value.light.shadowNormalBias;
+                            dest.light.shadowNearPlane = enumerator.Current.Value.light.shadowNearPlane;
+                            dest.light.cullingMask = enumerator.Current.Value.light.cullingMask;
+                        }
+                    });
                 }
                 enumerator.Dispose();
             }

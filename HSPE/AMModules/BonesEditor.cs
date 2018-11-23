@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Xml;
 using Studio;
@@ -12,6 +13,12 @@ namespace HSPE.AMModules
     {
         #region Constants
         private static readonly Color _colliderColor = Color.Lerp(AdvancedModeModule._greenColor, Color.white, 0.5f);
+        private static readonly string[] _boneEditionCoordNames = new[]
+        {
+            "Position",
+            "Rotation",
+            "Scale"
+        };
         #endregion
 
         #region Private Types
@@ -87,7 +94,6 @@ namespace HSPE.AMModules
 
             public void Draw(DynamicBoneCollider collider)
             {
-
                 float radius = collider.m_Radius * Mathf.Abs(collider.transform.lossyScale.x);
                 float num = collider.m_Height * 0.5f - collider.m_Radius;
                 {
@@ -256,6 +262,7 @@ namespace HSPE.AMModules
         private static float _rotationInc = 1f;
         private static int _scaleIncIndex = 0;
         private static float _scaleInc = 1f;
+        private static string _search = "";
 
         private Vector2 _boneEditionScroll;
         private string _currentAlias = "";
@@ -472,6 +479,24 @@ namespace HSPE.AMModules
             GUILayout.BeginHorizontal();
             GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
             GUILayout.Label("Character Tree", GUI.skin.box);
+            GUILayout.BeginHorizontal();
+            string oldSearch = _search;
+            _search = GUILayout.TextField(_search);
+            if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
+                _search = "";
+            if (oldSearch.Length != 0 && this._boneTarget != null && (_search.Length == 0 || (_search.Length < oldSearch.Length && oldSearch.StartsWith(_search))))
+            {
+                string displayedName;
+                bool aliased = true;
+                if (MainWindow.self.boneAliases.TryGetValue(this._boneTarget.name, out displayedName) == false)
+                {
+                    displayedName = this._boneTarget.name;
+                    aliased = false;
+                }
+                if (this._boneTarget.name.IndexOf(oldSearch, StringComparison.OrdinalIgnoreCase) != -1 || (aliased && displayedName.IndexOf(oldSearch, StringComparison.OrdinalIgnoreCase) != -1))
+                    this.OpenParents(this._boneTarget.gameObject);
+            }
+            GUILayout.EndHorizontal();
             this._boneEditionScroll = GUILayout.BeginScrollView(this._boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             this.DisplayObjectTree(this.transform.GetChild(0).gameObject, 0);
             GUILayout.EndScrollView();
@@ -521,12 +546,7 @@ namespace HSPE.AMModules
                 if (this._symmetricalEdition && this._twinBoneTarget != null && this.chara.oiCharInfo.enableFK)
                     this._fkObjects.TryGetValue(this._twinBoneTarget.gameObject, out fkTwinBoneInfo);
                 GUILayout.BeginHorizontal(GUI.skin.box);
-                if (GUILayout.Toggle(this._boneEditionCoordType == CoordType.Position, "Position"))
-                    this._boneEditionCoordType = CoordType.Position;
-                if (GUILayout.Toggle(this._boneEditionCoordType == CoordType.Rotation, "Rotation"))
-                    this._boneEditionCoordType = CoordType.Rotation;
-                if (GUILayout.Toggle(this._boneEditionCoordType == CoordType.Scale, "Scale"))
-                    this._boneEditionCoordType = CoordType.Scale;
+                this._boneEditionCoordType = (CoordType)GUILayout.SelectionGrid((int)this._boneEditionCoordType, _boneEditionCoordNames, 3);
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
                 GUILayout.BeginVertical();
@@ -1323,45 +1343,55 @@ namespace HSPE.AMModules
         {
             if (this._ignoredObjects.Contains(go))
                 return;
-            Color c = GUI.color;
-            if (this._dirtyBones.ContainsKey(go))
-                GUI.color = Color.magenta;
-            if (this._colliderObjects.Contains(go.transform))
-                GUI.color = BonesEditor._colliderColor;
-            if (this._boneTarget == go.transform)
-                GUI.color = Color.cyan;
-            GUILayout.BeginHorizontal();
-            GUILayout.Space(indent * 20f);
-            int childCount = 0;
-            for (int i = 0; i < go.transform.childCount; ++i)
-                if (this._ignoredObjects.Contains(go.transform.GetChild(i).gameObject) == false)
-                    ++childCount;
-            if (childCount != 0)
+            string displayedName;
+            bool aliased = true;
+            if (MainWindow.self.boneAliases.TryGetValue(go.name, out displayedName) == false)
             {
-                if (GUILayout.Toggle(this._openedBones.Contains(go), "", GUILayout.ExpandWidth(false)))
-                {
-                    if (this._openedBones.Contains(go) == false)
-                        this._openedBones.Add(go);
-                }
-                else
-                {
-                    if (this._openedBones.Contains(go))
-                        this._openedBones.Remove(go);
-                }
+                displayedName = go.name;
+                aliased = false;
             }
-            else
-                GUILayout.Space(20f);
-            string bName = go.name;
-            string newName;
-            if (MainWindow.self.boneAliases.TryGetValue(bName, out newName))
-                bName = newName;
-            if (GUILayout.Button(bName + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
+
+            if (_search.Length == 0 || go.name.IndexOf(_search, StringComparison.OrdinalIgnoreCase) != -1 || (aliased && displayedName.IndexOf(_search, StringComparison.OrdinalIgnoreCase) != -1))
             {
-                this.ChangeBoneTarget(go.transform);
+                Color c = GUI.color;
+                if (this._dirtyBones.ContainsKey(go))
+                    GUI.color = Color.magenta;
+                if (this._colliderObjects.Contains(go.transform))
+                    GUI.color = _colliderColor;
+                if (this._boneTarget == go.transform)
+                    GUI.color = Color.cyan;
+                GUILayout.BeginHorizontal();
+                if (_search.Length == 0)
+                {
+                    GUILayout.Space(indent * 20f);
+                    int childCount = 0;
+                    for (int i = 0; i < go.transform.childCount; ++i)
+                        if (this._ignoredObjects.Contains(go.transform.GetChild(i).gameObject) == false)
+                            ++childCount;
+                    if (childCount != 0)
+                    {
+                        if (GUILayout.Toggle(this._openedBones.Contains(go), "", GUILayout.ExpandWidth(false)))
+                        {
+                            if (this._openedBones.Contains(go) == false)
+                                this._openedBones.Add(go);
+                        }
+                        else
+                        {
+                            if (this._openedBones.Contains(go))
+                                this._openedBones.Remove(go);
+                        }
+                    }
+                    else
+                        GUILayout.Space(20f);
+                }
+                if (GUILayout.Button(displayedName + (this.IsBoneDirty(go) ? "*" : ""), GUILayout.ExpandWidth(false)))
+                {
+                    this.ChangeBoneTarget(go.transform);
+                }
+                GUI.color = c;
+                GUILayout.EndHorizontal();
             }
-            GUI.color = c;
-            GUILayout.EndHorizontal();
-            if (this._openedBones.Contains(go))
+            if (_search.Length != 0 || this._openedBones.Contains(go))
                 for (int i = 0; i < go.transform.childCount; ++i)
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
@@ -1416,16 +1446,23 @@ namespace HSPE.AMModules
                 return;
             GameObject goBak = go;
             this.ChangeBoneTarget(go.transform);
-            go = go.transform.parent.gameObject;
-            while (go.transform != this.transform.GetChild(0))
-            {
-                this._openedBones.Add(go);
-                go = go.transform.parent.gameObject;
-            }
-            this._openedBones.Add(go);
+            this.OpenParents(go);
             Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
             this.GetScrollPosition(this.transform.GetChild(0).gameObject, goBak, 0, ref scroll);
             this._boneEditionScroll = scroll;
+        }
+
+        private void OpenParents(GameObject child)
+        {
+            if (ReferenceEquals(child, this.transform.GetChild(0).gameObject))
+                return;
+            child = child.transform.parent.gameObject;
+            while (child.transform != this.transform.GetChild(0))
+            {
+                this._openedBones.Add(child);
+                child = child.transform.parent.gameObject;
+            }
+            this._openedBones.Add(child);
         }
 
         private bool GetScrollPosition(GameObject root, GameObject go, int indent, ref Vector2 scrollPosition)

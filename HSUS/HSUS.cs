@@ -9,12 +9,13 @@ using System.Xml;
 #if HONEYSELECT
 using CustomMenu;
 using IllusionPlugin;
+using Studio;
 #elif KOIKATSU
 using BepInEx;
+using ChaCustom;
 #endif
-using Harmony;
-using Studio;
 using StudioFileCheck;
+using Harmony;
 using ToolBox;
 using UILib;
 using UnityEngine;
@@ -26,7 +27,7 @@ using Object = UnityEngine.Object;
 namespace HSUS
 {
 #if KOIKATSU
-    [BepInPlugin(GUID: "com.joan6694.illusionplugins.kkus", Name: "KKUS", Version: "1.0.0")]
+    [BepInPlugin(GUID: "com.joan6694.illusionplugins.kkus", Name: "KKUS", Version: HSUS._version)]
 #endif
     public class HSUS :
 #if HONEYSELECT
@@ -35,6 +36,12 @@ namespace HSUS
         BaseUnityPlugin
 #endif
     {
+#if HONEYSELECT
+        internal const string _version = "1.6.1";
+#elif KOIKATSU
+        internal const string _version = "1.0.0";
+#endif
+
         #region Private Types
         private enum Binary
         {
@@ -67,9 +74,15 @@ namespace HSUS
         internal bool _deleteConfirmation = true;
         internal bool _disableShortcutsWhenTyping = true;
         internal string _defaultFemaleChar = "";
+        internal string _defaultMaleChar = "";
         internal bool _improveNeoUI = true;
         internal bool _optimizeNeo = true;
         internal bool _enableGenericFK = true;
+#if HONEYSELECT
+        internal bool _debugEnabled = true;
+#elif KOIKATSU
+        internal bool _debugEnabled = false;
+#endif
         internal KeyCode _debugShortcut = KeyCode.RightControl;
         internal bool _improvedTransformOperations = true;
         internal bool _autoJointCorrection = true;
@@ -78,7 +91,14 @@ namespace HSUS
         internal bool _alternativeCenterToObject = true;
         internal bool _fingersFkCopyButtons = true;
         internal bool _fourKManagerDithering = true;
+#if HONEYSELECT
+        internal bool _automaticMemoryClean = true;
+#elif KOIKATSU
+        internal bool _automaticMemoryClean = false;
+#endif
+        internal int _automaticMemoryCleanInterval = 30;
 
+#if HONEYSELECT
         internal bool _ssaoEnabled = true;
         internal bool _bloomEnabled = true;
         internal bool _ssrEnabled = true;
@@ -86,6 +106,15 @@ namespace HSUS
         internal bool _vignetteEnabled = true;
         internal bool _fogEnabled = true;
         internal bool _sunShaftsEnabled = false;
+#elif KOIKATSU
+        internal bool _ssaoEnabled = true;
+        internal bool _bloomEnabled = true;
+        internal bool _selfShadowEnabled = true;
+        internal bool _dofEnabled = false;
+        internal bool _vignetteEnabled = true;
+        internal bool _fogEnabled = false;
+        internal bool _sunShaftsEnabled = false;
+#endif
 
         internal static HSUS _self;
         internal GameObject _go;
@@ -101,12 +130,14 @@ namespace HSUS
         #endregion
 
         #region Public Accessors
+#if HONEYSELECT
         public string Name { get { return "HSUS"; } }
-        public string Version { get { return "1.6.0"; } }
+        public string Version { get { return _version; } }
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
         public static HSUS self { get { return _self; } } //Keeping this for legacy
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } } //Keeping this for legacy
         public Sprite searchBarBackground { get { return this._searchBarBackground; } } //Keeping this for legacy
+#endif
         public KeyCode debugShortcut { get { return this._debugShortcut; } }
         #endregion
 
@@ -115,7 +146,7 @@ namespace HSUS
         public void OnApplicationStart()
 #elif KOIKATSU
         void Awake()
-#endif 
+#endif
         {
             _self = this;
 #if KOIKATSU
@@ -150,145 +181,165 @@ namespace HSUS
             }
 
             string path = _pluginDir + _config;
-            if (File.Exists(path) == false)
-                return;
-            XmlDocument doc = new XmlDocument();
-            doc.Load(path);
-
-            foreach (XmlNode node in doc.DocumentElement.ChildNodes)
+            if (File.Exists(path))
             {
-                switch (node.Name)
+                XmlDocument doc = new XmlDocument();
+                doc.Load(path);
+
+                foreach (XmlNode node in doc.DocumentElement.ChildNodes)
                 {
-                    case "optimizeCharaMaker":
-                        if (node.Attributes["enabled"] != null)
-                            this._optimizeCharaMaker = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        foreach (XmlNode childNode in node.ChildNodes)
-                        {
-                            switch (childNode.Name)
+                    switch (node.Name)
+                    {
+                        case "optimizeCharaMaker":
+                            if (node.Attributes["enabled"] != null)
+                                this._optimizeCharaMaker = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            foreach (XmlNode childNode in node.ChildNodes)
                             {
-                                case "asyncLoading":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._asyncLoading = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
+                                switch (childNode.Name)
+                                {
+                                    case "asyncLoading":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._asyncLoading = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                }
                             }
-                        }
-                        break;
-                    case "uiScale":
-                        foreach (XmlNode n in node.ChildNodes)
-                        {
-                            switch (n.Name)
+                            break;
+                        case "uiScale":
+                            foreach (XmlNode n in node.ChildNodes)
                             {
-                                case "game":
-                                    if (n.Attributes["scale"] != null)
-                                        this._gameUIScale = XmlConvert.ToSingle(n.Attributes["scale"].Value);
-                                    break;
-                                case "neo":
-                                    if (n.Attributes["scale"] != null)
-                                        this._neoUIScale = XmlConvert.ToSingle(n.Attributes["scale"].Value);
-                                    break;
+                                switch (n.Name)
+                                {
+                                    case "game":
+                                        if (n.Attributes["scale"] != null)
+                                            this._gameUIScale = XmlConvert.ToSingle(n.Attributes["scale"].Value);
+                                        break;
+                                    case "neo":
+                                        if (n.Attributes["scale"] != null)
+                                            this._neoUIScale = XmlConvert.ToSingle(n.Attributes["scale"].Value);
+                                        break;
+                                }
                             }
-                        }
-                        break;
-                    case "deleteConfirmation":
-                        if (node.Attributes["enabled"] != null)
-                            this._deleteConfirmation = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "disableShortcutsWhenTyping":
-                        if (node.Attributes["enabled"] != null)
-                            this._disableShortcutsWhenTyping = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "defaultFemaleChar":
-                        if (node.Attributes["path"] != null)
-                            this._defaultFemaleChar = node.Attributes["path"].Value;
-                        break;
-                    case "improveNeoUI":
-                        if (node.Attributes["enabled"] != null)
-                            this._improveNeoUI = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "enableGenericFK":
-                        if (node.Attributes["enabled"] != null)
-                            this._enableGenericFK = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "optimizeNeo":
-                        if (node.Attributes["enabled"] != null)
-                            this._optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "debugShortcut":
-                        if (node.Attributes["value"] != null)
-                        {
-                            string value = node.Attributes["value"].Value;
-                            if (Enum.IsDefined(typeof(KeyCode), value))
-                                this._debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
-                        }
-                        break;
-                    case "improvedTransformOperations":
-                        if (node.Attributes["enabled"] != null)
-                            this._improvedTransformOperations = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "autoJointCorrection":
-                        if (node.Attributes["enabled"] != null)
-                            this._autoJointCorrection = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "eyesBlink":
-                        if (node.Attributes["enabled"] != null)
-                            this._eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "cameraSpeedShortcuts":
-                        if (node.Attributes["enabled"] != null)
-                            this._cameraSpeedShortcuts = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "alternativeCenterToObject":
-                        if (node.Attributes["enabled"] != null)
-                            this._alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "fingersFkCopyButtons":
-                        if (node.Attributes["enabled"] != null)
-                            this._fingersFkCopyButtons = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "vsync":
-                        if (node.Attributes["enabled"] != null && XmlConvert.ToBoolean(node.Attributes["enabled"].Value) == false)
-                            QualitySettings.vSyncCount = 0;
-                        break;
-                    case "fourKManagerDithering":
-                        if (node.Attributes["enabled"] != null)
-                            this._fourKManagerDithering = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                        break;
-                    case "postProcessing":
-                        foreach (XmlNode childNode in node.ChildNodes)
-                        {
-                            switch (childNode.Name)
+                            break;
+                        case "deleteConfirmation":
+                            if (node.Attributes["enabled"] != null)
+                                this._deleteConfirmation = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "disableShortcutsWhenTyping":
+                            if (node.Attributes["enabled"] != null)
+                                this._disableShortcutsWhenTyping = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "defaultFemaleChar":
+                            if (node.Attributes["path"] != null)
+                                this._defaultFemaleChar = node.Attributes["path"].Value;
+                            break;
+                        case "defaultMaleChar":
+                            if (node.Attributes["path"] != null)
+                                this._defaultMaleChar = node.Attributes["path"].Value;
+                            break;
+                        case "improveNeoUI":
+                            if (node.Attributes["enabled"] != null)
+                                this._improveNeoUI = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "enableGenericFK":
+                            if (node.Attributes["enabled"] != null)
+                                this._enableGenericFK = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "optimizeNeo":
+                            if (node.Attributes["enabled"] != null)
+                                this._optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "debug":
+                            if (node.Attributes["enabled"] != null)
+                                this._debugEnabled = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            if (node.Attributes["value"] != null)
                             {
-                                case "depthOfField":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._dofEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
-                                case "ssao":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._ssaoEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
-                                case "bloom":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._bloomEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
+                                string value = node.Attributes["value"].Value;
+                                if (Enum.IsDefined(typeof(KeyCode), value))
+                                    this._debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
+                            }
+                            break;
+                        case "improvedTransformOperations":
+                            if (node.Attributes["enabled"] != null)
+                                this._improvedTransformOperations = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "autoJointCorrection":
+                            if (node.Attributes["enabled"] != null)
+                                this._autoJointCorrection = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "eyesBlink":
+                            if (node.Attributes["enabled"] != null)
+                                this._eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "cameraSpeedShortcuts":
+                            if (node.Attributes["enabled"] != null)
+                                this._cameraSpeedShortcuts = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "alternativeCenterToObject":
+                            if (node.Attributes["enabled"] != null)
+                                this._alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "fingersFkCopyButtons":
+                            if (node.Attributes["enabled"] != null)
+                                this._fingersFkCopyButtons = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "vsync":
+                            if (node.Attributes["enabled"] != null && XmlConvert.ToBoolean(node.Attributes["enabled"].Value) == false)
+                                QualitySettings.vSyncCount = 0;
+                            break;
+                        case "fourKManagerDithering":
+                            if (node.Attributes["enabled"] != null)
+                                this._fourKManagerDithering = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            break;
+                        case "automaticMemoryClean":
+                            if (node.Attributes["enabled"] != null)
+                                this._automaticMemoryClean = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+                            if (node.Attributes["interval"] != null)
+                                this._automaticMemoryCleanInterval = XmlConvert.ToInt32(node.Attributes["interval"].Value);
+                            break;
+                        case "postProcessing":
+                            foreach (XmlNode childNode in node.ChildNodes)
+                            {
+                                switch (childNode.Name)
+                                {
+                                    case "depthOfField":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._dofEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "ssao":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._ssaoEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "bloom":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._bloomEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+#if HONEYSELECT
                                 case "ssr":
                                     if (childNode.Attributes["enabled"] != null)
                                         this._ssrEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                                     break;
-                                case "vignette":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._vignetteEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
-                                case "fog":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._fogEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
-                                case "sunShafts":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._sunShaftsEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
+#elif KOIKATSU
+                                    case "selfShadow":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._selfShadowEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+#endif
+                                    case "vignette":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._vignetteEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "fog":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._fogEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "sunShafts":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._sunShaftsEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                }
                             }
-                        }
-                        break;
+                            break;
+                    }
                 }
             }
             UIUtility.Init();
@@ -312,16 +363,18 @@ namespace HSUS
 
             //Manual Patching for various reasons:
             {
-                ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
+#if HONEYSELECT
                 if (this._binary == Binary.Neo)
                 {
                     HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
                     ABMStudioNEOSaveLoadHandler_OnLoad_Patches.ManualPatch(harmony);
                 }
-#if HONEYSELECT
+                ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
                 TonemappingColorGrading_Ctor_Patches.ManualPatch(harmony);
-#endif
                 UI_ColorInfo_ConvertValueFromText_Patches.ManualPatch(harmony);
+#elif KOIKATSU
+                CostumeInfo_Init_Patches.ManualPatch(harmony);
+#endif
             }
         }
 
@@ -332,6 +385,10 @@ namespace HSUS
             {
                 this.OnLevelWasInitialized(scene.buildIndex);
                 this.OnLevelWasLoaded(scene.buildIndex);
+            }
+            else
+            {
+                this.InitUIScale();
             }
         }
 #endif
@@ -347,18 +404,18 @@ namespace HSUS
                     xmlWriter.Formatting = Formatting.Indented;
 
                     xmlWriter.WriteStartElement("root");
-                    xmlWriter.WriteAttributeString("version", this.Version);
+                    xmlWriter.WriteAttributeString("version", _version);
 
                     {
                         xmlWriter.WriteStartElement("optimizeCharaMaker");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._optimizeCharaMaker));
-
+#if HONEYSELECT
                         {
                             xmlWriter.WriteStartElement("asyncLoading");
                             xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._asyncLoading));
                             xmlWriter.WriteEndElement();
                         }
-
+#endif
                         xmlWriter.WriteEndElement();
                     }
 
@@ -386,11 +443,13 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("disableShortcutsWhenTyping");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._disableShortcutsWhenTyping));
                         xmlWriter.WriteEndElement();
                     }
+#endif
 
                     {
                         xmlWriter.WriteStartElement("defaultFemaleChar");
@@ -398,11 +457,21 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if KOIKATSU
+                    {
+                        xmlWriter.WriteStartElement("defaultMaleChar");
+                        xmlWriter.WriteAttributeString("path", this._defaultMaleChar);
+                        xmlWriter.WriteEndElement();
+                    }
+#endif
+
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("improveNeoUI");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._improveNeoUI));
                         xmlWriter.WriteEndElement();
                     }
+#endif
 
                     {
                         xmlWriter.WriteStartElement("optimizeNeo");
@@ -410,14 +479,17 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("enableGenericFK");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._enableGenericFK));
                         xmlWriter.WriteEndElement();
                     }
+#endif
 
                     {
-                        xmlWriter.WriteStartElement("debugShortcut");
+                        xmlWriter.WriteStartElement("debug");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._debugEnabled));
                         xmlWriter.WriteAttributeString("value", this._debugShortcut.ToString());
                         xmlWriter.WriteEndElement();
                     }
@@ -446,6 +518,7 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("alternativeCenterToObject");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._alternativeCenterToObject));
@@ -457,6 +530,7 @@ namespace HSUS
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fingersFkCopyButtons));
                         xmlWriter.WriteEndElement();
                     }
+#endif
 
                     {
                         xmlWriter.WriteStartElement("vsync");
@@ -464,9 +538,18 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("fourKManagerDithering");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fourKManagerDithering));
+                        xmlWriter.WriteEndElement();
+                    }
+#endif
+
+                    {
+                        xmlWriter.WriteStartElement("automaticMemoryClean");
+                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._automaticMemoryClean));
+                        xmlWriter.WriteAttributeString("interval", XmlConvert.ToString(this._automaticMemoryCleanInterval));
                         xmlWriter.WriteEndElement();
                     }
 
@@ -491,11 +574,19 @@ namespace HSUS
                             xmlWriter.WriteEndElement();
                         }
 
+#if HONEYSELECT
                         {
                             xmlWriter.WriteStartElement("ssr");
                             xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._ssrEnabled));
                             xmlWriter.WriteEndElement();
                         }
+#elif KOIKATSU
+                        {
+                            xmlWriter.WriteStartElement("selfShadow");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._selfShadowEnabled));
+                            xmlWriter.WriteEndElement();
+                        }
+#endif
 
                         {
                             xmlWriter.WriteStartElement("vignette");
@@ -524,7 +615,11 @@ namespace HSUS
 
         public void OnLevelWasLoaded(int level)
         {
+#if HONEYSELECT
             UIUtility.SetCustomFont("mplus-1c-medium");
+#elif KOIKATSU
+            UIUtility.SetCustomFont(this._binary == Binary.Game ? "JKG-M_3" : "mplus-1c-medium");
+#endif
         }
 
         public void OnLevelWasInitialized(int level)
@@ -532,7 +627,11 @@ namespace HSUS
             this._go = new GameObject("HSUS");
             this._go.AddComponent<ObjectTreeDebug>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
+#if HONEYSELECT
             if (level == 3)
+#elif KOIKATSU
+            if (level == 1)
+#endif
                 this.SetProcessAffinity();
             switch (this._binary)
             {
@@ -542,19 +641,43 @@ namespace HSUS
                         this.InitFasterCharaMakerLoading();
                     if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                         this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+#elif KOIKATSU
+                    if (level == 2)
+                    {
+                        this.ExecuteDelayed(() =>
+                        {
+                            switch (CustomBase.Instance.modeSex)
+                            {
+                                case 0:
+                                    if (string.IsNullOrEmpty(this._defaultMaleChar) == false)
+                                        this.LoadCustomDefault(UserData.Path + "chara/male/" + this._defaultMaleChar);
+                                    break;
+                                case 1:
+                                    if (string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+                                        this.LoadCustomDefault(UserData.Path + "chara/female/" + this._defaultFemaleChar);
+                                    break;
+                            }
+                        });
+                    }
 #endif
                     break;
                 case Binary.Neo:
+#if HONEYSELECT
                     if (level == 3)
+#elif KOIKATSU
+                    if (level == 1)
+#endif
                     {
                         if (this._deleteConfirmation)
                             this.InitDeleteConfirmationDialog();
+#if HONEYSELECT
                         if (this._improveNeoUI)
                             this.ImproveNeoUI();
+                        if (this._fingersFkCopyButtons)
+                            this._routines.ExecuteDelayed(this.InitFingersFKCopyButtons, 1);
+#endif
                         if (this._improvedTransformOperations)
                             GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
-                        if (this._fingersFkCopyButtons)
-                            this.InitFingersFKCopyButtons();
                         //UnityEngine.Debug.LogError("currentDisplay " + Camera.main.targetDisplay);
                         //foreach (Display display in Display.displays)
                         //{
@@ -567,8 +690,10 @@ namespace HSUS
                     break;
             }
             this.InitUIScale();
+#if HONEYSELECT
             if (this._disableShortcutsWhenTyping)
                 this._go.AddComponent<ShortcutsDisabler>();
+#endif
         }
 
 #if HONEYSELECT
@@ -577,13 +702,16 @@ namespace HSUS
         void Update()
 #endif
         {
-            if (Time.unscaledTime - this._lastCleanup > 30f)
+            if (this._automaticMemoryClean)
             {
-                Resources.UnloadUnusedAssets();
-                GC.Collect();
-                this._lastCleanup = Time.unscaledTime;
-                if (EventSystem.current.sendNavigationEvents)
-                    EventSystem.current.sendNavigationEvents = false;
+                if (Time.unscaledTime - this._lastCleanup > this._automaticMemoryCleanInterval)
+                {
+                    Resources.UnloadUnusedAssets();
+                    GC.Collect();
+                    this._lastCleanup = Time.unscaledTime;
+                    if (EventSystem.current.sendNavigationEvents)
+                        EventSystem.current.sendNavigationEvents = false;
+                }
             }
 
             if (this._lastScreenWidth != Screen.width || this._lastScreenHeight != Screen.height)
@@ -608,9 +736,9 @@ namespace HSUS
         {
         }
 
-        #endregion
+#endregion
 
-        #region Private Methods
+#region Private Methods
         private void OnWindowResize()
         {
 #if HONEYSELECT
@@ -689,7 +817,11 @@ namespace HSUS
 
         private void InitUIScale()
         {
+#if HONEYSELECT
             this._routines.ExecuteDelayed(() =>
+#elif KOIKATSU
+            this.ExecuteDelayed(() =>
+#endif
             {
                 foreach (Canvas c in Resources.FindObjectsOfTypeAll<Canvas>())
                 {
@@ -733,7 +865,7 @@ namespace HSUS
                 Type t = Type.GetType("ShortcutsHSParty.DefaultMenuController,ShortcutsHSParty");
                 if (t != null)
                 {
-                    MonoBehaviour component = ((MonoBehaviour)Object.FindObjectOfType(t));
+                    MonoBehaviour component = (MonoBehaviour)Object.FindObjectOfType(t);
                     if (component != null)
                         component.enabled = false;
                 }
@@ -742,7 +874,6 @@ namespace HSUS
             {
                 if (pair.Key != null && this.ShouldScaleUI(pair.Key))
                 {
-                    //pair.Key.scaleFactor = pair.Value.scaleFactor * usedScale;
                     CanvasScaler cs = pair.Key.GetComponent<CanvasScaler>();
                     if (cs != null)
                     {
@@ -772,9 +903,17 @@ namespace HSUS
             {
                 switch (path)
                 {
+#if HONEYSELECT
                     case "StartScene/Canvas":
                     case "VectorCanvas":
-                    case "New Game Object":
+                    case "New Game Object"://AdjustMod/SkintexMod
+#elif KOIKATSU
+                    case "SceneLoadScene/Canvas Load":
+                    case "SceneLoadScene/Canvas Load Work":
+                    case "ExitScene/Canvas":
+                    case "NotificationScene/Canvas":
+                    case "CheckScene/Canvas":
+#endif
                         ok = false;
                         break;
                 }
@@ -783,21 +922,30 @@ namespace HSUS
             {
                 switch (path)
                 {
+#if HONEYSELECT
                     case "LogoScene/Canvas":
                     case "LogoScene/Canvas (1)":
                     case "CustomScene/CustomControl/CustomUI/BackGround":
                     case "CustomScene/CustomControl/CustomUI/Fusion":
-                    case "TitleScene/Canvas":
                     case "GameScene/Canvas":
                     case "MapSelectScene/Canvas":
                     case "SubtitleUserInterface":
                     case "ADVScene/Canvas":
+#elif KOIKATSU
+                    case "CustomScene/CustomRoot/BackUIGroup/CvsBackground":
+                    case "CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsCharaName":
+                    case "AssetBundleManager/scenemanager/Canvas":
+                    case "FreeHScene/Canvas":
+                    case "ExitScene":
+                    case "CustomScene/CustomRoot/FrontUIGroup/CvsCaptureFront":
+#endif
+                    case "TitleScene/Canvas":
                         ok = false;
                         break;
                 }
             }
             Canvas parent = c.GetComponentInParent<Canvas>();
-            return ok && c.isRootCanvas && (parent == null || parent == c) && c.name != "HSPE";
+            return ok && c.isRootCanvas && (parent == null || parent == c);
         }
 
         private void InitDeleteConfirmationDialog()
@@ -852,6 +1000,7 @@ namespace HSUS
             }, 20);
         }
 
+#if HONEYSELECT
         private void ImproveNeoUI()
         {
             RectTransform rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
@@ -876,7 +1025,17 @@ namespace HSUS
         {
             RectTransform toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Right Hand").transform as RectTransform;
             Button b = UIUtility.CreateButton("Copy Right Fingers Button", toggle.parent, "From Anim");
-            b.transform.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
+            RectTransform rt = (RectTransform)b.transform;
+            rt.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
+            
+            GameObject go = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Right Hand Control View");
+            if (go != null)
+            {
+                rt.offsetMin += new Vector2(18, 0f);
+                rt = (RectTransform)go.transform;
+                rt.anchoredPosition -= new Vector2(11f, 0f);
+            }
+
             b.onClick.AddListener(() =>
             {
                 TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
@@ -898,7 +1057,16 @@ namespace HSUS
             image.color = new Color32(89, 88, 85, 255);
             toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Left Hand").transform as RectTransform;
             b = UIUtility.CreateButton("Copy Left Fingers Button", toggle.parent, "From Anim");
+            rt = (RectTransform)b.transform;
             b.transform.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
+            go = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Left Hand Control View");
+            if (go != null)
+            {
+                rt.offsetMin += new Vector2(18, 0f);
+                rt = (RectTransform)go.transform;
+                rt.anchoredPosition -= new Vector2(11f, 0f);
+            }
+
             b.onClick.AddListener(() =>
             {
                 TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
@@ -939,7 +1107,7 @@ namespace HSUS
             }
             UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
         }
-
+#endif
 #if HONEYSELECT
         private void LoadCustomDefault(string path)
         {
@@ -996,6 +1164,17 @@ namespace HSUS
             customControl.UpdateCharaName();
             customControl.UpdateAcsName();
         }
+
+#elif KOIKATSU
+        private void LoadCustomDefault(string path)
+        {
+            ChaControl chaCtrl = Singleton<CustomBase>.Instance.chaCtrl;
+            CustomBase.Instance.chaCtrl.chaFile.LoadFileLimited(path, chaCtrl.sex, true, true, true, true, true);
+            chaCtrl.ChangeCoordinateType(true);
+            chaCtrl.Reload(false, false, false, false);
+            CustomBase.Instance.updateCustomUI = true;
+            CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
+        }
 #endif
 
         private void SetProcessAffinity()
@@ -1019,7 +1198,7 @@ namespace HSUS
                     thread.ProcessorAffinity = (IntPtr)affinityMask;
             }, 30);
         }
-        #endregion
+#endregion
     }
 
     [HarmonyPatch(typeof(SetRenderQueue), "Awake")]

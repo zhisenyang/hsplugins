@@ -4,8 +4,11 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
+using Manager;
 using Studio;
+#if KOIKATSU
 using ToolBox;
+#endif
 using UnityEngine;
 
 namespace HSUS
@@ -72,6 +75,7 @@ namespace HSUS
         }
     }
 
+#if HONEYSELECT
     public static class HSSNAShortcutKeyCtrlOverride_Update_Patches
     {
         private static MethodInfo _getKeyDownMethod;
@@ -90,10 +94,11 @@ namespace HSUS
 
         public static void Postfix(object __instance, Studio.CameraControl ___cameraControl)
         {
-            if (!Studio.Studio.IsInstance() && Studio.Studio.Instance.isInputNow && !Manager.Scene.IsInstance() && Manager.Scene.Instance.AddSceneName != string.Empty)
+            if (!Studio.Studio.IsInstance() && Studio.Studio.Instance.isInputNow && !Scene.IsInstance() && Scene.Instance.AddSceneName != string.Empty)
                 return;
             if (!Studio.Studio.Instance.isVRMode && _getKeyDownMethod != null && (bool)_getKeyDownMethod.Invoke(__instance, _params) && GuideObjectManager.Instance.selectObject != null)
                 ___cameraControl.targetPos = GuideObjectManager.Instance.selectObject.transformTarget.position;
         }
     }
+#endif
 }

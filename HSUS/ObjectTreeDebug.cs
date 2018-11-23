@@ -52,7 +52,7 @@ namespace HSUS
 
         void Update()
         {
-            if (Input.GetKeyDown(HSUS.self.debugShortcut))
+            if (HSUS._self._debugEnabled && Input.GetKeyDown(HSUS._self.debugShortcut))
                 _debug = !_debug;
         }
 
@@ -126,12 +126,11 @@ namespace HSUS
             GUI.Box(this._rect, "", GUI.skin.window);
             GUI.Box(this._rect, "", GUI.skin.window);
             GUI.Box(this._rect, "", GUI.skin.window);
-            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console: " + _process.ProcessName + " | " + _bits + "bits"
+            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits"
 #if HONEYSELECT
                                                                                        + " | 630 patch: " + (_has630Patch ? "Yes" : "No")
 #endif
                                          );
-
         }
 
         private void WindowFunc(int id)

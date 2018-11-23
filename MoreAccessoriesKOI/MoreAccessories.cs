@@ -28,7 +28,7 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.extendedsave")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.0";
+        public const string versionNum = "1.0.1";
 
         #region Private Types
         internal class CharAdditionalData
@@ -98,7 +98,7 @@ namespace MoreAccessoriesKOI
         internal List<CharaMakerSlotData> _additionalCharaMakerSlots;
         internal Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
         internal CharAdditionalData _charaMakerData = null;
-        private Vector3 _slotUIWorldPosition;
+        private Vector3 _slotUIPosition;
         private int _selectedSlot = 0;
         private bool _inCharaMaker = false;
         private Binary _binary;
@@ -110,6 +110,7 @@ namespace MoreAccessoriesKOI
         private List<UI_RaycastCtrl> _raycastCtrls = new List<UI_RaycastCtrl>();
         private ChaFile _overrideCharaLoadingFile;
         private bool _loadAdditionalAccessories = true;
+        private CustomFileWindow _loadCoordinatesWindow;
 
         private bool _inH;
         internal List<ChaControl> _hSceneFemales;
@@ -165,65 +166,83 @@ namespace MoreAccessoriesKOI
 
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
-            if (loadMode == LoadSceneMode.Single)
+            UnityEngine.Debug.LogError(scene.name + " " + loadMode + " " + scene.buildIndex);
+            switch (loadMode)
             {
-                //UnityEngine.Debug.LogError(scene.name + " " + scene.buildIndex);
-                if (this._binary == Binary.Game)
-                {
-                    this._inCharaMaker = false;
-                    this._inH = false;
-                    if (scene.buildIndex == 2) //Chara Maker
+                case LoadSceneMode.Single:
+                    //UnityEngine.Debug.LogError(scene.name + " " + scene.buildIndex);
+                    if (this._binary == Binary.Game)
+                    {
+                        this._inCharaMaker = false;
+                        this._inH = false;
+                        switch (scene.buildIndex)
+                        {
+                            case 2: //Chara maker
+                                this._selectedSlot = 0;
+                                this._additionalCharaMakerSlots = new List<CharaMakerSlotData>();
+                                this._raycastCtrls = new List<UI_RaycastCtrl>();
+                                this._inCharaMaker = true;
+                                this._loadCoordinatesWindow = GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/06_SystemTop/cosFileControl/charaFileWindow").GetComponent<CustomFileWindow>();
+                                break;
+                            case 17: //Hscenes
+                                this._inH = true;
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        if (scene.buildIndex == 1) //Studio
+                        {
+                            this.SpawnStudioUI();
+                            this._inStudio = true;
+                        }
+                        else
+                            this._inStudio = false;
+                    }
+                    if (this._accessoriesByChar.Any(p => p.Key == null))
+                    {
+                        Dictionary<ChaFile, CharAdditionalData> newDic = new Dictionary<ChaFile, CharAdditionalData>();
+                        foreach (KeyValuePair<ChaFile, CharAdditionalData> pair in this._accessoriesByChar)
+                            if (pair.Key != null)
+                                newDic.Add(pair.Key, pair.Value);
+                        this._accessoriesByChar = newDic;
+                    }
+                    break;
+                case LoadSceneMode.Additive:
+                    if (this._binary == Binary.Game && scene.buildIndex == 2) //Class chara maker
                     {
                         this._selectedSlot = 0;
                         this._additionalCharaMakerSlots = new List<CharaMakerSlotData>();
                         this._raycastCtrls = new List<UI_RaycastCtrl>();
                         this._inCharaMaker = true;
+                        this._loadCoordinatesWindow = GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/06_SystemTop/cosFileControl/charaFileWindow").GetComponent<CustomFileWindow>();
                     }
-                    else if (scene.buildIndex == 17) //HScene
-                    {
-                        this._inH = true;
-                    }
-                }
-                else
-                {
-                    if (scene.buildIndex == 1) //Studio
-                    {
-                        this.SpawnStudioUI();
-                        this._inStudio = true;
-                    }
-                    else
-                        this._inStudio = false;
-                }
-                if (this._accessoriesByChar.Any(p => p.Key == null))
-                {
-                    Dictionary<ChaFile, CharAdditionalData> newDic = new Dictionary<ChaFile, CharAdditionalData>();
-                    foreach (KeyValuePair<ChaFile, CharAdditionalData> pair in this._accessoriesByChar)
-                        if (pair.Key != null)
-                            newDic.Add(pair.Key, pair.Value);
-                    this._accessoriesByChar = newDic;
-                }
+                    break;
             }
         }
 
         void Update()
         {
-            if (this._inCharaMaker && this._customAcsChangeSlot != null)
+            if (this._inCharaMaker)
             {
-                if (this._selectedSlot < 20)
-                    this._customAcsChangeSlot.items[this._selectedSlot].cgItem.transform.position = this._slotUIWorldPosition;
-                else
-                    this._additionalCharaMakerSlots[this._selectedSlot - 20].canvasGroup.transform.position = this._slotUIWorldPosition;
-                if (CustomBase.Instance.updateCustomUI)
+                if (this._customAcsChangeSlot != null)
                 {
-                    for (int i = 0; i < this._additionalCharaMakerSlots.Count; i++)
+                    if (CustomBase.Instance.updateCustomUI)
                     {
-                        CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
-                        if (slot.toggle.gameObject.activeSelf == false)
-                            continue;
-                        if (i + 20 == CustomBase.Instance.selectSlot)
-                            slot.cvsAccessory.UpdateCustomUI();
-                        slot.cvsAccessory.UpdateSlotName();
+                        for (int i = 0; i < this._additionalCharaMakerSlots.Count; i++)
+                        {
+                            CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
+                            if (slot.toggle.gameObject.activeSelf == false)
+                                continue;
+                            if (i + 20 == CustomBase.Instance.selectSlot)
+                                slot.cvsAccessory.UpdateCustomUI();
+                            slot.cvsAccessory.UpdateSlotName();
+                        }
                     }
+                }
+                else
+                {
+                    this._inCharaMaker = false;
                 }
             }
             if (this._inStudio)
@@ -242,6 +261,17 @@ namespace MoreAccessoriesKOI
                         }
                     }
                 }
+            }
+        }
+
+        void LateUpdate()
+        {
+            if (this._inCharaMaker && this._customAcsChangeSlot != null)
+            {
+                if (this._selectedSlot < 20)
+                    this._customAcsChangeSlot.items[this._selectedSlot].cgItem.transform.position = this._slotUIPosition;
+                else
+                    this._additionalCharaMakerSlots[this._selectedSlot - 20].canvasGroup.transform.position = this._slotUIPosition;
             }
         }
         #endregion
@@ -272,7 +302,15 @@ namespace MoreAccessoriesKOI
             group.spacing = parentGroup.spacing;
             this._charaMakerScrollView.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             this._charaMakerSlotTemplate = container.GetChild(0).gameObject;
-            this._slotUIWorldPosition = this._charaMakerSlotTemplate.transform.GetChild(1).position;
+            this._slotUIPosition = this._charaMakerSlotTemplate.transform.GetChild(1).position;
+            Type kkus = Type.GetType("HSUS.HSUS,KKUS");
+            if (kkus != null)
+            {
+                System.Object self = kkus.GetField("_self", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+                float scale = (float)self.GetPrivate("_gameUIScale");
+                this._slotUIPosition.x *= scale;
+                this._slotUIPosition.y += (((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform).rect.size.y - this._slotUIPosition.y) * scale;
+            }
             for (int i = 0; i < 20; i++)
                 container.GetChild(0).SetParent(this._charaMakerScrollView.content);
             this._charaMakerScrollView.transform.SetAsFirstSibling();
@@ -518,7 +556,6 @@ namespace MoreAccessoriesKOI
                 {
                     CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
                     slot.toggle.gameObject.SetActive(true);
-                    if (i + 20 == CustomBase.Instance.selectSlot)
                         slot.cvsAccessory.UpdateCustomUI();
                     slot.cvsAccessory.UpdateSlotName();
 
@@ -585,6 +622,7 @@ namespace MoreAccessoriesKOI
                     info.transferDestinationToggle.graphic.raycastTarget = true;
 
                     this._additionalCharaMakerSlots.Add(info);
+                    info.cvsAccessory.UpdateCustomUI();
                 }
             }
             for (; i < this._additionalCharaMakerSlots.Count; i++)
@@ -1260,7 +1298,6 @@ namespace MoreAccessoriesKOI
                                         };
                                     }
                                     part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
-
                                 }
                                 parts.Add(part);
                             }
@@ -1321,6 +1358,7 @@ namespace MoreAccessoriesKOI
                         ChaFileAccessory.PartsInfo part = pair.Value[index];
                         xmlWriter.WriteStartElement("accessory");
                         xmlWriter.WriteAttributeString("type", XmlConvert.ToString(part.type));
+
                         if (part.type != 120)
                         {
                             xmlWriter.WriteAttributeString("id", XmlConvert.ToString(part.id));
@@ -1344,6 +1382,7 @@ namespace MoreAccessoriesKOI
                                 xmlWriter.WriteAttributeString($"color{i}b", XmlConvert.ToString(c.b));
                                 xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
                             }
+
                             xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
                         }
                         xmlWriter.WriteEndElement();
@@ -1374,6 +1413,13 @@ namespace MoreAccessoriesKOI
 
         private void OnCoordLoad(ChaFileCoordinate file)
         {
+            if (this._inCharaMaker && this._loadCoordinatesWindow != null && this._loadCoordinatesWindow.tglCoordeLoadAcs != null && this._loadCoordinatesWindow.tglCoordeLoadAcs.isOn == false)
+                this._loadAdditionalAccessories = false;
+            if (this._loadAdditionalAccessories == false) // This stuff is done this way because some user might want to change _loadAdditionalAccessories manually through reflection.
+            {
+                this._loadAdditionalAccessories = true;
+                return;                
+            }
             ChaFile chaFile = null;
             foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
             {
@@ -1385,7 +1431,6 @@ namespace MoreAccessoriesKOI
             }
             if (chaFile == null)
                 return;
-
             CharAdditionalData data;
             if (this._accessoriesByChar.TryGetValue(chaFile, out data) == false)
             {
@@ -1462,6 +1507,7 @@ namespace MoreAccessoriesKOI
                 data.cusAcsCmp.Add(null);
             while (data.showAccessories.Count < data.nowAccessories.Count)
                 data.showAccessories.Add(true);
+
             if (this._inH)
                 this.ExecuteDelayed(this.UpdateUI);
             else
@@ -1474,8 +1520,6 @@ namespace MoreAccessoriesKOI
                 return;
             CharAdditionalData data;
             if (this._accessoriesByChar.TryGetValue(CustomBase.Instance.chaCtrl.chaFile, out data) == false)
-                return;
-            if (data.nowAccessories.Count == 0)
                 return;
             using (StringWriter stringWriter = new StringWriter())
             using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))

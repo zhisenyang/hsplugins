@@ -179,10 +179,10 @@ namespace MoreAccessoriesKOI
                 data = new MoreAccessories.CharAdditionalData();
                 MoreAccessories._self._accessoriesByChar.Add(__instance.chaFile, data);
             }
-            if (data.rawAccessoriesInfos.TryGetValue(type, out accessories) == false)
+            if (data.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)__instance.fileStatus.coordinateType, out accessories) == false)
             {
                 accessories = new List<ChaFileAccessory.PartsInfo>();
-                data.rawAccessoriesInfos.Add(type, accessories);
+                data.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)__instance.fileStatus.coordinateType, accessories);
             }
             data.nowAccessories = accessories;
             while (data.infoAccessory.Count < data.nowAccessories.Count)
@@ -280,6 +280,20 @@ namespace MoreAccessoriesKOI
                 if (part.hideCategory == cateNo)
                     __result++;
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryState")]
+    internal static class ChaControl_SetAccessoryState_Patches
+    {
+        private static void Postfix(ChaControl __instance, int slotNo, bool show)
+        {
+            if (slotNo < 20)
+                return;
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return;
+            data.showAccessories[slotNo - 20] = show;
         }
     }
 
@@ -1130,17 +1144,17 @@ namespace MoreAccessoriesKOI
             if ((flags & 1) != 0)
             {
                 float num = float.Parse((((!add) ? 0f : part.addMove[correctNo, 2].x) + value).ToString("f2"));
-                part.addMove[correctNo, 2].x = Mathf.Clamp(num, 0.01f, 100f);
+                part.addMove[correctNo, 2].x = Mathf.Clamp(num, -100f, 100f);
             }
             if ((flags & 2) != 0)
             {
                 float num2 = float.Parse((((!add) ? 0f : part.addMove[correctNo, 2].y) + value).ToString("f2"));
-                part.addMove[correctNo, 2].y = Mathf.Clamp(num2, 0.01f, 100f);
+                part.addMove[correctNo, 2].y = Mathf.Clamp(num2, -100f, 100f);
             }
             if ((flags & 4) != 0)
             {
                 float num3 = float.Parse((((!add) ? 0f : part.addMove[correctNo, 2].z) + value).ToString("f2"));
-                part.addMove[correctNo, 2].z = Mathf.Clamp(num3, 0.01f, 100f);
+                part.addMove[correctNo, 2].z = Mathf.Clamp(num3, -100f, 100f);
             }
             Dictionary<int, ListInfoBase> categoryInfo = __instance.lstCtrl.GetCategoryInfo((ChaListDefine.CategoryNo)part.type);
             ListInfoBase listInfoBase = null;

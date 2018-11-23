@@ -1,33 +1,50 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using UnityEngine;
+using UnityStandardAssets.ImageEffects;
+#endif
 using Harmony;
 using Studio;
 using ToolBox;
-using UnityEngine;
-using UnityStandardAssets.ImageEffects;
 
 namespace HSUS
 {
-#if HONEYSELECT
     [HarmonyPatch(typeof(SystemButtonCtrl), "Init")]
     [HarmonyPatch(typeof(SystemButtonCtrl), "OnSelectInitYes")]
     public class SystemButtonCtrl_Init_Patches
     {
         public static void Postfix(SystemButtonCtrl __instance)
         {
-            __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", HSUS._self._dofEnabled);
+#if HONEYSELECT
             __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
-            __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", HSUS._self._bloomEnabled);
             __instance.GetPrivate("ssrInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssrEnabled);
-            __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", HSUS._self._vignetteEnabled);
-            __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", HSUS._self._fogEnabled);
+#elif KOIKATSU
+            __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
+            __instance.GetPrivate("selfShadowInfo").CallPrivate("OnValueChangedEnable", HSUS._self._selfShadowEnabled);
+#endif
             __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", HSUS._self._sunShaftsEnabled);
+            __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", HSUS._self._fogEnabled);
+            __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", HSUS._self._dofEnabled);
+            __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", HSUS._self._bloomEnabled);
+            __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", HSUS._self._vignetteEnabled);
+
+#if KOIKATSU
+            __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("UpdateInfo"); //No I don't care about caching the results the first time, it's annoying.
+            __instance.GetPrivate("selfShadowInfo").CallPrivate("UpdateInfo");
+            __instance.GetPrivate("sunShaftsInfo").CallPrivate("UpdateInfo");
+            __instance.GetPrivate("fogInfo").CallPrivate("UpdateInfo");
+            __instance.GetPrivate("dofInfo").CallPrivate("UpdateInfo");
+            __instance.GetPrivate("bloomInfo").CallPrivate("UpdateInfo");
+            __instance.GetPrivate("vignetteInfo").CallPrivate("UpdateInfo");
+#endif
         }
     }
 
+#if HONEYSELECT
     public class TonemappingColorGrading_Ctor_Patches
     {
         public static void ManualPatch(HarmonyInstance harmony)

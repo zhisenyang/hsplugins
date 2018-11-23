@@ -165,14 +165,13 @@ namespace HSUS
             for (int i = 0; i < td.objects.Count; i++)
             {
                 SmHair_F_Data.ObjectData o = td.objects[i];
+                o.toggle.isOn = false;
                 if (o.key == num)
                 {
                     selected = i;
                     o.toggle.isOn = true;
                     o.toggle.onValueChanged.Invoke(true);
                 }
-                else if (o.toggle.isOn)
-                    o.toggle.isOn = false;
             }
             float b = 24f * count - 232f;
             float y = Mathf.Min(24f * selected, b);
@@ -444,6 +443,7 @@ namespace HSUS
             td.parentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             SmHair_F_Data.objects.Add(nowSubMenuTypeId, td);
             ToggleGroup group = td.parentObject.GetComponent<ToggleGroup>();
+            group.allowSwitchOff = true;
             td.parentObject.gameObject.SetActive(false);
 
             foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)

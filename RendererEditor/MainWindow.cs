@@ -27,6 +27,8 @@ namespace RendererEditor
 
                 public int originalRenderQueue;
                 public bool hasRenderQueue = false;
+                public string originalRenderType;
+                public bool hasRenderType = false;
                 public readonly Dictionary<string, Color> dirtyColorProperties = new Dictionary<string, Color>();
                 public readonly Dictionary<string, float> dirtyFloatProperties = new Dictionary<string, float>();
                 public readonly Dictionary<string, bool> dirtyBooleanProperties = new Dictionary<string, bool>();
@@ -63,6 +65,7 @@ namespace RendererEditor
             public bool hasFloatRange;
             public Vector2 floatRange = new Vector2(0f, 1f);
             public Dictionary<int, string> enumValues;
+            public int enumColumns;
         }
 
         private class MaterialInfo
@@ -74,7 +77,7 @@ namespace RendererEditor
 
         #region Private Variables
         private const string _texturesDir = "Plugins\\RendererEditor\\Textures";
-        private const string _dumpDir = _texturesDir + "Dump\\";
+        private const string _dumpDir = _texturesDir + "\\Dump\\";
 
         private readonly List<ShaderProperty> _shaderProperties = new List<ShaderProperty>()
         {
@@ -92,6 +95,9 @@ namespace RendererEditor
             new ShaderProperty() {name = "_ReflectionColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecularColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_TintColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_DiffuseColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_GlassColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_EmisColor", type = ShaderProperty.Type.Color},
             //Textures
             new ShaderProperty() {name = "_MainTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_SpecGlossMap", type = ShaderProperty.Type.Texture},
@@ -117,6 +123,10 @@ namespace RendererEditor
             new ShaderProperty() {name = "_DetailAlbedoMap_4", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_ReflectionTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_ShoreTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DiffuseMapSpecA", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_NormalMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_Illum", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DecalTex", type = ShaderProperty.Type.Texture},
             //Float
             new ShaderProperty() {name = "_Metallic", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Smoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -138,14 +148,16 @@ namespace RendererEditor
             new ShaderProperty() {name = "_Glossiness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_BumpScale", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Parallax", floatRange = new Vector2(0.005f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_Mode", type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_SrcBlend", type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_DstBlend", type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_ZWrite", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_FresnelScale", floatRange = new Vector2(0.15f, 4), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_GerstnerIntensity", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Shininess", floatRange = new Vector2(2, 500), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_InvFade", floatRange = new Vector2(0.01f, 3.0f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_SpecularIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_NormalIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_Transparency", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ReflectionEdges", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ReflectionIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_BlurReflection", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             //Bools
             new ShaderProperty() {name = "_HairEffect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_GlossUseAlpha", type = ShaderProperty.Type.Boolean},
@@ -157,8 +169,12 @@ namespace RendererEditor
             new ShaderProperty() {name = "_DetailMask2", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_skin_effect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_rimlight", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_ZWrite", type = ShaderProperty.Type.Boolean},
             //Enum
             new ShaderProperty() {name = "_UVSec", enumValues = new Dictionary<int, string>() {{0, "UV0"}, {1, "UV1"}}, type = ShaderProperty.Type.Enum},
+            new ShaderProperty() {name = "_Mode", enumValues = new Dictionary<int, string>(){{0, "Opaque"}, {1, "Cutout"}, {2, "Fade"}, {3, "Transparent"}}, type = ShaderProperty.Type.Enum},
+            new ShaderProperty() {name = "_SrcBlend", enumValues = new Dictionary<int, string>(){{0, "Zero"},{1, "One" },{2, "DstColor" },{3, "SrcColor" },{4, "OneMinusDstColor" },{5, "SrcAlpha" },{6, "OneMinusSrcColor" },{7, "DstAlpha" },{8, "OneMinusDstAlpha" },{9, "SrcAlphaSaturate" },{10, "OneMinusSrcAlpha" }}, enumColumns = 3, type = ShaderProperty.Type.Enum},
+            new ShaderProperty() {name = "_DstBlend", enumValues = new Dictionary<int, string>(){{0, "Zero"},{1, "One" },{2, "DstColor" },{3, "SrcColor" },{4, "OneMinusDstColor" },{5, "SrcAlpha" },{6, "OneMinusSrcColor" },{7, "DstAlpha" },{8, "OneMinusDstAlpha" },{9, "SrcAlphaSaturate" },{10, "OneMinusSrcAlpha" }}, enumColumns = 3, type = ShaderProperty.Type.Enum},
             //Vector4
             new ShaderProperty() {name = "_UVScroll", type = ShaderProperty.Type.Vector4},
             new ShaderProperty() {name = "_DetailNormalConvert", type = ShaderProperty.Type.Vector4},
@@ -177,7 +193,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_GDirectionAB", type = ShaderProperty.Type.Vector4},
             new ShaderProperty() {name = "_GDirectionCD", type = ShaderProperty.Type.Vector4}
         };
-        private const float _width = 600;
+        private const float _width = 604;
         private const float _height = 600;
         private string _workingDirectory;
         private string _workingDirectoryParent;
@@ -210,6 +226,8 @@ namespace RendererEditor
         private string _currentDirectory;
         private GUIStyle _multiLineButton;
         private bool _stylesInitialized;
+        private string _tagInput = "";
+        private Bounds _selectedBounds = new Bounds();
         #endregion
 
         #region Unity Methods
@@ -340,6 +358,7 @@ namespace RendererEditor
             if (this._selectTextureCallback != null)
             {
                 Rect selectTextureRect = new Rect(this._windowRect.max.x + 4, this._windowRect.max.y - 440, 230, 440);
+                GUI.Box(selectTextureRect, "", GUI.skin.window);
                 GUI.Box(selectTextureRect, "", GUI.skin.window);
                 GUI.Box(selectTextureRect, "", GUI.skin.window);
                 selectTextureRect = GUILayout.Window(this._randomId + 1, selectTextureRect, this.SelectTextureWindow, "Select Texture");
@@ -502,9 +521,10 @@ namespace RendererEditor
                 Material selectedMaterial = this._selectedMaterials.First().Key;
                 this._propertiesScroll = GUILayout.BeginScrollView(this._propertiesScroll);
 
-                GUILayout.Label(selectedMaterial.shader.name);
+                GUILayout.Label("Shader: " + selectedMaterial.shader.name, GUI.skin.box);
 
                 {
+                    GUILayout.BeginVertical(GUI.skin.box);
                     GUILayout.BeginHorizontal();
                     GUILayout.Label("Render Queue", GUILayout.ExpandWidth(false));
                     int newRenderQueue = (int)GUILayout.HorizontalSlider(selectedMaterial.renderQueue, -1, 5000);
@@ -555,6 +575,48 @@ namespace RendererEditor
                         }
                     }
                     GUILayout.EndHorizontal();
+                    GUILayout.EndVertical();
+                }
+
+                {
+                    GUILayout.BeginVertical(GUI.skin.box);
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("RenderType: " + selectedMaterial.GetTag("RenderType", false));
+                    if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                    {
+                        foreach (KeyValuePair<Material, MaterialInfo> material in this._selectedMaterials)
+                        {
+                            if (this._dirtyRenderers.TryGetValue(material.Value.renderer, out RendererData rendererData) &&
+                                rendererData.dirtyMaterials.TryGetValue(material.Key, out RendererData.MaterialData data) &&
+                                data.hasRenderQueue)
+                            {
+                                material.Key.SetOverrideTag("RenderType", data.originalRenderType);
+                                data.hasRenderType = false;
+                                this.TryResetMaterial(material.Key, data, rendererData);
+                            }
+                        }
+                    }
+                    GUILayout.EndHorizontal();
+                    GUILayout.BeginHorizontal();
+                    this._tagInput = GUILayout.TextField(this._tagInput);
+                    if (GUILayout.Button("Set RenderType", GUILayout.ExpandWidth(false)))
+                    {
+                        foreach (KeyValuePair<Material, MaterialInfo> material in this._selectedMaterials)
+                        {
+                            RendererData.MaterialData data;
+                            this.SetMaterialDirty(material.Key, out data);
+                            if (data.hasRenderType == false)
+                            {
+                                data.originalRenderType = selectedMaterial.GetTag("RenderType", false);
+                                data.hasRenderType = true;
+                            }
+                            material.Key.SetOverrideTag("RenderType", this._tagInput);
+                        }
+                        this._tagInput = "";
+                    }
+
+                    GUILayout.EndHorizontal();
+                    GUILayout.EndVertical();
                 }
 
                 {
@@ -568,10 +630,16 @@ namespace RendererEditor
                     }
 
                     foreach (ShaderProperty property in cachedProperties)
+                    {
+                        GUILayout.BeginVertical(GUI.skin.box);
                         this.ShaderPropertyDrawer(property);
+                        GUILayout.EndVertical();
+                    }
                 }
 
+                GUILayout.BeginVertical(GUI.skin.box);
                 this.KeywordsDrawer();
+                GUILayout.EndVertical();
 
                 GUILayout.EndScrollView();
 
@@ -894,6 +962,7 @@ namespace RendererEditor
         private void SelectRenderer(Renderer renderer)
         {
             this._selectedRenderers.Add(renderer);
+            this.UpdateSelectedBounds();
         }
 
         private void UnselectRenderer(Renderer renderer)
@@ -904,12 +973,38 @@ namespace RendererEditor
                 if (pair.Value.renderer == renderer)
                     this.UnselectMaterial(pair.Key);
             }
+            this.UpdateSelectedBounds();
         }
 
         private void ClearSelectedRenderers()
         {
             this._selectedRenderers.Clear();
             this.ClearSelectedMaterials();
+            this.UpdateSelectedBounds();
+        }
+
+        private void UpdateSelectedBounds()
+        {
+            Vector3 finalMin = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+            Vector3 finalMax = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+            foreach (Renderer selectedRenderer in this._selectedRenderers)
+            {
+                Bounds bounds = selectedRenderer.bounds;
+                if (bounds.min.x < finalMin.x)
+                    finalMin.x = bounds.min.x;
+                if (bounds.min.y < finalMin.y)
+                    finalMin.y = bounds.min.y;
+                if (bounds.min.z < finalMin.z)
+                    finalMin.z = bounds.min.z;
+
+                if (bounds.max.x > finalMax.x)
+                    finalMax.x = bounds.max.x;
+                if (bounds.max.y > finalMax.y)
+                    finalMax.y = bounds.max.y;
+                if (bounds.max.z > finalMax.z)
+                    finalMax.z = bounds.max.z;
+            }
+            this._selectedBounds.SetMinMax(finalMin, finalMax);
         }
 
         private bool SetMaterialDirty(Material mat, out RendererData.MaterialData data, RendererData rendererData = null)
@@ -929,7 +1024,7 @@ namespace RendererEditor
         {
             if (mat == null)
                 return;
-            if (materialData.hasRenderQueue == false && materialData.dirtyColorProperties.Count == 0 && materialData.dirtyBooleanProperties.Count == 0 && materialData.dirtyEnumProperties.Count == 0 && materialData.dirtyFloatProperties.Count == 0 && materialData.dirtyVector4Properties.Count == 0 && materialData.dirtyTextureOffsetProperties.Count == 0 && materialData.dirtyTextureScaleProperties.Count == 0 && materialData.dirtyTextureProperties.Count == 0 && materialData.enabledKeywords.Count == 0 && materialData.disabledKeywords.Count == 0)
+            if (materialData.hasRenderQueue == false && materialData.hasRenderType == false && materialData.dirtyColorProperties.Count == 0 && materialData.dirtyBooleanProperties.Count == 0 && materialData.dirtyEnumProperties.Count == 0 && materialData.dirtyFloatProperties.Count == 0 && materialData.dirtyVector4Properties.Count == 0 && materialData.dirtyTextureOffsetProperties.Count == 0 && materialData.dirtyTextureScaleProperties.Count == 0 && materialData.dirtyTextureProperties.Count == 0 && materialData.enabledKeywords.Count == 0 && materialData.disabledKeywords.Count == 0)
             {
                 this.ResetMaterial(mat, materialData, rendererData);
             }
@@ -943,6 +1038,11 @@ namespace RendererEditor
             {
                 mat.renderQueue = materialData.originalRenderQueue;
                 materialData.hasRenderQueue = false;
+            }
+            if (materialData.hasRenderType)
+            {
+                mat.SetOverrideTag("RenderType", materialData.originalRenderType);
+                materialData.hasRenderType = false;
             }
             foreach (KeyValuePair<string, Color> pair in materialData.dirtyColorProperties)
                 mat.SetColor(pair.Key, pair.Value);
@@ -960,6 +1060,12 @@ namespace RendererEditor
                 mat.SetTextureScale(pair.Key, pair.Value);
             foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialData.dirtyTextureProperties)
                 mat.SetTexture(pair.Key, pair.Value.originalTexture);
+            foreach (string enabledKeyword in materialData.enabledKeywords)
+                mat.DisableKeyword(enabledKeyword);
+            materialData.enabledKeywords.Clear();
+            foreach (string disabledKeyword in materialData.disabledKeywords)
+                mat.EnableKeyword(disabledKeyword);
+            materialData.disabledKeywords.Clear();
 
             rendererData.dirtyMaterials.Remove(mat);
         }
@@ -1000,15 +1106,14 @@ namespace RendererEditor
         {
             if (!this._enabled || Studio.Studio.Instance.treeNodeCtrl.selectNode == null || this._selectedRenderers.Count == 0)
                 return;
-            Bounds bounds = this._selectedRenderers.First().bounds;
-            Vector3 topLeftForward = new Vector3(bounds.min.x, bounds.max.y, bounds.max.z),
-                topRightForward = bounds.max,
-                bottomLeftForward = new Vector3(bounds.min.x, bounds.min.y, bounds.max.z),
-                bottomRightForward = new Vector3(bounds.max.x, bounds.min.y, bounds.max.z),
-                topLeftBack = new Vector3(bounds.min.x, bounds.max.y, bounds.min.z) ,
-                topRightBack = new Vector3(bounds.max.x, bounds.max.y, bounds.min.z) ,
-                bottomLeftBack = bounds.min,
-                bottomRightBack = new Vector3(bounds.max.x, bounds.min.y, bounds.min.z);
+            Vector3 topLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.max.z),
+                topRightForward = this._selectedBounds.max,
+                bottomLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
+                bottomRightForward = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
+                topLeftBack = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.min.z) ,
+                topRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.max.y, this._selectedBounds.min.z) ,
+                bottomLeftBack = this._selectedBounds.min,
+                bottomRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.min.z);
             int i = 0;
             this._boundsDebugLines[i++].SetPoints(topLeftForward, topRightForward);
             this._boundsDebugLines[i++].SetPoints(topRightForward, bottomRightForward);
@@ -1371,15 +1476,22 @@ namespace RendererEditor
 
         private void EnumDrawer(ShaderProperty property)
         {
-            int key = Mathf.RoundToInt(this._selectedMaterials.First().Key.GetFloat(property.name));
+            int key = (int)(this._selectedMaterials.First().Key.GetFloat(property.name));
 
             GUILayout.BeginHorizontal();
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
             int newKey = key;
+            int i = 0;
             foreach (KeyValuePair<int, string> pair in property.enumValues)
             {
+                if (property.enumColumns != 0 && i != 0 && i % property.enumColumns == 0)
+                {
+                    GUILayout.EndHorizontal();
+                    GUILayout.BeginHorizontal();
+                }
                 if (GUILayout.Toggle(pair.Key == newKey, pair.Value))
                     newKey = pair.Key;
+                ++i;
             }
             if (newKey != key)
             {
@@ -1613,6 +1725,14 @@ namespace RendererEditor
 
                                                 }
 
+                                                if (grandChildNode.Attributes["renderType"] != null)
+                                                {
+                                                    materialData.originalRenderType = mat.GetTag("RenderType", false);
+                                                    materialData.hasRenderType = true;
+                                                    mat.SetOverrideTag("RenderType", grandChildNode.Attributes["renderType"].Value);
+
+                                                }
+
                                                 foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
                                                 {
                                                     switch (propertyGroupNode.Name)
@@ -1779,6 +1899,9 @@ namespace RendererEditor
                         writer.WriteAttributeString("index", XmlConvert.ToString(materials.IndexOf(materialPair.Key)));
                         if (materialPair.Value.hasRenderQueue)
                             writer.WriteAttributeString("renderQueue", XmlConvert.ToString(materialPair.Key.renderQueue));
+
+                        if (materialPair.Value.hasRenderType)
+                            writer.WriteAttributeString("renderType", materialPair.Key.GetTag("RenderType", false));
 
                         writer.WriteStartElement("colors");
                         foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)

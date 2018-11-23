@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
@@ -14,7 +15,7 @@ namespace Studio
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS.self._enableGenericFK;
+            return HSUS.HSUS._self._enableGenericFK;
         }
 
         public static void Postfix(OCIItem __result, OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition)
@@ -31,7 +32,7 @@ namespace Studio
     {
         public static void ManualPatch(HarmonyInstance harmony)
         {
-            if (HSUS.HSUS.self._enableGenericFK == false)
+            if (HSUS.HSUS._self._enableGenericFK == false)
                 return;
             Type t = Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp");
             if (t != null)
@@ -140,3 +141,4 @@ namespace Studio
         }
     }
 }
+#endif

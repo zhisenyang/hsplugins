@@ -54,6 +54,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="CameraShortcuts.cs" />
+    <Compile Include="CharaMakerSearch.cs" />
     <Compile Include="DeleteConfirmation.cs" />
     <Compile Include="GenericFK.cs" />
     <Compile Include="HDRColorPicker.cs" />
