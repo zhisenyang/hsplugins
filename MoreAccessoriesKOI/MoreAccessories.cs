@@ -166,11 +166,9 @@ namespace MoreAccessoriesKOI
 
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
-            UnityEngine.Debug.LogError(scene.name + " " + loadMode + " " + scene.buildIndex);
             switch (loadMode)
             {
                 case LoadSceneMode.Single:
-                    //UnityEngine.Debug.LogError(scene.name + " " + scene.buildIndex);
                     if (this._binary == Binary.Game)
                     {
                         this._inCharaMaker = false;
@@ -240,10 +238,8 @@ namespace MoreAccessoriesKOI
                         }
                     }
                 }
-                else
-                {
+                if (this._loadCoordinatesWindow == null) //Handling maker with additive loading
                     this._inCharaMaker = false;
-                }
             }
             if (this._inStudio)
             {
@@ -309,7 +305,7 @@ namespace MoreAccessoriesKOI
                 System.Object self = kkus.GetField("_self", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
                 float scale = (float)self.GetPrivate("_gameUIScale");
                 this._slotUIPosition.x *= scale;
-                this._slotUIPosition.y += (((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform).rect.size.y - this._slotUIPosition.y) * scale;
+                this._slotUIPosition.y += (((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform).rect.size.y - this._slotUIPosition.y) * (1f - scale);
             }
             for (int i = 0; i < 20; i++)
                 container.GetChild(0).SetParent(this._charaMakerScrollView.content);
@@ -436,6 +432,11 @@ namespace MoreAccessoriesKOI
             {
                 this._charaMakerScrollView.viewport.gameObject.SetActive(true);
             }, 5);
+            this.ExecuteDelayed(() =>
+            {
+                this.UpdateMakerUI();
+                CustomBase.Instance.updateCustomUI = true;
+            }, 2);
         }
 
         private void SpawnStudioUI()

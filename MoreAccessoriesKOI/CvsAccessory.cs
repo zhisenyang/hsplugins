@@ -1254,6 +1254,8 @@ namespace MoreAccessoriesKOI
         {
             private static void Postfix(CvsAccessoryChange __instance)
             {
+                if (MoreAccessories._self._charaMakerData.nowAccessories.Count > MoreAccessories._self._additionalCharaMakerSlots.Count)
+                    return;
                 for (int i = 0; i < MoreAccessories._self._charaMakerData.nowAccessories.Count; i++)
                 {
                     MoreAccessories.CharaMakerSlotData slot = MoreAccessories._self._additionalCharaMakerSlots[i];
@@ -1410,6 +1412,8 @@ namespace MoreAccessoriesKOI
                 TMP_Dropdown[] ddCoordeType = ((TMP_Dropdown[])__instance.GetPrivate("ddCoordeType"));
                 if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[0].value, out parts))
                 {
+                    if (MoreAccessories._self._additionalCharaMakerSlots.Count < parts.Count)
+                        return;
                     for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
                     {
                         if (i < parts.Count)
@@ -1448,6 +1452,8 @@ namespace MoreAccessoriesKOI
                 int srcCount = 0;
                 if (MoreAccessories._self._charaMakerData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)ddCoordeType[1].value, out parts))
                 {
+                    if (MoreAccessories._self._additionalCharaMakerSlots.Count < parts.Count)
+                        return;
                     srcCount = parts.Count;
                     for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
                     {
