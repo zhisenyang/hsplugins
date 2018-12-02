@@ -156,7 +156,6 @@ namespace MoreAccessoriesKOI
 
             SideloaderAutoresolverHooks_IterateCoordinatePrefixes_Patches.ManualPatch(harmony);
             SideloaderAutoresolverHooks_ExtendedCoordinateLoad_Patches.ManualPatch(harmony);
-
         }
 
         public void OnApplicationQuit()
@@ -989,7 +988,9 @@ namespace MoreAccessoriesKOI
                 {
                     CodeInstruction inst = instructionsList[i];
                     yield return inst;
-                    if (set == false && instructionsList[i + 1].opcode == OpCodes.Blt && instructionsList[i + 2].opcode == OpCodes.Ret)
+                    if (set == false &&
+                        (instructionsList[i + 1].opcode == OpCodes.Blt || instructionsList[i + 1].opcode == OpCodes.Brtrue) &&
+                        instructionsList[i + 2].opcode == OpCodes.Ret)
                     {
                         yield return new CodeInstruction(OpCodes.Ldloc_0); //i
                         yield return new CodeInstruction(OpCodes.Call, typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));

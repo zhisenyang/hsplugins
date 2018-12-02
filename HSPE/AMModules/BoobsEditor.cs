@@ -177,7 +177,7 @@ namespace HSPE.AMModules
         #region Private Variables
         private static MethodInfo _initTransforms;
         private static MethodInfo _updateDynamicBones;
-        private static object[] _paramArray = new object[1];
+        private static readonly object[] _paramArray = new object[1];
 
         private DynamicBone_Ver02 _rightBoob;
         private DynamicBone_Ver02 _leftBoob;
@@ -197,14 +197,6 @@ namespace HSPE.AMModules
         public override string displayName { get { return "Boobs"; } }
         public OCIChar chara { get; set; }
         public bool isDraggingDynamicBone { get; private set; }
-        public override bool drawAdvancedMode
-        {
-            set
-            {
-                base.drawAdvancedMode = value;
-                this.CheckGizmosEnabled();
-            }
-        }
         public override bool isEnabled
         {
             set
@@ -216,6 +208,12 @@ namespace HSPE.AMModules
         #endregion
 
         #region Unity Methods
+        void Awake()
+        {
+            this._debugLines.Init();
+            this._debugLines.SetActive(false);
+        }
+
         void Start()
         {
 #if HONEYSELECT
@@ -223,16 +221,13 @@ namespace HSPE.AMModules
             this._leftBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this.chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
             if (_initTransforms == null)
-                _initTransforms = this._leftBoob.GetType().GetMethod("InitTransforms", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+                _initTransforms = this._leftBoob.GetType().GetMethod("InitTransforms", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
             if (_updateDynamicBones == null)
-                _updateDynamicBones = this._leftBoob.GetType().GetMethod("UpdateDynamicBones", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
+                _updateDynamicBones = this._leftBoob.GetType().GetMethod("UpdateDynamicBones", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
 #elif KOIKATSU
             this._leftBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
             this._rightBoob = this.chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
 #endif
-            
-            this._debugLines.Init();
-            this._debugLines.SetActive(false);
         }
 
         protected override void Update()
@@ -246,7 +241,7 @@ namespace HSPE.AMModules
                 if (kvp.Value.force.hasValue)
                     kvp.Key.Force = kvp.Value.force;
             }
-            if (!this.isEnabled || !this.drawAdvancedMode)
+            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
                 return;
             this._debugLines.Draw(this._leftBoob, this._rightBoob);
         }
@@ -299,6 +294,16 @@ namespace HSPE.AMModules
             }
         }
 #endif
+
+        public override void DrawAdvancedModeChanged()
+        {
+            this.CheckGizmosEnabled();
+        }
+
+        public override void SelectionChanged()
+        {
+            this.CheckGizmosEnabled();
+        }
 
         public override void GUILogic()
         {
@@ -538,7 +543,7 @@ namespace HSPE.AMModules
 
         private void DynamicBoneDraggingLogic()
         {
-            if (!this.isEnabled || !this.drawAdvancedMode)
+            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
                 return;
             if (Input.GetMouseButtonDown(0))
             {
@@ -593,7 +598,7 @@ namespace HSPE.AMModules
 
         private void CheckGizmosEnabled()
         {
-            this._debugLines.SetActive(this.isEnabled && this.drawAdvancedMode);
+            this._debugLines.SetActive(this.isEnabled && PoseController._drawAdvancedMode && this.parent != null && MainWindow.self._poseTarget == this.parent);
         }
         #endregion
     }

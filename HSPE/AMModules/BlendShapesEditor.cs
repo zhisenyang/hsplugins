@@ -15,17 +15,17 @@ namespace HSPE.AMModules
         private static readonly Dictionary<string, string> _skinnedMeshAliases = new Dictionary<string, string>()
 #if HONEYSELECT
         {
-            {"cf_O_head",  "Eyes/Mouth"},
-            {"cf_O_ha",  "Teeth"},
-            {"cf_O_matuge",  "Eyelashes"},
-            {"cf_O_mayuge",  "Eyebrows"},
-            {"cf_O_sita",  "Tongue"},
+            {"cf_O_head", "Eyes/Mouth"},
+            {"cf_O_ha", "Teeth"},
+            {"cf_O_matuge", "Eyelashes"},
+            {"cf_O_mayuge", "Eyebrows"},
+            {"cf_O_sita", "Tongue"},
 
-            {"cm_O_head",  "Eyes/Mouth"},
-            {"cm_O_ha",  "Teeth"},
-            {"cm_O_mayuge",  "Eyebrows"},
-            {"cm_O_sita",  "Tongue"},
-            {"O_hige00",  "Jaw"},
+            {"cm_O_head", "Face"},
+            {"cm_O_ha", "Teeth"},
+            {"cm_O_mayuge", "Eyebrows"},
+            {"cm_O_sita", "Tongue"},
+            {"O_hige00", "Jaw"},
         };
 #elif KOIKATSU
         {
@@ -51,13 +51,15 @@ namespace HSPE.AMModules
             public readonly Dictionary<int, BlendShapeData> dirtyBlendShapes = new Dictionary<int, BlendShapeData>();
             public string path;
 
-            public SkinnedMeshRendererData() { }
+            public SkinnedMeshRendererData()
+            {
+            }
 
             public SkinnedMeshRendererData(SkinnedMeshRendererData other)
             {
                 foreach (KeyValuePair<int, BlendShapeData> kvp in other.dirtyBlendShapes)
                 {
-                    this.dirtyBlendShapes.Add(kvp.Key, new BlendShapeData() { weight = kvp.Value.weight, originalWeight = kvp.Value.originalWeight });
+                    this.dirtyBlendShapes.Add(kvp.Key, new BlendShapeData() {weight = kvp.Value.weight, originalWeight = kvp.Value.originalWeight});
                 }
             }
         }
@@ -110,60 +112,66 @@ namespace HSPE.AMModules
         #region Public Fields
         public override AdvancedModeModuleType type { get { return AdvancedModeModuleType.BlendShapes; } }
         public override string displayName { get { return "Blend Shapes"; } }
-        public OCIChar chara { get; set; }
+        public GenericOCITarget target { get; set; }
+        public override bool shouldDisplay { get { return this._skinnedMeshRenderers.Any(r => r != null && r.sharedMesh != null && r.sharedMesh.blendShapeCount > 0); } }
         #endregion
 
         #region Unity Methods
         void Start()
         {
+            if (this.target.type == GenericOCITarget.Type.Character)
+            {
 #if HONEYSELECT
-            _instanceByFaceBlendShape.Add(this.chara.charBody.fbsCtrl, this);
-            foreach (FBSTargetInfo target in this.chara.charBody.eyesCtrl.FBSTarget)
+                _instanceByFaceBlendShape.Add(this.target.ociChar.charBody.fbsCtrl, this);
+                foreach (FBSTargetInfo target in this.target.ociChar.charBody.eyesCtrl.FBSTarget)
 #elif KOIKATSU
-            _instanceByFaceBlendShape.Add(this.chara.charInfo.fbsCtrl, this);
-            foreach (FBSTargetInfo target in this.chara.charInfo.eyesCtrl.FBSTarget)
+                _instanceByFaceBlendShape.Add(this.target.ociChar.charInfo.fbsCtrl, this);
+                foreach (FBSTargetInfo target in this.target.ociChar.charInfo.eyesCtrl.FBSTarget)
 #endif
-            {
-                SkinnedMeshRenderer renderer = target.GetSkinnedMeshRenderer();
-#if HONEYSELECT
-                if (this._eyesSkinnedMeshRenderers.Contains(renderer) == false)
-                    this._eyesSkinnedMeshRenderers.Add(renderer);
-#endif
-                if (renderer.sharedMesh.blendShapeCount < this._eyesShapesCount)
-                    this._eyesShapesCount = renderer.sharedMesh.blendShapeCount;
-                switch (renderer.name)
                 {
-                    case "cf_O_head":
-                    case "cf_O_face":
-                        this._eyesMouthRenderer = renderer;
-                        break;
+                    SkinnedMeshRenderer renderer = target.GetSkinnedMeshRenderer();
+#if HONEYSELECT
+                    if (this._eyesSkinnedMeshRenderers.Contains(renderer) == false)
+                        this._eyesSkinnedMeshRenderers.Add(renderer);
+#endif
+                    if (renderer.sharedMesh.blendShapeCount < this._eyesShapesCount)
+                        this._eyesShapesCount = renderer.sharedMesh.blendShapeCount;
+                    switch (renderer.name)
+                    {
+                        case "cf_O_head":
+                        case "cf_O_face":
+                            this._eyesMouthRenderer = renderer;
+                            break;
+                    }
+                    SkinnedMeshRendererWrapper wrapper = new SkinnedMeshRendererWrapper
+                    {
+                        renderer = renderer,
+                        links = new List<SkinnedMeshRendererWrapper>()
+                    };
+#if HONEYSELECT
+                    if (!renderer.name.Equals("cf_O_mayuge") && !renderer.name.Equals("cm_O_mayuge"))
+#endif
+                    {
+                        this._links.Add(renderer, wrapper);
+                    }
                 }
-                SkinnedMeshRendererWrapper wrapper = new SkinnedMeshRendererWrapper
-                {
-                    renderer = renderer,
-                    links = new List<SkinnedMeshRendererWrapper>()
-                };
 #if HONEYSELECT
-                if (!renderer.name.Equals("cf_O_mayuge") && !renderer.name.Equals("cm_O_mayuge"))
-#endif
-                {
-                    this._links.Add(renderer, wrapper);                    
-                }
-            }
-#if HONEYSELECT
-            foreach (FBSTargetInfo target in this.chara.charBody.mouthCtrl.FBSTarget)
-            {
-                if (this._mouthSkinnedMeshRenderers.Contains(target.GetSkinnedMeshRenderer()) == false)
-                    this._mouthSkinnedMeshRenderers.Add(target.GetSkinnedMeshRenderer());
-            }
-#endif
-            foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> pair in this._links)
-            {
-                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> pair2 in this._links)
-                {
+                if (this.target.type == GenericOCITarget.Type.Character && this.target.isFemale == false)
+                    this._eyesShapesCount = 14;
 
-                    if (pair.Key != pair2.Key)
-                        pair.Value.links.Add(pair2.Value);
+                foreach (FBSTargetInfo target in this.target.ociChar.charBody.mouthCtrl.FBSTarget)
+                {
+                    if (this._mouthSkinnedMeshRenderers.Contains(target.GetSkinnedMeshRenderer()) == false)
+                        this._mouthSkinnedMeshRenderers.Add(target.GetSkinnedMeshRenderer());
+                }
+#endif
+                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> pair in this._links)
+                {
+                    foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> pair2 in this._links)
+                    {
+                        if (pair.Key != pair2.Key)
+                            pair.Value.links.Add(pair2.Value);
+                    }
                 }
             }
         }
@@ -199,11 +207,13 @@ namespace HSPE.AMModules
             }
             else if (this._headlessDirtySkinnedMeshRenderers.Count != 0)
                 this._headlessDirtySkinnedMeshRenderers.Clear();
+            if (this.target.type == GenericOCITarget.Type.Item)
+                this.ApplyBlendShapeWeights();
         }
 
         void OnDestroy()
         {
-           _instanceByFaceBlendShape = new Dictionary<FaceBlendShape, BlendShapesEditor>(_instanceByFaceBlendShape.Where(e => e.Key != null).ToDictionary(e => e.Key, e => e.Value));
+            _instanceByFaceBlendShape = new Dictionary<FaceBlendShape, BlendShapesEditor>(_instanceByFaceBlendShape.Where(e => e.Key != null).ToDictionary(e => e.Key, e => e.Value));
         }
         #endregion
 
@@ -214,9 +224,9 @@ namespace HSPE.AMModules
 #if HONEYSELECT
             this._eyesSkinnedMeshRenderers.Clear();
             this._mouthSkinnedMeshRenderers.Clear();
-            foreach (FBSTargetInfo target in this.chara.charBody.eyesCtrl.FBSTarget)
+            foreach (FBSTargetInfo target in this.target.ociChar.charBody.eyesCtrl.FBSTarget)
 #elif KOIKATSU
-            foreach (FBSTargetInfo target in this.chara.charInfo.eyesCtrl.FBSTarget)
+            foreach (FBSTargetInfo target in this.target.ociChar.charInfo.eyesCtrl.FBSTarget)
 #endif
             {
                 SkinnedMeshRenderer renderer = target.GetSkinnedMeshRenderer();
@@ -235,7 +245,10 @@ namespace HSPE.AMModules
                 }
             }
 #if HONEYSELECT
-            foreach (FBSTargetInfo target in this.chara.charBody.mouthCtrl.FBSTarget)
+            if (this.target.type == GenericOCITarget.Type.Character && this.target.isFemale == false)
+                this._eyesShapesCount = 14;
+
+            foreach (FBSTargetInfo target in this.target.ociChar.charBody.mouthCtrl.FBSTarget)
             {
                 if (this._mouthSkinnedMeshRenderers.Contains(target.GetSkinnedMeshRenderer()) == false)
                     this._mouthSkinnedMeshRenderers.Add(target.GetSkinnedMeshRenderer());
@@ -259,6 +272,7 @@ namespace HSPE.AMModules
             this.RefreshSkinnedMeshRendererList();
             this.ExecuteDelayed(this.RefreshSkinnedMeshRendererList);
         }
+
         public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
         {
             this.RefreshSkinnedMeshRendererList();
@@ -303,7 +317,8 @@ namespace HSPE.AMModules
                 }
             }
             GUI.color = c;
-            this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes and eyelashes");
+            if (this.target.type == GenericOCITarget.Type.Character)
+                this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes and eyelashes");
             if (GUILayout.Button("Force refresh list"))
                 this.RefreshSkinnedMeshRendererList();
             GUILayout.EndVertical();
@@ -368,7 +383,7 @@ namespace HSPE.AMModules
 
                         GUILayout.BeginHorizontal();
 
-                        GUILayout.BeginVertical();
+                        GUILayout.BeginVertical(GUILayout.ExpandHeight(false));
 
                         GUILayout.BeginHorizontal();
                         GUILayout.Label($"{displayI} {blendShapeName}");
@@ -416,10 +431,9 @@ namespace HSPE.AMModules
                         }
                         GUILayout.EndVertical();
 
-
                         GUI.color = Color.red;
 
-                        if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true)) && data != null && data.dirtyBlendShapes.TryGetValue(i, out bsData))
+                        if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.Height(50)) && data != null && data.dirtyBlendShapes.TryGetValue(i, out bsData))
                         {
                             this._skinnedMeshTarget.SetBlendShapeWeight(i, bsData.originalWeight);
                             data.dirtyBlendShapes.Remove(i);
@@ -443,7 +457,6 @@ namespace HSPE.AMModules
                                     }
                                 }
                             }
-
                         }
                         GUILayout.EndHorizontal();
                         GUI.color = c;
@@ -606,7 +619,7 @@ namespace HSPE.AMModules
             }
             List<SkinnedMeshRenderer> toAdd = null;
             foreach (SkinnedMeshRenderer r in skinnedMeshRenderers)
-                if (this._skinnedMeshRenderers.Contains(r) == false)
+                if (this._skinnedMeshRenderers.Contains(r) == false && (this.parent == null || this.parent._childObjects.All(child => r.transform.IsChildOf(child.transform) == false)))
                 {
                     if (toAdd == null)
                         toAdd = new List<SkinnedMeshRenderer>();
@@ -616,7 +629,6 @@ namespace HSPE.AMModules
             {
                 foreach (SkinnedMeshRenderer r in toAdd)
                     this._skinnedMeshRenderers.Add(r);
-
             }
             if (this._skinnedMeshRenderers.Count != 0 && this._skinnedMeshTarget != null)
                 this._skinnedMeshTarget = this._skinnedMeshRenderers.FirstOrDefault(s => s.sharedMesh.blendShapeCount > 0);

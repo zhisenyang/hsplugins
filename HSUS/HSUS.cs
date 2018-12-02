@@ -627,6 +627,7 @@ namespace HSUS
             this._go = new GameObject("HSUS");
             this._go.AddComponent<ObjectTreeDebug>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
+
 #if HONEYSELECT
             if (level == 3)
 #elif KOIKATSU

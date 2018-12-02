@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
+using Harmony;
 using ToolBox;
 using UnityEngine;
 using UnityEngine.Events;
@@ -14,8 +16,29 @@ namespace HSUS
 {
     public class ObjectTreeDebug : MonoBehaviour
     {
+        private struct ObjectPair
+        {
+            public readonly object parent;
+            public readonly object child;
+            private readonly int _hashCode;
+
+            public ObjectPair(object inParent, object inChild)
+            {
+                this.parent = inParent;
+                this.child = inChild;
+                this._hashCode = -157375006;
+                this._hashCode = this._hashCode * -1521134295 + EqualityComparer<object>.Default.GetHashCode(this.parent);
+                this._hashCode = this._hashCode * -1521134295 + EqualityComparer<object>.Default.GetHashCode(this.child);
+            }
+
+            public override int GetHashCode()
+            {
+                return this._hashCode;
+            }
+        }
+
         private Transform _target;
-        private readonly HashSet<GameObject> _openedObjects = new HashSet<GameObject>();
+        private readonly HashSet<GameObject> _openedGameObjects = new HashSet<GameObject>();
         private Vector2 _scroll;
         private Vector2 _scroll2;
         private static Vector2 _scroll3;
@@ -25,8 +48,10 @@ namespace HSUS
         private int _randomId;
         private static readonly Process _process;
         private static readonly byte _bits;
-        private readonly HashSet<Component> _openedComponents = new HashSet<Component>();
+        private readonly HashSet<ObjectPair> _openedObjects = new HashSet<ObjectPair>();
         private static string _goSearch = "";
+        private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+
 
 #if HONEYSELECT
         private static readonly bool _has630Patch;
@@ -82,15 +107,15 @@ namespace HSUS
                     GUILayout.Space(indent * 20f);
                     if (go.transform.childCount != 0)
                     {
-                        if (GUILayout.Toggle(this._openedObjects.Contains(go), "", GUILayout.ExpandWidth(false)))
+                        if (GUILayout.Toggle(this._openedGameObjects.Contains(go), "", GUILayout.ExpandWidth(false)))
                         {
-                            if (this._openedObjects.Contains(go) == false)
-                                this._openedObjects.Add(go);
+                            if (this._openedGameObjects.Contains(go) == false)
+                                this._openedGameObjects.Add(go);
                         }
                         else
                         {
-                            if (this._openedObjects.Contains(go))
-                                this._openedObjects.Remove(go);
+                            if (this._openedGameObjects.Contains(go))
+                                this._openedGameObjects.Remove(go);
                         }
                     }
                     else
@@ -104,8 +129,8 @@ namespace HSUS
                         Transform t = this._target.parent;
                         while (t != null)
                         {
-                            if (this._openedObjects.Contains(t.gameObject) == false)
-                                this._openedObjects.Add(t.gameObject);
+                            if (this._openedGameObjects.Contains(t.gameObject) == false)
+                                this._openedGameObjects.Add(t.gameObject);
                             t = t.parent;
                         }
                     }
@@ -114,7 +139,7 @@ namespace HSUS
                 go.SetActive(GUILayout.Toggle(go.activeSelf, "", GUILayout.ExpandWidth(false)));
                 GUILayout.EndHorizontal();
             }
-            if (_goSearch.Length != 0 || this._openedObjects.Contains(go))
+            if (_goSearch.Length != 0 || this._openedGameObjects.Contains(go))
                 for (int i = 0; i < go.transform.childCount; ++i)
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
@@ -123,9 +148,10 @@ namespace HSUS
         {
             if (_debug == false)
                 return;
-            GUI.Box(this._rect, "", GUI.skin.window);
-            GUI.Box(this._rect, "", GUI.skin.window);
-            GUI.Box(this._rect, "", GUI.skin.window);
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(1f, 1f, 1f, 0.6f);
+            GUI.Box(this._rect, "", _customBoxStyle);
+            GUI.backgroundColor = c;
             this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits"
 #if HONEYSELECT
                                                                                        + " | 630 patch: " + (_has630Patch ? "Yes" : "No")
@@ -180,15 +206,16 @@ namespace HSUS
                     else
                         GUILayout.Label(c.GetType().FullName, GUILayout.ExpandWidth(false));
 
-                    if (GUILayout.Toggle(this._openedComponents.Contains(c), ""))
+                    ObjectPair pair = new ObjectPair(this._target, c);
+                    if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
                     {
-                        if (this._openedComponents.Contains(c) == false)
-                            this._openedComponents.Add(c);
+                        if (this._openedObjects.Contains(pair) == false)
+                            this._openedObjects.Add(pair);
                     }
                     else
                     {
-                        if (this._openedComponents.Contains(c))
-                            this._openedComponents.Remove(c);
+                        if (this._openedObjects.Contains(pair))
+                            this._openedObjects.Remove(pair);
                     }
 
                     if (c is Image)
@@ -313,58 +340,15 @@ namespace HSUS
                                 UnityAction<string> unityAction = ((UnityAction<string>)calls[i].GetPrivate("Delegate"));
                                 GUILayout.Label("_event " + unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
                             }
-                            
+
                         }
                     }
                     GUILayout.EndHorizontal();
-
-                    if (this._openedComponents.Contains(c))
-                    {
-                        GUILayout.BeginVertical();
-                        FieldInfo[] fields = c.GetType().GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-                        foreach (FieldInfo field in fields)
-                        {
-                            object o = null;
-                            try
-                            {
-                                o = field.GetValue(c);
-                            }
-                            catch (Exception)
-                            {
-                            }
-                            if (o != null)
-                            {
-                                GUILayout.BeginHorizontal();
-                                GUILayout.Space(20);
-                                GUILayout.Label(field.Name + ": " + field.GetValue(c));
-                                GUILayout.EndHorizontal();
-                            }
-                        }
-                        PropertyInfo[] properties = c.GetType().GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-                        foreach (PropertyInfo property in properties)
-                        {
-                            object o = null;
-                            try
-                            {
-                                o = property.GetValue(c, null);
-                            }
-                            catch (Exception)
-                            {
-                            }
-                            if (o != null)
-                            {
-                                GUILayout.BeginHorizontal();
-                                GUILayout.Space(20);
-                                GUILayout.Label(property.Name + ": " + o);
-                                GUILayout.EndHorizontal();
-                            }
-                        }
-                        GUILayout.EndVertical();
-                    }
+                    this.RecurseObjects(pair, 1);
                 }
             }
             GUILayout.EndScrollView();
-            _scroll3 = GUILayout.BeginScrollView(_scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 4f));
+            _scroll3 = GUILayout.BeginScrollView(_scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 5f));
             foreach (KeyValuePair<LogType, string> lastlog in _lastlogs)
             {
                 Color c = GUI.color;
@@ -401,11 +385,169 @@ namespace HSUS
             if (GUILayout.Button("Clear logs", GUILayout.ExpandWidth(false)))
                 _lastlogs.Clear();
             if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
-                System.Diagnostics.Process.Start(System.IO.Path.Combine(Application.dataPath, "output_log.txt"));
+                Process.Start(Path.Combine(Application.dataPath, "output_log.txt"));
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
             GUI.DragWindow();
+        }
+
+        private void RecurseObjects(ObjectPair obj, int indent)
+        {
+            if (this._openedObjects.Contains(obj))
+            {
+                Color c = GUI.backgroundColor;
+                GUI.backgroundColor = indent % 2 != 0 ? new Color(0f, 0f, 0f, 0.7f) : new Color(0.35f, 0.35f, 0.35f, 0.7f);
+                GUILayout.BeginHorizontal();
+                GUILayout.Space(10);
+                GUILayout.BeginVertical(_customBoxStyle);
+                GUI.backgroundColor = c;
+                Type t = obj.child.GetType();
+                if (t.GetInterface("IEnumerable") != null)
+                {
+                    IEnumerable array = obj.child as IEnumerable;
+                    int i = 0;
+                    if (array != null)
+                    {
+                        foreach (object o in array)
+                        {
+                            GUILayout.BeginHorizontal();
+                            GUILayout.Space(10);
+                            GUILayout.Label(i + ": " + (o == null ? "null" : o), GUILayout.ExpandWidth(false));
+
+                            ObjectPair pair = new ObjectPair(obj.child, o);
+                            if (o != null)
+                            {
+                                Type oType = o.GetType();
+                                if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
+                                {
+                                    if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
+                                    {
+                                        if (this._openedObjects.Contains(pair) == false)
+                                            this._openedObjects.Add(pair);
+                                    }
+                                    else
+                                    {
+                                        if (this._openedObjects.Contains(pair))
+                                            this._openedObjects.Remove(pair);
+                                    }
+                                }
+                            }
+
+                            GUILayout.EndHorizontal();
+                            this.RecurseObjects(pair, indent + 1);
+                            ++i;
+                        }
+                        if (i == 0)
+                        {
+                            GUILayout.BeginHorizontal();
+                            GUILayout.Space(10);
+                            GUILayout.Label("empty", GUILayout.ExpandWidth(false));
+                            GUILayout.EndHorizontal();
+                        }
+                    }
+                    else
+                    {
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(10);
+                        GUILayout.Label("null", GUILayout.ExpandWidth(false));
+                        GUILayout.EndHorizontal();
+                    }
+                }
+                else
+                {
+                    FieldInfo[] fields = t.GetFields(AccessTools.all);
+                    foreach (FieldInfo field in fields)
+                    {
+                        object o = null;
+                        bool exception = false;
+                        try
+                        {
+                            o = field.GetValue(obj.child);
+                        }
+                        catch (Exception)
+                        {
+                            exception = true;
+                        }
+
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(10);
+                        if (o != null)
+                            GUILayout.Label(field.Name + ": " + o, GUILayout.ExpandWidth(false));
+                        else
+                            GUILayout.Label(field.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+
+                        ObjectPair pair = new ObjectPair(obj.child, o);
+                        if (o != null)
+                        {
+                            Type oType = o.GetType();
+                            if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
+                            {
+                                if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
+                                {
+                                    if (this._openedObjects.Contains(pair) == false)
+                                        this._openedObjects.Add(pair);
+                                }
+                                else
+                                {
+                                    if (this._openedObjects.Contains(pair))
+                                        this._openedObjects.Remove(pair);
+                                }
+                            }
+                        }
+
+                        GUILayout.EndHorizontal();
+                        this.RecurseObjects(pair, indent + 1);
+                    }
+                    PropertyInfo[] properties = t.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                    Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
+                    foreach (PropertyInfo property in properties)
+                    {
+                        if ((property.GetGetMethod() ?? property.GetSetMethod()).IsDefined(compilerGeneratedAttribute, false))
+                            continue;
+                        object o = null;
+                        bool exception = false;
+                        try
+                        {
+                            o = property.GetValue(obj.child, null);
+                        }
+                        catch (Exception)
+                        {
+                            exception = true;
+                        }
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(10);
+                        if (o != null)
+                            GUILayout.Label(property.Name + ": " + o, GUILayout.ExpandWidth(false));
+                        else
+                            GUILayout.Label(property.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+
+                        ObjectPair pair = new ObjectPair(obj.child, o);
+                        if (o != null)
+                        {
+                            Type oType = o.GetType();
+                            if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
+                            {
+                                if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
+                                {
+                                    if (this._openedObjects.Contains(pair) == false)
+                                        this._openedObjects.Add(pair);
+                                }
+                                else
+                                {
+                                    if (this._openedObjects.Contains(pair))
+                                        this._openedObjects.Remove(pair);
+                                }
+                            }
+                        }
+                        GUILayout.EndHorizontal();
+
+                        this.RecurseObjects(pair, indent + 1);
+                    }
+                }
+                GUILayout.EndVertical();
+                GUILayout.EndHorizontal();
+            }
         }
     }
 }

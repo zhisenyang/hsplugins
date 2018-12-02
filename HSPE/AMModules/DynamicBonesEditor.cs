@@ -183,7 +183,6 @@ namespace HSPE.AMModules
         private Vector3 _lastDynamicBoneGravity;
         private DynamicBone _draggedDynamicBone;
         private DebugLines _debugLines = new DebugLines();
-        private BonesEditor _bonesEditor;
         private bool _firstRefresh;
         #endregion
 
@@ -191,15 +190,6 @@ namespace HSPE.AMModules
         public override AdvancedModeModuleType type { get { return AdvancedModeModuleType.DynamicBonesEditor; } }
         public override string displayName { get { return "Dynamic Bones"; } }
         public bool isDraggingDynamicBone { get; private set; }
-        public override bool drawAdvancedMode
-        {
-            set
-            {
-                base.drawAdvancedMode = value;
-                this.CheckGizmosEnabled();
-            }
-        }
-
         public override bool isEnabled
         {
             set
@@ -208,6 +198,8 @@ namespace HSPE.AMModules
                 this.CheckGizmosEnabled();
             }
         }
+        public GenericOCITarget target { get; set; }
+        public override bool shouldDisplay { get { return this._dynamicBones.Count > 0; } }
         #endregion
 
         #region Unity Methods
@@ -219,7 +211,6 @@ namespace HSPE.AMModules
         void Start()
         {
             this.RefreshDynamicBoneList();
-            this._bonesEditor = this.GetComponent<BonesEditor>();
         }
 
         protected override void Update()
@@ -231,10 +222,9 @@ namespace HSPE.AMModules
                 this._firstRefresh = true;
             }
             this.DynamicBoneDraggingLogic();
-            if (!this.isEnabled || !this.drawAdvancedMode)
+            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
                 return;
             this._debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget);
-
         }
         #endregion
 
@@ -263,6 +253,16 @@ namespace HSPE.AMModules
             this.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
+        public override void DrawAdvancedModeChanged()
+        {
+            this.CheckGizmosEnabled();
+        }
+
+        public override void SelectionChanged()
+        {
+            this.CheckGizmosEnabled();
+        }
+
         public override void GUILogic()
         {
             GUILayout.BeginHorizontal();
@@ -279,7 +279,7 @@ namespace HSPE.AMModules
                     GUI.color = Color.cyan;
                 string dName = db.m_Root.name;
                 string newName;
-                if (MainWindow.self.boneAliases.TryGetValue(dName, out newName))
+                if (BonesEditor._boneAliases.TryGetValue(dName, out newName))
                     dName = newName;
                 if (GUILayout.Button(dName + (this.IsDynamicBoneDirty(db) ? "*" : "")))
                     this._dynamicBoneTarget = db;
@@ -569,7 +569,7 @@ namespace HSPE.AMModules
                 {
                     Transform t = (Transform)o.GetPrivate("m_Transform");
                     OCIChar.BoneInfo boneInfo;
-                    if (t != null && this._bonesEditor.fkObjects.TryGetValue(t.gameObject, out boneInfo))
+                    if (t != null && this.target.fkObjects.TryGetValue(t.gameObject, out boneInfo))
                     {
                         Vector3 oldValue = boneInfo.guideObject.changeAmount.rot;
                         boneInfo.guideObject.changeAmount.rot = t.localEulerAngles;
@@ -629,7 +629,7 @@ namespace HSPE.AMModules
 
         private void DynamicBoneDraggingLogic()
         {
-            if (!this.isEnabled || !this.drawAdvancedMode)
+            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
                 return;
             if (Input.GetMouseButtonDown(0))
             {
@@ -690,7 +690,7 @@ namespace HSPE.AMModules
             }
             List<DynamicBone> toAdd = null;
             foreach (DynamicBone db in dynamicBones)
-                if (this._dynamicBones.Contains(db) == false)
+                if (this._dynamicBones.Contains(db) == false && (this.parent == null || this.parent._childObjects.All(child => db.transform.IsChildOf(child.transform) == false)))
                 {
                     if (toAdd == null)
                         toAdd = new List<DynamicBone>();
@@ -708,7 +708,7 @@ namespace HSPE.AMModules
 
         private void CheckGizmosEnabled()
         {
-            this._debugLines.SetActive(this.isEnabled && this.drawAdvancedMode);
+            this._debugLines.SetActive(this.isEnabled && PoseController._drawAdvancedMode && MainWindow.self._poseTarget == this.parent);
         }
         #endregion
     }

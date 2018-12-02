@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
+using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
 using ToolBox;
@@ -41,16 +42,16 @@ namespace HSPE
         private const string _pluginDir = "BepInEx\\KKPE\\";
         private const string _extSaveKey = "kkpe";
 #endif
-        private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+        internal static readonly GUIStyle _customBoxStyle = new GUIStyle {normal = new GUIStyleState {background = Texture2D.whiteTexture}};
         #endregion
 
         #region Private Variables
-        private PoseController _poseTarget;
+        internal PoseController _poseTarget;
         private readonly List<FullBodyBipedEffector> _boneTargets = new List<FullBodyBipedEffector>();
-        private readonly List<Vector3> _lastBonesPositions = new List<Vector3>();
-        private readonly List<Quaternion> _lastBonesRotations = new List<Quaternion>();
+        private readonly Vector3[] _lastBonesPositions = new Vector3[14];
+        private readonly Quaternion[] _lastBonesRotations = new Quaternion[14];
         private readonly List<FullBodyBipedChain> _bendGoalTargets = new List<FullBodyBipedChain>();
-        private readonly List<Vector3> _lastBendGoalsPositions = new List<Vector3>();
+        private readonly Vector3[] _lastBendGoalsPositions = new Vector3[4];
         private readonly Dictionary<string, KeyCode> _nameToKeyCode = new Dictionary<string, KeyCode>();
         private KeyCode _mainWindowKeyCode = KeyCode.H;
         private int _lastObjectCount = 0;
@@ -104,12 +105,14 @@ namespace HSPE
         private int _lastScreenWidth = Screen.width;
         private int _lastScreenHeight = Screen.height;
         private IKExecutionOrder _ikExecutionOrder;
+        private Button _copyLeftArmButton;
+        private Button _copyRightArmButton;
+        private Button _copyLeftLegButton;
+        private Button _copyRightLegButton;
+        private Button _swapPostButton;
         #endregion
 
         #region Public Accessors
-        public Dictionary<string, string> femaleShortcuts { get; } = new Dictionary<string, string>();
-        public Dictionary<string, string> maleShortcuts { get; } = new Dictionary<string, string>();
-        public Dictionary<string, string> boneAliases { get; } = new Dictionary<string, string>();
         public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
         public float uiScale { get; private set; } = 1f;
         public Texture2D vectorEndCap { get; private set; }
@@ -157,17 +160,22 @@ namespace HSPE
                     case "femaleShortcuts":
                         foreach (XmlNode shortcut in node.ChildNodes)
                             if (shortcut.Attributes["path"] != null)
-                                this.femaleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                                BonesEditor._femaleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
                         break;
                     case "maleShortcuts":
                         foreach (XmlNode shortcut in node.ChildNodes)
                             if (shortcut.Attributes["path"] != null)
-                                this.maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                                BonesEditor._maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                        break;
+                    case "itemShortcuts":
+                        foreach (XmlNode shortcut in node.ChildNodes)
+                            if (shortcut.Attributes["path"] != null)
+                                BonesEditor._itemShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
                         break;
                     case "boneAliases":
                         foreach (XmlNode alias in node.ChildNodes)
                             if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
-                                this.boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
+                                BonesEditor._boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
                         break;
                     case "crotchCorrectionByDefault":
                         if (node.Attributes["value"] != null)
@@ -235,8 +243,7 @@ namespace HSPE
                 ObjectCtrlInfo info;
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
                 {
-                    OCIChar selected = info as OCIChar;
-                    this._poseTarget = selected != null ? selected.charInfo.gameObject.GetComponent<PoseController>() : null;
+                    this._poseTarget = info.guideObject.transformTarget.GetComponent<PoseController>();
                 }
             }
             else
@@ -251,7 +258,7 @@ namespace HSPE
             GUIUtility.ScaleAroundPivot(Vector2.one * (this.uiScale * this.resolutionRatio), new Vector2(Screen.width, Screen.height));
             if (this._poseTarget != null)
             {
-                if (this._poseTarget.drawAdvancedMode)
+                if (PoseController._drawAdvancedMode)
                 {
                     Color c = GUI.backgroundColor;
                     GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
@@ -259,7 +266,7 @@ namespace HSPE
                         GUI.Box(this._advancedModeRect, "", _customBoxStyle);
                     GUI.backgroundColor = c;
                     this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
-                    if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._poseTarget.colliderEditEnabled && this._poseTarget.colliderEditRect.Contains(Event.current.mousePosition)))
+                    if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._poseTarget.colliderEditEnabled && BonesEditor._colliderEditRect.Contains(Event.current.mousePosition)))
                         this._mouseInAdvMode = true;
                     else
                         this._mouseInAdvMode = false;
@@ -299,7 +306,7 @@ namespace HSPE
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("femaleShortcuts");
-                    foreach (KeyValuePair<string, string> kvp in this.femaleShortcuts)
+                    foreach (KeyValuePair<string, string> kvp in BonesEditor._femaleShortcuts)
                     {
                         xmlWriter.WriteStartElement("shortcut");
                         xmlWriter.WriteAttributeString("path", kvp.Key);
@@ -308,7 +315,16 @@ namespace HSPE
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("maleShortcuts");
-                    foreach (KeyValuePair<string, string> kvp in this.maleShortcuts)
+                    foreach (KeyValuePair<string, string> kvp in BonesEditor._maleShortcuts)
+                    {
+                        xmlWriter.WriteStartElement("shortcut");
+                        xmlWriter.WriteAttributeString("path", kvp.Key);
+                        xmlWriter.WriteEndElement();
+                    }
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("itemShortcuts");
+                    foreach (KeyValuePair<string, string> kvp in BonesEditor._itemShortcuts)
                     {
                         xmlWriter.WriteStartElement("shortcut");
                         xmlWriter.WriteAttributeString("path", kvp.Key);
@@ -317,7 +333,7 @@ namespace HSPE
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("boneAliases");
-                    foreach (KeyValuePair<string, string> kvp in this.boneAliases)
+                    foreach (KeyValuePair<string, string> kvp in BonesEditor._boneAliases)
                     {
                         xmlWriter.WriteStartElement("alias");
                         xmlWriter.WriteAttributeString("key", kvp.Key);
@@ -563,39 +579,39 @@ namespace HSPE
             };
             this._rotationButtons[2] = rotZButton;
 
-            Button copyLeftArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Arm Button").GetComponent<Button>();
-            copyLeftArmButton.onClick.AddListener(() =>
+            this._copyLeftArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Arm Button").GetComponent<Button>();
+            this._copyLeftArmButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightArm);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightArm);
             });
 
-            Button copyRightArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left Arm Button").GetComponent<Button>();
-            copyRightArmButton.onClick.AddListener(() =>
+            this._copyRightArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left Arm Button").GetComponent<Button>();
+            this._copyRightArmButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftArm);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftArm);
             });
 
-            Button copyLeftLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Leg Button").GetComponent<Button>();
-            copyLeftLegButton.onClick.AddListener(() =>
+            this._copyLeftLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Leg Button").GetComponent<Button>();
+            this._copyLeftLegButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.RightLeg);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightLeg);
             });
 
-            Button copyRightLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left LegButton").GetComponent<Button>();
-            copyRightLegButton.onClick.AddListener(() =>
+            this._copyRightLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left LegButton").GetComponent<Button>();
+            this._copyRightLegButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
             });
 
-            Button swapPostButton = this._ui.transform.Find("BG/Controls/Other buttons/Other/Swap Pose Button").GetComponent<Button>();
-            swapPostButton.onClick.AddListener(() =>
+            this._swapPostButton = this._ui.transform.Find("BG/Controls/Other buttons/Other/Swap Pose Button").GetComponent<Button>();
+            this._swapPostButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.SwapPose();
+                    ((CharaPoseController)this._poseTarget).SwapPose();
             });
 
             Button advancedModeButton = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Advanced Mode Button").GetComponent<Button>();
@@ -629,7 +645,7 @@ namespace HSPE
             this._optimizeIKToggle.onValueChanged.AddListener((b) =>
             {
                 if (this._poseTarget != null)
-                    this._poseTarget.optimizeIK = this._optimizeIKToggle.isOn;
+                    ((CharaPoseController)this._poseTarget).optimizeIK = this._optimizeIKToggle.isOn;
             });
 
             Button optionsButton = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Options Button").GetComponent<Button>();
@@ -800,7 +816,7 @@ namespace HSPE
                 this._crotchCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.crotchJointCorrection = this._crotchCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).crotchJointCorrection = this._crotchCorrectionToggle.isOn;
                 });
 
                 Text leftFootText = Instantiate(textPrefab).GetComponent<Text>();
@@ -825,7 +841,7 @@ namespace HSPE
                 this._leftFootCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
                 });
 
                 Text rightFootText = Instantiate(textPrefab).GetComponent<Text>();
@@ -850,7 +866,7 @@ namespace HSPE
                 this._rightFootCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
                 });
             }
 #elif KOIKATSU
@@ -874,7 +890,7 @@ namespace HSPE
                 this._crotchCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.crotchJointCorrection = this._crotchCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).crotchJointCorrection = this._crotchCorrectionToggle.isOn;
                 });
 
                 RectTransform leftFootContainer = Instantiate(prefab).transform as RectTransform;
@@ -889,7 +905,7 @@ namespace HSPE
                 this._leftFootCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).leftFootJointCorrection = this._leftFootCorrectionToggle.isOn;
                 });
 
                 RectTransform rightFootContainer = Instantiate(prefab).transform as RectTransform;
@@ -906,7 +922,7 @@ namespace HSPE
                 this._rightFootCorrectionToggle.onValueChanged.AddListener((b) =>
                 {
                     if (this._poseTarget != null)
-                        this._poseTarget.rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
+                        ((CharaPoseController)this._poseTarget).rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
                 });
             }
 #endif
@@ -960,15 +976,7 @@ namespace HSPE
                 else
                     this._boneTargets.Add(bone);
             }
-            this._lastBonesPositions.Resize(this._boneTargets.Count);
-            this._lastBonesRotations.Resize(this._boneTargets.Count);
-            if (this._bendGoalTargets.Count != 0 ||
-                this._boneTargets.Intersect(PoseController.nonRotatableEffectors).Any())
-                foreach (Button bu in this._rotationButtons)
-                    bu.interactable = false;
-            else
-                foreach (Button bu in this._rotationButtons)
-                    bu.interactable = true;
+            this.SelectBoneButtons();
             EventSystem.current.SetSelectedGameObject(null);
         }
 
@@ -988,9 +996,7 @@ namespace HSPE
                 else
                     this._bendGoalTargets.Add(bendGoal);
             }
-            this._lastBendGoalsPositions.Resize(this._bendGoalTargets.Count);
-            foreach (Button bu in this._rotationButtons)
-                bu.interactable = false;
+            this.SelectBoneButtons();
             EventSystem.current.SetSelectedGameObject(null);
         }
 
@@ -1001,6 +1007,7 @@ namespace HSPE
                 Button b = this._bendGoalsButtons[(int)bendGoal];
                 ColorBlock cb = b.colors;
                 cb.normalColor = Color.Lerp(Color.blue, Color.white, 0.5f);
+                cb.highlightedColor = cb.normalColor;
                 b.colors = cb;
                 this._bendGoalsTexts[(int)bendGoal].fontStyle = FontStyle.Normal;
             }
@@ -1009,6 +1016,7 @@ namespace HSPE
                 Button b = this._effectorsButtons[(int)effector];
                 ColorBlock cb = b.colors;
                 cb.normalColor = Color.Lerp(Color.red, Color.white, 0.5f);
+                cb.highlightedColor = cb.normalColor;
                 b.colors = cb;
                 this._effectorsTexts[(int)effector].fontStyle = FontStyle.Normal;
             }
@@ -1021,6 +1029,7 @@ namespace HSPE
                 Button b = this._bendGoalsButtons[(int)bendGoal];
                 ColorBlock cb = b.colors;
                 cb.normalColor = UIUtility.lightGreenColor;
+                cb.highlightedColor = cb.normalColor;
                 b.colors = cb;
                 this._bendGoalsTexts[(int)bendGoal].fontStyle = FontStyle.Bold;
             }
@@ -1029,6 +1038,7 @@ namespace HSPE
                 Button b = this._effectorsButtons[(int)effector];
                 ColorBlock cb = b.colors;
                 cb.normalColor = UIUtility.lightGreenColor;
+                cb.highlightedColor = cb.normalColor;
                 b.colors = cb;
                 this._effectorsTexts[(int)effector].fontStyle = FontStyle.Bold;
             }
@@ -1037,12 +1047,25 @@ namespace HSPE
         private void ToggleAdvancedMode()
         {
             if (this._poseTarget != null)
-                this._poseTarget.drawAdvancedMode = !this._poseTarget.drawAdvancedMode;
+                PoseController._drawAdvancedMode = !PoseController._drawAdvancedMode;
         }
 
         private void GUILogic()
         {
-            if (this._shortcutRegisterMode == false && Input.GetKeyDown(this._mainWindowKeyCode))
+            if (this._shortcutRegisterMode)
+            {
+                foreach (KeyCode kc in this._possibleKeyCodes)
+                {
+                    if (Input.GetKeyDown(kc))
+                    {
+                        if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0)
+                            this._mainWindowKeyCode = kc;
+                        this._shortcutKeyButton.onClick.Invoke();
+                        break;
+                    }
+                }
+            }
+            else if (Input.GetKeyDown(this._mainWindowKeyCode))
             {
                 this._isVisible = !this._isVisible;
                 this._ui.gameObject.SetActive(this._isVisible);
@@ -1051,7 +1074,7 @@ namespace HSPE
 
             if (Input.GetMouseButtonDown(0))
             {
-                if (this._poseTarget != null && this._poseTarget.drawAdvancedMode && this._mouseInAdvMode)
+                if (this._poseTarget != null && PoseController._drawAdvancedMode && this._mouseInAdvMode)
                     this.SetNoControlCondition();
             }
 
@@ -1069,53 +1092,21 @@ namespace HSPE
             if (this._isVisible == false)
                 return;
 
-            if (this._poseTarget != null)
+            if (this._poseTarget == null)
+                return;
+
+            CharaPoseController poseTarget = null;
+            bool isCharacter = this._poseTarget.target.type == GenericOCITarget.Type.Character;
+
+            if (isCharacter)
             {
-                this.ResetBoneButtons();
-                bool shouldReset = false;
-                for (int i = 0; i < this._boneTargets.Count; i++)
+                poseTarget = (CharaPoseController)this._poseTarget;
+                if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
                 {
-                    FullBodyBipedEffector bone = this._boneTargets[i];
-                    if (this._poseTarget.IsPartEnabled(bone) == false)
-                    {
-                        this._boneTargets.RemoveAt(i);
-                        --i;
-                        shouldReset = true;
-                    }
-                }
+                    this._delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
 
-                for (int i = 0; i < this._bendGoalTargets.Count; i++)
-                {
-                    FullBodyBipedChain bendGoal = this._bendGoalTargets[i];
-                    if (this._poseTarget.IsPartEnabled(bendGoal) == false)
-                    {
-                        this._bendGoalTargets.RemoveAt(i);
-                        --i;
-                        shouldReset = true;
-                    }
-                }
-                this.SelectBoneButtons();
-
-                if (shouldReset)
-                {
-                    this._lastBonesPositions.Resize(this._boneTargets.Count);
-                    this._lastBonesRotations.Resize(this._boneTargets.Count);
-                }
-
-                for (int i = 0; i < this._effectorsButtons.Length; i++)
-                    this._effectorsButtons[i].interactable = this._poseTarget.IsPartEnabled((FullBodyBipedEffector)i);
-
-                for (int i = 0; i < this._bendGoalsButtons.Length; i++)
-                    this._bendGoalsButtons[i].interactable = this._poseTarget.IsPartEnabled((FullBodyBipedChain)i);
-            }
-
-            if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
-            {
-                this._delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
-                if (this._poseTarget != null)
-                {
-                    if (this._poseTarget.currentDragType == PoseController.DragType.None)
-                        this._poseTarget.StartDrag(this._xMove || this._yMove || this._zMove ? PoseController.DragType.Position : PoseController.DragType.Rotation);
+                    if (poseTarget.currentDragType == CharaPoseController.DragType.None)
+                        poseTarget.StartDrag(this._xMove || this._yMove || this._zMove ? CharaPoseController.DragType.Position : CharaPoseController.DragType.Rotation);
                     for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
                         bool changePosition = false;
@@ -1152,10 +1143,11 @@ namespace HSPE
                             newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.forward);
                             changeRotation = true;
                         }
-                        if (changePosition)
-                            this._poseTarget.SetBoneTargetPosition(this._boneTargets[i], newPosition, this._positionOperationWorld);
-                        if (changeRotation)
-                            this._poseTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);
+                        FullBodyBipedEffector bone = this._boneTargets[i];
+                        if (changePosition && poseTarget.IsPartEnabled(bone))
+                                poseTarget.SetBoneTargetPosition(bone, newPosition, this._positionOperationWorld);
+                        if (changeRotation && poseTarget.IsPartEnabled(bone))
+                            poseTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);                            
                     }
                     for (int i = 0; i < this._bendGoalTargets.Count; ++i)
                     {
@@ -1166,40 +1158,42 @@ namespace HSPE
                             newPosition.y += this._delta.y * this._intensityValue;
                         if (this._zMove)
                             newPosition.z += this._delta.y * this._intensityValue;
-                        this._poseTarget.SetBendGoalPosition(this._bendGoalTargets[i], newPosition, this._positionOperationWorld);
+                        FullBodyBipedChain bendGoal = this._bendGoalTargets[i];
+                        if (poseTarget.IsPartEnabled(bendGoal))
+                            poseTarget.SetBendGoalPosition(bendGoal, newPosition, this._positionOperationWorld);
                     }
                 }
-            }
-            else
-            {
-                this._delta = Vector2.zero;
-                if (this._poseTarget != null)
+                else
                 {
-                    if (this._poseTarget.currentDragType != PoseController.DragType.None)
-                        this._poseTarget.StopDrag();
+                    this._delta = Vector2.zero;
+                    if (poseTarget.currentDragType != CharaPoseController.DragType.None)
+                        poseTarget.StopDrag();
                     for (int i = 0; i < this._boneTargets.Count; ++i)
                     {
-                        this._lastBonesPositions[i] = this._poseTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
-                        this._lastBonesRotations[i] = this._poseTarget.GetBoneTargetRotation(this._boneTargets[i]);
+                        this._lastBonesPositions[i] = poseTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
+                        this._lastBonesRotations[i] = poseTarget.GetBoneTargetRotation(this._boneTargets[i]);
                     }
                     for (int i = 0; i < this._bendGoalTargets.Count; ++i)
-                        this._lastBendGoalsPositions[i] = this._poseTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
+                        this._lastBendGoalsPositions[i] = poseTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
                 }
             }
 
-            if (this._shortcutRegisterMode)
-            {
-                foreach (KeyCode kc in this._possibleKeyCodes)
-                {
-                    if (Input.GetKeyDown(kc))
-                    {
-                        if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0)
-                            this._mainWindowKeyCode = kc;
-                        this._shortcutKeyButton.onClick.Invoke();
-                        break;
-                    }
-                }
-            }
+            for (int i = 0; i < this._effectorsButtons.Length; i++)
+                this._effectorsButtons[i].interactable = isCharacter && poseTarget.IsPartEnabled((FullBodyBipedEffector)i);
+
+            for (int i = 0; i < this._bendGoalsButtons.Length; i++)
+                this._bendGoalsButtons[i].interactable = isCharacter && poseTarget.IsPartEnabled((FullBodyBipedChain)i);
+
+            for (int i = 0; i < this._positionButtons.Length; i++)
+                this._positionButtons[i].interactable = isCharacter && poseTarget.target.ikEnabled;
+
+            bool interactableRotation = true;
+            if (isCharacter)
+                interactableRotation = this._bendGoalTargets.Count == 0 && this._boneTargets.Intersect(CharaPoseController.nonRotatableEffectors).Any() == false;
+
+            for (int i = 0; i < this._rotationButtons.Length; i++)
+                this._rotationButtons[i].interactable = isCharacter && poseTarget.target.ikEnabled && interactableRotation;
+
         }
         #endregion
 
@@ -1209,10 +1203,14 @@ namespace HSPE
             Studio.Studio.Instance.cameraCtrl.noCtrlCondition = this.CameraControllerCondition;
         }
 
-        public void OnDuplicate(OCIChar source, OCIChar destination)
+        public void OnDuplicate(ObjectCtrlInfo source, ObjectCtrlInfo destination)
         {
-            PoseController destinationController = destination.charInfo.gameObject.AddComponent<PoseController>();
-            destinationController.LoadFrom(source.charInfo.gameObject.GetComponent<PoseController>());
+            PoseController destinationController;
+            if (destination is OCIChar)
+                destinationController = destination.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
+            else
+                destinationController = destination.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+            destinationController.LoadFrom(source.guideObject.transformTarget.gameObject.GetComponent<PoseController>());
         }
         #endregion
 
@@ -1223,9 +1221,16 @@ namespace HSPE
             {
                 if (kvp.Key >= this._lastIndex)
                 {
-                    OCIChar ociChar = kvp.Value as OCIChar;
-                    if (ociChar != null && ociChar.charInfo.gameObject.GetComponent<PoseController>() == null)
-                        ociChar.charInfo.gameObject.AddComponent<PoseController>();
+                    if (kvp.Value is OCIChar)
+                    {
+                        if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
+                            kvp.Value.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
+                    }
+                    else if (kvp.Value is OCIItem)
+                    {
+                        if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
+                            kvp.Value.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+                    }
                 }
             }
         }
@@ -1233,30 +1238,36 @@ namespace HSPE
         private void OnTargetChange(PoseController last)
         {
             if (last != null)
+                last.SelectionChanged();
+            if (this._poseTarget != null)
             {
-                if (this._poseTarget != null)
-                    this._poseTarget.drawAdvancedMode = last.drawAdvancedMode;
-                last.drawAdvancedMode = false;
+                bool isCharacter = this._poseTarget.target.type == GenericOCITarget.Type.Character;
+                if (isCharacter)
+                {
+                    CharaPoseController poseTarget = (CharaPoseController)this._poseTarget;
+
+                    this._optimizeIKToggle.isOn = poseTarget.optimizeIK;
+                    this._crotchCorrectionToggle.isOn = poseTarget.crotchJointCorrection;
+                    this._leftFootCorrectionToggle.isOn = poseTarget.leftFootJointCorrection;
+                    this._rightFootCorrectionToggle.isOn = poseTarget.rightFootJointCorrection;
+                }
+                this._optimizeIKToggle.interactable = isCharacter;
+                this._copyLeftArmButton.interactable = isCharacter;
+                this._copyRightArmButton.interactable = isCharacter;
+                this._copyLeftLegButton.interactable = isCharacter;
+                this._copyRightLegButton.interactable = isCharacter;
+                this._swapPostButton.interactable = isCharacter;
+                this._nothingText.gameObject.SetActive(false);
+                this._controls.gameObject.SetActive(true);
+                this._poseTarget.SelectionChanged();
             }
-            if (this._poseTarget == null)
+            else
             {
                 this._nothingText.gameObject.SetActive(true);
                 this._controls.gameObject.SetActive(false);
             }
-            else
-            {
-                this._optimizeIKToggle.isOn = this._poseTarget.optimizeIK;
-                this._crotchCorrectionToggle.isOn = this._poseTarget.crotchJointCorrection;
-                this._leftFootCorrectionToggle.isOn = this._poseTarget.leftFootJointCorrection;
-                this._rightFootCorrectionToggle.isOn = this._poseTarget.rightFootJointCorrection;
-                this._nothingText.gameObject.SetActive(false);
-                this._controls.gameObject.SetActive(true);
-            }
         }
 
-
-
-        [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
         private bool CameraControllerCondition()
         {
             return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving || (this._poseTarget != null && this._poseTarget.isDraggingDynamicBone);
@@ -1306,20 +1317,28 @@ namespace HSPE
 
         private void OnSceneSave(string scenePath, XmlTextWriter xmlWriter)
         {
-            int written = 0;
             xmlWriter.WriteStartElement("root");
             xmlWriter.WriteAttributeString("version", HSPE.versionNum);
             SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
             {
-                OCIChar ociChar = kvp.Value as OCIChar;
-                if (ociChar != null)
+                if (kvp.Value is OCIChar)
                 {
                     xmlWriter.WriteStartElement("characterInfo");
-                    xmlWriter.WriteAttributeString("name", ociChar.charInfo.customInfo.name);
+                    xmlWriter.WriteAttributeString("name", ((OCIChar)kvp.Value).charInfo.customInfo.name);
                     xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
 
-                    written += this.SaveChara(ociChar, xmlWriter);
+                    this.SaveElement(kvp.Value, xmlWriter);
+
+                    xmlWriter.WriteEndElement();
+                }
+                else if (kvp.Value is OCIItem)
+                {
+                    xmlWriter.WriteStartElement("itemInfo");
+                    xmlWriter.WriteAttributeString("name", ((OCIItem)kvp.Value).treeNodeObject.textName);
+                    xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
+
+                    this.SaveElement(kvp.Value, xmlWriter);
 
                     xmlWriter.WriteEndElement();
                 }
@@ -1348,7 +1367,16 @@ namespace HSPE
                                 ++i;
                             if (i == dic.Count)
                                 break;
-                            this.LoadChara(ociChar, childNode);
+                            this.LoadElement(ociChar, childNode);
+                            ++i;
+                            break;
+                        case "itemInfo":
+                            OCIItem ociItem = null;
+                            while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
+                                ++i;
+                            if (i == dic.Count)
+                                break;
+                            this.LoadElement(ociItem, childNode);
                             ++i;
                             break;
                     }
@@ -1374,7 +1402,7 @@ namespace HSPE
                 {
                     OCIChar ociChar = pair.Value as OCIChar;
                     if (ociChar != null && ociChar.charInfo.chaFile == file)
-                        this.LoadChara(ociChar, node);
+                        this.LoadElement(ociChar, node);
                 }
             });
         }
@@ -1386,7 +1414,6 @@ namespace HSPE
                 OCIChar ociChar = pair.Value as OCIChar;
                 if (ociChar != null && ociChar.charInfo.chaFile == file)
                 {
-                    int written = 0;
                     using (StringWriter stringWriter = new StringWriter())
                     using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
                     {
@@ -1395,7 +1422,7 @@ namespace HSPE
                         xmlWriter.WriteAttributeString("version", KKPE.versionNum);
                         xmlWriter.WriteAttributeString("name", ociChar.charInfo.chaFile.parameter.fullname);
 
-                        written += this.SaveChara(ociChar, xmlWriter);
+                        this.SaveElement(ociChar, xmlWriter);
 
                         xmlWriter.WriteEndElement();
 
@@ -1410,17 +1437,22 @@ namespace HSPE
         }
 #endif
 
-        private void LoadChara(OCIChar ociChar, XmlNode node)
+        private void LoadElement(ObjectCtrlInfo oci, XmlNode node)
         {
-            PoseController controller = ociChar.charInfo.gameObject.GetComponent<PoseController>();
+            PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
             if (controller == null)
-                controller = ociChar.charInfo.gameObject.AddComponent<PoseController>();
+            {
+                if (oci is OCIChar)
+                    controller = oci.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
+                else
+                    controller = oci.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+            }
             controller.ScheduleLoad(node);
         }
 
-        private int SaveChara(OCIChar ociChar, XmlTextWriter xmlWriter)
+        private void SaveElement(ObjectCtrlInfo oci, XmlTextWriter xmlWriter)
         {
-            return ociChar.charInfo.gameObject.GetComponent<PoseController>().SaveXml(xmlWriter);
+            oci.guideObject.transformTarget.GetComponent<PoseController>().SaveXml(xmlWriter);
         }
         #endregion
     }

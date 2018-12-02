@@ -23,6 +23,7 @@ namespace HSPE.AMModules
         private bool _repeatCalled = false;
         private float _repeatBeforeDuration = 0.5f;
         private int _incIndex = 0;
+        private bool _oldDrawAdvancedMode;
         #endregion
 
         #region Abstract Fields
@@ -32,7 +33,8 @@ namespace HSPE.AMModules
 
         #region Public Accessors
         public virtual bool isEnabled { get; set; } = false;
-        public virtual bool drawAdvancedMode { get; set; } = false;
+        public virtual bool shouldDisplay { get { return true; } }
+        public PoseController parent { get; set; }
         #endregion
 
         #region Unity Methods
@@ -43,6 +45,9 @@ namespace HSPE.AMModules
             else
                 this._repeatTimer = 0f;
             this._repeatCalled = false;
+            if (this._oldDrawAdvancedMode != PoseController._drawAdvancedMode)
+                this.DrawAdvancedModeChanged();
+            this._oldDrawAdvancedMode = PoseController._drawAdvancedMode;
         }
         #endregion
 
@@ -73,6 +78,8 @@ namespace HSPE.AMModules
         public virtual void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force){}
 #endif
         public virtual void OnParentage(TreeNodeObject parent, TreeNodeObject child) { }
+        public virtual void DrawAdvancedModeChanged() { }
+        public virtual void SelectionChanged() { }
         #endregion
 
         #region Protected Methods

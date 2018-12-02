@@ -4,7 +4,9 @@ using System.Reflection;
 using Harmony;
 using IllusionUtility.SetUtility;
 using Studio;
+#if KOIKATSU
 using TMPro;
+#endif
 using ToolBox;
 using UILib;
 using UnityEngine;

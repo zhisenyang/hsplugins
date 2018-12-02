@@ -1,43 +1,56 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using Harmony;
 using Studio;
+using ToolBox;
+using UnityEngine;
 
 namespace HSPE
 {
     [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
     public class Studio_Duplicate_Patches
     {
-        private static SortedList<int, OCIChar> _toDuplicate;
+        internal static readonly List<ObjectInfo> _sources = new List<ObjectInfo>();
+        internal static readonly List<ObjectInfo> _destinations = new List<ObjectInfo>();
+        internal static bool _duplicateCalled = false;
 
-        public static void Prefix(Studio.Studio __instance)
+        public static void Prefix()
         {
-            _toDuplicate = new SortedList<int, OCIChar>();
-            TreeNodeObject[] selectNodes = __instance.treeNodeCtrl.selectNodes;
-            for (int i = 0; i < selectNodes.Length; i++)
-            {
-                ObjectCtrlInfo objectCtrlInfo = null;
-                if (__instance.dicInfo.TryGetValue(selectNodes[i], out objectCtrlInfo))
-                {
-                    objectCtrlInfo.OnSavePreprocessing();
-                    OCIChar ociChar = objectCtrlInfo as OCIChar;
-                    if (ociChar != null)
-                    {
-                        _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, ociChar);
-                    }
-                }
-            }
+            _duplicateCalled = true;
         }
 
         public static void Postfix(Studio.Studio __instance)
         {
-            IEnumerator<KeyValuePair<int, OCIChar>> enumerator = _toDuplicate.GetEnumerator();
-            foreach (KeyValuePair<int, ObjectInfo> keyValuePair in new SortedDictionary<int, ObjectInfo>(__instance.sceneInfo.dicImport))
+            for (int i = 0; i < _sources.Count; i++)
             {
-                OCIChar dest = __instance.dicObjectCtrl[keyValuePair.Value.dicKey] as OCIChar;
-                if (dest != null && enumerator.MoveNext())
-                    MainWindow.self.OnDuplicate(enumerator.Current.Value, dest);
+                ObjectCtrlInfo source = __instance.dicObjectCtrl[_sources[i].dicKey];
+                ObjectCtrlInfo destination = __instance.dicObjectCtrl[_destinations[i].dicKey];
+                MainWindow.self.OnDuplicate(source, destination);
             }
-            enumerator.Dispose();
+            _sources.Clear();
+            _destinations.Clear();
+            _duplicateCalled = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(ObjectInfo), "Save", new []{typeof(BinaryWriter), typeof(Version)})]
+    internal static class ObjectInfo_Save_Patches
+    {
+        private static void Postfix(ObjectInfo __instance)
+        {
+            if (Studio_Duplicate_Patches._duplicateCalled && (__instance is OICharInfo || __instance is OIItemInfo))
+                Studio_Duplicate_Patches._sources.Add(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(ObjectInfo), "Load", new []{typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool)})]
+    internal static class ObjectInfo_Load_Patches
+    {
+        private static void Postfix(ObjectInfo __instance)
+        {
+            if (Studio_Duplicate_Patches._duplicateCalled && (__instance is OICharInfo || __instance is OIItemInfo))
+                Studio_Duplicate_Patches._destinations.Add(__instance);
         }
     }
 }

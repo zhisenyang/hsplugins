@@ -43,7 +43,7 @@ namespace HSUS
         public static float GetCameraMultiplier()
         {
             if (Input.GetKey(KeyCode.LeftControl))
-                return 1f/3f;
+                return 1f/6f;
             if (Input.GetKey(KeyCode.LeftShift))
                 return 4f;
             return 1f;
