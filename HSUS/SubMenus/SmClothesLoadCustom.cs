@@ -43,22 +43,7 @@ namespace HSUS
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            RectTransform rt = _originalComponent.transform.FindChild("ScrollView") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-            float newY = rt.offsetMax.y;
-            rt = _originalComponent.transform.FindChild("Scrollbar") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-
-            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform);
-            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
-            rt = searchBar.transform as RectTransform;
-            rt.localPosition = Vector3.zero;
-            rt.localScale = Vector3.one;
-            rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            searchBar.onValueChanged.AddListener(SearchChanged);
-            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
-                t.color = Color.white;
+            searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform, SearchChanged, -24f);
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 

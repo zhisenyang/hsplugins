@@ -28,7 +28,7 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.extendedsave")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.1";
+        public const string versionNum = "1.0.2";
 
         #region Private Types
         internal class CharAdditionalData
@@ -98,8 +98,8 @@ namespace MoreAccessoriesKOI
         internal List<CharaMakerSlotData> _additionalCharaMakerSlots;
         internal Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
         internal CharAdditionalData _charaMakerData = null;
-        private Vector3 _slotUIPosition;
-        private int _selectedSlot = 0;
+        private float _slotUIPositionY;
+        //private int _selectedSlot = 0;
         private bool _inCharaMaker = false;
         private Binary _binary;
         private RectTransform _addButtonsGroup;
@@ -175,7 +175,7 @@ namespace MoreAccessoriesKOI
                         switch (scene.buildIndex)
                         {
                             case 2: //Chara maker
-                                this._selectedSlot = 0;
+                                CustomBase.Instance.selectSlot = 0;
                                 this._additionalCharaMakerSlots = new List<CharaMakerSlotData>();
                                 this._raycastCtrls = new List<UI_RaycastCtrl>();
                                 this._inCharaMaker = true;
@@ -208,7 +208,7 @@ namespace MoreAccessoriesKOI
                 case LoadSceneMode.Additive:
                     if (this._binary == Binary.Game && scene.buildIndex == 2) //Class chara maker
                     {
-                        this._selectedSlot = 0;
+                        CustomBase.Instance.selectSlot = 0;
                         this._additionalCharaMakerSlots = new List<CharaMakerSlotData>();
                         this._raycastCtrls = new List<UI_RaycastCtrl>();
                         this._inCharaMaker = true;
@@ -263,10 +263,12 @@ namespace MoreAccessoriesKOI
         {
             if (this._inCharaMaker && this._customAcsChangeSlot != null)
             {
-                if (this._selectedSlot < 20)
-                    this._customAcsChangeSlot.items[this._selectedSlot].cgItem.transform.position = this._slotUIPosition;
+                Transform t;
+                if (CustomBase.Instance.selectSlot < 20)
+                    t = this._customAcsChangeSlot.items[CustomBase.Instance.selectSlot].cgItem.transform;
                 else
-                    this._additionalCharaMakerSlots[this._selectedSlot - 20].canvasGroup.transform.position = this._slotUIPosition;
+                    t = this._additionalCharaMakerSlots[CustomBase.Instance.selectSlot - 20].canvasGroup.transform;
+                t.position = new Vector3(t.position.x, this._slotUIPositionY);
             }
         }
         #endregion
@@ -284,9 +286,11 @@ namespace MoreAccessoriesKOI
             if (this._charaMakerScrollView.verticalScrollbar != null)
                 Destroy(this._charaMakerScrollView.verticalScrollbar.gameObject);
             Destroy(this._charaMakerScrollView.GetComponent<Image>());
+            this._charaMakerSlotTemplate = container.GetChild(0).gameObject;
+            RectTransform rootCanvas = ((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform);
             LayoutElement element = this._charaMakerScrollView.gameObject.AddComponent<LayoutElement>();
-            element.minHeight = 832;
-            element.minWidth = 600f;
+            element.minHeight = rootCanvas.rect.height / 1.298076f;
+            element.minWidth = ((RectTransform)this._charaMakerSlotTemplate.transform.GetChild(1)).offsetMax.x + 22f;
             VerticalLayoutGroup group = this._charaMakerScrollView.content.gameObject.AddComponent<VerticalLayoutGroup>();
             VerticalLayoutGroup parentGroup = container.GetComponent<VerticalLayoutGroup>();
             group.childAlignment = parentGroup.childAlignment;
@@ -296,15 +300,18 @@ namespace MoreAccessoriesKOI
             group.childForceExpandWidth = parentGroup.childForceExpandWidth;
             group.spacing = parentGroup.spacing;
             this._charaMakerScrollView.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            this._charaMakerSlotTemplate = container.GetChild(0).gameObject;
-            this._slotUIPosition = this._charaMakerSlotTemplate.transform.GetChild(1).position;
+            
+            this.ExecuteDelayed(() =>
+            {
+                this._slotUIPositionY = this._charaMakerSlotTemplate.transform.parent.position.y;
+            }, 15);
+
             Type kkus = Type.GetType("HSUS.HSUS,KKUS");
             if (kkus != null)
             {
-                System.Object self = kkus.GetField("_self", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+                object self = kkus.GetField("_self", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
                 float scale = (float)self.GetPrivate("_gameUIScale");
-                this._slotUIPosition.x *= scale;
-                this._slotUIPosition.y += (((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform).rect.size.y - this._slotUIPosition.y) * (1f - scale);
+                element.minHeight = element.minHeight / scale + 160f * (1f - scale);
             }
             for (int i = 0; i < 20; i++)
                 container.GetChild(0).SetParent(this._charaMakerScrollView.content);
@@ -552,19 +559,20 @@ namespace MoreAccessoriesKOI
             int i;
             for (i = 0; i < count; i++)
             {
+                CharaMakerSlotData info;
                 if (i < this._additionalCharaMakerSlots.Count)
                 {
-                    CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
-                    slot.toggle.gameObject.SetActive(true);
-                        slot.cvsAccessory.UpdateCustomUI();
-                    slot.cvsAccessory.UpdateSlotName();
+                    info = this._additionalCharaMakerSlots[i];
+                    info.toggle.gameObject.SetActive(true);
+                    if (i + 20 == CustomBase.Instance.selectSlot)
+                        info.cvsAccessory.UpdateCustomUI();
 
-                    slot.transferSlotObject.SetActive(true);
+                    info.transferSlotObject.SetActive(true);
                 }
                 else
                 {
                     GameObject newSlot = Instantiate(this._charaMakerSlotTemplate, this._charaMakerScrollView.content);
-                    CharaMakerSlotData info = new CharaMakerSlotData();
+                    info = new CharaMakerSlotData();
                     info.toggle = newSlot.GetComponent<Toggle>();
                     info.text = info.toggle.GetComponentInChildren<TextMeshProUGUI>();
                     info.canvasGroup = info.toggle.transform.GetChild(1).GetComponent<CanvasGroup>();
@@ -624,6 +632,8 @@ namespace MoreAccessoriesKOI
                     this._additionalCharaMakerSlots.Add(info);
                     info.cvsAccessory.UpdateCustomUI();
                 }
+                info.cvsAccessory.UpdateSlotName();
+
             }
             for (; i < this._additionalCharaMakerSlots.Count; i++)
             {
@@ -810,7 +820,7 @@ namespace MoreAccessoriesKOI
         {
             if (toggle.isOn)
             {
-                this._selectedSlot = index;
+                CustomBase.Instance.selectSlot = index;
                 bool open = this.GetPart(index).type != 120;
                 this._customAcsParentWin.ChangeSlot(index, open);
                 foreach (CustomAcsMoveWindow customAcsMoveWindow in this._customAcsMoveWin)
@@ -854,15 +864,16 @@ namespace MoreAccessoriesKOI
 
         internal void OnCoordTypeChange()
         {
-            this.UpdateUI();
             if (this._inCharaMaker)
             {
-                if (this._selectedSlot < 20 || this._additionalCharaMakerSlots[this._selectedSlot - 20].toggle.gameObject.activeSelf)
-                    return;
-                Toggle toggle = this._customAcsChangeSlot.items[0].tglItem;
-                toggle.isOn = true;
-                this._selectedSlot = 0;
+                if (CustomBase.Instance.selectSlot >= 20 && !this._additionalCharaMakerSlots[CustomBase.Instance.selectSlot - 20].toggle.gameObject.activeSelf)
+                {
+                    Toggle toggle = this._customAcsChangeSlot.items[0].tglItem;
+                    toggle.isOn = true;
+                    CustomBase.Instance.selectSlot = 0;
+                }
             }
+            this.UpdateUI();
         }
 
         internal int GetSelectedMakerIndex()
@@ -1054,7 +1065,7 @@ namespace MoreAccessoriesKOI
                 {
                     __instance = _self._overrideCharaLoadingFile;
                 }
-                if (_self._accessoriesByChar.TryGetValue(__instance, out additionalData) != false)
+                if (_self._accessoriesByChar.TryGetValue(__instance, out additionalData))
                 {
                     foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> coordinate in additionalData.rawAccessoriesInfos)
                     {
@@ -1330,7 +1341,7 @@ namespace MoreAccessoriesKOI
                 data.cusAcsCmp.Add(null);
             while (data.showAccessories.Count < data.nowAccessories.Count)
                 data.showAccessories.Add(true);
-            if (this._inH)
+            if (this._inH || this._inCharaMaker)
                 this.ExecuteDelayed(this.UpdateUI);
             else
                 this.UpdateUI();
@@ -1510,7 +1521,7 @@ namespace MoreAccessoriesKOI
             while (data.showAccessories.Count < data.nowAccessories.Count)
                 data.showAccessories.Add(true);
 
-            if (this._inH)
+            if (this._inH || this._inCharaMaker)
                 this.ExecuteDelayed(this.UpdateUI);
             else
                 this.UpdateUI();

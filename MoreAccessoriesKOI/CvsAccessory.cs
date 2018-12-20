@@ -1499,7 +1499,7 @@ namespace MoreAccessoriesKOI
                     dstParts = new List<ChaFileAccessory.PartsInfo>();
                     MoreAccessories._self._charaMakerData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)ddCoordeType[0].value, dstParts);
                 }
-                for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count; i++)
+                for (int i = 0; i < MoreAccessories._self._additionalCharaMakerSlots.Count && i < srcParts.Count; i++)
                 {
                     MoreAccessories.CharaMakerSlotData slot = MoreAccessories._self._additionalCharaMakerSlots[i];
                     if (slot.copyToggle.isOn)
@@ -1513,6 +1513,7 @@ namespace MoreAccessoriesKOI
                         dstParts[i] = MessagePackSerializer.Deserialize<ChaFileAccessory.PartsInfo>(array);
                     }
                 }
+                MoreAccessories._self.ExecuteDelayed(MoreAccessories._self.UpdateUI);
             }
         }
 

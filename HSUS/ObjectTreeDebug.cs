@@ -403,14 +403,16 @@ namespace HSUS
                 GUILayout.BeginVertical(_customBoxStyle);
                 GUI.backgroundColor = c;
                 Type t = obj.child.GetType();
-                if (t.GetInterface("IEnumerable") != null)
+                if (obj.child is IEnumerable && obj.child is Transform == false)
                 {
-                    IEnumerable array = obj.child as IEnumerable;
+                    IEnumerable array = (IEnumerable)obj.child;
                     int i = 0;
                     if (array != null)
                     {
                         foreach (object o in array)
                         {
+                            if (o != null && obj.child == o)
+                                continue;
                             GUILayout.BeginHorizontal();
                             GUILayout.Space(10);
                             GUILayout.Label(i + ": " + (o == null ? "null" : o), GUILayout.ExpandWidth(false));
@@ -469,6 +471,8 @@ namespace HSUS
                         {
                             exception = true;
                         }
+                        if (o != null && obj.child == o)
+                            continue;
 
                         GUILayout.BeginHorizontal();
                         GUILayout.Space(10);
@@ -503,7 +507,7 @@ namespace HSUS
                     Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
                     foreach (PropertyInfo property in properties)
                     {
-                        if ((property.GetGetMethod() ?? property.GetSetMethod()).IsDefined(compilerGeneratedAttribute, false))
+                        if ((property.GetGetMethod(true) ?? property.GetSetMethod(true)).IsDefined(compilerGeneratedAttribute, false))
                             continue;
                         object o = null;
                         bool exception = false;
@@ -515,6 +519,9 @@ namespace HSUS
                         {
                             exception = true;
                         }
+                        if (o != null && obj.child == o)
+                            continue;
+
                         GUILayout.BeginHorizontal();
                         GUILayout.Space(10);
                         if (o != null)

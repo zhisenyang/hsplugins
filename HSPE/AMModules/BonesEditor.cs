@@ -16,14 +16,14 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Types
-        private struct ColliderDebugLines
+        private class ColliderDebugLines
         {
-            public List<VectorLine> centerCircles;
-            public List<VectorLine> capsCircles;
-            public List<VectorLine> centerLines;
-            public List<VectorLine> capsLines;
+            public readonly List<VectorLine> centerCircles;
+            public readonly List<VectorLine> capsCircles;
+            public readonly List<VectorLine> centerLines;
+            public readonly List<VectorLine> capsLines;
 
-            public void Init()
+            public ColliderDebugLines()
             {
                 const float radius = 1f;
                 const float num = 2f * 0.5f - 1f;
@@ -219,6 +219,14 @@ namespace HSPE.AMModules
                 foreach (VectorLine line in this.capsLines)
                     line.active = active;
             }
+
+            public void Destroy()
+            {
+                VectorLine.Destroy(this.capsLines);
+                VectorLine.Destroy(this.centerLines);
+                VectorLine.Destroy(this.capsCircles);
+                VectorLine.Destroy(this.centerCircles);
+            }
         }
 
         private enum CoordType
@@ -292,6 +300,7 @@ namespace HSPE.AMModules
         internal static readonly Dictionary<string, string> _boneAliases = new Dictionary<string, string>();
         internal static Rect _colliderEditRect = new Rect(Screen.width - 650, Screen.height - 690, 450, 300);
 
+        private readonly GenericOCITarget _target;
         private Vector2 _boneEditionScroll;
         private string _currentAlias = "";
         private Transform _boneTarget;
@@ -308,131 +317,157 @@ namespace HSPE.AMModules
         private readonly HashSet<Transform> _colliderObjects = new HashSet<Transform>();
         private readonly HashSet<GameObject> _openedBones = new HashSet<GameObject>();
 
-        private DynamicBoneCollider _colliderTarget;
+        internal DynamicBoneCollider _colliderTarget;
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
-        private readonly List<VectorLine> _cubeDebugLines = new List<VectorLine>();
-        private ColliderDebugLines _colliderDebugLines;
+        private static readonly List<VectorLine> _cubeDebugLines = new List<VectorLine>();
+        private static ColliderDebugLines _colliderDebugLines;
         #endregion
 
         #region Public Accessors
         public override AdvancedModeModuleType type { get { return AdvancedModeModuleType.BonesEditor; } }
         public override string displayName { get { return "Bones"; } }
-        public GenericOCITarget target { get; set; }
         public bool colliderEditEnabled { get { return this._colliderTarget != null; } }
         public override bool isEnabled
         {
             set
             {
                 base.isEnabled = value;
-                this.CheckGizmosEnabled();
+                UpdateDebugLinesState(this);
             }
         }
         #endregion
 
         #region Unity Methods
-        void Awake()
+        public BonesEditor(PoseController parent, GenericOCITarget target): base(parent)
         {
-            foreach (DynamicBoneCollider c in this.GetComponentsInChildren<DynamicBoneCollider>(true))
+            this._target = target;
+            this._parent.onUpdate += this.Update;
+            this._parent.onLateUpdate += this.LateUpdate;
+            this._parent.onDisable += this.OnDisable;
+            foreach (DynamicBoneCollider c in this._parent.GetComponentsInChildren<DynamicBoneCollider>(true))
                 this._colliderObjects.Add(c.transform);
-            float size = 0.012f;
-            Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
-                topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
-                bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
-                bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
-                topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
-                topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
-                bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
-                bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftForward, topRightForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightForward, bottomRightForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightForward, bottomLeftForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftForward, topLeftForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topRightBack));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, bottomRightBack));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomLeftBack));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, topLeftBack));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topLeftForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, topRightForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
-            this._cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
-
-            VectorLine l = VectorLine.SetLine(AdvancedModeModule._redColor, Vector3.zero, Vector3.right * size * 2);
-            l.endCap = "vector";
-            this._cubeDebugLines.Add(l);
-            l = VectorLine.SetLine(AdvancedModeModule._greenColor, Vector3.zero, Vector3.up * size * 2);
-            l.endCap = "vector";
-            this._cubeDebugLines.Add(l);
-            l = VectorLine.SetLine(AdvancedModeModule._blueColor, Vector3.zero, Vector3.forward * size * 2);
-            l.endCap = "vector";
-            this._cubeDebugLines.Add(l);
-
-            foreach (VectorLine line in this._cubeDebugLines)
+            if (_cubeDebugLines.Count == 0)
             {
-                line.lineWidth = 2f;
-                line.active = false;
-            }
-            this._colliderDebugLines.Init();
-            this._colliderDebugLines.SetActive(false);
-        }
+                float size = 0.012f;
+                Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
+                    topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
+                    bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
+                    bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
+                    topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
+                    topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
+                    bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
+                    bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftForward, topRightForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightForward, bottomRightForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightForward, bottomLeftForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftForward, topLeftForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topRightBack));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, bottomRightBack));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomLeftBack));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, topLeftBack));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topLeftBack, topLeftForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, topRightBack, topRightForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomRightBack, bottomRightForward));
+                _cubeDebugLines.Add(VectorLine.SetLine(Color.white, bottomLeftBack, bottomLeftForward));
 
-        void Start()
-        {
-            if (this.target.type == GenericOCITarget.Type.Character)
+                VectorLine l = VectorLine.SetLine(_redColor, Vector3.zero, Vector3.right * size * 2);
+                l.endCap = "vector";
+                _cubeDebugLines.Add(l);
+                l = VectorLine.SetLine(_greenColor, Vector3.zero, Vector3.up * size * 2);
+                l.endCap = "vector";
+                _cubeDebugLines.Add(l);
+                l = VectorLine.SetLine(_blueColor, Vector3.zero, Vector3.forward * size * 2);
+                l.endCap = "vector";
+                _cubeDebugLines.Add(l);
+
+                foreach (VectorLine line in _cubeDebugLines)
+                {
+                    line.lineWidth = 2f;
+                    line.active = false;
+                }
+                _colliderDebugLines = new ColliderDebugLines();
+                _colliderDebugLines.SetActive(false);
+            }
+
+            if (this._target.type == GenericOCITarget.Type.Character)
             {
 #if HONEYSELECT
-                if (this.target.isFemale)
+                if (this._target.isFemale)
                 {
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_Foot02_R"), "R. Foot");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceRoot"), "Face");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_Hand_s_L"), "L. Hand");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_Hand_s_R"), "R. Hand");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_Foot02_L"), "L. Foot");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_Foot02_R"), "R. Foot");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_FaceRoot"), "Face");
                 }
                 else
                 {
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_L"), "L. Hand");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Hand_s_R"), "R. Hand");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_L"), "L. Foot");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_Foot02_R"), "R. Foot");
-                    this._boneEditionShortcuts.Add(this.transform.FindDescendant("cm_J_FaceRoot"), "Face");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cm_J_Hand_s_L"), "L. Hand");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cm_J_Hand_s_R"), "R. Hand");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cm_J_Foot02_L"), "L. Foot");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cm_J_Foot02_R"), "R. Foot");
+                    this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cm_J_FaceRoot"), "Face");
                 }
 #elif KOIKATSU
-                this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_s_hand_L"), "L. Hand");
-                this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_s_hand_R"), "R. Hand");
-                this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_j_foot_L"), "L. Foot");
-                this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_j_foot_R"), "R. Foot");
-                this._boneEditionShortcuts.Add(this.transform.FindDescendant("cf_J_FaceBase"), "Face");
+                this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_s_hand_L"), "L. Hand");
+                this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_s_hand_R"), "R. Hand");
+                this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_j_foot_L"), "L. Foot");
+                this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_j_foot_R"), "R. Foot");
+                this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_FaceBase"), "Face");
 #endif
             }
-            this.StartCoroutine(this.EndOfFrame());
+            this._parent.StartCoroutine(this.EndOfFrame());
         }
 
-        protected override void Update()
+        private void Update()
         {
-            base.Update();
-            this.DrawGizmos();
+            if (this._isEnabled && PoseController._drawAdvancedMode && this._boneTarget != null && MainWindow._self._poseTarget == this._parent)
+                this.DrawGizmos();
         }
 
-        void LateUpdate()
+        private void LateUpdate()
         {
-            if (this.target.type == GenericOCITarget.Type.Item)
+            if (this._target.type == GenericOCITarget.Type.Item)
                 this.ApplyBoneManualCorrection();
         }
 
-        void OnGUI()
+        public void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow.self.uiScale * MainWindow.self.resolutionRatio), new Vector2(Screen.width, Screen.height));
-            if (this._colliderTarget && this.isEnabled && PoseController._drawAdvancedMode && MainWindow.self._poseTarget == this.parent)
-            {
-                Color c = GUI.backgroundColor;
-                GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
-                for (int i = 0; i < 3; ++i)
-                    GUI.Box(_colliderEditRect, "", MainWindow._customBoxStyle);
-                GUI.backgroundColor = c;
-                _colliderEditRect = GUILayout.Window(2, _colliderEditRect, this.ColliderEditor, "Collider Editor" + (this.IsColliderDirty(this._colliderTarget) ? "*" : ""));
-            }
+            GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow._self.uiScale * MainWindow._self.resolutionRatio), new Vector2(Screen.width, Screen.height));
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
+            for (int i = 0; i < 3; ++i)
+                GUI.Box(_colliderEditRect, "", MainWindow._customBoxStyle);
+            GUI.backgroundColor = c;
+            _colliderEditRect = GUILayout.Window(2, _colliderEditRect, this.ColliderEditor, "Collider Editor" + (this.IsColliderDirty(this._colliderTarget) ? "*" : ""));
             GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
+
+        private void OnDisable()
+        {
+            if (this._dirtyBones.Count == 0)
+                return;
+            foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
+            {
+                if (kvp.Key == null)
+                    continue;
+                if (kvp.Value.scale.hasValue)
+                    kvp.Key.transform.localScale = kvp.Value.originalScale;
+                if (kvp.Value.rotation.hasValue)
+                    kvp.Key.transform.localRotation = kvp.Value.originalRotation;
+                if (kvp.Value.position.hasValue)
+                    kvp.Key.transform.localPosition = kvp.Value.originalPosition;
+            }
+        }
+
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            this._parent.onUpdate -= this.Update;
+            this._parent.onLateUpdate -= this.LateUpdate;
+            this._parent.onDisable -= this.OnDisable;
+        }
+
         #endregion
 
         #region Public Methods
@@ -445,24 +480,24 @@ namespace HSPE.AMModules
 
         public override void DrawAdvancedModeChanged()
         {
-            this.CheckGizmosEnabled();
+            UpdateDebugLinesState(this);
         }
 
-        public override void SelectionChanged()
+        public static void SelectionChanged(BonesEditor self)
         {
-            this.CheckGizmosEnabled();
+            UpdateDebugLinesState(self);
         }
 
         public Transform GetTwinBone(Transform bone)
         {
             if (bone.name.EndsWith("_L"))
-                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_R");
+                return this._parent.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_R");
             if (bone.name.EndsWith("_R"))
-                return this.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_L");
+                return this._parent.transform.FindDescendant(bone.name.Substring(0, bone.name.Length - 2) + "_L");
             if (bone.parent.name.EndsWith("_L"))
-                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_R").GetChild(bone.GetSiblingIndex());
+                return this._parent.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_R").GetChild(bone.GetSiblingIndex());
             if (bone.parent.name.EndsWith("_R"))
-                return this.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L").GetChild(bone.GetSiblingIndex());
+                return this._parent.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L").GetChild(bone.GetSiblingIndex());
             return null;
         }
 
@@ -489,7 +524,7 @@ namespace HSPE.AMModules
             }
             GUILayout.EndHorizontal();
             this._boneEditionScroll = GUILayout.BeginScrollView(this._boneEditionScroll, GUI.skin.box, GUILayout.ExpandHeight(true));
-            foreach (Transform child in this.transform)
+            foreach (Transform child in this._parent.transform)
             {
                 this.DisplayObjectTree(child.gameObject, 0);
             }
@@ -534,11 +569,11 @@ namespace HSPE.AMModules
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.MinWidth(350f));
             {
                 OCIChar.BoneInfo fkBoneInfo = null;
-                if (this._boneTarget != null && this.target.fkEnabled)
-                    this.target.fkObjects.TryGetValue(this._boneTarget.gameObject, out fkBoneInfo);
+                if (this._boneTarget != null && this._target.fkEnabled)
+                    this._target.fkObjects.TryGetValue(this._boneTarget.gameObject, out fkBoneInfo);
                 OCIChar.BoneInfo fkTwinBoneInfo = null;
-                if (this._symmetricalEdition && this._twinBoneTarget != null && this.target.fkEnabled)
-                    this.target.fkObjects.TryGetValue(this._twinBoneTarget.gameObject, out fkTwinBoneInfo);
+                if (this._symmetricalEdition && this._twinBoneTarget != null && this._target.fkEnabled)
+                    this._target.fkObjects.TryGetValue(this._twinBoneTarget.gameObject, out fkTwinBoneInfo);
                 GUILayout.BeginHorizontal(GUI.skin.box);
                 TransformData transformData = null;
                 if (this._boneTarget != null)
@@ -1121,11 +1156,11 @@ namespace HSPE.AMModules
                     if (GUILayout.Button(kvp.Value))
                         this.GoToObject(kvp.Key.gameObject);
 
-                Dictionary<string, string> customShortcuts = this.target.type == GenericOCITarget.Type.Character ? (this.target.isFemale ? _femaleShortcuts : _maleShortcuts) : _itemShortcuts;
+                Dictionary<string, string> customShortcuts = this._target.type == GenericOCITarget.Type.Character ? (this._target.isFemale ? _femaleShortcuts : _maleShortcuts) : _itemShortcuts;
                 string toRemove = null;
                 foreach (KeyValuePair<string, string> kvp in customShortcuts)
                 {
-                    Transform shortcut = this.transform.Find(kvp.Key);
+                    Transform shortcut = this._parent.transform.Find(kvp.Key);
                     if (shortcut == null)
                         continue;
                     string sName = kvp.Value;
@@ -1156,7 +1191,7 @@ namespace HSPE.AMModules
 
                 if (GUILayout.Button("+ Add Shortcut") && this._boneTarget != null)
                 {
-                    string path = this._boneTarget.GetPathFrom(this.transform);
+                    string path = this._boneTarget.GetPathFrom(this._parent.transform);
                     if (path.Length != 0)
                     {
                         if (customShortcuts.ContainsKey(path) == false)
@@ -1189,28 +1224,28 @@ namespace HSPE.AMModules
             if (this._boneTarget == this._twinBoneTarget)
                 this._twinBoneTarget = null;
             this._colliderTarget = newTarget.GetComponent<DynamicBoneCollider>();
-            this.CheckGizmosEnabled();
+            UpdateDebugLinesState(this);
         }
 
         public void LoadFrom(BonesEditor other)
         {
-            this.ExecuteDelayed(() =>
+            MainWindow._self.ExecuteDelayed(() =>
             {
                 foreach (GameObject openedBone in other._openedBones)
                 {
-                    Transform obj = this.transform.Find(openedBone.transform.GetPathFrom(other.transform));
+                    Transform obj = this._parent.transform.Find(openedBone.transform.GetPathFrom(other._parent.transform));
                     if (obj != null)
                         this._openedBones.Add(obj.gameObject);
                 }
                 foreach (KeyValuePair<GameObject, TransformData> kvp in other._dirtyBones)
                 {
-                    Transform obj = this.transform.Find(kvp.Key.transform.GetPathFrom(other.transform));
+                    Transform obj = this._parent.transform.Find(kvp.Key.transform.GetPathFrom(other._parent.transform));
                     if (obj != null)
                         this._dirtyBones.Add(obj.gameObject, new TransformData(kvp.Value));
                 }
                 foreach (KeyValuePair<DynamicBoneCollider, ColliderData> kvp in other._dirtyColliders)
                 {
-                    Transform obj = this.transform.Find(kvp.Key.transform.GetPathFrom(other.transform));
+                    Transform obj = this._parent.transform.Find(kvp.Key.transform.GetPathFrom(other._parent.transform));
                     if (obj != null)
                     {
                         DynamicBoneCollider col = obj.GetComponent<DynamicBoneCollider>();
@@ -1244,7 +1279,7 @@ namespace HSPE.AMModules
                         continue;
                     Transform t = kvp.Key.transform.parent;
                     string n = kvp.Key.transform.name;
-                    while (t != this.transform)
+                    while (t != this._parent.transform)
                     {
                         n = t.name + "/" + n;
                         t = t.parent;
@@ -1259,7 +1294,7 @@ namespace HSPE.AMModules
                         xmlWriter.WriteAttributeString("posZ", XmlConvert.ToString(kvp.Value.position.value.z));
                     }
                     OCIChar.BoneInfo info;
-                    if (kvp.Value.rotation.hasValue && (!this.target.fkEnabled || !this.target.fkObjects.TryGetValue(kvp.Key, out info) || info.active == false))
+                    if (kvp.Value.rotation.hasValue && (!this._target.fkEnabled || !this._target.fkObjects.TryGetValue(kvp.Key, out info) || info.active == false))
                     {
                         xmlWriter.WriteAttributeString("rotW", XmlConvert.ToString(kvp.Value.rotation.value.w));
                         xmlWriter.WriteAttributeString("rotX", XmlConvert.ToString(kvp.Value.rotation.value.x));
@@ -1285,7 +1320,7 @@ namespace HSPE.AMModules
                 {
                     Transform t = kvp.Key.transform.parent;
                     string n = kvp.Key.transform.name;
-                    while (t != this.transform)
+                    while (t != this._parent.transform)
                     {
                         n = t.name + "/" + n;
                         t = t.parent;
@@ -1315,8 +1350,9 @@ namespace HSPE.AMModules
             return written;
         }
 
-        public override void LoadXml(XmlNode xmlNode)
+        public override bool LoadXml(XmlNode xmlNode)
         {
+            bool changed = false;
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
             if (objects != null)
             {
@@ -1325,7 +1361,7 @@ namespace HSPE.AMModules
                     if (node.Name == "object")
                     {
                         string name = node.Attributes["name"].Value;
-                        GameObject obj = this.transform.Find(name).gameObject;
+                        GameObject obj = this._parent.transform.Find(name).gameObject;
                         TransformData data = new TransformData();
                         if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
                         {
@@ -1356,7 +1392,10 @@ namespace HSPE.AMModules
                             data.originalScale = obj.transform.localScale;
                         }
                         if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
+                        {
+                            changed = true;
                             this._dirtyBones.Add(obj, data);
+                        }
                     }
                 }
             }
@@ -1366,7 +1405,7 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in colliders.ChildNodes)
                 {
-                    DynamicBoneCollider collider = this.transform.Find(node.Attributes["name"].Value).GetComponent<DynamicBoneCollider>();
+                    DynamicBoneCollider collider = this._parent.transform.Find(node.Attributes["name"].Value).GetComponent<DynamicBoneCollider>();
                     ColliderData data = new ColliderData();
                     if (node.Attributes["centerX"] != null && node.Attributes["centerY"] != null && node.Attributes["centerZ"] != null)
                     {
@@ -1402,9 +1441,13 @@ namespace HSPE.AMModules
                         collider.m_Bound = (DynamicBoneCollider.Bound)bound;
                     }
                     if (data.originalCenter.hasValue || data.originalRadius.hasValue || data.originalHeight.hasValue || data.originalDirection.hasValue || data.originalBound.hasValue)
+                    {
+                        changed = true;
                         this._dirtyColliders.Add(collider, data);
+                    }
                 }
             }
+            return changed;
         }
         #endregion
 
@@ -1414,7 +1457,8 @@ namespace HSPE.AMModules
             for (;;)
             {
                 yield return new WaitForEndOfFrame();
-                this.UpdateGizmos();
+                if (this._isEnabled && PoseController._drawAdvancedMode && this._boneTarget != null && MainWindow._self._poseTarget == this._parent)
+                    this.UpdateGizmos();
             }
         }
 
@@ -1451,12 +1495,12 @@ namespace HSPE.AMModules
         {
             TransformData data;
             OCIChar.BoneInfo info;
-            if ((!this.target.fkEnabled || !this.target.fkObjects.TryGetValue(bone.gameObject, out info) || !info.active) && this._dirtyBones.TryGetValue(bone.gameObject, out data))
+            if ((!this._target.fkEnabled || !this._target.fkObjects.TryGetValue(bone.gameObject, out info) || !info.active) && this._dirtyBones.TryGetValue(bone.gameObject, out data))
             {
                 data.rotation.Reset();
                 this.SetBoneNotDirtyIf(bone.gameObject);
             }
-            if (this._symmetricalEdition && twinBone != null && (!this.target.fkEnabled || !this.target.fkObjects.TryGetValue(twinBone.gameObject, out info) || !info.active) && this._dirtyBones.TryGetValue(twinBone.gameObject, out data))
+            if (this._symmetricalEdition && twinBone != null && (!this._target.fkEnabled || !this._target.fkObjects.TryGetValue(twinBone.gameObject, out info) || !info.active) && this._dirtyBones.TryGetValue(twinBone.gameObject, out data))
             {
                 data.rotation.Reset();
                 this.SetBoneNotDirtyIf(twinBone.gameObject);
@@ -1507,7 +1551,7 @@ namespace HSPE.AMModules
 
         private void DisplayObjectTree(GameObject go, int indent)
         {
-            if (this.parent._childObjects.Contains(go))
+            if (this._parent._childObjects.Contains(go))
                 return;
             string displayedName;
             bool aliased = true;
@@ -1532,7 +1576,7 @@ namespace HSPE.AMModules
                     GUILayout.Space(indent * 20f);
                     int childCount = 0;
                     for (int i = 0; i < go.transform.childCount; ++i)
-                        if (this.parent._childObjects.Contains(go.transform.GetChild(i).gameObject) == false)
+                        if (this._parent._childObjects.Contains(go.transform.GetChild(i).gameObject) == false)
                             ++childCount;
                     if (childCount != 0)
                     {
@@ -1602,22 +1646,22 @@ namespace HSPE.AMModules
 
         private void GoToObject(GameObject go)
         {
-            if (ReferenceEquals(go, this.transform.gameObject))
+            if (ReferenceEquals(go, this._parent.transform.gameObject))
                 return;
             GameObject goBak = go;
             this.ChangeBoneTarget(go.transform);
             this.OpenParents(go);
             Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
-            this.GetScrollPosition(this.transform.gameObject, goBak, 0, ref scroll);
+            this.GetScrollPosition(this._parent.transform.gameObject, goBak, 0, ref scroll);
             this._boneEditionScroll = scroll;
         }
 
         private void OpenParents(GameObject child)
         {
-            if (ReferenceEquals(child, this.transform.gameObject))
+            if (ReferenceEquals(child, this._parent.transform.gameObject))
                 return;
             child = child.transform.parent.gameObject;
-            while (child.transform != this.transform)
+            while (child.transform != this._parent.transform)
             {
                 this._openedBones.Add(child);
                 child = child.transform.parent.gameObject;
@@ -1627,7 +1671,7 @@ namespace HSPE.AMModules
 
         private bool GetScrollPosition(GameObject root, GameObject go, int indent, ref Vector2 scrollPosition)
         {
-            if (this.parent._childObjects.Contains(go))
+            if (this._parent._childObjects.Contains(go))
                 return false;
             scrollPosition = new Vector2(indent * 20f, scrollPosition.y + GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4);
             if (ReferenceEquals(root, go))
@@ -1779,6 +1823,8 @@ namespace HSPE.AMModules
 
         private void ApplyBoneManualCorrection()
         {
+            if (this._dirtyBones.Count == 0)
+                return;
             bool shouldClean = false;
             foreach (KeyValuePair<GameObject, TransformData> kvp in this._dirtyBones)
             {
@@ -1806,7 +1852,7 @@ namespace HSPE.AMModules
 
         private void UpdateGizmos()
         {
-            if (!this.isEnabled || !PoseController._drawAdvancedMode || this._boneTarget == null || MainWindow.self._poseTarget != this.parent)
+            if (!this._isEnabled || !PoseController._drawAdvancedMode || this._boneTarget == null || MainWindow._self._poseTarget != this._parent)
                 return;
             float size = 0.012f;
             Vector3 topLeftForward = this._boneTarget.transform.position + (this._boneTarget.up + -this._boneTarget.right + this._boneTarget.forward) * size,
@@ -1818,45 +1864,44 @@ namespace HSPE.AMModules
                 bottomLeftBack = this._boneTarget.transform.position + (-this._boneTarget.up + -this._boneTarget.right + -this._boneTarget.forward) * size,
                 bottomRightBack = this._boneTarget.transform.position + (-this._boneTarget.up + this._boneTarget.right + -this._boneTarget.forward) * size;
             int i = 0;
-            this._cubeDebugLines[i++].SetPoints(topLeftForward, topRightForward);
-            this._cubeDebugLines[i++].SetPoints(topRightForward, bottomRightForward);
-            this._cubeDebugLines[i++].SetPoints(bottomRightForward, bottomLeftForward);
-            this._cubeDebugLines[i++].SetPoints(bottomLeftForward, topLeftForward);
-            this._cubeDebugLines[i++].SetPoints(topLeftBack, topRightBack);
-            this._cubeDebugLines[i++].SetPoints(topRightBack, bottomRightBack);
-            this._cubeDebugLines[i++].SetPoints(bottomRightBack, bottomLeftBack);
-            this._cubeDebugLines[i++].SetPoints(bottomLeftBack, topLeftBack);
-            this._cubeDebugLines[i++].SetPoints(topLeftBack, topLeftForward);
-            this._cubeDebugLines[i++].SetPoints(topRightBack, topRightForward);
-            this._cubeDebugLines[i++].SetPoints(bottomRightBack, bottomRightForward);
-            this._cubeDebugLines[i++].SetPoints(bottomLeftBack, bottomLeftForward);
+            _cubeDebugLines[i++].SetPoints(topLeftForward, topRightForward);
+            _cubeDebugLines[i++].SetPoints(topRightForward, bottomRightForward);
+            _cubeDebugLines[i++].SetPoints(bottomRightForward, bottomLeftForward);
+            _cubeDebugLines[i++].SetPoints(bottomLeftForward, topLeftForward);
+            _cubeDebugLines[i++].SetPoints(topLeftBack, topRightBack);
+            _cubeDebugLines[i++].SetPoints(topRightBack, bottomRightBack);
+            _cubeDebugLines[i++].SetPoints(bottomRightBack, bottomLeftBack);
+            _cubeDebugLines[i++].SetPoints(bottomLeftBack, topLeftBack);
+            _cubeDebugLines[i++].SetPoints(topLeftBack, topLeftForward);
+            _cubeDebugLines[i++].SetPoints(topRightBack, topRightForward);
+            _cubeDebugLines[i++].SetPoints(bottomRightBack, bottomRightForward);
+            _cubeDebugLines[i++].SetPoints(bottomLeftBack, bottomLeftForward);
 
-            this._cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.right * size * 2);
-            this._cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.up * size * 2);
-            this._cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.forward * size * 2);
+            _cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.right * size * 2);
+            _cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.up * size * 2);
+            _cubeDebugLines[i++].SetPoints(this._boneTarget.transform.position, this._boneTarget.transform.position + this._boneTarget.forward * size * 2);
 
             if (this._colliderTarget != null)
-                this._colliderDebugLines.Update(this._colliderTarget);
+                _colliderDebugLines.Update(this._colliderTarget);
         }
 
         private void DrawGizmos()
         {
-            if (!this.isEnabled || !PoseController._drawAdvancedMode || this._boneTarget == null || MainWindow.self._poseTarget != this.parent)
-                return;
 
-            foreach (VectorLine line in this._cubeDebugLines)
+            foreach (VectorLine line in _cubeDebugLines)
                 line.Draw();
 
             if (this._colliderTarget != null)
-                this._colliderDebugLines.Draw();
+                _colliderDebugLines.Draw();
         }
 
-        private void CheckGizmosEnabled()
+        private static void UpdateDebugLinesState(BonesEditor self)
         {
-            bool e = this.isEnabled && PoseController._drawAdvancedMode && this._boneTarget != null && MainWindow.self._poseTarget == this.parent;
-            foreach (VectorLine line in this._cubeDebugLines)
+            bool e = self != null && self._isEnabled && PoseController._drawAdvancedMode && self._boneTarget != null;
+            foreach (VectorLine line in _cubeDebugLines)
                 line.active = e;
-            this._colliderDebugLines.SetActive(this.isEnabled && PoseController._drawAdvancedMode && this._colliderTarget != null && MainWindow.self._poseTarget == this.parent);
+            if (_colliderDebugLines != null)
+                _colliderDebugLines.SetActive(self != null && self._isEnabled && PoseController._drawAdvancedMode && self._colliderTarget != null);
         }
         #endregion
     }

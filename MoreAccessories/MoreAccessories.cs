@@ -346,7 +346,7 @@ namespace MoreAccessories
         #endregion
 
         #region Public Accessors
-        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
+        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         public string Name { get { return "MoreAccessories"; } }
         public string Version { get { return "1.2.0"; } }
         public CharInfo charaMakerCharInfo
@@ -376,6 +376,8 @@ namespace MoreAccessories
             {
                 case "HoneySelect_32":
                 case "HoneySelect_64":
+                case "Honey Select Unlimited_32":
+                case "Honey Select Unlimited_64":
                     this._binary = Binary.Game;
                     break;
                 case "StudioNEO_32":

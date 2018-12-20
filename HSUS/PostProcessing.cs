@@ -1,9 +1,6 @@
 ﻿#if HONEYSELECT
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
 #endif
@@ -14,10 +11,14 @@ using ToolBox;
 namespace HSUS
 {
     [HarmonyPatch(typeof(SystemButtonCtrl), "Init")]
-    [HarmonyPatch(typeof(SystemButtonCtrl), "OnSelectInitYes")]
     public class SystemButtonCtrl_Init_Patches
     {
         public static void Postfix(SystemButtonCtrl __instance)
+        {
+            ResetPostProcessing(__instance);
+        }
+
+        internal static void ResetPostProcessing(SystemButtonCtrl __instance)
         {
 #if HONEYSELECT
             __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
@@ -41,6 +42,14 @@ namespace HSUS
             __instance.GetPrivate("bloomInfo").CallPrivate("UpdateInfo");
             __instance.GetPrivate("vignetteInfo").CallPrivate("UpdateInfo");
 #endif
+        }
+    }
+    [HarmonyPatch(typeof(SystemButtonCtrl), "OnSelectInitYes")]
+    public class SystemButtonCtrl_OnSelectInitYes_Patches
+    {
+        public static void Postfix(SystemButtonCtrl __instance)
+        {
+            SystemButtonCtrl_Init_Patches.ResetPostProcessing(__instance);
         }
     }
 

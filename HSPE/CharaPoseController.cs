@@ -211,7 +211,7 @@ namespace HSPE
         private float _rightFoot2Rotation;
         private bool _lastrightFootJointCorrection = false;
 
-        private BoobsEditor _boobsEditor;
+        internal BoobsEditor _boobsEditor;
         private Action _scheduleNextIKPostUpdate = null;
         private FullBodyBipedChain _nextLimbCopy;
         private List<GuideCommand.EqualsInfo> _additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
@@ -257,9 +257,7 @@ namespace HSPE
 #endif
             if (this._target.isFemale)
             {
-                this._boobsEditor = this.gameObject.AddComponent<BoobsEditor>();
-                this._boobsEditor.parent = this;
-                this._boobsEditor.chara = this._target.ociChar;
+                this._boobsEditor = new BoobsEditor(this, this._target.ociChar);
                 this._modules.Add(this._boobsEditor);
             }
 #if HONEYSELECT
@@ -295,21 +293,21 @@ namespace HSPE
             IKSolver_Patches.onPostUpdate += this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate += this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate += this.FKCtrlOnPreLateUpdate;
-            FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
-#if HONEYSELECT
-            CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
-            CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
-#elif KOIKATSU
-            Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
-            Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
-#endif
+            //FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
+//#if HONEYSELECT
+//            CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
+//            CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
+//#elif KOIKATSU
+//            Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
+//            Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
+//#endif
             OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
 
-            this.crotchJointCorrection = MainWindow.self.crotchCorrectionByDefault;
-            this.leftFootJointCorrection = MainWindow.self.anklesCorrectionByDefault;
-            this.rightFootJointCorrection = MainWindow.self.anklesCorrectionByDefault;
+            this.crotchJointCorrection = MainWindow._self.crotchCorrectionByDefault;
+            this.leftFootJointCorrection = MainWindow._self.anklesCorrectionByDefault;
+            this.rightFootJointCorrection = MainWindow._self.anklesCorrectionByDefault;
         }
 
         protected override void Start()
@@ -328,11 +326,12 @@ namespace HSPE
                 this._body.solver.spineStiffness = this._cachedSpineStiffness;
                 this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             }
-            this._body.solver.OnPreRead = this.IKSolverOnPreRead;
+            //this._body.solver.OnPreRead = this.IKSolverOnPreRead;
         }
 
-        void Update()
+        protected override void Update()
         {
+            base.Update();
             if (this._target.ikEnabled == false)
             {
                 if (this._scheduleNextIKPostUpdate != null)
@@ -353,14 +352,14 @@ namespace HSPE
             IKSolver_Patches.onPostUpdate -= this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate -= this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate -= this.FKCtrlOnPreLateUpdate;
-            FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
-#if HONEYSELECT
-            CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
-            CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
-#elif KOIKATSU
-            Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
-            Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
-#endif
+            //FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
+//#if HONEYSELECT
+//            CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
+//            CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
+//#elif KOIKATSU
+//            Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
+//            Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
+//#endif
             OCIChar_ChangeChara_Patches.onChangeChara -= this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile -= this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo -= this.OnCoordinateReplaced;
@@ -473,7 +472,7 @@ namespace HSPE
 
         public void SetBoneTargetPosition(FullBodyBipedEffector type, Vector3 targetPosition, bool world = true)
         {
-            OCIChar.IKInfo info = _target.ociChar.listIKTarget[_effectorToIndex[type]];
+            OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_effectorToIndex[type]];
             if (this._target.ikEnabled && info.active)
             {
                 if (this.currentDragType != DragType.None)
@@ -487,7 +486,7 @@ namespace HSPE
 
         public Vector3 GetBoneTargetPosition(FullBodyBipedEffector type, bool world = true)
         {
-            OCIChar.IKInfo info = _target.ociChar.listIKTarget[_effectorToIndex[type]];
+            OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_effectorToIndex[type]];
             if (!this._target.ikEnabled || info.active == false)
                 return Vector3.zero;
             return world ? info.guideObject.transformTarget.position : info.guideObject.transformTarget.localPosition;
@@ -495,7 +494,7 @@ namespace HSPE
 
         public void SetBendGoalPosition(FullBodyBipedChain type, Vector3 targetPosition, bool world = true)
         {
-            OCIChar.IKInfo info = _target.ociChar.listIKTarget[_chainToIndex[type]];
+            OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_chainToIndex[type]];
             if (this._target.ikEnabled && info.active)
             {
                 if (this.currentDragType != DragType.None)
@@ -509,7 +508,7 @@ namespace HSPE
 
         public Vector3 GetBendGoalPosition(FullBodyBipedChain type, bool world = true)
         {
-            OCIChar.IKInfo info = _target.ociChar.listIKTarget[_chainToIndex[type]];
+            OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_chainToIndex[type]];
             if (!this._target.ikEnabled || info.active == false)
                 return Vector3.zero;
             return world ? info.guideObject.transformTarget.position : info.guideObject.transformTarget.localPosition;
@@ -528,15 +527,15 @@ namespace HSPE
         #endregion
 
         #region Private Methods
-        private void IKSolverOnPreRead()
-        {
-            foreach (AdvancedModeModule module in this._modules)
-                module.IKSolverOnPreRead();
-        }
+        //private void IKSolverOnPreRead()
+        //{
+        //    foreach (AdvancedModeModule module in this._modules)
+        //        module.IKSolverOnPreRead();
+        //}
 
         private void IKSolverOnPostUpdate(IKSolver solver)
         {
-            if (this._body.solver != solver)
+            if (this.enabled == false || this._body.solver != solver)
                 return;
             if (this._scheduleNextIKPostUpdate != null)
             {
@@ -551,71 +550,73 @@ namespace HSPE
 
         private void IKExecutionOrderOnPostLateUpdate()
         {
+            if (this.enabled == false)
+                return;
             foreach (AdvancedModeModule module in this._modules)
                 module.IKExecutionOrderOnPostLateUpdate();
         }
 
         private void FKCtrlOnPreLateUpdate(FKCtrl ctrl)
         {
-            if (_target.ociChar.fkCtrl != ctrl)
+            if (this.enabled == false || this._target.ociChar.fkCtrl != ctrl)
                 return;
             foreach (AdvancedModeModule module in this._modules)
                 module.FKCtrlOnPreLateUpdate();
         }
 
-        private void FKCtrlOnPostLateUpdate(FKCtrl ctrl)
-        {
-            if (_target.ociChar.fkCtrl != ctrl)
-                return;
-            foreach (AdvancedModeModule module in this._modules)
-                module.FKCtrlOnPostLateUpdate();
-        }
+        //private void FKCtrlOnPostLateUpdate(FKCtrl ctrl)
+        //{
+        //    if (_target.ociChar.fkCtrl != ctrl)
+        //        return;
+        //    foreach (AdvancedModeModule module in this._modules)
+        //        module.FKCtrlOnPostLateUpdate();
+        //}
 
-#if HONEYSELECT
-        private void CharBodyOnPreLateUpdate(CharBody charBody)
-        {
-            if (_target.ociChar.charBody != charBody)
-                return;
+//#if HONEYSELECT
+//        private void CharBodyOnPreLateUpdate(CharBody charBody)
+//        {
+//            if (_target.ociChar.charBody != charBody)
+//                return;
             
 
-            foreach (AdvancedModeModule module in this._modules)
-                module.CharBodyPreLateUpdate();
-        }
+//            foreach (AdvancedModeModule module in this._modules)
+//                module.CharBodyPreLateUpdate();
+//        }
 
-        private void CharBodyOnPostLateUpdate(CharBody charBody)
-        {
-            if (_target.ociChar.charBody != charBody)
-                return;
-            this.ApplyJointCorrection();
+//        private void CharBodyOnPostLateUpdate(CharBody charBody)
+//        {
+//            if (_target.ociChar.charBody != charBody)
+//                return;
+//            this.ApplyJointCorrection();
 
-            foreach (AdvancedModeModule module in this._modules)
-                module.CharBodyPostLateUpdate();
-        }
-#elif KOIKATSU
-        private void CharacterOnPreLateUpdate()
-        {
-            foreach (AdvancedModeModule module in this._modules)
-                module.CharacterPreLateUpdate();
-        }
+//            foreach (AdvancedModeModule module in this._modules)
+//                module.CharBodyPostLateUpdate();
+//        }
+//#elif KOIKATSU
+//        private void CharacterOnPreLateUpdate()
+//        {
+//            foreach (AdvancedModeModule module in this._modules)
+//                module.CharacterPreLateUpdate();
+//        }
 
-        private void CharacterOnPostLateUpdate()
-        {
-            this.ApplyJointCorrection();
+//        private void CharacterOnPostLateUpdate()
+//        {
+//            this.ApplyJointCorrection();
 
-            foreach (AdvancedModeModule module in this._modules)
-                module.CharacterPostLateUpdate();
-        }
-#endif
+//            foreach (AdvancedModeModule module in this._modules)
+//                module.CharacterPostLateUpdate();
+//        }
+//#endif
         private void OnCharacterReplaced(OCIChar chara)
         {
-            if (_target.ociChar != chara)
+            if (this._target.ociChar != chara)
                 return;
             foreach (AdvancedModeModule module in this._modules)
                 module.OnCharacterReplaced();
         }
         private void OnLoadClothesFile(OCIChar chara)
         {
-            if (_target.ociChar != chara)
+            if (this._target.ociChar != chara)
                 return;
             foreach (AdvancedModeModule module in this._modules)
                 module.OnLoadClothesFile();
@@ -627,7 +628,7 @@ namespace HSPE
         private void OnCoordinateReplaced(OCIChar chara, ChaFileDefine.CoordinateType type, bool force)
 #endif
         {
-            if (_target.ociChar != chara)
+            if (this._target.ociChar != chara)
                 return;
             foreach (AdvancedModeModule module in this._modules)
                 module.OnCoordinateReplaced(type, force);
@@ -720,10 +721,10 @@ namespace HSPE
             bendGoalDest = this.GetTwinBone(limb);
             effectorDest = this.GetTwinBone(effectorSrc);
 
-            Vector3 localPos = root.InverseTransformPoint(_target.ociChar.listIKTarget[_effectorToIndex[effectorSrc]].guideObject.transformTarget.position);
+            Vector3 localPos = root.InverseTransformPoint(this._target.ociChar.listIKTarget[_effectorToIndex[effectorSrc]].guideObject.transformTarget.position);
             localPos.x *= -1f;
             Vector3 effectorPosition = root.TransformPoint(localPos);
-            localPos = root.InverseTransformPoint(_target.ociChar.listIKTarget[_chainToIndex[bendGoalSrc]].guideObject.transformTarget.position);
+            localPos = root.InverseTransformPoint(this._target.ociChar.listIKTarget[_chainToIndex[bendGoalSrc]].guideObject.transformTarget.position);
             localPos.x *= -1f;
             Vector3 bendGoalPosition = root.TransformPoint(localPos);
             this.StartDrag(DragType.Both);
@@ -739,7 +740,7 @@ namespace HSPE
                 Quaternion rot = effectorSrcRealBone.localRotation;
                 rot = new Quaternion(rot.x, -rot.y, -rot.z, rot.w);
                 effectorDestRealBone.localRotation = rot; //Setting real bone local rotation
-                OCIChar.IKInfo effectorDestInfo = _target.ociChar.listIKTarget[_effectorToIndex[effectorDest]];
+                OCIChar.IKInfo effectorDestInfo = this._target.ociChar.listIKTarget[_effectorToIndex[effectorDest]];
                 effectorDestInfo.guideObject.transformTarget.rotation = effectorDestRealBone.rotation; //Using real bone rotation to set IK target rotation;
                 this.SetBoneTargetRotation(effectorDest, effectorDestInfo.guideObject.transformTarget.localRotation); //Setting again the IK target with its own local rotation through normal means so it isn't ignored by neo while saving
                 this._lockDrag = false;
@@ -754,7 +755,7 @@ namespace HSPE
 
             this._additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
             HashSet<Transform> done = new HashSet<Transform>();
-            foreach (OCIChar.BoneInfo bone in _target.ociChar.listBones)
+            foreach (OCIChar.BoneInfo bone in this._target.ociChar.listBones)
             {
                 Transform twinBoneTransform = null;
                 Transform boneTransform = bone.guideObject.transformTarget;
@@ -847,9 +848,9 @@ namespace HSPE
                     case FullBodyBipedEffector.LeftThigh:
                     case FullBodyBipedEffector.LeftFoot:
                         FullBodyBipedEffector twin = this.GetTwinBone(pair.Key);
-                        Vector3 position = _target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
+                        Vector3 position = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
                         position.x *= -1f;
-                        Vector3 twinPosition = _target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localPosition;
+                        Vector3 twinPosition = this._target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localPosition;
                         twinPosition.x *= -1f;
                         this.SetBoneTargetPosition(pair.Key, twinPosition, false);
                         this.SetBoneTargetPosition(twin, position, false);
@@ -864,9 +865,9 @@ namespace HSPE
                     case FullBodyBipedChain.LeftArm:
                     case FullBodyBipedChain.LeftLeg:
                         FullBodyBipedChain twin = this.GetTwinBone(pair.Key);
-                        Vector3 position = _target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
+                        Vector3 position = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
                         position.x *= -1f;
-                        Vector3 twinPosition = _target.ociChar.listIKTarget[_chainToIndex[twin]].guideObject.transformTarget.localPosition;
+                        Vector3 twinPosition = this._target.ociChar.listIKTarget[_chainToIndex[twin]].guideObject.transformTarget.localPosition;
                         twinPosition.x *= -1f;
                         this.SetBendGoalPosition(pair.Key, twinPosition, false);
                         this.SetBendGoalPosition(twin, position, false);
@@ -883,9 +884,9 @@ namespace HSPE
                         case FullBodyBipedEffector.LeftHand:
                         case FullBodyBipedEffector.LeftFoot:
                             FullBodyBipedEffector twin = this.GetTwinBone(pair.Key);
-                            Quaternion rot = _target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localRotation;
+                            Quaternion rot = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localRotation;
                             rot = new Quaternion(-rot.x, rot.y, rot.z, -rot.w);
-                            Quaternion twinRot = _target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localRotation;
+                            Quaternion twinRot = this._target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localRotation;
                             twinRot = new Quaternion(-twinRot.x, twinRot.y, twinRot.z, -twinRot.w);
                             this.SetBoneTargetRotation(pair.Key, twinRot);
                             this.SetBoneTargetRotation(twin, rot);
@@ -992,13 +993,13 @@ namespace HSPE
             base.SaveXml(xmlWriter);
         }
 
-        protected override void LoadDefaultVersion(XmlNode xmlNode)
+        protected override bool LoadDefaultVersion(XmlNode xmlNode)
         {
             this.optimizeIK = xmlNode.Attributes?["optimizeIK"] == null || XmlConvert.ToBoolean(xmlNode.Attributes["optimizeIK"].Value);
             this.crotchJointCorrection = xmlNode.Attributes?["crotchCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["crotchCorrection"].Value);
             this.leftFootJointCorrection = xmlNode.Attributes?["leftAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["leftAnkleCorrection"].Value);
             this.rightFootJointCorrection = xmlNode.Attributes?["rightAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["rightAnkleCorrection"].Value);
-            base.LoadDefaultVersion(xmlNode);
+            return base.LoadDefaultVersion(xmlNode);
         }
         #endregion
     }

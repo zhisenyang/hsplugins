@@ -26,7 +26,7 @@ namespace HSPE
             {
                 ObjectCtrlInfo source = __instance.dicObjectCtrl[_sources[i].dicKey];
                 ObjectCtrlInfo destination = __instance.dicObjectCtrl[_destinations[i].dicKey];
-                MainWindow.self.OnDuplicate(source, destination);
+                MainWindow._self.OnDuplicate(source, destination);
             }
             _sources.Clear();
             _destinations.Clear();

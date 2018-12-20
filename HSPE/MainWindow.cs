@@ -25,11 +25,7 @@ namespace HSPE
     public class MainWindow : MonoBehaviour
     {
         #region Public Static Variables
-        public static MainWindow self { get; private set; }
-        #endregion
-
-        #region Events
-        public event Action<TreeNodeObject, TreeNodeObject> onParentage;
+        internal static MainWindow _self;
         #endregion
 
         #region Constants
@@ -47,6 +43,7 @@ namespace HSPE
 
         #region Private Variables
         internal PoseController _poseTarget;
+        private HashSet<TreeNodeObject> _selectedNodes;
         private readonly List<FullBodyBipedEffector> _boneTargets = new List<FullBodyBipedEffector>();
         private readonly Vector3[] _lastBonesPositions = new Vector3[14];
         private readonly Quaternion[] _lastBonesRotations = new Quaternion[14];
@@ -124,7 +121,7 @@ namespace HSPE
         #region Unity Methods
         protected virtual void Awake()
         {
-            self = this;
+            _self = this;
 
             this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
             this._ikExecutionOrder.IKComponents = new IK[0];
@@ -187,11 +184,7 @@ namespace HSPE
                         break;
                 }
             }
-
-            Action<TreeNodeObject, TreeNodeObject> oldDelegate = Studio.Studio.Instance.treeNodeCtrl.onParentage;
-            Studio.Studio.Instance.treeNodeCtrl.onParentage = (parent, node) => this.onParentage?.Invoke(parent, node);
-            this.onParentage += oldDelegate;
-
+            PoseController.InstallOnParentageEvent();
 #if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
 #elif KOIKATSU
@@ -217,6 +210,7 @@ namespace HSPE
             this.SpawnGUI();
             this._crotchCorrectionByDefaultToggle.isOn = this._crotchCorrectionByDefault;
             this._anklesCorrectionByDefaultToggle.isOn = this._anklesCorrectionByDefault;
+            this._selectedNodes = (HashSet<TreeNodeObject>)Studio.Studio.Instance.treeNodeCtrl.GetPrivate("hashSelectNode");
         }
 
         protected virtual void Update()
@@ -237,20 +231,30 @@ namespace HSPE
 
 
             PoseController last = this._poseTarget;
-            TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
+            TreeNodeObject treeNodeObject = this._selectedNodes.FirstOrDefault();
             if (treeNodeObject != null)
             {
                 ObjectCtrlInfo info;
                 if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
-                {
                     this._poseTarget = info.guideObject.transformTarget.GetComponent<PoseController>();
-                }
             }
             else
                 this._poseTarget = null;
             if (last != this._poseTarget)
                 this.OnTargetChange(last);
             this.GUILogic();
+
+            this.StaticUpdate();
+        }
+
+        // "Static" Update stuff for the other classes
+        private void StaticUpdate()
+        {
+            if (AdvancedModeModule._repeatCalled)
+                AdvancedModeModule._repeatTimer += Time.unscaledDeltaTime;
+            else
+                AdvancedModeModule._repeatTimer = 0f;
+            AdvancedModeModule._repeatCalled = false;
         }
 
         protected virtual void OnGUI()
@@ -403,8 +407,8 @@ namespace HSPE
                     PointerEventData pointerEventData = eventData as PointerEventData;
                     if (pointerEventData != null)
                     {
-                        if (pointerEventData.button == PointerEventData.InputButton.Right)
-                            this.ToggleAdvancedMode();
+                        if (pointerEventData.button == PointerEventData.InputButton.Right && this._poseTarget != null)
+                            this._poseTarget.ToggleAdvancedMode();
                     }
                 });
                 hspeButton.gameObject.AddComponent<EventTrigger>().triggers.Add(entry);
@@ -615,7 +619,11 @@ namespace HSPE
             });
 
             Button advancedModeButton = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Advanced Mode Button").GetComponent<Button>();
-            advancedModeButton.onClick.AddListener(this.ToggleAdvancedMode);
+            advancedModeButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    this._poseTarget.ToggleAdvancedMode();
+            });
 
             this._movementIntensity = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Intensity Container/Movement Intensity Slider").GetComponent<Slider>();
             this._movementIntensity.onValueChanged.AddListener(value =>
@@ -658,7 +666,7 @@ namespace HSPE
             this._ui.gameObject.SetActive(false);
 
             this.SetBoneTarget(FullBodyBipedEffector.Body);
-            this.OnTargetChange(null);
+            //this.OnTargetChange(null);
 
             this._optionsWindow = (RectTransform)this._ui.transform.Find("Options Window");
 
@@ -1044,12 +1052,6 @@ namespace HSPE
             }
         }
 
-        private void ToggleAdvancedMode()
-        {
-            if (this._poseTarget != null)
-                PoseController._drawAdvancedMode = !PoseController._drawAdvancedMode;
-        }
-
         private void GUILogic()
         {
             if (this._shortcutRegisterMode)
@@ -1221,15 +1223,19 @@ namespace HSPE
             {
                 if (kvp.Key >= this._lastIndex)
                 {
-                    if (kvp.Value is OCIChar)
+                    switch (kvp.Value.objectInfo.kind)
                     {
-                        if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
-                            kvp.Value.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
-                    }
-                    else if (kvp.Value is OCIItem)
-                    {
-                        if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
-                            kvp.Value.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+                        case 0:
+                            if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
+                                kvp.Value.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
+                            break;
+                        case 1:
+                            if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
+                            {
+                                PoseController controller = kvp.Value.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+                                this.ExecuteDelayed(() => { controller.enabled = false; }, 2);
+                            }
+                            break;
                     }
                 }
             }
@@ -1237,8 +1243,6 @@ namespace HSPE
 
         private void OnTargetChange(PoseController last)
         {
-            if (last != null)
-                last.SelectionChanged();
             if (this._poseTarget != null)
             {
                 bool isCharacter = this._poseTarget.target.type == GenericOCITarget.Type.Character;
@@ -1259,13 +1263,13 @@ namespace HSPE
                 this._swapPostButton.interactable = isCharacter;
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
-                this._poseTarget.SelectionChanged();
             }
             else
             {
                 this._nothingText.gameObject.SetActive(true);
                 this._controls.gameObject.SetActive(false);
             }
+            CharaPoseController.SelectionChanged(this._poseTarget);
         }
 
         private bool CameraControllerCondition()
@@ -1348,10 +1352,15 @@ namespace HSPE
 
         private void LoadDefaultVersion(XmlNode node, int lastIndex = -1)
         {
+            this.ExecuteDelayed(() => {
+                UnityEngine.Debug.LogError("objects in scene " + Studio.Studio.Instance.dicObjectCtrl.Count);
+            }, 6);
             if (node == null || node.Name != "root")
+            {
                 return;
+                
+            }
             string v = node.Attributes["version"].Value;
-            node = node.CloneNode(true);
             this.ExecuteDelayed(() =>
             {
                 List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
@@ -1395,7 +1404,6 @@ namespace HSPE
             if (node == null)
                 return;
             string v = node.Attributes["version"].Value;
-            node = node.CloneNode(true);
             this.ExecuteDelayed(() =>
             {
                 foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
@@ -1437,22 +1445,41 @@ namespace HSPE
         }
 #endif
 
-        private void LoadElement(ObjectCtrlInfo oci, XmlNode node)
+        private void LoadElement(OCIChar oci, XmlNode node)
         {
             PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
             if (controller == null)
+                controller = oci.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
+            bool controllerEnabled = true;
+            if (node.Attributes != null && node.Attributes["enabled"] != null)
+                controllerEnabled = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+            controller.ScheduleLoad(node, e =>
             {
-                if (oci is OCIChar)
-                    controller = oci.guideObject.transformTarget.gameObject.AddComponent<CharaPoseController>();
-                else
-                    controller = oci.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
-            }
-            controller.ScheduleLoad(node);
+                controller.enabled = controllerEnabled;
+            });
+
+        }
+
+        private void LoadElement(OCIItem oci, XmlNode node)
+        {
+            PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
+            if (controller == null)
+                controller = oci.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
+            bool controllerEnabled = false;
+            if (node.Attributes != null && node.Attributes["enabled"] != null)
+                controllerEnabled = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+            controller.ScheduleLoad(node, e =>
+            {
+                controller.enabled = controllerEnabled;
+            });
+
         }
 
         private void SaveElement(ObjectCtrlInfo oci, XmlTextWriter xmlWriter)
         {
-            oci.guideObject.transformTarget.GetComponent<PoseController>().SaveXml(xmlWriter);
+            PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
+            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(controller.enabled));
+            controller.SaveXml(xmlWriter);
         }
         #endregion
     }

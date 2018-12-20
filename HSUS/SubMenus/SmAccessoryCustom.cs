@@ -2,9 +2,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
 using CustomMenu;
 using Harmony;
 using ToolBox;
@@ -20,6 +19,9 @@ namespace HSUS
         {
             public RectTransform parentObject;
             public List<ObjectData> objects = new List<ObjectData>();
+            public readonly Dictionary<int, int> keyToOriginalIndex = new Dictionary<int, int>();
+            public bool lastSortByCreationDateReverse = false;
+            public bool lastSortByNameReverse = true;
         }
 
         public class ObjectData
@@ -28,6 +30,7 @@ namespace HSUS
             public Toggle toggle;
             public Text text;
             public GameObject obj;
+            public DateTime creationDate;
         }
 
         public static readonly Dictionary<int, TypeData> types = new Dictionary<int, TypeData>();
@@ -57,23 +60,8 @@ namespace HSUS
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-            float newY = rt.offsetMax.y;
-            rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-
-            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
-            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
-            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
-                t.color = Color.white;
-
-            rt = searchBar.transform as RectTransform;
-            rt.localPosition = Vector3.zero;
-            rt.localScale = Vector3.one;
-            rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            searchBar.onValueChanged.AddListener(SearchChanged);
+            searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem01"), SearchChanged, -24f);
+            CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem01"), SortByName, SortByCreationDate, ResetSort);
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
@@ -114,6 +102,32 @@ namespace HSUS
                 if (active && objectData.obj.activeSelf == false)
                     group.RegisterToggle(objectData.toggle);
             }
+        }
+
+        private static void ResetSort()
+        {
+            TypeData data;
+            if (types.TryGetValue(lastType, out data) == false)
+                return;
+            CharaMakerSort.GenericIntSort(data.objects, objectData => data.keyToOriginalIndex[objectData.key], objectData => objectData.obj);
+        }
+
+        private static void SortByName()
+        {
+            TypeData data;
+            if (types.TryGetValue(lastType, out data) == false)
+                return;
+            data.lastSortByNameReverse = !data.lastSortByNameReverse;
+            CharaMakerSort.GenericStringSort(data.objects, objectData => objectData.text.text, objectData => objectData.obj, data.lastSortByNameReverse);
+        }
+
+        private static void SortByCreationDate()
+        {
+            TypeData data;
+            if (types.TryGetValue(lastType, out data) == false)
+                return;
+            data.lastSortByCreationDateReverse = !data.lastSortByCreationDateReverse;
+            CharaMakerSort.GenericDateSort(data.objects, objectData => objectData.creationDate, objectData => objectData.obj, data.lastSortByCreationDateReverse);
         }
     }
 
@@ -277,7 +291,8 @@ namespace HSUS
 
                 __instance.CallPrivate("SetButtonClickHandler", gameObject);
                 Toggle component2 = gameObject.GetComponent<Toggle>();
-                td.objects.Add(new SmAccessory_Data.ObjectData {obj = gameObject, key = current.Key, toggle = component2, text = component});
+                td.keyToOriginalIndex.Add(current.Key, count);
+                td.objects.Add(new SmAccessory_Data.ObjectData {obj = gameObject, key = current.Key, toggle = component2, text = component, creationDate = File.GetCreationTimeUtc("./abdata/" + fbxTypeInfo.info.ABPath) });
                 component2.onValueChanged.AddListener(v =>
                 {
                     if (component2.isOn)

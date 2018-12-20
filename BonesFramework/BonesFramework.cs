@@ -24,7 +24,7 @@ namespace BonesFramework
         #region Public Accessors
         public string Name { get { return "BonesFramework"; } }
         public string Version { get { return "1.0.1"; } }
-        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32"}; } }
+        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         #endregion
 
         #region Unity Methods

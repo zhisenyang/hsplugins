@@ -5,7 +5,7 @@ using Vectrosity;
 
 namespace HSPE.AMModules
 {
-    public abstract class AdvancedModeModule : MonoBehaviour
+    public abstract class AdvancedModeModule
     {
 
         #region Constants
@@ -16,14 +16,15 @@ namespace HSPE.AMModules
         #endregion
 
         #region Protected Variables
+        internal bool _isEnabled = false;
+        protected PoseController _parent;
         #endregion
 
         #region Private Variables
-        private float _repeatTimer = 0f;
-        private bool _repeatCalled = false;
-        private float _repeatBeforeDuration = 0.5f;
+        internal static float _repeatTimer = 0f;
+        internal static bool _repeatCalled = false;
+        private const float _repeatBeforeDuration = 0.5f;
         private int _incIndex = 0;
-        private bool _oldDrawAdvancedMode;
         #endregion
 
         #region Abstract Fields
@@ -32,44 +33,31 @@ namespace HSPE.AMModules
         #endregion
 
         #region Public Accessors
-        public virtual bool isEnabled { get; set; } = false;
+        public virtual bool isEnabled { get { return this._isEnabled; } set { this._isEnabled = value; } }
         public virtual bool shouldDisplay { get { return true; } }
-        public PoseController parent { get; set; }
-        #endregion
-
-        #region Unity Methods
-        protected virtual void Update()
-        {
-            if (this._repeatCalled)
-                this._repeatTimer += Time.unscaledDeltaTime;
-            else
-                this._repeatTimer = 0f;
-            this._repeatCalled = false;
-            if (this._oldDrawAdvancedMode != PoseController._drawAdvancedMode)
-                this.DrawAdvancedModeChanged();
-            this._oldDrawAdvancedMode = PoseController._drawAdvancedMode;
-        }
-        #endregion
-
-        #region Abstract Methods
-        public abstract void GUILogic();
-        public abstract int SaveXml(XmlTextWriter xmlWriter);
-        public abstract void LoadXml(XmlNode xmlNode);
         #endregion
 
         #region Public Methods
-        public virtual void IKSolverOnPreRead(){}
+        protected AdvancedModeModule(PoseController parent)
+        {
+            this._parent = parent;
+            this._parent.onDestroy += this.OnDestroy;
+        }
+
+        public virtual void OnDestroy()
+        {
+            this._parent.onDestroy -= this.OnDestroy;
+        }
         public virtual void IKSolverOnPostUpdate(){}
-        public virtual void FKCtrlOnPostLateUpdate() { }
         public virtual void FKCtrlOnPreLateUpdate() { }
         public virtual void IKExecutionOrderOnPostLateUpdate(){}
-#if HONEYSELECT
-        public virtual void CharBodyPreLateUpdate(){}
-        public virtual void CharBodyPostLateUpdate(){}
-#elif KOIKATSU
-        public virtual void CharacterPreLateUpdate() { }
-        public virtual void CharacterPostLateUpdate() { }
-#endif
+//#if HONEYSELECT
+//        public virtual void CharBodyPreLateUpdate(){}
+//        public virtual void CharBodyPostLateUpdate(){}
+//#elif KOIKATSU
+//        public virtual void CharacterPreLateUpdate() { }
+//        public virtual void CharacterPostLateUpdate() { }
+//#endif
         public virtual void OnCharacterReplaced() { }
         public virtual void OnLoadClothesFile() { }
 #if HONEYSELECT
@@ -79,16 +67,21 @@ namespace HSPE.AMModules
 #endif
         public virtual void OnParentage(TreeNodeObject parent, TreeNodeObject child) { }
         public virtual void DrawAdvancedModeChanged() { }
-        public virtual void SelectionChanged() { }
+        #endregion
+
+        #region Abstract Methods
+        public abstract void GUILogic();
+        public abstract int SaveXml(XmlTextWriter xmlWriter);
+        public abstract bool LoadXml(XmlNode xmlNode);
         #endregion
 
         #region Protected Methods
         protected bool RepeatControl()
         {
-            this._repeatCalled = true;
-            if (Mathf.Approximately(this._repeatTimer, 0f))
+            _repeatCalled = true;
+            if (Mathf.Approximately(_repeatTimer, 0f))
                 return true;
-            return Event.current.type == EventType.Repaint && this._repeatTimer > this._repeatBeforeDuration;
+            return Event.current.type == EventType.Repaint && _repeatTimer > _repeatBeforeDuration;
         }
 
         protected void IncEditor(int maxHeight = 75, bool label = false)

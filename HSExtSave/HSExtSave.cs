@@ -45,7 +45,7 @@ namespace HSExtSave
         public static string logPrefix { get { return "HSExtSave: "; } }
         public string Name { get { return "HSExtSave"; } }
         public string Version { get { return "1.0.1"; } }
-        public string[] Filter { get { return new[] {"StudioNEO_64", "StudioNEO_32", "HoneySelect_64", "HoneySelect_32"}; } }
+        public string[] Filter { get { return new[] {"StudioNEO_64", "StudioNEO_32", "HoneySelect_64", "HoneySelect_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         #endregion
 
         #region Unity Methods

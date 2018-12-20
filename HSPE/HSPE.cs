@@ -23,7 +23,7 @@ namespace HSPE
 #endif
     {
 #if HONEYSELECT
-        public const string versionNum = "2.7.0";
+        public const string versionNum = "2.7.1";
         public string Name { get { return "HSPE"; } }
         public string Version { get { return versionNum; } }
         public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }

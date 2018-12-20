@@ -6,8 +6,10 @@ using UnityEngine.SceneManagement;
 using _4KManager;
 using Manager;
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 using Studio;
 using IllusionPlugin;
@@ -29,6 +31,7 @@ namespace HSIBL
         private ProceduralSkyboxParams _tempproceduralskyboxparams;
         private SkyboxParams _tempskyboxparams;
         private GameObject _lightsObj;
+        private Quaternion _lightsObjDefaultRotation;
         private ReflectionProbe _probeComponent;
         private readonly int[] _possibleReflectionProbeResolutions = { 64, 128, 256, 512, 1024, 2048 };
         private string[] _possibleReflectionProbeResolutionsNames;
@@ -38,6 +41,7 @@ namespace HSIBL
         public bool cameraCtrlOff;
         private Camera _subCamera;
         private FolderAssist _cubemapFolder;
+        private const string _presetFolder = "Plugins\\HSIBL\\Presets\\";
 
         private static ushort _errorcode = 0;
         private Light _backDirectionalLight;
@@ -96,20 +100,34 @@ namespace HSIBL
         private DepthOfField _depthOfField;
         private string[] _possibleBlurSampleCountNames;
         private string[] _possibleBlurTypeNames;
+        private Transform _depthOfFieldFocusPoint;
 
         private ScreenSpaceReflection _ssr;
         private string[] _possibleSSRResolutionNames;
         private string[] _possibleSSRDebugModeNames;
 
+        private SMAA _smaa;
+        private string[] _possibleSMAADebugPassNames;
+        private string[] _possibleSMAAQualityPresetNames;
+        private string[] _possibleSMAAEdgeDetectionMethodNames;
+
+        private ColorCorrectionCurves _colorCorrectionCurves;
+
         private Quaternion _frontLightDefaultRotation;
         private Quaternion _backLightDefaultRotation;
         private Material _originalSkybox;
+        private AmbientMode _originalAmbientMode;
+        private DefaultReflectionMode _originalDefaultReflectionMode;
+        private string _currentTooltip = "";
+        private Vector2 _presetsScroll;
+        private string _presetName = "";
+        private bool _removePresetMode;
+        private string[] _presets = new string[0];
         #endregion
 
         #region Accessors
-        private readonly Func<float> _getWindowHeight = () => ModPrefs.GetFloat("HSIBL","Window.height");
-        private readonly Func<float> _getWindowWidth = () => ModPrefs.GetFloat("HSIBL","Window.width");
-        private ColorCorrectionCurves _colorCorrectionCurves;
+        private readonly Func<float> _getWindowHeight = () => ModPrefs.GetFloat("HSIBL","Window.height", 1000);
+        private readonly Func<float> _getWindowWidth = () => ModPrefs.GetFloat("HSIBL","Window.width", 1000);
         #endregion
 
         #region Unity Methods
@@ -135,8 +153,9 @@ namespace HSIBL
             Console.WriteLine("----------------");
 
             this._lightsObj = GameObject.Find("Lights");
-
-            this._probeComponent = this.probeGameObject.AddComponent<ReflectionProbe>() as ReflectionProbe;
+            if (this._lightsObj != null)
+                this._lightsObjDefaultRotation = this._lightsObj.transform.localRotation;
+            this._probeComponent = this.probeGameObject.AddComponent<ReflectionProbe>();
             this._probeComponent.mode = ReflectionProbeMode.Realtime;
             this._probeComponent.resolution = 512;
             this._probeComponent.hdr = true;
@@ -156,11 +175,23 @@ namespace HSIBL
             this._possibleBlurTypeNames = Enum.GetNames(typeof(DepthOfField.BlurType));
             this._possibleSSRResolutionNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRResolution));
             this._possibleSSRDebugModeNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRDebugMode));
-            this._originalSkybox = RenderSettings.skybox;
+            this._possibleSMAADebugPassNames = Enum.GetNames(typeof(SMAA.DebugPass));
+            this._possibleSMAAQualityPresetNames = Enum.GetNames(typeof(SMAA.QualityPreset));
+            this._possibleSMAAEdgeDetectionMethodNames = Enum.GetNames(typeof(SMAA.EdgeDetectionMethod));
             if (Application.productName =="StudioNEO")
             {
                 HSExtSave.HSExtSave.RegisterHandler("hsibl", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
             }
+        }
+
+        private IEnumerator Start()
+        {
+            yield return null;
+            yield return null;
+            yield return null;
+            this._originalSkybox = RenderSettings.skybox;
+            this._originalAmbientMode = RenderSettings.ambientMode;
+            this._originalDefaultReflectionMode = RenderSettings.defaultReflectionMode;
         }
 
         private void OnEnable()
@@ -217,6 +248,7 @@ namespace HSIBL
             this._colorCorrectionCurves = Camera.main.GetComponent<ColorCorrectionCurves>();
             if (this._colorCorrectionCurves != null)
             {
+                this._smaa = (SMAA)this._colorCorrectionCurves.GetType().GetField("m_SMAA", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(this._colorCorrectionCurves);
                 this._toneMappingManager = this._colorCorrectionCurves.Tonemapping;
                 this._bloomManager = this._colorCorrectionCurves.CinematicBloom;
                 this._lensManager = this._colorCorrectionCurves.LensAberrations;
@@ -225,7 +257,12 @@ namespace HSIBL
             this._ssao = Camera.main.GetComponent<SSAOPro>();
             this._sunShafts = Camera.main.GetComponent<SunShafts>();
             this._depthOfField = Camera.main.GetComponent<DepthOfField>();
+            if (this._depthOfField != null)
+                this._depthOfFieldFocusPoint = this._depthOfField.focalTransform;
             this._ssr = Camera.main.GetComponent<ScreenSpaceReflection>();
+
+            this.RefreshPresetList();
+
         }
 
         private void Update()
@@ -309,6 +346,13 @@ namespace HSIBL
             }
             UIUtils.windowRect = UIUtils.LimitWindowRect(UIUtils.windowRect);
             UIUtils.windowRect = GUILayout.Window(this._windowId, UIUtils.windowRect, this.HSIBLWindow,"", UIUtils.windowstyle);
+            if (this._currentTooltip.Length != 0)
+            {
+                Rect tooltipRect = new Rect(new Vector2(UIUtils.windowRect.xMin, UIUtils.windowRect.yMax), new Vector2(UIUtils.windowRect.width, UIUtils.labelstyle.CalcHeight(new GUIContent(this._currentTooltip), UIUtils.windowRect.width) + 10));
+                GUI.Box(tooltipRect, "");
+                GUI.Box(tooltipRect, "");
+                GUI.Label(tooltipRect, this._currentTooltip, UIUtils.labelstyle);
+            }
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one);
         }
         #endregion
@@ -332,7 +376,7 @@ namespace HSIBL
         #region UI
         private void HSIBLWindow(int id)
         {
-            //CameraControlOffOnGUI();
+            this.CameraControlOffOnGUI();
             if (Event.current.type == EventType.MouseDown)
             {
                 GUI.FocusWindow(this._windowId);
@@ -415,6 +459,8 @@ namespace HSIBL
                     }
                     if (this._colorCorrectionCurves != null)
                     {
+                        this.SMAAModule();
+                        UIUtils.HorizontalLine();
                         this.BloomModule();
                         UIUtils.HorizontalLine();
                         this.EyeAdaptationModule();
@@ -431,7 +477,6 @@ namespace HSIBL
                 }
             }
             GUILayout.EndScrollView();
-            GUILayout.Label("Tooltip: " + GUI.tooltip, UIUtils.labelstyle, GUILayout.Height(200));
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
 
@@ -448,6 +493,8 @@ namespace HSIBL
             }
             GUILayout.EndHorizontal();
             GUI.DragWindow();
+            if (Event.current.type == EventType.repaint)
+                this._currentTooltip = GUI.tooltip;
         }
 
         private void CubeMapModule()
@@ -471,8 +518,8 @@ namespace HSIBL
             {
                 this._skybox.Skybox = this._originalSkybox;
                 RenderSettings.skybox = this._originalSkybox;
-                RenderSettings.ambientMode = AmbientMode.Skybox;
-                RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
+                RenderSettings.ambientMode = this._originalAmbientMode;
+                RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
                 Camera.main.clearFlags = CameraClearFlags.SolidColor;
                 this._cubemaploaded = false;
                 this._selectedCubeMap = -1;
@@ -632,7 +679,7 @@ namespace HSIBL
                 this._frontDirectionalLight.transform.parent = this._lightsObj.transform;
                 if (this._frontLightAnchor != lastFrontLightAnchor)
                 {
-                    this._lightsObj.transform.localRotation = Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f);
+                    this._lightsObj.transform.localRotation = Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
                     this._frontDirectionalLight.transform.localRotation = this._frontLightDefaultRotation;
                 }
             }
@@ -799,6 +846,10 @@ namespace HSIBL
             if (this._lensManager.chromaticAberration.enabled)
             {
                 this._lensManager.chromaticAberration.amount = UIUtils.SliderGUI(this._lensManager.chromaticAberration.amount, -4f, 4f, 0f,"Tangential distortion Amount","N3");
+                UIUtils.ColorPickerGUI(this._lensManager.chromaticAberration.color, Color.green, "Color", (c) =>
+                {
+                    this._lensManager.chromaticAberration.color = c;
+                });
             }
             //GUILayout.Space(UIUtils.space);
             UIUtils.HorizontalLine();
@@ -938,6 +989,53 @@ namespace HSIBL
             };
         }
 
+        private void SMAAModule()
+        {
+            GUILayout.Label("SMAA", UIUtils.titlestyle2);
+            GUILayout.Space(UIUtils.space);
+            SMAA.GlobalSettings settings = this._smaa.settings;
+            SMAA.PredicationSettings predication = this._smaa.predication;
+            SMAA.TemporalSettings temporal = this._smaa.temporal;
+
+            GUILayout.Label(new GUIContent("Debug Pass", "Use this to fine tune your settings when working in Custom quality mode. \"Accumulation\" only works when \"Temporal Filtering\" is enabled."), UIUtils.labelstyle);
+            settings.debugPass = (SMAA.DebugPass)GUILayout.SelectionGrid((int)settings.debugPass, this._possibleSMAADebugPassNames, 3, UIUtils.buttonstyleStrechWidth);
+            GUILayout.Label(new GUIContent("Quality", "Low: 60% of the quality.\nMedium: 80% of the quality.\nHigh: 95% of the quality.\nUltra: 99% of the quality (overkill)."), UIUtils.labelstyle);
+            settings.quality = (SMAA.QualityPreset)GUILayout.SelectionGrid((int)settings.quality, this._possibleSMAAQualityPresetNames, 5, UIUtils.buttonstyleStrechWidth);
+            GUILayout.Label(new GUIContent("Edge Detection Method", "You have three edge detection methods to choose from: luma, color or depth.\nThey represent different quality/performance and anti-aliasing/sharpness tradeoffs, so our recommendation is for you to choose the one that best suits your particular scenario:\n\n- Depth edge detection is usually the fastest but it may miss some edges.\n- Luma edge detection is usually more expensive than depth edge detection, but catches visible edges that depth edge detection can miss.\n- Color edge detection is usually the most expensive one but catches chroma-only edges."), UIUtils.labelstyle);
+            settings.edgeDetectionMethod = (SMAA.EdgeDetectionMethod)GUILayout.SelectionGrid((int)settings.edgeDetectionMethod, this._possibleSMAAEdgeDetectionMethodNames, 3, UIUtils.buttonstyleStrechWidth);
+            if (settings.quality == SMAA.QualityPreset.Custom)
+            {
+                SMAA.QualitySettings quality = this._smaa.quality;
+                quality.diagonalDetection = UIUtils.ToggleGUI(quality.diagonalDetection, new GUIContent("Diagonal Detection", "Enables/Disables diagonal processing."), GUIStrings.disableVsEnable);
+                quality.cornerDetection = UIUtils.ToggleGUI(quality.cornerDetection, new GUIContent("Corner Detection", "Enables/Disables corner detection. Leave this on to avoid blurry corners."), GUIStrings.disableVsEnable);
+                quality.threshold = UIUtils.SliderGUI(quality.threshold, 0f, 0.5f, 0.01f, "Threshold", "Filters out pixels under this level of brightness.", "N3");
+                quality.depthThreshold = UIUtils.SliderGUI(quality.depthThreshold, 0.0001f, 10f, 0.01f, "Depth Threshold", "Specifies the threshold for depth edge detection. Lowering this value you will be able to detect more edges at the expense of performance.", "N4");
+                quality.maxSearchSteps = (int)UIUtils.SliderGUI(quality.maxSearchSteps, 0f, 112, 16, "Max Search Steps", "Specifies the maximum steps performed in the horizontal/vertical pattern searches, at each side of the pixel.\nIn number of pixels, it's actually the double. So the maximum line length perfectly handled by, for example 16, is 64 (by perfectly, we meant that longer lines won't look as good, but still antialiased).", "N");
+                quality.maxDiagonalSearchSteps = (int)UIUtils.SliderGUI(quality.maxDiagonalSearchSteps, 0f, 20f, 8, "Max Diagonal Search Steps", "Specifies the maximum steps performed in the diagonal pattern searches, at each side of the pixel. In this case we jump one pixel at time, instead of two.\nOn high-end machines it is cheap (between a 0.8x and 0.9x slower for 16 steps), but it can have a significant impact on older machines.", "N");
+                quality.cornerRounding = (int)UIUtils.SliderGUI(quality.cornerRounding, 0f, 100f, 25f, "Corner Rounding", "Specifies how much sharp corners will be rounded.", "N");
+                quality.localContrastAdaptationFactor = UIUtils.SliderGUI(quality.localContrastAdaptationFactor, 0f, 10f, 2f, "Local Contrast Adaptation Factor", "If there is a neighbor edge that has a local contrast factor times bigger contrast than current edge, current edge will be discarded.\nThis allows to eliminate spurious crossing edges, and is based on the fact that, if there is too much contrast in a direction, that will hide perceptually contrast in the other neighbors.", "N3");
+                this._smaa.quality = quality;
+            }
+
+            predication.enabled = UIUtils.ToggleGUI(predication.enabled, new GUIContent("Predication", "Predicated thresholding allows to better preserve texture details and to improve performance, by decreasing the number of detected edges using an additional buffer (the detph buffer).\nIt locally decreases the luma or color threshold if an edge is found in an additional buffer (so the global threshold can be higher)."), GUIStrings.disableVsEnable);
+            if (predication.enabled)
+            {
+                predication.threshold = UIUtils.SliderGUI(predication.threshold, 0.0001f, 10f, 0.01f, "Threshold", "Threshold to be used in the additional predication buffer.", "N4");
+                predication.scale = UIUtils.SliderGUI(predication.scale, 1f, 5f, 2, "Scale", "How much to scale the global threshold used for luma or color edge detection when using predication.", "N3");
+                predication.strength = UIUtils.SliderGUI(predication.strength, 0f, 1f, 0.4f, "Strength", "How much to locally decrease the threshold.", "N4");
+            }
+
+            temporal.enabled = UIUtils.ToggleGUI(temporal.enabled, new GUIContent("Temporal", "Temporal filtering makes it possible for the SMAA algorithm to benefit from minute subpixel information available that has been accumulated over many frames."), GUIStrings.disableVsEnable);
+            if (temporal.enabled)
+            {
+                temporal.fuzzSize = UIUtils.SliderGUI(temporal.fuzzSize, 0.5f, 10f, 2f, "Fuzz Size", "The size of the fuzz-displacement (jitter) in pixels applied to the camera's perspective projection matrix.\nUsed for 2x temporal anti-aliasing.", "N3");
+            }
+
+            this._smaa.predication = predication;
+            this._smaa.temporal = temporal;
+            this._smaa.settings = settings;
+        }
+
         private void BloomModule()
         {
             GUILayout.Label(GUIStrings.bloom, UIUtils.titlestyle2);
@@ -1034,7 +1132,18 @@ namespace HSIBL
                 GUILayout.Space(UIUtils.space);
 
                 this._depthOfField.visualizeFocus = UIUtils.ToggleGUI(this._depthOfField.visualizeFocus, new GUIContent("Visualize Focus", "Overlay color indicating camera focus."), GUIStrings.disableVsEnable);
-                this._depthOfField.focalLength = UIUtils.SliderGUI(this._depthOfField.focalLength, 0.01f, 100f, 10f,"Focal Distance", "The distance to the focal plane from the camera position in world space.", "N2");
+                bool useCameraOrigin = UIUtils.ToggleGUI(this._depthOfField.focalTransform != null, new GUIContent("Use Camera Origin as Focus", "If enabled, makes the camera origin the automatic focus point, otherwise the Focal Distance is used."), GUIStrings.disableVsEnable);
+                if (useCameraOrigin)
+                {
+                    if (this._depthOfField.focalTransform == null)
+                        this._depthOfField.focalTransform = this._depthOfFieldFocusPoint;
+                }
+                else
+                {
+                    if (this._depthOfField.focalTransform != null)
+                        this._depthOfField.focalTransform = null;
+                    this._depthOfField.focalLength = UIUtils.SliderGUI(this._depthOfField.focalLength, 0.01f, 50f, 10f, "Focal Distance", "The distance to the focal plane from the camera position in world space.", "N2");
+                }
                 this._depthOfField.focalSize = UIUtils.SliderGUI(this._depthOfField.focalSize, 0f, 2f, 0.05f,"Focal Size", "Increase the total focal area.", "N3");
                 if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
@@ -1174,7 +1283,7 @@ namespace HSIBL
         {
 
             GUILayout.BeginVertical();
-            GUILayout.Label("Error"+ _errorcode.ToString() +": Please make sure you have installed HS linear rendering experiment (Version ≥ 3).", UIUtils.labelstyle3);
+            GUILayout.Label("Error"+ _errorcode +": Please make sure you have installed HS linear rendering experiment (Version ≥ 3).", UIUtils.labelstyle3);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("OK", UIUtils.buttonstyleNoStretch))
             {
@@ -1233,7 +1342,7 @@ namespace HSIBL
         private void UserCustomModule()
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(GUIStrings.customWindow, UIUtils.labelstyle);
+            GUILayout.Label(GUIStrings.customWindow, UIUtils.titlestyle2);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button(GUIStrings.customWindowRemember, UIUtils.buttonstyleNoStretch, GUILayout.ExpandWidth(false)))
             {
@@ -1263,6 +1372,64 @@ namespace HSIBL
                                                           this._getWindowHeight,
                                                           GUIStrings.windowHeight,
                                                          "N0");
+            GUILayout.Label("Presets", UIUtils.titlestyle2);
+            GUILayout.BeginVertical(GUI.skin.box);
+            this._presetsScroll = GUILayout.BeginScrollView(this._presetsScroll, false, true, GUILayout.MaxHeight(300));
+            if (this._presets.Length != 0)
+            foreach (string preset in this._presets)
+            {
+                if (GUILayout.Button(preset, UIUtils.buttonstyleStrechWidth))
+                {
+                    if (this._removePresetMode)
+                        this.DeletePreset(preset + ".xml");
+                    else
+                        this.LoadPreset(preset + ".xml");
+                }
+            }
+            else
+                GUILayout.Label("No preset...", UIUtils.labelstyle);
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Name: ", UIUtils.labelstyle, GUILayout.ExpandWidth(false));
+            Color c = GUI.color;
+            if (this._presets.Any(p => p.Equals(this._presetName, StringComparison.OrdinalIgnoreCase)))
+                GUI.color = Color.red;
+            this._presetName = GUILayout.TextField(this._presetName, UIUtils.textFieldStyle2);
+            GUI.color = c;
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUI.enabled = this._presetName.Length != 0;
+            if (GUILayout.Button("Save current settings", UIUtils.buttonstyleStrechWidth))
+            {
+                this._presetName = this._presetName.Trim();
+                this._presetName = string.Join("_", this._presetName.Split(Path.GetInvalidFileNameChars()));
+                if (this._presetName.Length != 0)
+                {
+                    this.SavePreset(this._presetName + ".xml");
+                    this.RefreshPresetList();
+                    this._removePresetMode = false;
+                }
+            }
+            GUI.enabled = true;
+            if (this._removePresetMode)
+                GUI.color = Color.red;
+            GUI.enabled = this._presets.Length != 0;
+            if (GUILayout.Button(this._removePresetMode ? "Click on preset" : "Removal mode", UIUtils.buttonstyleStrechWidth))
+                this._removePresetMode = !this._removePresetMode;
+            GUI.enabled = true;
+            GUI.color = c;
+            GUILayout.EndHorizontal();
+        }
+
+        private void RefreshPresetList()
+        {
+            if (Directory.Exists(_presetFolder))
+            {
+                this._presets = Directory.GetFiles(_presetFolder, "*.xml");
+                for (int i = 0; i < this._presets.Length; i++)
+                    this._presets[i] = Path.GetFileNameWithoutExtension(this._presets[i]);
+            }
         }
 
         private void OptimalSetting(bool auto)
@@ -1390,19 +1557,58 @@ namespace HSIBL
             yield return null;
             if (node == null)
                 yield break;
+            this.LoadConfig(node);
+        }
+
+        private void OnSceneSave(string path, XmlTextWriter writer)
+        {
+            this.SaveConfig(writer);
+        }
+
+        private void SavePreset(string name)
+        {
+            if (Directory.Exists(_presetFolder) == false)
+                Directory.CreateDirectory(_presetFolder);
+            using (XmlTextWriter writer = new XmlTextWriter(Path.Combine(_presetFolder, name), Encoding.UTF8))
+            {
+                writer.WriteStartElement("root");
+                this.SaveConfig(writer);
+                writer.WriteEndElement();
+            }
+        }
+
+        private void LoadPreset(string name)
+        {
+            string path = Path.Combine(_presetFolder, name);
+            if (File.Exists(path) == false)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.Load(path);
+            this.LoadConfig(doc.FirstChild);
+        }
+
+        private void DeletePreset(string name)
+        {
+            File.Delete(Path.GetFullPath(Path.Combine(_presetFolder, name)));
+            this._removePresetMode = false;
+            this.RefreshPresetList();
+        }
+
+        private void LoadConfig(XmlNode node)
+        {
             foreach (XmlNode moduleNode in node.ChildNodes)
             {
                 switch (moduleNode.Name)
                 {
-                    case"cubemap":
+                    case "cubemap":
                         this._hideSkybox = XmlConvert.ToBoolean(moduleNode.Attributes["hide"].Value);
                         this._selectedCubeMap = XmlConvert.ToInt32(moduleNode.Attributes["index"].Value);
                         if (this._selectedCubeMap == -1)
                         {
                             this._skybox.Skybox = this._originalSkybox;
                             RenderSettings.skybox = this._originalSkybox;
-                            RenderSettings.ambientMode = AmbientMode.Skybox;
-                            RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
+                            RenderSettings.ambientMode = this._originalAmbientMode;
+                            RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
                             this._cubemaploaded = false;
                             this._selectedCubeMap = -1;
                             this._previousSelectedCubeMap = -1;
@@ -1433,8 +1639,8 @@ namespace HSIBL
                             {
                                 this._skybox.Skybox = this._originalSkybox;
                                 RenderSettings.skybox = this._originalSkybox;
-                                RenderSettings.ambientMode = AmbientMode.Skybox;
-                                RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
+                                RenderSettings.ambientMode = this._originalAmbientMode;
+                                RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
                                 this._cubemaploaded = false;
                                 this._selectedCubeMap = -1;
                                 this._previousSelectedCubeMap = -1;
@@ -1452,7 +1658,7 @@ namespace HSIBL
                         else if (this._cubemaploaded)
                             Camera.main.clearFlags = CameraClearFlags.Skybox;
                         break;
-                    case"skybox":
+                    case "skybox":
                         this._proceduralSkybox.skyboxparams.exposure = XmlConvert.ToSingle(moduleNode.Attributes["proceduralExposure"].Value);
                         this._proceduralSkybox.skyboxparams.sunsize = XmlConvert.ToSingle(moduleNode.Attributes["proceduralSunsize"].Value);
                         this._proceduralSkybox.skyboxparams.atmospherethickness = XmlConvert.ToSingle(moduleNode.Attributes["proceduralAtmospherethickness"].Value);
@@ -1497,7 +1703,7 @@ namespace HSIBL
                         {
                             this._lightsObj.transform.parent = Camera.main.transform;
                             this._frontDirectionalLight.transform.parent = this._lightsObj.transform;
-                            this._lightsObj.transform.localRotation = Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f);
+                            this._lightsObj.transform.localRotation = Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
                             this._frontDirectionalLight.transform.localRotation = this._frontLightDefaultRotation;
                         }
                         else
@@ -1542,6 +1748,38 @@ namespace HSIBL
                         this._backDirectionalLight.color = c;
 
                         break;
+                    case "smaa":
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            SMAA.GlobalSettings settings = this._smaa.settings;
+                            SMAA.PredicationSettings predication = this._smaa.predication;
+                            SMAA.TemporalSettings temporal = this._smaa.temporal;
+                            SMAA.QualitySettings quality = this._smaa.quality;
+
+                            settings.debugPass = (SMAA.DebugPass)XmlConvert.ToInt32(moduleNode.Attributes["debugPass"].Value);
+                            settings.quality = (SMAA.QualityPreset)XmlConvert.ToInt32(moduleNode.Attributes["quality"].Value);
+                            settings.edgeDetectionMethod = (SMAA.EdgeDetectionMethod)XmlConvert.ToInt32(moduleNode.Attributes["edgeDetectionMethod"].Value);
+                            quality.diagonalDetection = XmlConvert.ToBoolean(moduleNode.Attributes["qualityDiagonalDetection"].Value);
+                            quality.cornerDetection = XmlConvert.ToBoolean(moduleNode.Attributes["qualityCornerDetection"].Value);
+                            quality.threshold = XmlConvert.ToSingle(moduleNode.Attributes["qualityThreshold"].Value);
+                            quality.depthThreshold = XmlConvert.ToSingle(moduleNode.Attributes["qualityDepthThreshold"].Value);
+                            quality.maxSearchSteps = XmlConvert.ToInt32(moduleNode.Attributes["qualityMaxSearchSteps"].Value);
+                            quality.maxDiagonalSearchSteps = XmlConvert.ToInt32(moduleNode.Attributes["qualityMaxDiagonalSearchSteps"].Value);
+                            quality.cornerRounding = XmlConvert.ToInt32(moduleNode.Attributes["qualityCornerRounding"].Value);
+                            quality.localContrastAdaptationFactor = XmlConvert.ToSingle(moduleNode.Attributes["qualityLocalContrastAdaptationFactor"].Value);
+                            predication.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["predicationEnabled"].Value);
+                            predication.threshold = XmlConvert.ToSingle(moduleNode.Attributes["predicationThreshold"].Value);
+                            predication.scale = XmlConvert.ToSingle(moduleNode.Attributes["predicationScale"].Value);
+                            predication.strength = XmlConvert.ToSingle(moduleNode.Attributes["predicationStrength"].Value);
+                            temporal.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["temporalEnabled"].Value);
+                            temporal.fuzzSize = XmlConvert.ToSingle(moduleNode.Attributes["temporalFuzzSize"].Value);
+
+                            this._smaa.quality = quality;
+                            this._smaa.temporal = temporal;
+                            this._smaa.predication = predication;
+                            this._smaa.settings = settings;
+                        }
+                        break;
                     case "lens":
                         if (this._colorCorrectionCurves != null)
                         {
@@ -1554,6 +1792,15 @@ namespace HSIBL
 
                             this._lensManager.chromaticAberration.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["chromaticAberrationEnabled"].Value);
                             this._lensManager.chromaticAberration.amount = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationAmount"].Value);
+
+                            if (moduleNode.Attributes["chromaticAberrationColorR"] != null)
+                            {
+                                c = Color.green;
+                                c.r = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationColorR"].Value);
+                                c.g = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationColorG"].Value);
+                                c.b = XmlConvert.ToSingle(moduleNode.Attributes["chromaticAberrationColorB"].Value);
+                                this._lensManager.chromaticAberration.color = c;
+                            }
 
                             this._lensManager.vignette.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["vignetteEnabled"].Value);
                             this._lensManager.vignette.intensity = XmlConvert.ToSingle(moduleNode.Attributes["vignetteIntensity"].Value);
@@ -1588,7 +1835,7 @@ namespace HSIBL
                             this._toneMappingManager.colorGrading = colorGrading;
                         }
                         break;
-                    case"tonemapping":
+                    case "tonemapping":
                         if (this._colorCorrectionCurves != null)
                         {
                             this._tonemappingEnabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
@@ -1666,9 +1913,12 @@ namespace HSIBL
                             this._ssao.BlurDownsampling = XmlConvert.ToBoolean(moduleNode.Attributes["blurDownsampling"].Value);
                             this._ssao.DebugAO = XmlConvert.ToBoolean(moduleNode.Attributes["debugAO"].Value);
 
-                            Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
-                            Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;
-                            Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(c);
+                            if (Studio.Studio.Instance != null)
+                            {
+                                Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
+                                Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;
+                                Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(c);
+                            }
                         }
                         break;
                     case "sunShafts":
@@ -1692,6 +1942,7 @@ namespace HSIBL
                             this._sunShafts.sunShaftBlurRadius = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftBlurRadius"].Value);
                             this._sunShafts.radialBlurIterations = XmlConvert.ToInt32(moduleNode.Attributes["radialBlurIterations"].Value);
                             this._sunShafts.sunShaftIntensity = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftIntensity"].Value);
+                            if (Studio.Studio.Instance != null)
                             Studio.Studio.Instance.sceneInfo.enableSunShafts = this._sunShafts.enabled;
                         }
 
@@ -1702,6 +1953,7 @@ namespace HSIBL
                             if (moduleNode.Attributes["enabled"] != null)
                                 this._depthOfField.enabled = XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
                             this._depthOfField.visualizeFocus = XmlConvert.ToBoolean(moduleNode.Attributes["visualizeFocus"].Value);
+                            this._depthOfField.focalTransform = moduleNode.Attributes["useCameraOriginAsFocus"] == null || XmlConvert.ToBoolean(moduleNode.Attributes["useCameraOriginAsFocus"].Value) ? this._depthOfFieldFocusPoint : null;
                             this._depthOfField.focalLength = XmlConvert.ToSingle(moduleNode.Attributes["focalLength"].Value);
                             this._depthOfField.focalSize = XmlConvert.ToSingle(moduleNode.Attributes["focalSize"].Value);
                             this._depthOfField.aperture = XmlConvert.ToSingle(moduleNode.Attributes["aperture"].Value);
@@ -1786,7 +2038,7 @@ namespace HSIBL
             }
         }
 
-        private void OnSceneSave(string path, XmlTextWriter writer)
+        private void SaveConfig(XmlWriter writer)
         {
             writer.WriteAttributeString("version", Assembly.GetExecutingAssembly().GetName().Version.ToString());
 
@@ -1861,6 +2113,36 @@ namespace HSIBL
 
             if (this._colorCorrectionCurves != null)
             {
+                SMAA.GlobalSettings settings = this._smaa.settings;
+                SMAA.PredicationSettings predication = this._smaa.predication;
+                SMAA.TemporalSettings temporal = this._smaa.temporal;
+                SMAA.QualitySettings quality = this._smaa.quality;
+
+                writer.WriteStartElement("smaa");
+
+                writer.WriteAttributeString("debugPass", XmlConvert.ToString((int)settings.debugPass));
+                writer.WriteAttributeString("quality", XmlConvert.ToString((int)settings.quality));
+                writer.WriteAttributeString("edgeDetectionMethod", XmlConvert.ToString((int)settings.edgeDetectionMethod));
+                writer.WriteAttributeString("qualityDiagonalDetection", XmlConvert.ToString(quality.diagonalDetection));
+                writer.WriteAttributeString("qualityCornerDetection", XmlConvert.ToString(quality.cornerDetection));
+                writer.WriteAttributeString("qualityThreshold", XmlConvert.ToString(quality.threshold));
+                writer.WriteAttributeString("qualityDepthThreshold", XmlConvert.ToString(quality.depthThreshold));
+                writer.WriteAttributeString("qualityMaxSearchSteps", XmlConvert.ToString(quality.maxSearchSteps));
+                writer.WriteAttributeString("qualityMaxDiagonalSearchSteps", XmlConvert.ToString(quality.maxDiagonalSearchSteps));
+                writer.WriteAttributeString("qualityCornerRounding", XmlConvert.ToString(quality.cornerRounding));
+                writer.WriteAttributeString("qualityLocalContrastAdaptationFactor", XmlConvert.ToString(quality.localContrastAdaptationFactor));
+                writer.WriteAttributeString("predicationEnabled", XmlConvert.ToString(predication.enabled));
+                writer.WriteAttributeString("predicationThreshold", XmlConvert.ToString(predication.threshold));
+                writer.WriteAttributeString("predicationScale", XmlConvert.ToString(predication.scale));
+                writer.WriteAttributeString("predicationStrength", XmlConvert.ToString(predication.strength));
+                writer.WriteAttributeString("temporalEnabled", XmlConvert.ToString(temporal.enabled));
+                writer.WriteAttributeString("temporalFuzzSize", XmlConvert.ToString(temporal.fuzzSize));
+
+                writer.WriteEndElement();
+            }
+
+            if (this._colorCorrectionCurves != null)
+            {
                 writer.WriteStartElement("lens");
 
                 writer.WriteAttributeString("fov", XmlConvert.ToString(Camera.main.fieldOfView));
@@ -1872,6 +2154,9 @@ namespace HSIBL
 
                 writer.WriteAttributeString("chromaticAberrationEnabled", XmlConvert.ToString(this._lensManager.chromaticAberration.enabled));
                 writer.WriteAttributeString("chromaticAberrationAmount", XmlConvert.ToString(this._lensManager.chromaticAberration.amount));
+                writer.WriteAttributeString("chromaticAberrationColorR", XmlConvert.ToString(this._lensManager.chromaticAberration.color.r));
+                writer.WriteAttributeString("chromaticAberrationColorG", XmlConvert.ToString(this._lensManager.chromaticAberration.color.g));
+                writer.WriteAttributeString("chromaticAberrationColorB", XmlConvert.ToString(this._lensManager.chromaticAberration.color.b));
 
                 writer.WriteAttributeString("vignetteEnabled", XmlConvert.ToString(this._lensManager.vignette.enabled));
                 writer.WriteAttributeString("vignetteIntensity", XmlConvert.ToString(this._lensManager.vignette.intensity));
@@ -1986,6 +2271,7 @@ namespace HSIBL
                 writer.WriteStartElement("depthOfField");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(this._depthOfField.enabled));
                 writer.WriteAttributeString("visualizeFocus", XmlConvert.ToString(this._depthOfField.visualizeFocus));
+                writer.WriteAttributeString("useCameraOriginAsFocus", XmlConvert.ToString(this._depthOfField.focalTransform != null));
                 writer.WriteAttributeString("focalLength", XmlConvert.ToString(this._depthOfField.focalLength));
                 writer.WriteAttributeString("focalSize", XmlConvert.ToString(this._depthOfField.focalSize));
                 writer.WriteAttributeString("aperture", XmlConvert.ToString(this._depthOfField.aperture));
@@ -2049,7 +2335,9 @@ namespace HSIBL
                 }
                 writer.WriteEndElement();
             }
+
         }
+
         #endregion
     }
 }

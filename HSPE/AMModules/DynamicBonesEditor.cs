@@ -34,14 +34,12 @@ namespace HSPE.AMModules
             }
         }
 
-        private struct DebugLines
+        private class DebugLines
         {
-            private List<DebugDynamicBone> _debugLines;
+            private List<DebugDynamicBone> _debugLines = new List<DebugDynamicBone>();
 
             public void Draw(List<DynamicBone> dynamicBones, DynamicBone target)
             {
-                if (this._debugLines == null)
-                    this._debugLines = new List<DebugDynamicBone>();
                 int i = 0;
                 for (; i < dynamicBones.Count; i++)
                 {
@@ -67,6 +65,15 @@ namespace HSPE.AMModules
                     if (debug.IsActive())
                         debug.SetActive(false);
                 }
+            }
+
+            public void Destroy()
+            {
+                if (this._debugLines != null)
+                    for (int i = 0; i < this._debugLines.Count; i++)
+                    {
+                        this._debugLines[i].Destroy();
+                    }
             }
 
             public void SetActive(bool active, int limit = -1)
@@ -158,6 +165,14 @@ namespace HSPE.AMModules
                 this.circle.Draw();
             }
 
+            public void Destroy()
+            {
+                VectorLine.Destroy(ref this.gravity);
+                VectorLine.Destroy(ref this.force);
+                VectorLine.Destroy(ref this.both);
+                VectorLine.Destroy(ref this.circle);
+            }
+
             public void SetActive(bool active)
             {
                 this.gravity.active = active;
@@ -182,8 +197,9 @@ namespace HSPE.AMModules
         private Vector3 _dragDynamicBoneEndPosition;
         private Vector3 _lastDynamicBoneGravity;
         private DynamicBone _draggedDynamicBone;
-        private DebugLines _debugLines = new DebugLines();
+        private static DebugLines _debugLines;
         private bool _firstRefresh;
+        private readonly GenericOCITarget _target;
         #endregion
 
         #region Public Fields
@@ -195,48 +211,52 @@ namespace HSPE.AMModules
             set
             {
                 base.isEnabled = value;
-                this.CheckGizmosEnabled();
+                UpdateDebugLinesState(this);
             }
         }
-        public GenericOCITarget target { get; set; }
         public override bool shouldDisplay { get { return this._dynamicBones.Count > 0; } }
         #endregion
 
         #region Unity Methods
-        void Awake()
+        public DynamicBonesEditor(PoseController parent, GenericOCITarget target) : base(parent)
         {
+            this._target = target;
+            this._parent.onUpdate += this.Update;
+            if (_debugLines == null)
+               _debugLines = new DebugLines();
             this.RefreshDynamicBoneList();
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
-        void Start()
+        private void Update()
         {
-            this.RefreshDynamicBoneList();
-        }
-
-        protected override void Update()
-        {
-            base.Update();
             if (!this._firstRefresh)
             {
                 this.RefreshDynamicBoneList();
                 this._firstRefresh = true;
             }
-            this.DynamicBoneDraggingLogic();
-            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
+            if (!this._isEnabled || !PoseController._drawAdvancedMode || MainWindow._self._poseTarget != this._parent)
                 return;
-            this._debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget);
+            this.DynamicBoneDraggingLogic();
+            _debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget);
+        }
+
+        public override void OnDestroy()
+        {
+            base.OnDestroy();
+            this._parent.onUpdate -= this.Update;
         }
         #endregion
 
         #region Public Methods
         public override void OnCharacterReplaced()
         {
-            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
         public override void OnLoadClothesFile()
         {
-            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
 #if HONEYSELECT
@@ -245,22 +265,22 @@ namespace HSPE.AMModules
         public override void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force)
 #endif
         {
-            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
         public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
         {
-            this.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
 
         public override void DrawAdvancedModeChanged()
         {
-            this.CheckGizmosEnabled();
+            UpdateDebugLinesState(this);
         }
 
-        public override void SelectionChanged()
+        public static void SelectionChanged(DynamicBonesEditor self)
         {
-            this.CheckGizmosEnabled();
+            UpdateDebugLinesState(self);
         }
 
         public override void GUILogic()
@@ -409,7 +429,7 @@ namespace HSPE.AMModules
 
         public void LoadFrom(DynamicBonesEditor other)
         {
-            this.ExecuteDelayed(() =>
+            MainWindow._self.ExecuteDelayed(() =>
             {
                 foreach (KeyValuePair<DynamicBone, DynamicBoneData> kvp in other._dirtyDynamicBones)
                 {
@@ -418,7 +438,7 @@ namespace HSPE.AMModules
                     {
                         if (kvp.Key.m_Root != null && bone.m_Root != null)
                         {
-                            if (kvp.Key.m_Root.GetPathFrom(other.transform).Equals(bone.m_Root.GetPathFrom(this.transform)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if (kvp.Key.m_Root.GetPathFrom(other._parent.transform).Equals(bone.m_Root.GetPathFrom(this._parent.transform)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
                             {
                                 db = bone;
                                 break;
@@ -462,7 +482,7 @@ namespace HSPE.AMModules
                     if (kvp.Key == null)
                         continue;
                     xmlWriter.WriteStartElement("dynamicBone");
-                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.GetPathFrom(this.transform) : kvp.Key.name);
+                    xmlWriter.WriteAttributeString("root", kvp.Key.m_Root != null ? kvp.Key.m_Root.GetPathFrom(this._parent.transform) : kvp.Key.name);
 
                     if (kvp.Value.originalWeight.hasValue)
                         xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(kvp.Key.GetWeight()));
@@ -488,8 +508,9 @@ namespace HSPE.AMModules
             return written;
         }
 
-        public override void LoadXml(XmlNode xmlNode)
+        public override bool LoadXml(XmlNode xmlNode)
         {
+            bool changed = false;
             this.RefreshDynamicBoneList();
 
             XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
@@ -503,7 +524,7 @@ namespace HSPE.AMModules
                     {
                         if (bone.m_Root)
                         {
-                            if ((bone.m_Root.GetPathFrom(this.transform).Equals(root) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if ((bone.m_Root.GetPathFrom(this._parent.transform).Equals(root) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
                             {
                                 db = bone;
                                 break;
@@ -511,7 +532,7 @@ namespace HSPE.AMModules
                         }
                         else
                         {
-                            if ((bone.transform.GetPathFrom(this.transform).Equals(root) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if ((bone.transform.GetPathFrom(this._parent.transform).Equals(root) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
                             {
                                 db = bone;
                                 break;
@@ -553,9 +574,13 @@ namespace HSPE.AMModules
                         db.m_FreezeAxis = axis;
                     }
                     if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue)
+                    {
+                        changed = true;
                         this._dirtyDynamicBones.Add(db, data);
+                    }
                 }
             }
+            return changed;
         }
         #endregion
 
@@ -569,7 +594,7 @@ namespace HSPE.AMModules
                 {
                     Transform t = (Transform)o.GetPrivate("m_Transform");
                     OCIChar.BoneInfo boneInfo;
-                    if (t != null && this.target.fkObjects.TryGetValue(t.gameObject, out boneInfo))
+                    if (t != null && this._target.fkObjects.TryGetValue(t.gameObject, out boneInfo))
                     {
                         Vector3 oldValue = boneInfo.guideObject.changeAmount.rot;
                         boneInfo.guideObject.changeAmount.rot = t.localEulerAngles;
@@ -629,8 +654,6 @@ namespace HSPE.AMModules
 
         private void DynamicBoneDraggingLogic()
         {
-            if (!this.isEnabled || !PoseController._drawAdvancedMode || MainWindow.self._poseTarget != this.parent)
-                return;
             if (Input.GetMouseButtonDown(0))
             {
                 float distanceFromCamera = float.PositiveInfinity;
@@ -651,7 +674,7 @@ namespace HSPE.AMModules
                             this._dynamicBoneTarget = db;
                         }
                     }
-                    MainWindow.self.SetNoControlCondition();
+                    MainWindow._self.SetNoControlCondition();
                 }
             }
             else if (Input.GetMouseButton(0) && this.isDraggingDynamicBone)
@@ -670,7 +693,7 @@ namespace HSPE.AMModules
 
         private void RefreshDynamicBoneList()
         {
-            DynamicBone[] dynamicBones = this.GetComponentsInChildren<DynamicBone>(true);
+            DynamicBone[] dynamicBones = this._parent.GetComponentsInChildren<DynamicBone>(true);
             List<DynamicBone> toDelete = null;
             foreach (DynamicBone db in this._dynamicBones)
                 if (dynamicBones.Contains(db) == false)
@@ -690,7 +713,7 @@ namespace HSPE.AMModules
             }
             List<DynamicBone> toAdd = null;
             foreach (DynamicBone db in dynamicBones)
-                if (this._dynamicBones.Contains(db) == false && (this.parent == null || this.parent._childObjects.All(child => db.transform.IsChildOf(child.transform) == false)))
+                if (this._dynamicBones.Contains(db) == false && (this._parent == null || this._parent._childObjects.All(child => db.transform.IsChildOf(child.transform) == false)))
                 {
                     if (toAdd == null)
                         toAdd = new List<DynamicBone>();
@@ -706,9 +729,10 @@ namespace HSPE.AMModules
         }
 
 
-        private void CheckGizmosEnabled()
+        private static void UpdateDebugLinesState(DynamicBonesEditor self)
         {
-            this._debugLines.SetActive(this.isEnabled && PoseController._drawAdvancedMode && MainWindow.self._poseTarget == this.parent);
+            if (_debugLines != null)
+                _debugLines.SetActive(self != null && self._isEnabled && PoseController._drawAdvancedMode);
         }
         #endregion
     }

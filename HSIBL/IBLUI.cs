@@ -87,6 +87,16 @@ namespace HSIBL
                 alignment = TextAnchor.MiddleRight
             };
 
+            textFieldStyle2 = new GUIStyle(GUI.skin.textField)
+            {
+                fontStyle = FontStyle.Bold,
+                font = myfont,
+                padding = new RectOffset(6, 6, 6, 12),
+                margin = new RectOffset(4, 4, 4, 4),
+                fontSize = 22,
+                alignment = TextAnchor.MiddleLeft
+            };
+
             sliderstyle = new GUIStyle(GUI.skin.horizontalSlider)
             {
                 padding = new RectOffset(-10, -10, -4, -4),
@@ -206,7 +216,7 @@ namespace HSIBL
             GUILayout.BeginHorizontal();
             GUILayout.Label(new GUIContent(labeltext, tooltip), labelstyle);
             GUILayout.Space(space);
-            if (GUILayout.Button(GUIStrings.Reset, buttonstyleNoStretch))
+            if (GUILayout.Button(new GUIContent(GUIStrings.Reset, tooltip), buttonstyleNoStretch))
             {
                 value = reset();
             }
@@ -223,7 +233,7 @@ namespace HSIBL
             GUILayout.BeginHorizontal();
             GUILayout.Label(guiContent, labelstyle);
             GUILayout.Space(space);
-            if (GUILayout.Button(GUIStrings.Reset, buttonstyleNoStretch))
+            if (GUILayout.Button(new GUIContent(GUIStrings.Reset, guiContent.tooltip), buttonstyleNoStretch))
             {
                 value = reset;
             }
@@ -268,7 +278,7 @@ namespace HSIBL
             simpleTexture.SetPixel(0, 0, value);
             simpleTexture.Apply(false);
             GUI.DrawTexture(layoutRectangle, simpleTexture, ScaleMode.StretchToFill, true);
-            if (GUILayout.Button(GUIStrings.Reset, buttonstyleNoStretch))
+            if (GUILayout.Button(new GUIContent(GUIStrings.Reset, tooltip), buttonstyleNoStretch))
             {
                 if (onSet == Studio.Studio.Instance.colorMenu.updateColorFunc)
                     Studio.Studio.Instance.colorMenu.SetColor(reset, UI_ColorInfo.ControlType.PresetsSample);
@@ -494,6 +504,7 @@ namespace HSIBL
         internal static GUIStyle labelstyle3;
         internal static GUIStyle boxstyle;
         internal static GUIStyle textFieldStyle;
+        internal static GUIStyle textFieldStyle2;
         static internal Rect CMWarningRect = new Rect(Screen.width * 0.4f, Screen.height * 0.45f, Screen.width * 0.2f, Screen.height * 0.1f);
         static internal Rect ErrorwindowRect = new Rect(Screen.width * 0.4f, Screen.height * 0.45f, Screen.width * 0.2f, Screen.height * 0.1f);
         private static readonly Texture2D simpleTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);

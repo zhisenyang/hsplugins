@@ -179,10 +179,10 @@ namespace MoreAccessoriesKOI
                 data = new MoreAccessories.CharAdditionalData();
                 MoreAccessories._self._accessoriesByChar.Add(__instance.chaFile, data);
             }
-            if (data.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)__instance.fileStatus.coordinateType, out accessories) == false)
+            if (data.rawAccessoriesInfos.TryGetValue(type, out accessories) == false)
             {
                 accessories = new List<ChaFileAccessory.PartsInfo>();
-                data.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)__instance.fileStatus.coordinateType, accessories);
+                data.rawAccessoriesInfos.Add(type, accessories);
             }
             data.nowAccessories = accessories;
             while (data.infoAccessory.Count < data.nowAccessories.Count)
@@ -195,7 +195,7 @@ namespace MoreAccessoriesKOI
                 data.cusAcsCmp.Add(null);
             while (data.showAccessories.Count < data.nowAccessories.Count)
                 data.showAccessories.Add(true);
-            MoreAccessories._self.OnCoordTypeChange();
+            MoreAccessories._self.ExecuteDelayed(MoreAccessories._self.OnCoordTypeChange);
         }
     }
 

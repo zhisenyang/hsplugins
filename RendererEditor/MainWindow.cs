@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml;
+#if KOIKATSU
+using ExtensibleSaveFormat;
+#endif
 using Harmony;
 using Studio;
 using UnityEngine;
@@ -77,8 +80,15 @@ namespace RendererEditor
         #endregion
 
         #region Private Variables
+#if HONEYSELECT
         private const string _texturesDir = "Plugins\\RendererEditor\\Textures";
+#elif KOIKATSU
+        private const string _texturesDir = "BepInEx\\RendererEditor\\Textures";
+#endif
         private const string _dumpDir = _texturesDir + "\\Dump\\";
+#if KOIKATSU
+        private const string _extSaveKey = "rendererEditor";
+#endif
         private static MainWindow _self;
 
         private readonly List<ShaderProperty> _shaderProperties = new List<ShaderProperty>()
@@ -88,17 +98,17 @@ namespace RendererEditor
             new ShaderProperty() {name = "_Color_2", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_Color_3", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_Color_4", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_BaseColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_DiffuseColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_GlassColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecColor_2", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecColor_3", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecColor_4", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_EmissionColor", type = ShaderProperty.Type.Color},
-            new ShaderProperty() {name = "_BaseColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_ReflectionColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_SpecularColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_TintColor", type = ShaderProperty.Type.Color},
-            new ShaderProperty() {name = "_DiffuseColor", type = ShaderProperty.Type.Color},
-            new ShaderProperty() {name = "_GlassColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_EmisColor", type = ShaderProperty.Type.Color},
             //Textures
             new ShaderProperty() {name = "_MainTex", type = ShaderProperty.Type.Texture},
@@ -129,6 +139,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_NormalMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_Illum", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DecalTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_NoiseTex", type = ShaderProperty.Type.Texture},
             //Float
             new ShaderProperty() {name = "_Metallic", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Smoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -160,6 +171,8 @@ namespace RendererEditor
             new ShaderProperty() {name = "_ReflectionEdges", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_ReflectionIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_BlurReflection", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_HeatTime", floatRange = new Vector2(0, 1.5f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_HeatForce", floatRange = new Vector2(0, 0.1f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             //Bools
             new ShaderProperty() {name = "_HairEffect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_GlossUseAlpha", type = ShaderProperty.Type.Boolean},
@@ -193,7 +206,48 @@ namespace RendererEditor
             new ShaderProperty() {name = "_GSteepness", type = ShaderProperty.Type.Vector4},
             new ShaderProperty() {name = "_GSpeed", type = ShaderProperty.Type.Vector4},
             new ShaderProperty() {name = "_GDirectionAB", type = ShaderProperty.Type.Vector4},
-            new ShaderProperty() {name = "_GDirectionCD", type = ShaderProperty.Type.Vector4}
+            new ShaderProperty() {name = "_GDirectionCD", type = ShaderProperty.Type.Vector4},
+#if KOIKATSU
+            //Colors
+            new ShaderProperty() {name = "_ShadowColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_Color2", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_Color3", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_Color1_2", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_Color2_2", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_Color3_2", type = ShaderProperty.Type.Color},
+            //Textures
+            new ShaderProperty() {name = "_AnotherRamp", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_LineMask", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_PatternMask1", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_PatternMask2", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_PatternMask3", type = ShaderProperty.Type.Texture},
+            //Floats
+            new ShaderProperty() {name = "_SpecularPower", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_SpeclarHeight", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_rimpower", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_rimV", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ShadowExtend", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ShadowExtendAnother", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_alpha", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_EmissionPower", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_patternrotator1", floatRange = new Vector2(-1, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_patternrotator2", floatRange = new Vector2(-1, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_patternrotator3", floatRange = new Vector2(-1, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ColorStrength", hasFloatRange = false, type = ShaderProperty.Type.Float},
+            //Booleans
+            new ShaderProperty() {name = "_AnotherRampFull", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_DetailBLineG", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_DetailRLineR", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_notusetexspecular", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_patternclamp1", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_patternclamp2", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_patternclamp3", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_ambientshadowOFF", type = ShaderProperty.Type.Boolean},
+            //Vector4
+            new ShaderProperty() {name = "_Patternuv1", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_Patternuv2", type = ShaderProperty.Type.Vector4},
+            new ShaderProperty() {name = "_Patternuv3", type = ShaderProperty.Type.Vector4},
+#endif
         };
         private const float _width = 604;
         private const float _height = 600;
@@ -239,7 +293,13 @@ namespace RendererEditor
         void Start()
         {
             _self = this;
+#if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("rendererEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
+#elif KOIKATSU
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
+            //ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += this.OnSceneSave;
+#endif
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
             this._shadowCastingModes = (ShadowCastingMode[])Enum.GetValues(typeof(ShadowCastingMode));
 
@@ -284,14 +344,22 @@ namespace RendererEditor
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.R))
             {
                 this._enabled = !this._enabled;
+#if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
                 this._selectTextureCallback = null;
                 this.CheckGizmosEnabled();
             }
             if (Studio.Studio.Instance.treeNodeCtrl.selectNode != this._lastSelectedNode)
             {
                 this.ClearSelectedRenderers();
+#if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
                 this._selectTextureCallback = null;
                 this.CheckGizmosEnabled();
             }
@@ -506,7 +574,11 @@ namespace RendererEditor
                             this.SelectMaterial(material, selectedRenderer, i);
                     }
                 }
+#if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
                 this._selectTextureCallback = null;
             }            
             GUILayout.EndHorizontal();
@@ -542,7 +614,11 @@ namespace RendererEditor
                                 else
                                     this.SelectMaterial(material, selectedRenderer, i);
                             }
+#if HONEYSELECT
                             Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                            Studio.Studio.Instance.colorPalette.visible = false;
+#endif
                             this._selectTextureCallback = null;
                         }
                         GUI.color = c;
@@ -754,7 +830,11 @@ namespace RendererEditor
                         this.ClearSelectedRenderers();
                         this.SelectRenderer(renderer);
                     }
+#if HONEYSELECT
                     Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                    Studio.Studio.Instance.colorPalette.visible = false;
+#endif
                     this._selectTextureCallback = null;
                     this.CheckGizmosEnabled();
                 }
@@ -774,7 +854,11 @@ namespace RendererEditor
                         continue;
                     this.SelectRenderer(renderer);
                 }
+#if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
             }
 
             GUILayout.EndVertical();
@@ -1335,7 +1419,8 @@ namespace RendererEditor
 
             if (GUILayout.Button("Hit me senpai <3", GUILayout.ExpandWidth(true)))
             {
-                    Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
+#if HONEYSELECT
+                Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
                 if (Studio.Studio.Instance.colorPaletteCtrl.visible)
                 {
                     Studio.Studio.Instance.colorMenu.updateColorFunc = col =>
@@ -1357,6 +1442,31 @@ namespace RendererEditor
                         UnityEngine.Debug.LogError("RendererEditor: Color is HDR, couldn't assign it properly.");
                     }
                 }
+#elif KOIKATSU
+                if (Studio.Studio.Instance.colorPalette.visible)
+                    
+                    Studio.Studio.Instance.colorPalette.visible = false;
+                else
+                {
+                    try
+                    {
+                        Studio.Studio.Instance.colorPalette.Setup(property.name, c, (col) =>
+                        {
+                            foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                            {
+                                this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                                if (materialData.dirtyColorProperties.ContainsKey(property.name) == false)
+                                    materialData.dirtyColorProperties.Add(property.name, selectedMaterial.Key.GetColor(property.name));
+                                selectedMaterial.Key.SetColor(property.name, col);
+                            }
+                        }, true);
+                    }
+                    catch (Exception)
+                    {
+                        UnityEngine.Debug.LogError("RendererEditor: Color is HDR, couldn't assign it properly.");
+                    }
+                }
+#endif
             }
 
             Rect layoutRectangle = GUILayoutUtility.GetLastRect();
@@ -1841,6 +1951,38 @@ namespace RendererEditor
         #endregion
 
         #region Saves
+#if KOIKATSU
+        private void OnSceneLoad(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["xml"]);
+            this.OnSceneLoad(path, doc.FirstChild);
+        }
+
+        private void OnSceneSave(string path)
+        {
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+                xmlWriter.WriteStartElement("root");
+
+                xmlWriter.WriteAttributeString("version", RendererEditor.versionNum);
+
+                this.OnSceneSave(path, xmlWriter);
+
+                xmlWriter.WriteEndElement();
+
+                PluginData data = new PluginData();
+                data.version = RendererEditor.saveVersion;
+                data.data.Add("xml", stringWriter.ToString());
+                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
+            }
+        }
+#endif
+
         private void OnSceneLoad(string path, XmlNode node)
         {
             if (node == null)

@@ -55,6 +55,7 @@
     <Compile Include="LoopListView\LoopListView2.cs" />
     <Compile Include="LoopListView\LoopListViewItem2.cs" />
     <Compile Include="MovableWindow.cs" />
+    <Compile Include="OneTimeContentSizeFitter.cs" />
     <Compile Include="OneTimeHorizontalLayoutGroup.cs" />
     <Compile Include="OneTimeVerticalLayoutGroup.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

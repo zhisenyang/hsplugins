@@ -96,6 +96,8 @@ namespace Instrumentation
 
         public const string versionNum = "1.0.0";
 
+        public static bool patched = false;
+
 #if HONEYSELECT
         public string Name { get { return "Instrumentation"; } }
         public string Version { get { return versionNum; } }
@@ -141,55 +143,54 @@ namespace Instrumentation
 
         public void OnLevelWasLoaded(int level)
         {
-            if (level == 3)
-            {
-                times = new Dictionary<int, Dictionary<Type, ulong>>[this._methods.Length];
-                for (int i = 0; i < this._methods.Length; i++)
-                    times[i] = new Dictionary<int, Dictionary<Type, ulong>>();
+            if (level != 3 || patched)
+                return;
+            times = new Dictionary<int, Dictionary<Type, ulong>>[this._methods.Length];
+            for (int i = 0; i < this._methods.Length; i++)
+                times[i] = new Dictionary<int, Dictionary<Type, ulong>>();
 
-                HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.instrumentation");
-                Type component = typeof(Component);
-                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.instrumentation");
+            Type component = typeof(Component);
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                try
                 {
-                    try
+                    foreach (Type type in assembly.GetTypes())
                     {
-                        foreach (Type type in assembly.GetTypes())
+                        if (component.IsAssignableFrom(type) == false && type.Name.Equals("SMAA") == false)
+                            continue;
+                        //UnityEngine.Debug.LogError(type.Name);
+                        if (type.Name.Equals("Singleton`1") ||
+                            type.Name.StartsWith("PresenterBase"))
+                            continue;
+                        for (int i = 0; i < this._methods.Length; i++)
                         {
-                            if (component.IsAssignableFrom(type) == false && type.Name.Equals("SMAA") == false)
-                                continue;
-                            //UnityEngine.Debug.LogError(type.Name);
-                            if (type.Name.Equals("Singleton`1") || 
-                                type.Name.StartsWith("PresenterBase"))
-                                continue;
-                            for (int i = 0; i < this._methods.Length; i++)
+                            MethodData methodData = this._methods[i];
+                            try
                             {
-                                MethodData methodData = this._methods[i];
-                                try
+                                MethodInfo info = type.GetMethod(methodData.name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, methodData.arguments, null);
+                                if (info != null)
                                 {
-                                    MethodInfo info = type.GetMethod(methodData.name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, methodData.arguments, null);
-                                    if (info != null)
-                                    {
-                                        harmony.Patch(
-                                                      info,
-                                                      new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.UpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
-                                                      new HarmonyMethod(typeof(Patches).GetMethod($"UpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
-                                                     );
-                                    }
-                                }
-                                catch (Exception e)
-                                {
-                                    UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                                    harmony.Patch(
+                                                  info,
+                                                  new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.UpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
+                                                  new HarmonyMethod(typeof(Patches).GetMethod($"UpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
+                                                 );
                                 }
                             }
+                            catch (Exception e)
+                            {
+                                UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                            }
                         }
-
-                    }
-                    catch (Exception e)
-                    {
-                        UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                     }
                 }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                }
             }
+            patched = true;
         }
 
         public void OnUpdate()

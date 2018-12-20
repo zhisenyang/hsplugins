@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
 using CustomMenu;
@@ -21,15 +22,19 @@ namespace HSUS
             public Toggle toggle;
             public Text text;
             public GameObject obj;
+            public DateTime creationDate;
         }
 
-        public static readonly List<ObjectData> objects = new List<ObjectData>();
-        public static int previousType;
-        public static RectTransform container;
-        public static InputField searchBar;
+        internal static readonly List<ObjectData> objects = new List<ObjectData>();
+        internal static int previousType;
+        internal static RectTransform container;
+        internal static InputField searchBar;
         internal static bool _created = false;
         internal static IEnumerator _setCharaInfoSub;
         internal static PropertyInfo _translateProperty = null;
+        internal static readonly Dictionary<int, int> keyToOriginalIndex = new Dictionary<int, int>();
+        private static bool _lastSortByCreationDateReverse = false;
+        private static bool _lastSortByNameReverse = true;
 
         private static SmSwimsuit _originalComponent;
 
@@ -51,22 +56,8 @@ namespace HSUS
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            RectTransform rt = _originalComponent.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-            float newY = rt.offsetMax.y;
-            rt = _originalComponent.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
-            rt.offsetMax += new Vector2(0f, -24f);
-
-            searchBar = UIUtility.CreateInputField("Search Bar", _originalComponent.transform.FindChild("TabControl/TabItem01"));
-            searchBar.GetComponent<Image>().sprite = HSUS.self.searchBarBackground;
-            rt = searchBar.transform as RectTransform;
-            rt.localPosition = Vector3.zero;
-            rt.localScale = Vector3.one;
-            rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-            searchBar.placeholder.GetComponent<Text>().text = "Search...";
-            searchBar.onValueChanged.AddListener(SearchChanged);
-            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
-                t.color = Color.white;
+            searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem01"), SearchChanged);
+            CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem01"), SortByName, SortByCreationDate, ResetSort);
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
@@ -80,6 +71,7 @@ namespace HSUS
         private static void Reset()
         {
             objects.Clear();
+            keyToOriginalIndex.Clear();
             _created = false;
             _setCharaInfoSub = null;
         }
@@ -95,6 +87,23 @@ namespace HSUS
                 if (active && objectData.obj.activeSelf == false)
                     group.RegisterToggle(objectData.toggle);
             }
+        }
+
+        private static void ResetSort()
+        {
+            CharaMakerSort.GenericIntSort(objects, objectData => keyToOriginalIndex[objectData.key], objectData => objectData.obj);
+        }
+
+        private static void SortByName()
+        {
+            _lastSortByNameReverse = !_lastSortByNameReverse;
+            CharaMakerSort.GenericStringSort(objects, objectData => objectData.text.text, objectData => objectData.obj, _lastSortByNameReverse);
+        }
+
+        private static void SortByCreationDate()
+        {
+            _lastSortByCreationDateReverse = !_lastSortByCreationDateReverse;
+            CharaMakerSort.GenericDateSort(objects, objectData => objectData.creationDate, objectData => objectData.obj, _lastSortByCreationDateReverse);
         }
     }
 
@@ -202,6 +211,7 @@ namespace HSUS
             dictionary = chaInfo.ListInfo.GetFemaleFbxList(CharaListInfo.TypeFemaleFbx.cf_f_swim, true);
             ToggleGroup component3 = __instance.objListTop.GetComponent<ToggleGroup>();
 
+            int count = 0;
             foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
             {
                 if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) == 0)
@@ -228,7 +238,8 @@ namespace HSUS
                     component.text = fbxTypeInfo.typeName;
                 __instance.CallPrivate("SetButtonClickHandler", gameObject);
                 Toggle component2 = gameObject.GetComponent<Toggle>();
-                SmSwimsuit_Data.objects.Add(new SmSwimsuit_Data.ObjectData() { key = current.Key, obj = gameObject, toggle = component2, text = component });
+                SmSwimsuit_Data.keyToOriginalIndex.Add(current.Key, count);
+                SmSwimsuit_Data.objects.Add(new SmSwimsuit_Data.ObjectData() { key = current.Key, obj = gameObject, toggle = component2, text = component, creationDate = File.GetCreationTimeUtc("./abdata/" + fbxTypeInfo.info.ABPath) });
                 component2.onValueChanged.AddListener(v =>
                 {
                     if (component2.isOn)
@@ -242,6 +253,7 @@ namespace HSUS
                 {
                     transform.gameObject.SetActive(true);
                 }
+                ++count;
                 yield return null;
             }
 

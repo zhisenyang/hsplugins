@@ -121,6 +121,7 @@ namespace HSUS
         internal RoutinesComponent _routines;
         private Binary _binary;
         internal Sprite _searchBarBackground;
+        internal Sprite _buttonBackground;
         private float _lastCleanup;
         private Dictionary<Canvas, CanvasData> _scaledCanvases = new Dictionary<Canvas, CanvasData>();
         private int _lastScreenWidth;
@@ -133,7 +134,7 @@ namespace HSUS
 #if HONEYSELECT
         public string Name { get { return "HSUS"; } }
         public string Version { get { return _version; } }
-        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64"}; } }
+        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         public static HSUS self { get { return _self; } } //Keeping this for legacy
         public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } } //Keeping this for legacy
         public Sprite searchBarBackground { get { return this._searchBarBackground; } } //Keeping this for legacy
@@ -157,6 +158,8 @@ namespace HSUS
 #if HONEYSELECT
                 case "HoneySelect_32":
                 case "HoneySelect_64":                    
+                case "Honey Select Unlimited_32":
+                case "Honey Select Unlimited_64":                    
 #elif KOIKATSU
                 case "Koikatu":
 #endif
@@ -372,6 +375,7 @@ namespace HSUS
                 ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
                 TonemappingColorGrading_Ctor_Patches.ManualPatch(harmony);
                 UI_ColorInfo_ConvertValueFromText_Patches.ManualPatch(harmony);
+
 #elif KOIKATSU
                 CostumeInfo_Init_Patches.ManualPatch(harmony);
 #endif
@@ -628,11 +632,11 @@ namespace HSUS
             this._go.AddComponent<ObjectTreeDebug>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
 
-#if HONEYSELECT
-            if (level == 3)
-#elif KOIKATSU
-            if (level == 1)
-#endif
+//#if HONEYSELECT
+//            if (level == 3)
+//#elif KOIKATSU
+//            if (level == 1)
+//#endif
                 this.SetProcessAffinity();
             switch (this._binary)
             {
@@ -756,16 +760,15 @@ namespace HSUS
             {
                 foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
                 {
-                    bool shouldBreak = false;
                     switch (sprite.name)
                     {
                         case "rect_middle":
                             this._searchBarBackground = sprite;
-                            shouldBreak = true;
+                            break;
+                        case "btn_01":
+                            this._buttonBackground = sprite;
                             break;
                     }
-                    if (shouldBreak)
-                        break;
                 }
                 foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
                 {
@@ -938,6 +941,8 @@ namespace HSUS
                     case "AssetBundleManager/scenemanager/Canvas":
                     case "FreeHScene/Canvas":
                     case "ExitScene":
+                    case "CustomScene/CustomRoot/SaveFrame/BackSpCanvas":
+                    case "CustomScene/CustomRoot/SaveFrame/FrontSpCanvas":
                     case "CustomScene/CustomRoot/FrontUIGroup/CvsCaptureFront":
 #endif
                     case "TitleScene/Canvas":
@@ -1182,7 +1187,7 @@ namespace HSUS
         {
             this._routines.ExecuteDelayed(() =>
             {
-                const long affinityMask = 1;
+                const long affinityMask = 0;
                 Process proc = Process.GetCurrentProcess();
                 proc.ProcessorAffinity = (IntPtr)affinityMask;
 
@@ -1191,13 +1196,13 @@ namespace HSUS
             });
             this._routines.ExecuteDelayed(() =>
             {
-                const long affinityMask = -1;
+                const long affinityMask = long.MaxValue;
                 Process proc = Process.GetCurrentProcess();
                 proc.ProcessorAffinity = (IntPtr)affinityMask;
 
                 foreach (ProcessThread thread in proc.Threads)
                     thread.ProcessorAffinity = (IntPtr)affinityMask;
-            }, 30);
+            }, 300);
         }
 #endregion
     }
@@ -1239,12 +1244,23 @@ namespace HSUS
         }
     }
 
-    //[HarmonyPatch(typeof(GuideObjectManager), "Add", new[] { typeof(Transform), typeof(int) })]
+    //[HarmonyPatch(typeof(Studio.Info), "LoadItemLoadInfoCoroutine", new[] { typeof(string), typeof(string) })]
     //public class Testetetetetet
     //{
-    //    public static void Prefix(Transform _target, int _dicKey, Dictionary<Transform, GuideObject> ___dicGuideObject)
+    //    public static void Prefix(string _bundlePath, string _regex)
     //    {
-    //        UnityEngine.Debug.LogError("Adding target " + _target.GetPathFrom(null) + "\n" + _dicKey + "Contained ? " + ___dicGuideObject.ContainsKey(_target));
+    //        string[] files = (string[])Studio.Info.Instance.CallPrivate("FindAllAssetName", _bundlePath, _regex);
+    //        UnityEngine.Debug.LogError(_bundlePath);
+    //        if (files != null)
+    //            UnityEngine.Debug.LogError(files.Length);
+    //        else
+    //        {
+    //            UnityEngine.Debug.LogError("null");
+    //            foreach (KeyValuePair<string, AssetBundleManager.BundlePack> pair in AssetBundleManager.ManifestBundlePack)
+    //            {
+    //                UnityEngine.Debug.LogError("lol " + pair.Key);
+    //            }
+    //        }
     //    }
     //}
 }
