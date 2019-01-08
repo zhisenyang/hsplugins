@@ -192,7 +192,12 @@ namespace CameraEditor
             this._positionXField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._positionXField.text, out result))
+                if (this._positionXField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetPosition(new Vector3(result, this._globalCameraData.pos.y, this._globalCameraData.pos.z));
+                }
+                else if (float.TryParse(this._positionXField.text, out result))
                     this.SetPosition(new Vector3(result, this._globalCameraData.pos.y, this._globalCameraData.pos.z));
                 this._positionXField.text = this._globalCameraData.pos.x.ToString("0.000");
             });
@@ -201,7 +206,12 @@ namespace CameraEditor
             this._positionYField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._positionYField.text, out result))
+                if (this._positionYField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetPosition(new Vector3(this._globalCameraData.pos.x, result, this._globalCameraData.pos.z));
+                }
+                else if (float.TryParse(this._positionYField.text, out result))
                     this.SetPosition(new Vector3(this._globalCameraData.pos.x, result, this._globalCameraData.pos.z));
                 this._positionYField.text = this._globalCameraData.pos.y.ToString("0.000");
             });
@@ -210,7 +220,12 @@ namespace CameraEditor
             this._positionZField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._positionZField.text, out result))
+                if (this._positionZField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetPosition(new Vector3(this._globalCameraData.pos.x, this._globalCameraData.pos.y, result));
+                }
+                else if (float.TryParse(this._positionZField.text, out result))
                     this.SetPosition(new Vector3(this._globalCameraData.pos.x, this._globalCameraData.pos.y, result));
                 this._positionZField.text = this._globalCameraData.pos.z.ToString("0.000");
             });
@@ -228,7 +243,12 @@ namespace CameraEditor
             this._rotationXField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._rotationXField.text, out result))
+                if (this._rotationXField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetRotation(new Vector3(result, this._globalCameraData.rotate.y, this._globalCameraData.rotate.z));
+                }
+                else if (float.TryParse(this._rotationXField.text, out result))
                     this.SetRotation(new Vector3(result, this._globalCameraData.rotate.y, this._globalCameraData.rotate.z));
                 this._rotationXField.text = this._globalCameraData.rotate.x.ToString("0.00");
             });
@@ -237,7 +257,12 @@ namespace CameraEditor
             this._rotationYField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._rotationYField.text, out result))
+                if (this._rotationYField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetRotation(new Vector3(this._globalCameraData.rotate.x, result, this._globalCameraData.rotate.z));
+                }
+                else if (float.TryParse(this._rotationYField.text, out result))
                     this.SetRotation(new Vector3(this._globalCameraData.rotate.x, result, this._globalCameraData.rotate.z));
                 this._rotationYField.text = this._globalCameraData.rotate.y.ToString("0.00");
             });
@@ -246,7 +271,12 @@ namespace CameraEditor
             this._rotationZField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._rotationZField.text, out result))
+                if (this._rotationZField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetRotation(new Vector3(this._globalCameraData.rotate.x, this._globalCameraData.rotate.y, result));
+                }
+                else if (float.TryParse(this._rotationZField.text, out result))
                     this.SetRotation(new Vector3(this._globalCameraData.rotate.x, this._globalCameraData.rotate.y, result));
                 this._rotationZField.text = this._globalCameraData.rotate.z.ToString("0.00");
             });
@@ -264,7 +294,12 @@ namespace CameraEditor
             this._distanceField.onEndEdit.AddListener(s =>
             {
                 float result;
-                if (float.TryParse(this._distanceField.text, out result))
+                if (this._distanceField.text.Length == 0)
+                {
+                    result = 0;
+                    this.SetDistance(result);
+                }
+                else if (float.TryParse(this._distanceField.text, out result))
                     this.SetDistance(result);
                 this._distanceField.text = this._globalCameraData.distance.z.ToString("0.000");
             });

@@ -1322,7 +1322,7 @@ namespace RendererEditor
                     {
                         destinationMaterialData.originalRenderType = destinationMaterial.GetTag("RenderType", false);
                         destinationMaterialData.hasRenderType = true;
-                        destinationMaterial.SetOverrideTag("RenderType", materialPair.Key.GetTag("renderType", false));
+                        destinationMaterial.SetOverrideTag("RenderType", materialPair.Key.GetTag("RenderType", false));
                     }
 
                     foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)
@@ -1337,7 +1337,10 @@ namespace RendererEditor
                             currentTexturePath = pair.Value.currentTexturePath,
                             originalTexture = destinationMaterial.GetTexture(pair.Key)
                         });
-                        destinationMaterial.SetTexture(pair.Key, this.GetTexture(pair.Value.currentTexturePath));
+                        Texture t = null;
+                        if (string.IsNullOrEmpty(pair.Value.currentTexturePath) == false)
+                            t = this.GetTexture(pair.Value.currentTexturePath);
+                        destinationMaterial.SetTexture(pair.Key, t);
                     }
                     foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureOffsetProperties)
                     {

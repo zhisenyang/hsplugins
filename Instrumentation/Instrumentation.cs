@@ -143,7 +143,11 @@ namespace Instrumentation
 
         public void OnLevelWasLoaded(int level)
         {
+#if HONEYSELECT
             if (level != 3 || patched)
+#elif KOIKATSU
+            if (level != 1 || patched)
+#endif
                 return;
             times = new Dictionary<int, Dictionary<Type, ulong>>[this._methods.Length];
             for (int i = 0; i < this._methods.Length; i++)
@@ -159,16 +163,18 @@ namespace Instrumentation
                     {
                         if (component.IsAssignableFrom(type) == false && type.Name.Equals("SMAA") == false)
                             continue;
-                        //UnityEngine.Debug.LogError(type.Name);
+                       //UnityEngine.Debug.LogError(type.Name);
                         if (type.Name.Equals("Singleton`1") ||
-                            type.Name.StartsWith("PresenterBase"))
+                            type.Name.StartsWith("PresenterBase") || type.Name.Equals("MonoBehaviourSingleton`1"))
                             continue;
                         for (int i = 0; i < this._methods.Length; i++)
                         {
                             MethodData methodData = this._methods[i];
                             try
                             {
+                                
                                 MethodInfo info = type.GetMethod(methodData.name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, methodData.arguments, null);
+
                                 if (info != null)
                                 {
                                     harmony.Patch(
@@ -180,14 +186,14 @@ namespace Instrumentation
                             }
                             catch (Exception e)
                             {
-                                UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                                //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                             }
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                    //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                 }
             }
             patched = true;

@@ -21,8 +21,8 @@ namespace HSPE
 
         #region Protected Variables
         protected BonesEditor _bonesEditor;
-        protected DynamicBonesEditor _dynamicBonesEditor;
-        protected BlendShapesEditor _blendShapesEditor;
+        internal DynamicBonesEditor _dynamicBonesEditor;
+        internal BlendShapesEditor _blendShapesEditor;
         protected readonly List<AdvancedModeModule> _modules = new List<AdvancedModeModule>();
         protected AdvancedModeModule _currentModule;
         protected GenericOCITarget _target;
@@ -51,6 +51,8 @@ namespace HSPE
                 }
             }
 
+            this.FillChildObjects();
+
             this._bonesEditor = new BonesEditor(this, this._target);
             this._modules.Add(this._bonesEditor);
 
@@ -68,20 +70,7 @@ namespace HSPE
 
         protected virtual void Start()
         {
-            foreach (KeyValuePair<TreeNodeObject, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicInfo)
-            {
-                if (pair.Value.guideObject.transformTarget != this.transform)
-                    continue;
-                foreach (TreeNodeObject child in pair.Key.child)
-                {
-                    this.RecurseChildObjects(child, childInfo =>
-                    {
-                        if (this._childObjects.Contains(childInfo.guideObject.transformTarget.gameObject) == false)
-                            this._childObjects.Add(childInfo.guideObject.transformTarget.gameObject);
-                    });
-                }
-                break;
-            }
+            this.FillChildObjects();
         }
 
         protected virtual void Update()
@@ -213,6 +202,17 @@ namespace HSPE
             Studio.Studio.Instance.treeNodeCtrl.onParentage = (parent, node) => PoseController.onParentage?.Invoke(parent, node);
             onParentage += oldDelegate;
         }
+
+        public void ScheduleLoad(XmlNode node, Action<bool> onLoadEnd)
+        {
+            this.StartCoroutine(this.LoadDefaultVersion_Routine(node, onLoadEnd));
+        }
+
+        public virtual void SaveXml(XmlTextWriter xmlWriter)
+        {
+            foreach (AdvancedModeModule module in this._modules)
+                module.SaveXml(xmlWriter);
+        }
         #endregion
 
         #region Protected Methods
@@ -225,7 +225,25 @@ namespace HSPE
         }
         #endregion
 
-        #region Protected Methods
+        #region Private Methods
+        private void FillChildObjects()
+        {
+            foreach (KeyValuePair<TreeNodeObject, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicInfo)
+            {
+                if (pair.Value.guideObject.transformTarget != this.transform)
+                    continue;
+                foreach (TreeNodeObject child in pair.Key.child)
+                {
+                    this.RecurseChildObjects(child, childInfo =>
+                    {
+                        if (this._childObjects.Contains(childInfo.guideObject.transformTarget.gameObject) == false)
+                            this._childObjects.Add(childInfo.guideObject.transformTarget.gameObject);
+                    });
+                }
+                break;
+            }
+        }
+
         private void RecurseChildObjects(TreeNodeObject obj, Action<ObjectCtrlInfo> action)
         {
             ObjectCtrlInfo objInfo;
@@ -255,17 +273,6 @@ namespace HSPE
 
             foreach (AdvancedModeModule module in this._modules)
                 module.OnParentage(parent, child);
-        }
-
-        public void ScheduleLoad(XmlNode node, Action<bool> onLoadEnd)
-        {
-            this.StartCoroutine(this.LoadDefaultVersion_Routine(node, onLoadEnd));
-        }
-
-        public virtual void SaveXml(XmlTextWriter xmlWriter)
-        {
-            foreach (AdvancedModeModule module in this._modules)
-                module.SaveXml(xmlWriter);
         }
 
         private IEnumerator LoadDefaultVersion_Routine(XmlNode xmlNode, Action<bool> onLoadEnd)

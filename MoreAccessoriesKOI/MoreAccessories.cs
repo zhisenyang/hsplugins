@@ -28,10 +28,10 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.extendedsave")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.2";
+        public const string versionNum = "1.0.3";
 
         #region Private Types
-        internal class CharAdditionalData
+        public class CharAdditionalData
         {
             public List<ChaFileAccessory.PartsInfo> nowAccessories;
             public readonly List<ListInfoBase> infoAccessory = new List<ListInfoBase>();
@@ -85,7 +85,7 @@ namespace MoreAccessoriesKOI
         #endregion
 
         #region Private Variables
-        internal static MoreAccessories _self;
+        public static MoreAccessories _self; //Not internal because outside plugins might access this
         private const int _saveVersion = 1;
         private const string _extSaveKey = "moreAccessories";
         private GameObject _charaMakerSlotTemplate;
@@ -97,9 +97,8 @@ namespace MoreAccessoriesKOI
         internal CvsAccessory[] _cvsAccessory;
         internal List<CharaMakerSlotData> _additionalCharaMakerSlots;
         internal Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
-        internal CharAdditionalData _charaMakerData = null;
+        public CharAdditionalData _charaMakerData = null;
         private float _slotUIPositionY;
-        //private int _selectedSlot = 0;
         private bool _inCharaMaker = false;
         private Binary _binary;
         private RectTransform _addButtonsGroup;
@@ -290,7 +289,7 @@ namespace MoreAccessoriesKOI
             RectTransform rootCanvas = ((RectTransform)this._charaMakerSlotTemplate.GetComponentInParent<Canvas>().transform);
             LayoutElement element = this._charaMakerScrollView.gameObject.AddComponent<LayoutElement>();
             element.minHeight = rootCanvas.rect.height / 1.298076f;
-            element.minWidth = ((RectTransform)this._charaMakerSlotTemplate.transform.GetChild(1)).offsetMax.x + 22f;
+            element.minWidth = 622f; //Because trying to get the value dynamically fails for some reason so fuck it.
             VerticalLayoutGroup group = this._charaMakerScrollView.content.gameObject.AddComponent<VerticalLayoutGroup>();
             VerticalLayoutGroup parentGroup = container.GetComponent<VerticalLayoutGroup>();
             group.childAlignment = parentGroup.childAlignment;
@@ -412,6 +411,7 @@ namespace MoreAccessoriesKOI
             this._copySlotTemplate = this._charaMakerCopyScrollView.content.GetChild(0).gameObject;
             this._raycastCtrls.Add(container.parent.GetComponent<UI_RaycastCtrl>());
             this._charaMakerCopyScrollView.transform.SetAsFirstSibling();
+            this._charaMakerCopyScrollView.transform.SetRect(new  Vector2(0f, 1f), Vector2.one, new Vector2(16f, -570f), new Vector2(-16f, -80f));
 
             container = (RectTransform)GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/04_AccessoryTop/tglChange/ChangeTop/rect").transform;
             this._charaMakerTransferScrollView = UIUtility.CreateScrollView("Slots", container);
@@ -431,6 +431,7 @@ namespace MoreAccessoriesKOI
             this._transferSlotTemplate = this._charaMakerTransferScrollView.content.GetChild(0).gameObject;
             this._raycastCtrls.Add(container.parent.GetComponent<UI_RaycastCtrl>());
             this._charaMakerTransferScrollView.transform.SetAsFirstSibling();
+            this._charaMakerTransferScrollView.transform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(16f, -530f), new Vector2(-16f, -48f));
 
             this._charaMakerScrollView.viewport.gameObject.SetActive(false);
 

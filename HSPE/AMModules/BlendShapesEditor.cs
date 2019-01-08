@@ -16,11 +16,13 @@ namespace HSPE.AMModules
         private static readonly Dictionary<string, string> _skinnedMeshAliases = new Dictionary<string, string>
 #if HONEYSELECT
         {
-            {"cf_O_head", "Eyes/Mouth"},
+            {"cf_O_head", "Eyes / Mouth"},
             {"cf_O_ha", "Teeth"},
             {"cf_O_matuge", "Eyelashes"},
             {"cf_O_mayuge", "Eyebrows"},
             {"cf_O_sita", "Tongue"},
+            {"cf_O_namida01", "Tears 1"},
+            {"cf_O_namida02", "Tears 2"},
 
             {"cm_O_head", "Face"},
             {"cm_O_ha", "Teeth"},
@@ -30,7 +32,7 @@ namespace HSPE.AMModules
         };
 #elif KOIKATSU
         {
-            {"cf_O_face",  "Eyes/Mouth"},
+            {"cf_O_face",  "Eyes / Mouth"},
             {"cf_O_tooth",  "Teeth"},
             {"cf_O_eyeline",  "Upper Eyelashes"},
             {"cf_O_eyeline_low",  "Lower Eyelashes"},
@@ -262,7 +264,7 @@ namespace HSPE.AMModules
             }
             GUI.color = c;
             if (this._target.type == GenericOCITarget.Type.Character)
-                this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes and eyelashes");
+                this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes components");
             if (GUILayout.Button("Force refresh list"))
                 this.RefreshSkinnedMeshRendererList();
             GUILayout.EndVertical();
@@ -626,7 +628,7 @@ namespace HSPE.AMModules
             }
             List<SkinnedMeshRenderer> toAdd = null;
             foreach (SkinnedMeshRenderer r in skinnedMeshRenderers)
-                if (this._skinnedMeshRenderers.Contains(r) == false && (this._parent == null || this._parent._childObjects.All(child => r.transform.IsChildOf(child.transform) == false)))
+                if (this._skinnedMeshRenderers.Contains(r) == false && this._parent._childObjects.All(child => r.transform.IsChildOf(child.transform) == false))
                 {
                     if (toAdd == null)
                         toAdd = new List<SkinnedMeshRenderer>();

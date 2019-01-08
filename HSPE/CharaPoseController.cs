@@ -294,13 +294,13 @@ namespace HSPE
             IKExecutionOrder_Patches.onPostLateUpdate += this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate += this.FKCtrlOnPreLateUpdate;
             //FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
-//#if HONEYSELECT
-//            CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
-//            CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
-//#elif KOIKATSU
-//            Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
-//            Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
-//#endif
+#if HONEYSELECT
+            //CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
+            CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
+#elif KOIKATSU
+            //Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
+            Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
+#endif
             OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
@@ -353,13 +353,13 @@ namespace HSPE
             IKExecutionOrder_Patches.onPostLateUpdate -= this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate -= this.FKCtrlOnPreLateUpdate;
             //FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
-//#if HONEYSELECT
-//            CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
-//            CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
-//#elif KOIKATSU
-//            Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
-//            Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
-//#endif
+#if HONEYSELECT
+            //CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
+            CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
+#elif KOIKATSU
+            //Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
+            Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
+#endif
             OCIChar_ChangeChara_Patches.onChangeChara -= this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile -= this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo -= this.OnCoordinateReplaced;
@@ -572,41 +572,41 @@ namespace HSPE
         //        module.FKCtrlOnPostLateUpdate();
         //}
 
-//#if HONEYSELECT
-//        private void CharBodyOnPreLateUpdate(CharBody charBody)
-//        {
-//            if (_target.ociChar.charBody != charBody)
-//                return;
-            
+#if HONEYSELECT
+        //private void CharBodyOnPreLateUpdate(CharBody charBody)
+        //{
+        //    if (_target.ociChar.charBody != charBody)
+        //        return;
 
-//            foreach (AdvancedModeModule module in this._modules)
-//                module.CharBodyPreLateUpdate();
-//        }
 
-//        private void CharBodyOnPostLateUpdate(CharBody charBody)
-//        {
-//            if (_target.ociChar.charBody != charBody)
-//                return;
-//            this.ApplyJointCorrection();
+        //    foreach (AdvancedModeModule module in this._modules)
+        //        module.CharBodyPreLateUpdate();
+        //}
 
-//            foreach (AdvancedModeModule module in this._modules)
-//                module.CharBodyPostLateUpdate();
-//        }
-//#elif KOIKATSU
-//        private void CharacterOnPreLateUpdate()
-//        {
-//            foreach (AdvancedModeModule module in this._modules)
-//                module.CharacterPreLateUpdate();
-//        }
+        private void CharBodyOnPostLateUpdate(CharBody charBody)
+        {
+            if (this._target.ociChar.charBody != charBody)
+                return;
+            this.ApplyJointCorrection();
 
-//        private void CharacterOnPostLateUpdate()
-//        {
-//            this.ApplyJointCorrection();
+            //foreach (AdvancedModeModule module in this._modules)
+            //    module.CharBodyPostLateUpdate();
+        }
+#elif KOIKATSU
+        //private void CharacterOnPreLateUpdate()
+        //{
+        //    foreach (AdvancedModeModule module in this._modules)
+        //        module.CharacterPreLateUpdate();
+        //}
 
-//            foreach (AdvancedModeModule module in this._modules)
-//                module.CharacterPostLateUpdate();
-//        }
-//#endif
+        private void CharacterOnPostLateUpdate()
+        {
+            this.ApplyJointCorrection();
+
+            //foreach (AdvancedModeModule module in this._modules)
+            //    module.CharacterPostLateUpdate();
+        }
+#endif
         private void OnCharacterReplaced(OCIChar chara)
         {
             if (this._target.ociChar != chara)

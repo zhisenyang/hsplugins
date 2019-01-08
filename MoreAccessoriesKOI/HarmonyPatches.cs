@@ -1354,9 +1354,10 @@ namespace MoreAccessoriesKOI
         }
     }
 
-
     internal static class ChaControl_ChangeAccessory_Patches
     {
+        private static MethodInfo _loadCharaFbxData;
+        private static readonly object[] _params = new object[9];
         internal static void ManualPatch(HarmonyInstance harmony)
         {
             foreach (MethodInfo info in typeof(ChaControl).GetMethods(BindingFlags.Instance | BindingFlags.Public))
@@ -1497,7 +1498,19 @@ namespace MoreAccessoriesKOI
                     weight = 2;
                     trfParent = instance.objTop.transform;
                 }
-                data.objAccessory[slotNo] = LoadCharaFbxData(instance, true, type, id, "ca_slot" + (slotNo + 20).ToString("00"), false, weight, trfParent, -1);
+                if (_loadCharaFbxData == null)
+                    _loadCharaFbxData = instance.GetType().GetMethod("LoadCharaFbxData", BindingFlags.NonPublic | BindingFlags.Instance);
+                _params[0] = true;
+                _params[1] = type;
+                _params[2] = id;
+                _params[3] = "ca_slot" + (slotNo + 20).ToString("00");
+                _params[4] = false;
+                _params[5] = weight;
+                _params[6] = trfParent;
+                _params[7] = -1;
+                _params[8] = false;
+                data.objAccessory[slotNo] = (GameObject)_loadCharaFbxData.Invoke(instance, _params); // I'm doing this the reflection way in order to be compatible with other plugins (like RimRemover)
+                //data.objAccessory[slotNo] = LoadCharaFbxData(instance, true, type, id, "ca_slot" + (slotNo + 20).ToString("00"), false, weight, trfParent, -1);
                 if (data.objAccessory[slotNo])
                 {
                     ListInfoComponent component = data.objAccessory[slotNo].GetComponent<ListInfoComponent>();
@@ -1556,153 +1569,153 @@ namespace MoreAccessoriesKOI
             instance.SetHideHairAccessory();
         }
 
-        private static GameObject LoadCharaFbxData(ChaControl instance, bool _hiPoly, int category, int id, string createName, bool copyDynamicBone, byte copyWeights, Transform trfParent, int defaultId, bool worldPositionStays = false)
-        {
-            Dictionary<int, ListInfoBase> work = null;
-            work = instance.lstCtrl.GetCategoryInfo((ChaListDefine.CategoryNo)category);
-            if (work.Count == 0)
-            {
-                return null;
-            }
-            ListInfoBase lib = null;
-            if (!work.TryGetValue(id, out lib))
-            {
-                if (defaultId == -1)
-                {
-                    return null;
-                }
-                if (id != defaultId)
-                {
-                    work.TryGetValue(defaultId, out lib);
-                }
-                if (lib == null && !work.TryGetValue(0, out lib))
-                {
-                    return null;
-                }
-            }
-            else if (category == 105 || category == 107)
-            {
-                int infoInt = lib.GetInfoInt(ChaListDefine.KeyType.Sex);
-                bool flag = false;
-                if (instance.sex == 0 && infoInt == 3)
-                {
-                    flag = true;
-                }
-                else if (instance.sex == 1 && infoInt == 2)
-                {
-                    flag = true;
-                }
-                if (flag)
-                {
-                    if (id != defaultId)
-                    {
-                        work.TryGetValue(defaultId, out lib);
-                    }
-                    if (lib == null && !work.TryGetValue(0, out lib))
-                    {
-                        return null;
-                    }
-                }
-            }
-            string assetName = lib.GetInfo(ChaListDefine.KeyType.MainData);
-            if (string.Empty == assetName)
-            {
-                return null;
-            }
-            if (!_hiPoly)
-            {
-                assetName += "_low";
-            }
-            string manifestName = lib.GetInfo(ChaListDefine.KeyType.MainManifest);
-            string assetBundleName = lib.GetInfo(ChaListDefine.KeyType.MainAB);
-            GameObject newObj = null;
-            newObj = CommonLib.LoadAsset<GameObject>(assetBundleName, assetName, true, manifestName);
-            Singleton<Character>.Instance.AddLoadAssetBundle(assetBundleName, manifestName);
-            if (null == newObj)
-            {
-                return null;
-            }
-            newObj.name = createName;
-            if (trfParent)
-            {
-                newObj.transform.SetParent(trfParent, worldPositionStays);
-            }
-            DynamicBoneCollider[] dbc = instance.objBodyBone.GetComponentsInChildren<DynamicBoneCollider>(true);
-            Dictionary<string, GameObject> dictBone = ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).dictBone;
-            DynamicBone[] db = newObj.GetComponentsInChildren<DynamicBone>(true);
-            foreach (DynamicBone dynamicBone in db)
-            {
-                if (copyDynamicBone)
-                {
-                    if (dynamicBone.m_Root)
-                    {
-                        foreach (KeyValuePair<string, GameObject> keyValuePair in dictBone)
-                        {
-                            if (keyValuePair.Key == dynamicBone.m_Root.name)
-                            {
-                                dynamicBone.m_Root = keyValuePair.Value.transform;
-                                break;
-                            }
-                        }
-                    }
-                    if (dynamicBone.m_Exclusions != null && dynamicBone.m_Exclusions.Count != 0)
-                    {
-                        for (int j = 0; j < dynamicBone.m_Exclusions.Count; j++)
-                        {
-                            if (!(null == dynamicBone.m_Exclusions[j]))
-                            {
-                                foreach (KeyValuePair<string, GameObject> keyValuePair2 in dictBone)
-                                {
-                                    if (keyValuePair2.Key == dynamicBone.m_Exclusions[j].name)
-                                    {
-                                        dynamicBone.m_Exclusions[j] = keyValuePair2.Value.transform;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (dynamicBone.m_notRolls != null && dynamicBone.m_notRolls.Count != 0)
-                    {
-                        for (int k = 0; k < dynamicBone.m_notRolls.Count; k++)
-                        {
-                            if (!(null == dynamicBone.m_notRolls[k]))
-                            {
-                                foreach (KeyValuePair<string, GameObject> keyValuePair3 in dictBone)
-                                {
-                                    if (keyValuePair3.Key == dynamicBone.m_notRolls[k].name)
-                                    {
-                                        dynamicBone.m_notRolls[k] = keyValuePair3.Value.transform;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if (dynamicBone.m_Colliders != null)
-                {
-                    dynamicBone.m_Colliders.Clear();
-                    for (int l = 0; l < dbc.Length; l++)
-                    {
-                        dynamicBone.m_Colliders.Add(dbc[l]);
-                    }
-                }
-            }
-            GameObject objRootBone = instance.GetReferenceInfo(ChaReference.RefObjKey.A_ROOTBONE);
-            Transform trfRootBone = (!objRootBone) ? null : objRootBone.transform;
-            if (copyWeights == 1)
-            {
-                ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).AssignedWeightsAndSetBounds(newObj, "cf_j_root", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
-            }
-            else if (copyWeights == 2)
-            {
-                ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsHead")).AssignedWeightsAndSetBounds(newObj, "cf_J_N_FaceRoot", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
-            }
-            ListInfoComponent libComponent = newObj.AddComponent<ListInfoComponent>();
-            libComponent.data = lib.Clone();
-            return newObj;
-        }
+        //private static GameObject LoadCharaFbxData(ChaControl instance, bool _hiPoly, int category, int id, string createName, bool copyDynamicBone, byte copyWeights, Transform trfParent, int defaultId, bool worldPositionStays = false)
+        //{
+        //    Dictionary<int, ListInfoBase> work = null;
+        //    work = instance.lstCtrl.GetCategoryInfo((ChaListDefine.CategoryNo)category);
+        //    if (work.Count == 0)
+        //    {
+        //        return null;
+        //    }
+        //    ListInfoBase lib = null;
+        //    if (!work.TryGetValue(id, out lib))
+        //    {
+        //        if (defaultId == -1)
+        //        {
+        //            return null;
+        //        }
+        //        if (id != defaultId)
+        //        {
+        //            work.TryGetValue(defaultId, out lib);
+        //        }
+        //        if (lib == null && !work.TryGetValue(0, out lib))
+        //        {
+        //            return null;
+        //        }
+        //    }
+        //    else if (category == 105 || category == 107)
+        //    {
+        //        int infoInt = lib.GetInfoInt(ChaListDefine.KeyType.Sex);
+        //        bool flag = false;
+        //        if (instance.sex == 0 && infoInt == 3)
+        //        {
+        //            flag = true;
+        //        }
+        //        else if (instance.sex == 1 && infoInt == 2)
+        //        {
+        //            flag = true;
+        //        }
+        //        if (flag)
+        //        {
+        //            if (id != defaultId)
+        //            {
+        //                work.TryGetValue(defaultId, out lib);
+        //            }
+        //            if (lib == null && !work.TryGetValue(0, out lib))
+        //            {
+        //                return null;
+        //            }
+        //        }
+        //    }
+        //    string assetName = lib.GetInfo(ChaListDefine.KeyType.MainData);
+        //    if (string.Empty == assetName)
+        //    {
+        //        return null;
+        //    }
+        //    if (!_hiPoly)
+        //    {
+        //        assetName += "_low";
+        //    }
+        //    string manifestName = lib.GetInfo(ChaListDefine.KeyType.MainManifest);
+        //    string assetBundleName = lib.GetInfo(ChaListDefine.KeyType.MainAB);
+        //    GameObject newObj = null;
+        //    newObj = CommonLib.LoadAsset<GameObject>(assetBundleName, assetName, true, manifestName);
+        //    Singleton<Character>.Instance.AddLoadAssetBundle(assetBundleName, manifestName);
+        //    if (null == newObj)
+        //    {
+        //        return null;
+        //    }
+        //    newObj.name = createName;
+        //    if (trfParent)
+        //    {
+        //        newObj.transform.SetParent(trfParent, worldPositionStays);
+        //    }
+        //    DynamicBoneCollider[] dbc = instance.objBodyBone.GetComponentsInChildren<DynamicBoneCollider>(true);
+        //    Dictionary<string, GameObject> dictBone = ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).dictBone;
+        //    DynamicBone[] db = newObj.GetComponentsInChildren<DynamicBone>(true);
+        //    foreach (DynamicBone dynamicBone in db)
+        //    {
+        //        if (copyDynamicBone)
+        //        {
+        //            if (dynamicBone.m_Root)
+        //            {
+        //                foreach (KeyValuePair<string, GameObject> keyValuePair in dictBone)
+        //                {
+        //                    if (keyValuePair.Key == dynamicBone.m_Root.name)
+        //                    {
+        //                        dynamicBone.m_Root = keyValuePair.Value.transform;
+        //                        break;
+        //                    }
+        //                }
+        //            }
+        //            if (dynamicBone.m_Exclusions != null && dynamicBone.m_Exclusions.Count != 0)
+        //            {
+        //                for (int j = 0; j < dynamicBone.m_Exclusions.Count; j++)
+        //                {
+        //                    if (!(null == dynamicBone.m_Exclusions[j]))
+        //                    {
+        //                        foreach (KeyValuePair<string, GameObject> keyValuePair2 in dictBone)
+        //                        {
+        //                            if (keyValuePair2.Key == dynamicBone.m_Exclusions[j].name)
+        //                            {
+        //                                dynamicBone.m_Exclusions[j] = keyValuePair2.Value.transform;
+        //                                break;
+        //                            }
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //            if (dynamicBone.m_notRolls != null && dynamicBone.m_notRolls.Count != 0)
+        //            {
+        //                for (int k = 0; k < dynamicBone.m_notRolls.Count; k++)
+        //                {
+        //                    if (!(null == dynamicBone.m_notRolls[k]))
+        //                    {
+        //                        foreach (KeyValuePair<string, GameObject> keyValuePair3 in dictBone)
+        //                        {
+        //                            if (keyValuePair3.Key == dynamicBone.m_notRolls[k].name)
+        //                            {
+        //                                dynamicBone.m_notRolls[k] = keyValuePair3.Value.transform;
+        //                                break;
+        //                            }
+        //                        }
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        if (dynamicBone.m_Colliders != null)
+        //        {
+        //            dynamicBone.m_Colliders.Clear();
+        //            for (int l = 0; l < dbc.Length; l++)
+        //            {
+        //                dynamicBone.m_Colliders.Add(dbc[l]);
+        //            }
+        //        }
+        //    }
+        //    GameObject objRootBone = instance.GetReferenceInfo(ChaReference.RefObjKey.A_ROOTBONE);
+        //    Transform trfRootBone = (!objRootBone) ? null : objRootBone.transform;
+        //    if (copyWeights == 1)
+        //    {
+        //        ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).AssignedWeightsAndSetBounds(newObj, "cf_j_root", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
+        //    }
+        //    else if (copyWeights == 2)
+        //    {
+        //        ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsHead")).AssignedWeightsAndSetBounds(newObj, "cf_J_N_FaceRoot", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
+        //    }
+        //    ListInfoComponent libComponent = newObj.AddComponent<ListInfoComponent>();
+        //    libComponent.data = lib.Clone();
+        //    return newObj;
+        //}
 
         private static void SetAccessoryDefaultColor(ChaControl instance, int slotNo)
         {

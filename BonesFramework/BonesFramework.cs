@@ -64,6 +64,20 @@ namespace BonesFramework
         #endregion
     }
 
+    [HarmonyPatch(typeof(AssignedAnotherWeights), "AssignedWeights", new[] {typeof(GameObject), typeof(string), typeof(Transform)})]
+    static class AssignedAnotherWeights_AssignedWeights_Patches
+    {
+        private static void Prefix(GameObject obj)
+        {
+            BonesFramework._currentTransformParent = obj.transform.parent.Find("p_cf_anim");
+            if (BonesFramework._currentTransformParent == null)
+            {
+                BonesFramework._currentTransformParent = obj.transform.parent.Find("p_cm_anim");
+                if (BonesFramework._currentTransformParent == null)
+                    BonesFramework._currentTransformParent = obj.transform.parent;
+            }
+        }
+    }
     [HarmonyPatch(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] {typeof(Transform), typeof(Transform)})]
     static class AssignedAnotherWeights_AssignedWeightsLoop_Patches
     {
@@ -90,19 +104,12 @@ namespace BonesFramework
                 else if (component.rootBone && __instance.dictBone.TryGetValue(component.rootBone.name, out gameObject))
                     component.rootBone = gameObject.transform;
             }
-            Transform pCfAnim = null;
-            if (BonesFramework._currentTransformParent != null)
-            {
-                pCfAnim = BonesFramework._currentTransformParent.Find("p_cf_anim");
-                if (pCfAnim == null)
-                    pCfAnim = BonesFramework._currentTransformParent.Find("p_cm_anim");
-            }
             for (int i = 0; i < t.childCount; i++)
             {
                 Transform obj = t.GetChild(i);
                 if (BonesFramework._currentAdditionalRootBones.Count != 0 && BonesFramework._currentAdditionalRootBones.Contains(obj.name))
                 {
-                    Transform parent = pCfAnim.FindDescendant(obj.parent.name);
+                    Transform parent = BonesFramework._currentTransformParent.FindDescendant(obj.parent.name);
                     Vector3 localPos = obj.localPosition;
                     Quaternion localRot = obj.localRotation;
                     Vector3 localScale = obj.localScale;
@@ -174,7 +181,8 @@ namespace BonesFramework
             TextAsset ta = CommonLib.LoadAsset<TextAsset>(ltf.ABPath, "additional_bones", true, ltf.Manifest);
             if (ta == null)
                 return;
-            UnityEngine.Debug.Log("BonesFramework: Loaded additional_bones TextAsset from " + ltf.ABPath + "\n" + ta);
+
+            UnityEngine.Debug.Log("BonesFramework: Loaded additional_bones TextAsset from " + ltf.ABPath);
             BonesFramework._currentAdditionalObjects.Add(BonesFramework._currentLoadingCloth, new List<GameObject>());
             OnDestroyTrigger onDestroyTrigger = BonesFramework._currentLoadingCloth.AddComponent<OnDestroyTrigger>();
             onDestroyTrigger.onDestroy = (go) =>
@@ -183,14 +191,13 @@ namespace BonesFramework
                     GameObject.Destroy(o);
                 BonesFramework._currentAdditionalObjects.Remove(go);
             };
-            BonesFramework._currentTransformParent = (Transform)self.GetPrivate("trfParent");
-            string[] lines = ta.text.Split('\n');
+            string[] lines = ta.text.Split(new [] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string line in lines)
             {
                 string[] cells = line.Split('\t');
                 if (!cells[0].Equals(assetName))
                     continue;
-
+                UnityEngine.Debug.Log("BonesFramework: Found matching line for asset " + assetName + "\n" + line);
                 for (int i = 1; i < cells.Length; i++)
                     BonesFramework._currentAdditionalRootBones.Add(cells[i]);
 

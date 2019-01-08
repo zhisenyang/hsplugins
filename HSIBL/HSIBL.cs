@@ -166,6 +166,7 @@ namespace HSIBL
             this.probeGameObject.transform.position = new Vector3(0, 2, 0);
             this._probeComponent.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
             this._probeComponent.timeSlicingMode = ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+            this._probeComponent.nearClipPlane = 1.01f;
             this._possibleReflectionProbeResolutionsNames = this._possibleReflectionProbeResolutions.Select(e => e.ToString()).ToArray();
             this._possibleSSAOSampleCountNames = Enum.GetNames(typeof(SSAOPro.SampleCount));
             this._possibleSSAOBlurModeNames = Enum.GetNames(typeof(SSAOPro.BlurMode));
@@ -657,7 +658,11 @@ namespace HSIBL
                     }
                 }
                 GUILayout.Space(UIUtils.space);
-                this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity,"N3");
+
+                this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity, "N3");
+
+                this._probeComponent.shadowDistance = UIUtils.SliderGUI(this._probeComponent.shadowDistance, 1f, 100f, 100f, "Shadow Distance", "N1");
+
                 RenderSettings.reflectionBounces = Mathf.RoundToInt(UIUtils.SliderGUI(RenderSettings.reflectionBounces, 1, 5, 1, "Reflection Bounces", "The number of times a reflection includes other reflections. If set to 1, the scene will be rendered once, which means that a reflection will not be able to reflect another reflection and reflective objects will show up black, when seen in other reflective surfaces. If set to 2, the scene will be rendered twice and reflective objects will show reflections from the first pass, when seen in other reflective surfaces.", "0"));
             }
         }
@@ -1695,6 +1700,8 @@ namespace HSIBL
                                                                                   XmlConvert.ToSingle(moduleNode.Attributes["positionY"].Value),
                                                                                   XmlConvert.ToSingle(moduleNode.Attributes["positionZ"].Value)
                                                                                  );
+                        if (moduleNode.Attributes["shadowDistance"] != null)
+                            this._probeComponent.shadowDistance = XmlConvert.ToSingle(moduleNode.Attributes["shadowDistance"].Value);
                         RenderSettings.reflectionBounces = moduleNode.Attributes["bounces"] != null ? XmlConvert.ToInt32(moduleNode["bounces"].Value) : 1;
                         break;
                     case "defaultLight":
@@ -2082,6 +2089,7 @@ namespace HSIBL
                 writer.WriteAttributeString("timeSlicing", XmlConvert.ToString((int)this._probeComponent.timeSlicingMode));
                 writer.WriteAttributeString("resolution", XmlConvert.ToString(this._reflectionProbeResolution));
                 writer.WriteAttributeString("intensity", XmlConvert.ToString(this._probeComponent.intensity));
+                writer.WriteAttributeString("shadowDistance", XmlConvert.ToString(this._probeComponent.shadowDistance));
                 writer.WriteAttributeString("positionX", XmlConvert.ToString(this.probeGameObject.transform.position.x));
                 writer.WriteAttributeString("positionY", XmlConvert.ToString(this.probeGameObject.transform.position.y));
                 writer.WriteAttributeString("positionZ", XmlConvert.ToString(this.probeGameObject.transform.position.z));

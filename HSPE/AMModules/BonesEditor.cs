@@ -1653,6 +1653,7 @@ namespace HSPE.AMModules
             this.OpenParents(go);
             Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
             this.GetScrollPosition(this._parent.transform.gameObject, goBak, 0, ref scroll);
+            scroll.y -= GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4;
             this._boneEditionScroll = scroll;
         }
 
@@ -1820,7 +1821,7 @@ namespace HSPE.AMModules
                 this._dirtyColliders.Remove(collider);
             }
         }
-
+        
         private void ApplyBoneManualCorrection()
         {
             if (this._dirtyBones.Count == 0)
