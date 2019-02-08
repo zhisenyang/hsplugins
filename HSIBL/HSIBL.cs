@@ -15,7 +15,6 @@ using Studio;
 using IllusionPlugin;
 using IllusionUtility.GetUtility;
 using UnityEngine.Rendering;
-using _4KConfig;
 using DepthOfField = UnityStandardAssets.ImageEffects.DepthOfField;
 
 namespace HSIBL
@@ -123,11 +122,12 @@ namespace HSIBL
         private string _presetName = "";
         private bool _removePresetMode;
         private string[] _presets = new string[0];
+        internal static bool _isStudio = false;
         #endregion
 
         #region Accessors
-        private readonly Func<float> _getWindowHeight = () => ModPrefs.GetFloat("HSIBL","Window.height", 1000);
-        private readonly Func<float> _getWindowWidth = () => ModPrefs.GetFloat("HSIBL","Window.width", 1000);
+        private readonly Func<float> _getWindowHeight = () => ModPrefs.GetFloat("HSIBL","Window.height", 600);
+        private readonly Func<float> _getWindowWidth = () => ModPrefs.GetFloat("HSIBL","Window.width", 600);
         #endregion
 
         #region Unity Methods
@@ -181,6 +181,7 @@ namespace HSIBL
             this._possibleSMAAEdgeDetectionMethodNames = Enum.GetNames(typeof(SMAA.EdgeDetectionMethod));
             if (Application.productName =="StudioNEO")
             {
+                _isStudio = true;
                 HSExtSave.HSExtSave.RegisterHandler("hsibl", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
             }
         }
@@ -204,7 +205,7 @@ namespace HSIBL
             this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
             this.StopAllCoroutines();
             this.StartCoroutine(this.UpdateEnvironment());
-            if (Application.productName =="StudioNEO")
+            if (_isStudio)
             {
                 this._subCamera = GameObject.Find("Camera").GetComponent<Camera>();
                 this._subCamera.fieldOfView = Camera.main.fieldOfView;
@@ -307,16 +308,13 @@ namespace HSIBL
         private void OnGUI()
         {
             if (!MainWindow)
-            {
                 return;
-            }
             if (!UIUtils.styleInitialized)
             {
                 UIUtils.InitStyle();
             }
             if (!Camera.main.hdr)
             {
-
                 if (Camera.main.actualRenderingPath != RenderingPath.DeferredShading)
                 {
                     UIUtils.CMWarningRect = GUILayout.Window(this._cmWaringWindowId, UIUtils.CMWarningRect, this.CharaMakerWarningWindow,"Warning", UIUtils.windowstyle);
@@ -515,7 +513,7 @@ namespace HSIBL
             }
             UIUtils.scrollPosition[0] = GUILayout.BeginScrollView(UIUtils.scrollPosition[0]);
 
-            if (GUILayout.Button("None", UIUtils.buttonstyleStrechWidth))
+            if (GUILayout.Button("None", UIUtils.buttonstyleStrechWidthAlignLeft))
             {
                 this._skybox.Skybox = this._originalSkybox;
                 RenderSettings.skybox = this._originalSkybox;
@@ -527,7 +525,7 @@ namespace HSIBL
                 this._previousSelectedCubeMap = -1;
             }
 
-            this._selectedCubeMap = GUILayout.SelectionGrid(this._selectedCubeMap, this._cubeMapFileNames, 1, UIUtils.buttonstyleStrechWidth);
+            this._selectedCubeMap = GUILayout.SelectionGrid(this._selectedCubeMap, this._cubeMapFileNames, 1, UIUtils.buttonstyleStrechWidthAlignLeft);
 
             if (this._selectedCubeMap > 0 && this._previousSelectedCubeMap != this._selectedCubeMap)
             {
@@ -646,7 +644,7 @@ namespace HSIBL
 
                 this._probeComponent.resolution = this._possibleReflectionProbeResolutions[this._reflectionProbeResolution];
 
-                if (Application.productName =="StudioNEO")
+                if (_isStudio)
                 {
                     if (GUILayout.Button("Move Reflection Probe to target", UIUtils.buttonstyleNoStretch))
                     {
@@ -684,7 +682,7 @@ namespace HSIBL
                 this._frontDirectionalLight.transform.parent = this._lightsObj.transform;
                 if (this._frontLightAnchor != lastFrontLightAnchor)
                 {
-                    this._lightsObj.transform.localRotation = Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
+                    this._lightsObj.transform.localRotation = _isStudio && Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
                     this._frontDirectionalLight.transform.localRotation = this._frontLightDefaultRotation;
                 }
             }
@@ -1055,7 +1053,7 @@ namespace HSIBL
         private void SSAOModule()
         {
             this._ssao.enabled = UIUtils.ToggleGUI(this._ssao.enabled, new GUIContent("SSAO"), GUIStrings.disableVsEnable, UIUtils.titlestyle2);
-            if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+            if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
             if (this._ssao.enabled)
             {
@@ -1066,7 +1064,7 @@ namespace HSIBL
                 this._ssao.Samples = (SSAOPro.SampleCount)GUILayout.SelectionGrid((int)this._ssao.Samples, this._possibleSSAOSampleCountNames, 3, UIUtils.buttonstyleStrechWidth);
                 this._ssao.Downsampling = Mathf.RoundToInt(UIUtils.SliderGUI(this._ssao.Downsampling, 1f, 4f, 1f,"Downsampling", "Lets you change resolution at which calculations should be performed (for example, a downsampling value of 2 will work at half the screen resolution). Using downsampling increases rendering speed at the cost of quality.", "0"));
                 this._ssao.Intensity = UIUtils.SliderGUI(this._ssao.Intensity, 0.0f, 16f, 2f, "Intensity", "The occlusion multiplier (degree of darkness added by ambient occlusion). Push this up or down to get a more or less visible effect.", "N3");
-                if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+                if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;
                 this._ssao.Radius = UIUtils.SliderGUI(this._ssao.Radius, 0.01f, 1.25f, 0.125f,"Radius", "The maximum radius of a gap (in world units) that will introduce ambient occlusion.", "N3");
                 this._ssao.Distance = UIUtils.SliderGUI(this._ssao.Distance, 0.0f, 10f, 1f,"Distance", "Represents the distance between an occluded sample and its occluder.", "N3");
@@ -1075,7 +1073,7 @@ namespace HSIBL
                 UIUtils.ColorPickerGUI(this._ssao.OcclusionColor, Color.black,"Occlusion Color", c =>
                 {
                     this._ssao.OcclusionColor = c;
-                    if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+                    if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                         Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(c);
                 });
                 GUILayout.Label(new GUIContent("Blur Mode", "None: no blur will be applied to the ambient occlusion pass. Gaussian: an optimized 9 - tap filter. Bilateral: a bilateral box filter capable of detecting borders. High Quality Bilateral: a smooth bilateral gaussian filter capable of detecting borders."), UIUtils.labelstyle);
@@ -1098,7 +1096,7 @@ namespace HSIBL
         private void SunShaftsModule()
         {
             this._sunShafts.enabled = UIUtils.ToggleGUI(this._sunShafts.enabled, new GUIContent("Sun Shafts"), GUIStrings.disableVsEnable, UIUtils.titlestyle2);
-            if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+            if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableSunShafts = this._sunShafts.enabled;
             if (this._sunShafts.enabled)
             {
@@ -1129,7 +1127,7 @@ namespace HSIBL
         private void DepthOfFieldModule()
         {
             this._depthOfField.enabled = UIUtils.ToggleGUI(this._depthOfField.enabled, new GUIContent("Depth Of Field"), GUIStrings.disableVsEnable, UIUtils.titlestyle2);
-            if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+            if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableDepth = this._depthOfField.enabled;
             //GUILayout.Label("Depth Of Field", UIUtils.titlestyle2);
             if (this._depthOfField.enabled)
@@ -1150,10 +1148,10 @@ namespace HSIBL
                     this._depthOfField.focalLength = UIUtils.SliderGUI(this._depthOfField.focalLength, 0.01f, 50f, 10f, "Focal Distance", "The distance to the focal plane from the camera position in world space.", "N2");
                 }
                 this._depthOfField.focalSize = UIUtils.SliderGUI(this._depthOfField.focalSize, 0f, 2f, 0.05f,"Focal Size", "Increase the total focal area.", "N3");
-                if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+                if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
                 this._depthOfField.aperture = UIUtils.SliderGUI(this._depthOfField.aperture, 0f, 1f, 0.5f,"Aperture", "The camera’s aperture defining the transition between focused and defocused areas. It is good practice to keep this value as high as possible, as otherwise sampling artifacts might occur, especially when the Max Blur Distance is big. Bigger Aperture values will automatically downsample the image to produce a better defocus.", "N3");
-                if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+                if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
                 this._depthOfField.maxBlurSize = UIUtils.SliderGUI(this._depthOfField.maxBlurSize, 0f, 128f, 2f,"Max Blur Distance", "Max distance for filter taps. Affects texture cache and can cause undersampling artifacts if value is too big. A value smaller than 4.0 should produce decent results.", "N1");
                 this._depthOfField.highResolution = UIUtils.ToggleGUI(this._depthOfField.highResolution, new GUIContent("High Resolution", "Perform defocus operations in full resolution. Affects performance but might help reduce unwanted artifacts and produce more defined bokeh shapes."), GUIStrings.disableVsEnable);
@@ -1185,7 +1183,7 @@ namespace HSIBL
         {
             this._ssr.enabled = UIUtils.ToggleGUI(this._ssr.enabled, new GUIContent("Screen Space Reflections"), GUIStrings.disableVsEnable, UIUtils.titlestyle2);
             //GUILayout.Label("Screen Space Reflections", UIUtils.titlestyle2);
-            if (Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
+            if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableSSR = this._ssr.enabled;
             if (this._ssr.enabled)
             {
@@ -1420,7 +1418,7 @@ namespace HSIBL
             if (this._removePresetMode)
                 GUI.color = Color.red;
             GUI.enabled = this._presets.Length != 0;
-            if (GUILayout.Button(this._removePresetMode ? "Click on preset" : "Removal mode", UIUtils.buttonstyleStrechWidth))
+            if (GUILayout.Button(this._removePresetMode ? "Click on preset" : "Delete preset", UIUtils.buttonstyleStrechWidth))
                 this._removePresetMode = !this._removePresetMode;
             GUI.enabled = true;
             GUI.color = c;
@@ -1439,7 +1437,7 @@ namespace HSIBL
 
         private void OptimalSetting(bool auto)
         {
-            if (Application.productName =="StudioNEO")
+            if (_isStudio)
             {
                 this._cameraCtrl = Singleton<Studio.Studio>.Instance.cameraCtrl;
                 SceneInfo sceneInfo = Singleton<Studio.Studio>.Instance.sceneInfo;
@@ -1710,7 +1708,7 @@ namespace HSIBL
                         {
                             this._lightsObj.transform.parent = Camera.main.transform;
                             this._frontDirectionalLight.transform.parent = this._lightsObj.transform;
-                            this._lightsObj.transform.localRotation = Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
+                            this._lightsObj.transform.localRotation = _isStudio && Studio.Studio.Instance != null ? Quaternion.Euler(Studio.Studio.Instance.sceneInfo.cameraLightRot[0], Studio.Studio.Instance.sceneInfo.cameraLightRot[1], 0f) : this._lightsObjDefaultRotation;
                             this._frontDirectionalLight.transform.localRotation = this._frontLightDefaultRotation;
                         }
                         else
@@ -1920,7 +1918,7 @@ namespace HSIBL
                             this._ssao.BlurDownsampling = XmlConvert.ToBoolean(moduleNode.Attributes["blurDownsampling"].Value);
                             this._ssao.DebugAO = XmlConvert.ToBoolean(moduleNode.Attributes["debugAO"].Value);
 
-                            if (Studio.Studio.Instance != null)
+                            if (_isStudio && Studio.Studio.Instance != null)
                             {
                                 Studio.Studio.Instance.sceneInfo.enableSSAO = this._ssao.enabled;
                                 Studio.Studio.Instance.sceneInfo.ssaoIntensity = this._ssao.Intensity;

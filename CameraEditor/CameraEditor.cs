@@ -128,7 +128,6 @@ namespace CameraEditor
 
 #if HONEYSELECT
         public void OnLevelWasInitialized(int level) { }
-
         public void OnFixedUpdate() { }
         public void OnUpdate() { }
 #endif
@@ -199,8 +198,16 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._positionXField.text, out result))
                     this.SetPosition(new Vector3(result, this._globalCameraData.pos.y, this._globalCameraData.pos.z));
-                this._positionXField.text = this._globalCameraData.pos.x.ToString("0.000");
             });
+            this._positionXField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._positionXField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetPosition(this._globalCameraData.pos + new Vector3(0.1f, 0f, 0f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetPosition(this._globalCameraData.pos - new Vector3(0.1f, 0f, 0f), 0.05f);
+            };
 
             this._positionYField = transform.Find("Menu/Controls/Position/Y").GetComponent<InputField>();
             this._positionYField.onEndEdit.AddListener(s =>
@@ -213,8 +220,16 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._positionYField.text, out result))
                     this.SetPosition(new Vector3(this._globalCameraData.pos.x, result, this._globalCameraData.pos.z));
-                this._positionYField.text = this._globalCameraData.pos.y.ToString("0.000");
             });
+            this._positionYField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._positionYField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetPosition(this._globalCameraData.pos + new Vector3(0f, 0.1f, 0f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetPosition(this._globalCameraData.pos - new Vector3(0f, 0.1f, 0f), 0.05f);
+            };
 
             this._positionZField = transform.Find("Menu/Controls/Position/Z").GetComponent<InputField>();
             this._positionZField.onEndEdit.AddListener(s =>
@@ -227,16 +242,21 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._positionZField.text, out result))
                     this.SetPosition(new Vector3(this._globalCameraData.pos.x, this._globalCameraData.pos.y, result));
-                this._positionZField.text = this._globalCameraData.pos.z.ToString("0.000");
             });
+            this._positionZField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._positionZField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetPosition(this._globalCameraData.pos + new Vector3(0f, 0f, 0.1f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetPosition(this._globalCameraData.pos - new Vector3(0f, 0f, 0.1f), 0.05f);
+            };
 
             Button resetPosButton = transform.Find("Menu/Controls/Position/Reset").GetComponent<Button>();
             resetPosButton.onClick.AddListener(() =>
             {
                 this.SetPosition(Vector3.zero);
-                this._positionXField.text = this._globalCameraData.pos.x.ToString("0.000");
-                this._positionYField.text = this._globalCameraData.pos.y.ToString("0.000");
-                this._positionZField.text = this._globalCameraData.pos.z.ToString("0.000");
             });
 
             this._rotationXField = transform.Find("Menu/Controls/Rotation/X").GetComponent<InputField>();
@@ -250,8 +270,16 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._rotationXField.text, out result))
                     this.SetRotation(new Vector3(result, this._globalCameraData.rotate.y, this._globalCameraData.rotate.z));
-                this._rotationXField.text = this._globalCameraData.rotate.x.ToString("0.00");
             });
+            this._rotationXField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._rotationXField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetRotation(this._globalCameraData.rotate + new Vector3(1f, 0f, 0f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetRotation(this._globalCameraData.rotate - new Vector3(1f, 0f, 0f), 0.05f);
+            };
 
             this._rotationYField = transform.Find("Menu/Controls/Rotation/Y").GetComponent<InputField>();
             this._rotationYField.onEndEdit.AddListener(s =>
@@ -264,9 +292,16 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._rotationYField.text, out result))
                     this.SetRotation(new Vector3(this._globalCameraData.rotate.x, result, this._globalCameraData.rotate.z));
-                this._rotationYField.text = this._globalCameraData.rotate.y.ToString("0.00");
             });
-
+            this._rotationYField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._rotationYField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetRotation(this._globalCameraData.rotate + new Vector3(0f, 1f, 0f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetRotation(this._globalCameraData.rotate - new Vector3(0f, 1f, 0f), 0.05f);
+            };
             this._rotationZField = transform.Find("Menu/Controls/Rotation/Z").GetComponent<InputField>();
             this._rotationZField.onEndEdit.AddListener(s =>
             {
@@ -278,16 +313,21 @@ namespace CameraEditor
                 }
                 else if (float.TryParse(this._rotationZField.text, out result))
                     this.SetRotation(new Vector3(this._globalCameraData.rotate.x, this._globalCameraData.rotate.y, result));
-                this._rotationZField.text = this._globalCameraData.rotate.z.ToString("0.00");
             });
+            this._rotationZField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._rotationZField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetRotation(this._globalCameraData.rotate + new Vector3(0f, 0f, 1f), 0.05f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetRotation(this._globalCameraData.rotate - new Vector3(0f, 0f, 1f), 0.05f);
+            };
 
             Button resetRotButton = transform.Find("Menu/Controls/Rotation/Reset").GetComponent<Button>();
             resetRotButton.onClick.AddListener(() =>
             {
                 this.SetRotation(Vector3.zero);
-                this._rotationXField.text = this._globalCameraData.rotate.x.ToString("0.00");
-                this._rotationYField.text = this._globalCameraData.rotate.y.ToString("0.00");
-                this._rotationZField.text = this._globalCameraData.rotate.z.ToString("0.00");
             });
 
             this._distanceField = transform.Find("Menu/Controls/Distance/Value").GetComponent<InputField>();
@@ -303,19 +343,26 @@ namespace CameraEditor
                     this.SetDistance(result);
                 this._distanceField.text = this._globalCameraData.distance.z.ToString("0.000");
             });
+            this._distanceField.gameObject.AddComponent<OnScrollDispatcher>().onScroll += (eventData) =>
+            {
+                if (this._distanceField.isFocused)
+                    return;
+                if (eventData.scrollDelta.y > 0)
+                    this.SetDistance(this._globalCameraData.distance.z + 0.1f);
+                else if (eventData.scrollDelta.y < 0)
+                    this.SetDistance(this._globalCameraData.distance.z - 0.1f);
+            };
 
             Button minusOneButton = transform.Find("Menu/Controls/Distance/MinusOne").GetComponent<Button>();
             minusOneButton.onClick.AddListener(() =>
             {
                 this.SetDistance(this._globalCameraData.distance.z - 0.1f);
-                this._distanceField.text = this._globalCameraData.distance.z.ToString("0.000");
             });
 
             Button plusOneButton = transform.Find("Menu/Controls/Distance/PlusOne").GetComponent<Button>();
             plusOneButton.onClick.AddListener(() =>
             {
                 this.SetDistance(this._globalCameraData.distance.z + 0.1f);
-                this._distanceField.text = this._globalCameraData.distance.z.ToString("0.000");
             });
 
             bundle.Unload(false);
@@ -374,11 +421,12 @@ namespace CameraEditor
             this._scrollRect.content.sizeDelta = new Vector2(40 * i - 8f, this._scrollRect.content.sizeDelta.y);
         }
 
-        private void SetPosition(Vector3 position)
+        private void SetPosition(Vector3 position, float time = 0.1f)
         {
             if (this._setPositionHandler != null)
-                this._scrollRect.StopCoroutine(this._setPositionHandler);
-            this._setPositionHandler = this._scrollRect.StartCoroutine(this.LerpPosition(this._globalCameraData.pos, position));
+                return;
+                //this._scrollRect.StopCoroutine(this._setPositionHandler);
+            this._setPositionHandler = this._scrollRect.StartCoroutine(this.LerpPosition(this._globalCameraData.pos, position, time));
         }
 
         private IEnumerator LerpPosition(Vector3 start, Vector3 end, float time = 0.1f)
@@ -393,11 +441,12 @@ namespace CameraEditor
             this._setPositionHandler = null;
         }
 
-        private void SetRotation(Vector3 rotation)
+        private void SetRotation(Vector3 rotation, float time = 0.1f)
         {
             if (this._setRotationHandler != null)
-                this._scrollRect.StopCoroutine(this._setRotationHandler);
-            this._setRotationHandler = this._scrollRect.StartCoroutine(this.LerpRotation(this._globalCameraData.rotate, rotation));
+                return;
+                //this._scrollRect.StopCoroutine(this._setRotationHandler);
+            this._setRotationHandler = this._scrollRect.StartCoroutine(this.LerpRotation(this._globalCameraData.rotate, rotation, time));
         }
 
         private IEnumerator LerpRotation(Vector3 start, Vector3 end, float time = 0.1f)
@@ -413,13 +462,14 @@ namespace CameraEditor
             this._setRotationHandler = null;
         }
 
-        private void SetDistance(float distance)
+        private void SetDistance(float distance, float time = 0.05f)
         {
             if (distance > 0)
                 distance = 0;
             if (this._setDistanceHandler != null)
-                this._scrollRect.StopCoroutine(this._setDistanceHandler);
-            this._setDistanceHandler = this._scrollRect.StartCoroutine(this.LerpDistance(this._globalCameraData.distance.z, distance));
+                return;
+                //this._scrollRect.StopCoroutine(this._setDistanceHandler);
+            this._setDistanceHandler = this._scrollRect.StartCoroutine(this.LerpDistance(this._globalCameraData.distance.z, distance, time));
         }
 
         private IEnumerator LerpDistance(float start, float end, float time = 0.05f)

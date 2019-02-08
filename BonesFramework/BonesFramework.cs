@@ -14,16 +14,15 @@ namespace BonesFramework
     {
         #region Private Variables
         internal static GameObject _currentLoadingCloth;
-        internal static HashSet<string> _currentAdditionalRootBones = new HashSet<string>();
+        internal static readonly HashSet<string> _currentAdditionalRootBones = new HashSet<string>();
         internal static Transform _currentTransformParent;
         internal static Routines _routines;
-
-        internal static Dictionary<GameObject, List<GameObject>> _currentAdditionalObjects = new Dictionary<GameObject, List<GameObject>>();
+        internal static readonly Dictionary<GameObject, List<GameObject>> _currentAdditionalObjects = new Dictionary<GameObject, List<GameObject>>();
         #endregion
 
         #region Public Accessors
         public string Name { get { return "BonesFramework"; } }
-        public string Version { get { return "1.0.1"; } }
+        public string Version { get { return "1.1.0"; } }
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         #endregion
 

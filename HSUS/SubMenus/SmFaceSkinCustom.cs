@@ -63,12 +63,13 @@ namespace HSUS
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
+                ScrollRect scrollView = _originalComponent.transform.Find("TabControl/TabItem01/ScrollView").GetComponent<ScrollRect>();
                 searchBarHead = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem01"), (s) =>
                 {
                     SearchChanged(searchBarHead.text.Trim(), listHead);
                 });
                 CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem01"), () => { SortByName(listHead); }, () => { SortByCreationDate(listHead); }, () => { ResetSort(listHead, keyToOriginalIndexHead); });
-
+                CharaMakerCycleButtons.SpawnCycleButtons(_originalComponent.transform.Find("TabControl/TabItem01"), () => { CycleUp(listHead, scrollView); }, () => { CycleDown(listHead, scrollView); });
             }
 
             {
@@ -84,11 +85,13 @@ namespace HSUS
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
+                ScrollRect scrollView = _originalComponent.transform.Find("TabControl/TabItem02/ScrollView").GetComponent<ScrollRect>();
                 searchBarSkin = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem02"), (s) =>
                 {
                     SearchChanged(searchBarSkin.text.Trim(), listFace);
                 });
                 CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem02"), () => {SortByName(listFace);}, () => {SortByCreationDate(listFace);}, () => {ResetSort(listFace, keyToOriginalIndexFace);});
+                CharaMakerCycleButtons.SpawnCycleButtons(_originalComponent.transform.Find("TabControl/TabItem02"), () => { CycleUp(listFace, scrollView); }, () => { CycleDown(listFace, scrollView); });
             }
 
             {
@@ -104,11 +107,13 @@ namespace HSUS
                 group.childForceExpandWidth = true;
                 group.childForceExpandHeight = false;
 
+                ScrollRect scrollView = _originalComponent.transform.Find("TabControl/TabItem03/ScrollView").GetComponent<ScrollRect>();
                 searchBarDetail = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem03"), (s) =>
                 {
                     SearchChanged(searchBarDetail.text.Trim(), listDetail);
                 });
                 CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem03"), () => { SortByName(listDetail); }, () => { SortByCreationDate(listDetail); }, () => { ResetSort(listDetail, keyToOriginalIndexDetail); });
+                CharaMakerCycleButtons.SpawnCycleButtons(_originalComponent.transform.Find("TabControl/TabItem03"), () => { CycleUp(listDetail, scrollView); }, () => { CycleDown(listDetail, scrollView); });
             }
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
@@ -161,6 +166,46 @@ namespace HSUS
             _lastSortByCreationDateReverse = !_lastSortByCreationDateReverse;
             CharaMakerSort.GenericDateSort(list, objectData => objectData.creationDate, objectData => objectData.obj, _lastSortByCreationDateReverse);
         }
+
+        private static void CycleUp(List<ObjectData> list, ScrollRect scrollView)
+        {
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in list)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (objectData.toggle.isOn && lastToggle != null)
+                {
+                    objectData.toggle.isOn = false;
+                    lastToggle.isOn = true;
+                    
+                    if (scrollView.normalizedPosition.y > 0.0001f || scrollView.transform.InverseTransformPoint(lastToggle.transform.position).y > 0f)
+                        scrollView.content.anchoredPosition = (Vector2)scrollView.transform.InverseTransformPoint(scrollView.content.position) - (Vector2)scrollView.transform.InverseTransformPoint(lastToggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
+
+        private static void CycleDown(List<ObjectData> list, ScrollRect scrollView)
+        {
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in list)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (lastToggle != null && lastToggle.isOn)
+                {
+                    lastToggle.isOn = false;
+                    objectData.toggle.isOn = true;
+                    
+                    if (scrollView.normalizedPosition.y > 0.0001f)
+                        scrollView.content.anchoredPosition = (Vector2)scrollView.transform.InverseTransformPoint(scrollView.content.position) - (Vector2)scrollView.transform.InverseTransformPoint(objectData.toggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
     }
 
     [HarmonyPatch(typeof(SmFaceSkin), "SetCharaInfoSub")]
@@ -174,11 +219,11 @@ namespace HSUS
         public static bool Prefix(SmFaceSkin __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo)
         {
             SmFaceSkin_Data.searchBarHead.text = "";
-            SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listHead);
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listHead);
             SmFaceSkin_Data.searchBarSkin.text = "";
-            SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listFace);
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listFace);
             SmFaceSkin_Data.searchBarDetail.text = "";
-            SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listDetail);
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listDetail);
             if (null == ___chaInfo || null == __instance.objListTopHead || null == __instance.objListTopSkin || null == __instance.objListTopDetail || null == __instance.objLineBase || null == __instance.rtfPanelHead || null == __instance.rtfPanelSkin || null == __instance.rtfPanelDetail)
                 return false;
 

@@ -42,6 +42,7 @@ namespace HSUS
         internal static PropertyInfo _translateProperty = null;
 
         private static SmAccessory _originalComponent;
+        private static ScrollRect _scrollView;
 
         public static void Init(SmAccessory originalComponent)
         {
@@ -62,6 +63,8 @@ namespace HSUS
 
             searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem01"), SearchChanged, -24f);
             CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem01"), SortByName, SortByCreationDate, ResetSort);
+            CharaMakerCycleButtons.SpawnCycleButtons(_originalComponent.transform.Find("TabControl/TabItem01"), CycleUp, CycleDown);
+            _scrollView = _originalComponent.transform.Find("TabControl/TabItem01/ScrollView").GetComponent<ScrollRect>();
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
@@ -128,6 +131,50 @@ namespace HSUS
                 return;
             data.lastSortByCreationDateReverse = !data.lastSortByCreationDateReverse;
             CharaMakerSort.GenericDateSort(data.objects, objectData => objectData.creationDate, objectData => objectData.obj, data.lastSortByCreationDateReverse);
+        }
+
+        private static void CycleUp()
+        {
+            TypeData data;
+            if (types.TryGetValue(lastType, out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (objectData.toggle.isOn && lastToggle != null)
+                {
+                    objectData.toggle.isOn = false;
+                    lastToggle.isOn = true;
+                    if (_scrollView.normalizedPosition.y > 0.0001f || _scrollView.transform.InverseTransformPoint(lastToggle.transform.position).y > 0f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(lastToggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
+
+        private static void CycleDown()
+        {
+            TypeData data;
+            if (types.TryGetValue(lastType, out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (lastToggle != null && lastToggle.isOn)
+                {
+                    lastToggle.isOn = false;
+                    objectData.toggle.isOn = true;
+                    if (_scrollView.normalizedPosition.y > 0.0001f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(objectData.toggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
         }
     }
 
@@ -328,7 +375,7 @@ namespace HSUS
             if (SmAccessory_Data.searchBar != null)
             {
                 SmAccessory_Data.searchBar.text = "";
-                SmAccessory_Data.SearchChanged("");
+                //SmAccessory_Data.SearchChanged("");
             }
         }
     }
@@ -348,7 +395,7 @@ namespace HSUS
             if (SmAccessory_Data.searchBar != null)
             {
                 SmAccessory_Data.searchBar.text = "";
-                SmAccessory_Data.SearchChanged("");
+                //SmAccessory_Data.SearchChanged("");
             }
         }
     }

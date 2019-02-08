@@ -134,9 +134,14 @@ namespace HSUS
         }
     }
 
-    [HarmonyPatch(typeof(HsvColor), new []{typeof(float), typeof(float) , typeof(float) })]
+    [HarmonyPatch]
     internal static class HsvColor_Ctor_Patches
     {
+        internal static MethodBase TargetMethod()
+        {
+            return typeof(HsvColor).GetConstructor(new[] {typeof(float), typeof(float), typeof(float)});
+        }
+
         internal static bool Prefix(HsvColor __instance, float hue, float saturation, float brightness)
         {
             if (hue < 0f || 360f < hue)
@@ -159,7 +164,7 @@ namespace HSUS
     }
 
 
-    [HarmonyPatch(typeof(UI_ColorSlider), "ChangeSliderMode")]
+    [HarmonyPatch(typeof(UI_ColorSlider), "ChangeSliderMode", new Type[]{})]
     internal static class UI_ColorSlider_ChangeSliderMode_Patches
     {
         private static void Prefix(UI_ColorSlider __instance)

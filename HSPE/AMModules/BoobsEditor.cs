@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Xml;
 using Harmony;
@@ -233,6 +234,7 @@ namespace HSPE.AMModules
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
             this._leftBoob = ((CharFemaleBody)this._chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this._chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
+
             if (_initTransforms == null)
                 _initTransforms = this._leftBoob.GetType().GetMethod("InitTransforms", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
             if (_updateDynamicBones == null)
@@ -241,6 +243,12 @@ namespace HSPE.AMModules
             this._leftBoob = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
             this._rightBoob = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
 #endif
+            foreach (DynamicBone_Ver02 bone in this._parent.GetComponentsInChildren<DynamicBone_Ver02>(true))
+                foreach (DynamicBoneCollider collider in PoseController._loneColliders)
+                {
+                    if (bone.Colliders.Contains(collider) == false)
+                        bone.Colliders.Add(collider);
+                }
         }
 
         private void Update()

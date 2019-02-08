@@ -40,6 +40,7 @@ namespace HSUS
         internal static readonly Dictionary<int, IEnumerator> _methods = new Dictionary<int, IEnumerator>();
         internal static PropertyInfo _translateProperty = null;
         private static SmHair_F _originalComponent;
+        private static ScrollRect _scrollView;
 
         public static void Init(SmHair_F originalComponent)
         {
@@ -61,6 +62,8 @@ namespace HSUS
 
             searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform.Find("TabControl/TabItem01"), SearchChanged);
             CharaMakerSort.SpawnSortButtons(_originalComponent.transform.Find("TabControl/TabItem01"), SortByName, SortByCreationDate, ResetSort);
+            CharaMakerCycleButtons.SpawnCycleButtons(_originalComponent.transform.Find("TabControl/TabItem01"), CycleUp, CycleDown);
+            _scrollView = _originalComponent.transform.Find("TabControl/TabItem01/ScrollView").GetComponent<ScrollRect>();
 
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
@@ -127,6 +130,52 @@ namespace HSUS
             data.lastSortByCreationDateReverse = !data.lastSortByCreationDateReverse;
             CharaMakerSort.GenericDateSort(data.objects, objectData => objectData.creationDate, objectData => objectData.obj, data.lastSortByCreationDateReverse);
         }
+
+        private static void CycleUp()
+        {
+            TypeData data;
+            if (objects.TryGetValue((int)_originalComponent.GetPrivate("nowSubMenuTypeId"), out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (objectData.toggle.isOn && lastToggle != null)
+                {
+                    objectData.toggle.isOn = false;
+                    lastToggle.isOn = true;
+                    
+                    if (_scrollView.normalizedPosition.y > 0.0001f || _scrollView.transform.InverseTransformPoint(lastToggle.transform.position).y > 0f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(lastToggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
+
+        private static void CycleDown()
+        {
+            TypeData data;
+            if (objects.TryGetValue((int)_originalComponent.GetPrivate("nowSubMenuTypeId"), out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (lastToggle != null && lastToggle.isOn)
+                {
+                    lastToggle.isOn = false;
+                    objectData.toggle.isOn = true;
+                    
+                    if (_scrollView.normalizedPosition.y > 0.0001f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(objectData.toggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
     }
 
     [HarmonyPatch(typeof(SmHair_F), "SetCharaInfoSub")]
@@ -141,7 +190,7 @@ namespace HSUS
         {
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             SmHair_F_Data.searchBar.text = "";
-            SmHair_F_Data.SearchChanged("");
+            //SmHair_F_Data.SearchChanged("");
             if (null == ___chaInfo || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
                 return false;
             if (null != __instance.tglTab)

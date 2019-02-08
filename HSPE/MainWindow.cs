@@ -882,7 +882,7 @@ namespace HSPE
                 RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
                 RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
                 container.rectTransform.SetRect(Vector2.zero, Vector2.zero, new Vector2(0f, -60f), new Vector2(parent.rect.width, 0f));
-                container.color = new Color32(110, 110, 116, 255);
+                container.color = new Color32(110, 110, 116, 223);
 
                 GameObject prefab = parent.Find("Left Leg (1)").gameObject;
                 RectTransform crotchContainer = Instantiate(prefab).transform as RectTransform;

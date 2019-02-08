@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using Harmony;
 using Manager;
@@ -369,12 +368,19 @@ namespace StudioFileCheck
 #endif
 
 #if HONEYSELECT
-    [HarmonyPatch(typeof(OICharInfo), new []{typeof(CharFile), typeof(int)})]
+    [HarmonyPatch]
 #elif KOIKATSU
     [HarmonyPatch(typeof(OICharInfo), new []{typeof(ChaFileControl), typeof(int)})]
 #endif
     public class OICharInfo_Ctor_Patches
     {
+#if HONEYSELECT
+        internal static MethodBase TargetMethod()
+        {
+            return typeof(OICharInfo).GetConstructor(new[] { typeof(CharFile), typeof(int) });
+        }
+#endif
+
         public static bool Prepare()
         {
             return HSUS.HSUS._self._autoJointCorrection;
@@ -388,13 +394,18 @@ namespace StudioFileCheck
     }
 
 #if HONEYSELECT
-    [HarmonyPatch(typeof(CharFileInfoStatus))]
+    [HarmonyPatch]
 #elif KOIKATSU
     [HarmonyPatch(typeof(ChaFileStatus))]
 #endif
     public class CharFileInfoStatus_Ctor_Patches
     {
 #if HONEYSELECT
+        internal static MethodBase TargetMethod()
+        {
+            return typeof(CharFileInfoStatus).GetConstructor(new Type[]{});
+        }
+
         public static void Postfix(CharFileInfoStatus __instance)
 #elif KOIKATSU
         public static void Postfix(ChaFileStatus __instance)
@@ -424,6 +435,15 @@ namespace StudioFileCheck
             return true;
         }
     }
+
+    //[HarmonyPatch(typeof(Studio.Info), "LoadItemLoadInfo", new[] {typeof(List<string>)})]
+    //public class Info_LoadItemLoadInfo_Patches
+    //{
+    //    private static void Prefix(List<string> _list)
+    //    {
+    //        UnityEngine.Debug.LogError(_list.Join(s => s));
+    //    }
+    //}
 
     [HarmonyPatch(typeof(GuideObject), "Start")]
     public class GuideObject_Start_Patches

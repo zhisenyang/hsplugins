@@ -237,6 +237,39 @@ namespace HSPE.AMModules
             this._parent.onUpdate += this.Update;
             if (_debugLines == null)
                 _debugLines = new DebugLines();
+
+            DynamicBone leftButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
+            leftButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_L");
+            leftButtCheek.m_Damping = 0.1f;
+            leftButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            //this._leftButtCheek.m_Elasticity = 0.3f;
+            leftButtCheek.m_Elasticity = 0.06f;
+            leftButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            //this._leftButtCheek.m_Stiffness = 0.65f;
+            leftButtCheek.m_Stiffness = 0.06f;
+            leftButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            leftButtCheek.m_Radius = 0.0003f;
+            leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+            leftButtCheek.m_Exclusions = new List<Transform>();
+            leftButtCheek.m_notRolls = new List<Transform>();
+
+            DynamicBone rightButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
+            rightButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_R");
+            rightButtCheek.m_Damping = 0.1f;
+            rightButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            //this._rightButtCheek.m_Elasticity = 0.3f;
+            rightButtCheek.m_Elasticity = 0.06f;
+            rightButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            //this._rightButtCheek.m_Stiffness = 0.65f;
+            rightButtCheek.m_Stiffness = 0.06f;
+            rightButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            rightButtCheek.m_Radius = 0.0003f;
+            rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+            rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+            rightButtCheek.m_Exclusions = new List<Transform>();
+            rightButtCheek.m_notRolls = new List<Transform>();
+
             this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
         }
@@ -1069,6 +1102,14 @@ namespace HSPE.AMModules
             }
             if (this._dynamicBones.Count != 0 && this._dynamicBoneTarget == null)
                 this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
+            foreach (DynamicBone bone in this._dynamicBones)
+            {
+                foreach (DynamicBoneCollider collider in PoseController._loneColliders)
+                {
+                    if (bone.m_Colliders.Contains(collider) == false)
+                        bone.m_Colliders.Add(collider);
+                }
+            }
         }
 
 

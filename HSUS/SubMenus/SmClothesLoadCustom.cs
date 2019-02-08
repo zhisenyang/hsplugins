@@ -99,7 +99,7 @@ namespace HSUS
             if (SmClothesLoad_Data.searchBar != null)
             {
                 SmClothesLoad_Data.searchBar.text = "";
-                SmClothesLoad_Data.SearchChanged("");
+                //SmClothesLoad_Data.SearchChanged("");
             }
 
             return false;

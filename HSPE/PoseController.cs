@@ -23,6 +23,7 @@ namespace HSPE
         protected BonesEditor _bonesEditor;
         internal DynamicBonesEditor _dynamicBonesEditor;
         internal BlendShapesEditor _blendShapesEditor;
+        internal bool _isLoneCollider = false;
         protected readonly List<AdvancedModeModule> _modules = new List<AdvancedModeModule>();
         protected AdvancedModeModule _currentModule;
         protected GenericOCITarget _target;
@@ -30,6 +31,7 @@ namespace HSPE
 
         #region Private Variables
         internal static bool _drawAdvancedMode = false;
+        internal static readonly HashSet<DynamicBoneCollider> _loneColliders = new HashSet<DynamicBoneCollider>();
         internal readonly HashSet<GameObject> _childObjects = new HashSet<GameObject>();
         #endregion
 
@@ -52,6 +54,22 @@ namespace HSPE
             }
 
             this.FillChildObjects();
+            DynamicBoneCollider collider;
+            if (this.transform.childCount == 1 && (collider = this.transform.GetChild(0).GetComponent<DynamicBoneCollider>()) != null)
+            {
+                this._isLoneCollider = true;
+                _loneColliders.Add(collider);
+                foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
+                {
+                    if (bone.m_Colliders.Contains(collider) == false)
+                        bone.m_Colliders.Add(collider);
+                }
+                foreach (DynamicBone_Ver02 bone in Resources.FindObjectsOfTypeAll<DynamicBone_Ver02>())
+                {
+                    if (bone.Colliders.Contains(collider) == false)
+                        bone.Colliders.Add(collider);
+                }
+            }
 
             this._bonesEditor = new BonesEditor(this, this._target);
             this._modules.Add(this._bonesEditor);
@@ -98,6 +116,21 @@ namespace HSPE
         {
             onParentage -= this.OnParentage;
             this.onDestroy();
+            if (this._isLoneCollider)
+            {
+                DynamicBoneCollider collider = this.transform.GetChild(0).GetComponent<DynamicBoneCollider>();
+                _loneColliders.Remove(collider);
+                foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
+                {
+                    if (bone.m_Colliders.Contains(collider))
+                        bone.m_Colliders.Remove(collider);
+                }
+                foreach (DynamicBone_Ver02 bone in Resources.FindObjectsOfTypeAll<DynamicBone_Ver02>())
+                {
+                    if (bone.Colliders.Contains(collider))
+                        bone.Colliders.Remove(collider);
+                }
+            }
         }
         #endregion
 

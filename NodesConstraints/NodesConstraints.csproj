@@ -144,6 +144,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="NodesConstraints.cs" />
+    <Compile Include="CameraEventsDispatcher.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

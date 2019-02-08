@@ -37,6 +37,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CameraEditor", "CameraEdito
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NodesConstraints", "NodesConstraints\NodesConstraints.csproj", "{DDE58382-F341-4A57-9F7C-514EBF79AC24}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HSStandard", "HSStandard\HSStandard.csproj", "{50A20BAA-58C0-44E4-B219-770FC90276C1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,14 @@ Global
 		{DDE58382-F341-4A57-9F7C-514EBF79AC24}.KOI|Any CPU.Build.0 = KOI|Any CPU
 		{DDE58382-F341-4A57-9F7C-514EBF79AC24}.Release|Any CPU.ActiveCfg = KOI|Any CPU
 		{DDE58382-F341-4A57-9F7C-514EBF79AC24}.Release|Any CPU.Build.0 = KOI|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.Debug|Any CPU.ActiveCfg = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.Debug|Any CPU.Build.0 = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.HS|Any CPU.ActiveCfg = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.HS|Any CPU.Build.0 = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.KOI|Any CPU.ActiveCfg = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.KOI|Any CPU.Build.0 = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.Release|Any CPU.ActiveCfg = HS|Any CPU
+		{50A20BAA-58C0-44E4-B219-770FC90276C1}.Release|Any CPU.Build.0 = HS|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

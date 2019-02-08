@@ -110,14 +110,19 @@ namespace RendererEditor
             new ShaderProperty() {name = "_SpecularColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_TintColor", type = ShaderProperty.Type.Color},
             new ShaderProperty() {name = "_EmisColor", type = ShaderProperty.Type.Color},
+            new ShaderProperty() {name = "_FuzzColor", type = ShaderProperty.Type.Color},
             //Textures
             new ShaderProperty() {name = "_MainTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_Albedo2", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_SpecGlossMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_SpecGlossMap2", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_Tangent", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_BumpMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_BumpMap2", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_OcclusionMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_SecondaryOcclusionMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_BlendNormalMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_DetailNormal", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailNormalMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailNormalMap_2", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailNormalMap_3", type = ShaderProperty.Type.Texture},
@@ -128,6 +133,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_OverTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_MetallicGlossMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_ParallaxMap", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_Transmission", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_EmissionMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailAlbedoMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailAlbedoMap_2", type = ShaderProperty.Type.Texture},
@@ -140,6 +146,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_Illum", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DecalTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_NoiseTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_FuzzTex", type = ShaderProperty.Type.Texture},
             //Float
             new ShaderProperty() {name = "_Metallic", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Smoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -158,8 +165,18 @@ namespace RendererEditor
             new ShaderProperty() {name = "_ColorReverse", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_SpecReverse", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_SmoothTuning", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_LacquerReflection", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_LacquerSmoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Glossiness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_BumpScale", type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_Gloss", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_GlossAniso", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_Anisotropy", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_AnisotropyRGContrast", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_DetailIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_FuzzRange", floatRange = new Vector2(1, 5), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_FuzzBias", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_WrapDiffuse", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_BumpScale", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Parallax", floatRange = new Vector2(0.005f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_FresnelScale", floatRange = new Vector2(0.15f, 4), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_GerstnerIntensity", type = ShaderProperty.Type.Float},
@@ -167,6 +184,10 @@ namespace RendererEditor
             new ShaderProperty() {name = "_InvFade", floatRange = new Vector2(0.01f, 3.0f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_SpecularIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_NormalIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_NormalStrength", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_NormalStrength2", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TransmissionScale", floatRange = new Vector2(0.005f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_AmbientOcclusionScale", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Transparency", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_ReflectionEdges", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_ReflectionIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -185,8 +206,17 @@ namespace RendererEditor
             new ShaderProperty() {name = "_skin_effect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_rimlight", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_ZWrite", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseAlbedo2", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseOCCLUSION", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseOCCLUSION2", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseSpecular", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseNormal", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseDetail", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_UseFuzz", type = ShaderProperty.Type.Boolean},
+            new ShaderProperty() {name = "_LacquerOcc", type = ShaderProperty.Type.Boolean},
             //Enum
             new ShaderProperty() {name = "_UVSec", enumValues = new Dictionary<int, string>() {{0, "UV0"}, {1, "UV1"}}, type = ShaderProperty.Type.Enum},
+            new ShaderProperty() {name = "_Albedo2UVChannel", enumValues = new Dictionary<int, string>() {{0, "UV1"}, {1, "UV2"}}, type = ShaderProperty.Type.Enum},
             new ShaderProperty() {name = "_Mode", enumValues = new Dictionary<int, string>(){{0, "Opaque"}, {1, "Cutout"}, {2, "Fade"}, {3, "Transparent"}}, type = ShaderProperty.Type.Enum},
             new ShaderProperty() {name = "_SrcBlend", enumValues = new Dictionary<int, string>(){{0, "Zero"},{1, "One" },{2, "DstColor" },{3, "SrcColor" },{4, "OneMinusDstColor" },{5, "SrcAlpha" },{6, "OneMinusSrcColor" },{7, "DstAlpha" },{8, "OneMinusDstAlpha" },{9, "SrcAlphaSaturate" },{10, "OneMinusSrcAlpha" }}, enumColumns = 3, type = ShaderProperty.Type.Enum},
             new ShaderProperty() {name = "_DstBlend", enumValues = new Dictionary<int, string>(){{0, "Zero"},{1, "One" },{2, "DstColor" },{3, "SrcColor" },{4, "OneMinusDstColor" },{5, "SrcAlpha" },{6, "OneMinusSrcColor" },{7, "DstAlpha" },{8, "OneMinusDstAlpha" },{9, "SrcAlphaSaturate" },{10, "OneMinusSrcAlpha" }}, enumColumns = 3, type = ShaderProperty.Type.Enum},
@@ -1039,7 +1069,6 @@ namespace RendererEditor
             Texture2D texture = new Texture2D(64, 64, TextureFormat.ARGB32, true);
             if (!texture.LoadImage(File.ReadAllBytes(path)))
                 return null;
-            texture.SetPixel(0, 0, texture.GetPixel(0, 0));
             texture.Apply(true);
             if (this._textures.ContainsKey(path) == false)
                 this._textures.Add(path, texture);
@@ -1507,7 +1536,7 @@ namespace RendererEditor
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
             GUILayout.FlexibleSpace();
 
-            if (GUILayout.Button(GUIContent.none, GUILayout.Width(90f), GUILayout.Height(90f)))
+            if (GUILayout.Button(texture == null ? "NULL" : "", GUILayout.Width(90f), GUILayout.Height(90f)))
             {
                 if (this._selectTextureCallback != null)
                     this._selectTextureCallback = null;
@@ -1752,7 +1781,7 @@ namespace RendererEditor
 
         private void EnumDrawer(ShaderProperty property)
         {
-            int key = (int)(this._selectedMaterials.First().Key.GetFloat(property.name));
+            int key = (int)(this._selectedMaterials.First().Key.GetInt(property.name));
 
             GUILayout.BeginHorizontal();
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
@@ -1776,7 +1805,7 @@ namespace RendererEditor
                     this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
                     if (materialData.dirtyEnumProperties.ContainsKey(property.name) == false)
                         materialData.dirtyEnumProperties.Add(property.name, Mathf.RoundToInt(selectedMaterial.Key.GetFloat(property.name)));
-                    selectedMaterial.Key.SetFloat(property.name, newKey);
+                    selectedMaterial.Key.SetInt(property.name, newKey);
                 }
             }
 
@@ -1787,7 +1816,7 @@ namespace RendererEditor
                         rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
                     materialData.dirtyEnumProperties.ContainsKey(property.name))
                 {
-                    selectedMaterial.Key.SetFloat(property.name, materialData.dirtyEnumProperties[property.name]);
+                    selectedMaterial.Key.SetInt(property.name, materialData.dirtyEnumProperties[property.name]);
                     materialData.dirtyEnumProperties.Remove(property.name);
                     this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
                 }
@@ -1927,7 +1956,6 @@ namespace RendererEditor
                         materialData.disabledKeywords.Clear();
                         this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
                     }
-                
             }
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
@@ -2175,7 +2203,7 @@ namespace RendererEditor
                         UnityEngine.Debug.LogError("Exception happened while loading item " + childNode.OuterXml + "\n" + e);
                     }
                 }
-            }, 8);
+            }, 16);
         }
 
         private void OnSceneSave(string path, XmlTextWriter writer)

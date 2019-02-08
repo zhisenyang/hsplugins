@@ -96,6 +96,27 @@ namespace HSUS
         }
     }
 
+    internal static class CharaMakerCycleButtons
+    {
+        internal static void SpawnCycleButtons(Transform parent, UnityAction onUp, UnityAction onDown)
+        {
+            RectTransform scrollView = parent.Find("ScrollView").transform as RectTransform;
+            scrollView.offsetMax -= new Vector2(20f, 0f);
+            RectTransform scrollbar = parent.Find("Scrollbar") as RectTransform;
+            scrollbar.anchoredPosition -= new Vector2(20f, 0f);
+            RectTransform cycleButtons = UIUtility.CreateNewUIObject(parent, "CycleButtons");
+            cycleButtons.SetRect(Vector2.one, Vector2.one, new Vector2(scrollbar.offsetMax.x, scrollbar.offsetMin.y), new Vector2(scrollbar.offsetMax.x + 20f, scrollbar.offsetMax.y));
+
+            Button upButton = UIUtility.CreateButton("UpButton", cycleButtons, "↑");
+            upButton.transform.SetRect(new Vector2(0f, 0.5f), Vector2.one);
+            upButton.onClick.AddListener(onUp);
+
+            Button downButton = UIUtility.CreateButton("DownButton", cycleButtons, "↓");
+            downButton.transform.SetRect(Vector2.zero, new Vector2(1f, 0.5f));
+            downButton.onClick.AddListener(onDown);
+        }
+    }
+
 #elif KOIKATSU
     [HarmonyPatch(typeof(CustomFileWindow), "Awake")]
     internal class CustomFileWindow_Awake_Patches

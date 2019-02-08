@@ -153,6 +153,20 @@ namespace HSIBL
             };
             buttonstyleStrechWidth.onNormal.textColor = selected;
             buttonstyleStrechWidth.onHover.textColor = selectedOnHover;
+            buttonstyleStrechWidthAlignLeft = new GUIStyle(GUI.skin.button)
+            {
+                stretchHeight = false,
+                stretchWidth = true,
+                wordWrap = true,
+                fontStyle = FontStyle.Bold,
+                font = myfont,
+                fontSize = 22,
+                margin = new RectOffset(10, 10, 5, 5),
+                padding = new RectOffset(6, 6, 6, 12),
+                alignment = TextAnchor.MiddleLeft
+            };
+            buttonstyleStrechWidthAlignLeft.onNormal.textColor = selected;
+            buttonstyleStrechWidthAlignLeft.onHover.textColor = selectedOnHover;
             labelstyle3 = new GUIStyle(GUI.skin.label)
             {
                 wordWrap = true,
@@ -256,36 +270,86 @@ namespace HSIBL
 
         internal static void ColorPickerGUI(Color value, Color reset, string labeltext, string tooltip, UI_ColorInfo.UpdateColor onSet)
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(new GUIContent(labeltext, tooltip), labelstyle, GUILayout.ExpandWidth(false));
-            if (GUILayout.Button(GUIContent.none, GUILayout.ExpandHeight(true)))
+            if (HSIBL._isStudio)
             {
-                if (Studio.Studio.Instance.colorMenu.updateColorFunc == onSet)
-                    Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
-                else
-                    Studio.Studio.Instance.colorPaletteCtrl.visible = true;
-                if (Studio.Studio.Instance.colorPaletteCtrl.visible)
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(new GUIContent(labeltext, tooltip), labelstyle, GUILayout.ExpandWidth(false));
+                if (GUILayout.Button(GUIContent.none, GUILayout.ExpandHeight(true)))
                 {
-                    Studio.Studio.Instance.colorMenu.updateColorFunc = onSet;
-                    Studio.Studio.Instance.colorMenu.SetColor(value, UI_ColorInfo.ControlType.PresetsSample);
+                    if (Studio.Studio.Instance.colorMenu.updateColorFunc == onSet)
+                        Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
+                    else
+                        Studio.Studio.Instance.colorPaletteCtrl.visible = true;
+                    if (Studio.Studio.Instance.colorPaletteCtrl.visible)
+                    {
+                        Studio.Studio.Instance.colorMenu.updateColorFunc = onSet;
+                        Studio.Studio.Instance.colorMenu.SetColor(value, UI_ColorInfo.ControlType.PresetsSample);
+                    }
                 }
-            }
-            Rect layoutRectangle = GUILayoutUtility.GetLastRect();
-            layoutRectangle.xMin += 6;
-            layoutRectangle.xMax -= 6;
-            layoutRectangle.yMin += 6;
-            layoutRectangle.yMax -= 6;
-            simpleTexture.SetPixel(0, 0, value);
-            simpleTexture.Apply(false);
-            GUI.DrawTexture(layoutRectangle, simpleTexture, ScaleMode.StretchToFill, true);
-            if (GUILayout.Button(new GUIContent(GUIStrings.Reset, tooltip), buttonstyleNoStretch))
-            {
-                if (onSet == Studio.Studio.Instance.colorMenu.updateColorFunc)
-                    Studio.Studio.Instance.colorMenu.SetColor(reset, UI_ColorInfo.ControlType.PresetsSample);
-                onSet(reset);
+                Rect layoutRectangle = GUILayoutUtility.GetLastRect();
+                layoutRectangle.xMin += 6;
+                layoutRectangle.xMax -= 6;
+                layoutRectangle.yMin += 6;
+                layoutRectangle.yMax -= 6;
+                simpleTexture.SetPixel(0, 0, value);
+                simpleTexture.Apply(false);
+                GUI.DrawTexture(layoutRectangle, simpleTexture, ScaleMode.StretchToFill, true);
+                if (GUILayout.Button(new GUIContent(GUIStrings.Reset, tooltip), buttonstyleNoStretch))
+                {
+                    if (onSet == Studio.Studio.Instance.colorMenu.updateColorFunc)
+                        Studio.Studio.Instance.colorMenu.SetColor(reset, UI_ColorInfo.ControlType.PresetsSample);
+                    onSet(reset);
                 
+                }
+                GUILayout.EndHorizontal();
             }
-            GUILayout.EndHorizontal();
+            else
+            {
+                GUILayout.BeginVertical();
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(new GUIContent(labeltext, tooltip), labelstyle, GUILayout.ExpandWidth(false));
+                GUILayout.FlexibleSpace();
+                bool shouldReset = GUILayout.Button(new GUIContent(GUIStrings.Reset, tooltip), buttonstyleNoStretch);
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("R", labelstyle, GUILayout.ExpandWidth(false));
+                value.r = GUILayout.HorizontalSlider(value.r, 0f, 1f, sliderstyle, thumbstyle);
+                if (float.TryParse(GUILayout.TextField(value.r.ToString("0.000"), textFieldStyle, GUILayout.Width(90)), out float newValue))
+                    value.r = newValue;
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("G", labelstyle, GUILayout.ExpandWidth(false));
+                value.g = GUILayout.HorizontalSlider(value.g, 0f, 1f, sliderstyle, thumbstyle);
+                if (float.TryParse(GUILayout.TextField(value.g.ToString("0.000"), textFieldStyle, GUILayout.Width(90)), out newValue))
+                    value.g = newValue;
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("B", labelstyle, GUILayout.ExpandWidth(false));
+                value.b = GUILayout.HorizontalSlider(value.b, 0f, 1f, sliderstyle, thumbstyle);
+                if (float.TryParse(GUILayout.TextField(value.b.ToString("0.000"), textFieldStyle, GUILayout.Width(90)), out newValue))
+                    value.b = newValue;
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("A", labelstyle, GUILayout.ExpandWidth(false));
+                value.a = GUILayout.HorizontalSlider(value.a, 0f, 1f, sliderstyle, thumbstyle);
+                if (float.TryParse(GUILayout.TextField(value.a.ToString("0.000"), textFieldStyle, GUILayout.Width(90)), out newValue))
+                    value.a = newValue;
+                GUILayout.EndHorizontal();
+
+                GUILayout.Box("", GUILayout.Height(40));
+                simpleTexture.SetPixel(0, 0, value);
+                simpleTexture.Apply(false);
+                GUI.DrawTexture(GUILayoutUtility.GetLastRect(), simpleTexture, ScaleMode.StretchToFill, true);
+
+                onSet(value);
+                GUILayout.EndVertical();
+                if (shouldReset)
+                    onSet(reset);
+            }
         }
         internal static int SelectGUI(int selected, GUIContent title, string[] selections)
         {
@@ -495,6 +559,7 @@ namespace HSIBL
         internal static GUIStyle titlestyle2;
         internal static GUIStyle labelstyle;
         internal static GUIStyle buttonstyleStrechWidth;
+        internal static GUIStyle buttonstyleStrechWidthAlignLeft;
         internal static GUIStyle toggleButtonOn;
         internal static GUIStyle toggleButtonOff;
         internal static GUIStyle windowstyle;
@@ -505,10 +570,8 @@ namespace HSIBL
         internal static GUIStyle boxstyle;
         internal static GUIStyle textFieldStyle;
         internal static GUIStyle textFieldStyle2;
-        static internal Rect CMWarningRect = new Rect(Screen.width * 0.4f, Screen.height * 0.45f, Screen.width * 0.2f, Screen.height * 0.1f);
+        static internal Rect CMWarningRect = new Rect(0, 0, Screen.width * 0.2f, Screen.height * 0.1f);
         static internal Rect ErrorwindowRect = new Rect(Screen.width * 0.4f, Screen.height * 0.45f, Screen.width * 0.2f, Screen.height * 0.1f);
         private static readonly Texture2D simpleTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
-
-
     }
 }
