@@ -26,22 +26,6 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
-      <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
-      <Name>HSExtSave</Name>
-      <Private>False</Private>
-    </ProjectReference>
-    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
-      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
-      <Name>ToolBox</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\UIUtility\UIUtility.csproj">
-      <Project>{5ff39402-d216-42de-9aaa-ba34103f1786}</Project>
-      <Name>UIUtility</Name>
-      <Private>True</Private>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
     </Reference>
@@ -61,28 +45,12 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Xml, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Xml.Linq, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.Linq.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="UnityEngine.UI.Translation">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Vectrosity">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

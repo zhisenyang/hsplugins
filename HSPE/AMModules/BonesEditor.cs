@@ -1352,6 +1352,7 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
+            this.ResetAll();
             bool changed = false;
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
             if (objects != null)
@@ -1460,6 +1461,15 @@ namespace HSPE.AMModules
                 if (this._isEnabled && PoseController._drawAdvancedMode && this._boneTarget != null && MainWindow._self._poseTarget == this._parent)
                     this.UpdateGizmos();
             }
+        }
+
+        private void ResetAll()
+        {
+            this.ResetBonePos(this._parent.transform, null, true);
+            this.ResetBoneRot(this._parent.transform, null, true);
+            this.ResetBoneScale(this._parent.transform, null, true);
+            foreach (KeyValuePair<DynamicBoneCollider, ColliderData> pair in new Dictionary<DynamicBoneCollider, ColliderData>(this._dirtyColliders))
+                this.SetColliderNotDirty(pair.Key);
         }
 
         private void ResetBonePos(Transform bone, Transform twinBone = null, bool withChildren = false)

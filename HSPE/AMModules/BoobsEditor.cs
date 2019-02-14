@@ -435,6 +435,9 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
+            this.SetBoobNotDirty(this._leftBoob);
+            this.SetBoobNotDirty(this._rightBoob);
+
             bool changed = false;
             XmlNode boobs = xmlNode.FindChildNode("boobs");
             if (boobs != null)

@@ -477,6 +477,7 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
+            this.ResetAll();
             bool changed = false;
             XmlNode skinnedMeshesNode = xmlNode.FindChildNode("skinnedMeshes");
             if (skinnedMeshesNode == null)
@@ -562,6 +563,14 @@ namespace HSPE.AMModules
             }
         }
 
+        private void ResetAll()
+        {
+            foreach (SkinnedMeshRenderer renderer in this._skinnedMeshRenderers)
+            {
+                this.SetMeshRendererNotDirty(renderer);
+            }
+        }
+
         private void FaceBlendShapeOnPostLateUpdate()
         {
             if (this._parent.enabled)
@@ -582,9 +591,7 @@ namespace HSPE.AMModules
             {
                 SkinnedMeshRendererData data = this._dirtySkinnedMeshRenderers[renderer];
                 foreach (KeyValuePair<int, BlendShapeData> kvp in data.dirtyBlendShapes)
-                {
                     renderer.SetBlendShapeWeight(kvp.Key, kvp.Value.originalWeight);
-                }
                 this._dirtySkinnedMeshRenderers.Remove(renderer);
             }
         }

@@ -244,6 +244,23 @@ namespace HSPE
                 this.OnTargetChange(last);
             this.GUILogic();
 
+            //if (Input.GetKeyDown(KeyCode.A))
+            //{
+            //    PoseController[] controllers = GameObject.FindObjectsOfType<PoseController>();
+            //    string xml;
+            //    using (StringWriter stream = new StringWriter())
+            //    using (XmlTextWriter writer = new XmlTextWriter(stream))
+            //    {
+            //        writer.WriteStartElement("character");
+            //        controllers[1].SaveXml(writer);
+            //        writer.WriteEndElement();
+            //        xml = stream.ToString();
+            //    }
+            //    XmlDocument xmlDocument = new XmlDocument();
+            //    xmlDocument.LoadXml(xml);
+            //    controllers[0].ScheduleLoad(xmlDocument.FirstChild, (b) => {});
+            //}
+
             this.StaticUpdate();
         }
 

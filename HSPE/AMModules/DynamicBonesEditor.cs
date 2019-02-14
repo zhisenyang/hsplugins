@@ -819,6 +819,8 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
+            this.ResetAll();
+
             bool changed = false;
             this.RefreshDynamicBoneList();
 
@@ -924,6 +926,12 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
+        private void ResetAll()
+        {
+            foreach (DynamicBone bone in this._dynamicBones)
+                this.SetDynamicBoneNotDirty(bone);
+        }
+
         private void PhysicToFK()
         {
             List<GuideCommand.EqualsInfo> infos = new List<GuideCommand.EqualsInfo>();
