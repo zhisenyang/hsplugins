@@ -213,6 +213,7 @@ namespace HSPE.AMModules
         private bool _firstRefresh;
         private readonly GenericOCITarget _target;
         private Vector2 _dynamicBonesScroll2;
+        private List<XmlNode> _secondPassLoadingNodes = new List<XmlNode>();
         #endregion
 
         #region Public Fields
@@ -823,6 +824,7 @@ namespace HSPE.AMModules
 
             bool changed = false;
             this.RefreshDynamicBoneList();
+            List<XmlNode> potentialChildrenNodes = new List<XmlNode>();
 
             XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
             if (dynamicBonesNode != null)
@@ -850,82 +852,147 @@ namespace HSPE.AMModules
                             }
                         }
                     }
-                    DynamicBoneData data = new DynamicBoneData();
-
-                    if (node.Attributes["weight"] != null)
+                    if (db == null)
                     {
-                        float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
-                        data.originalWeight = db.GetWeight();
-                        db.SetWeight(weight);
+                        potentialChildrenNodes.Add(node);
+                        continue;
                     }
-                    if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
-                    {
-                        Vector3 gravity;
-                        gravity.x = XmlConvert.ToSingle(node.Attributes["gravityX"].Value);
-                        gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
-                        gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
-                        data.originalGravity = db.m_Gravity;
-                        db.m_Gravity = gravity;
-                    }
-                    if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
-                    {
-                        Vector3 force;
-                        force.x = XmlConvert.ToSingle(node.Attributes["forceX"].Value);
-                        force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
-                        force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
-                        data.originalForce = db.m_Force;
-                        db.m_Force = force;
-                    }
-                    if (node.Attributes["freezeAxis"] != null)
-                    {
-                        DynamicBone.FreezeAxis axis = (DynamicBone.FreezeAxis)XmlConvert.ToInt32(node.Attributes["freezeAxis"].Value);
-                        data.originalFreezeAxis = db.m_FreezeAxis;
-                        db.m_FreezeAxis = axis;
-                    }
-                    if (node.Attributes["damping"] != null)
-                    {
-                        float damping = XmlConvert.ToSingle(node.Attributes["damping"].Value);
-                        data.originalDamping = db.m_Damping;
-                        db.m_Damping = damping;
-                    }
-                    if (node.Attributes["elasticity"] != null)
-                    {
-                        float elasticity = XmlConvert.ToSingle(node.Attributes["elasticity"].Value);
-                        data.originalElasticity = db.m_Elasticity;
-                        db.m_Elasticity = elasticity;
-                    }
-                    if (node.Attributes["stiffness"] != null)
-                    {
-                        float stiffness = XmlConvert.ToSingle(node.Attributes["stiffness"].Value);
-                        data.originalStiffness = db.m_Stiffness;
-                        db.m_Stiffness = stiffness;
-                    }
-
-                    if (node.Attributes["inert"] != null)
-                    {
-                        float inert = XmlConvert.ToSingle(node.Attributes["inert"].Value);
-                        data.originalInert = db.m_Inert;
-                        db.m_Inert = inert;
-                    }
-                    if (node.Attributes["radius"] != null)
-                    {
-                        float radius = XmlConvert.ToSingle(node.Attributes["radius"].Value);
-                        data.originalRadius = db.m_Radius;
-                        db.m_Radius = radius;
-                    }
-                    if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue || data.originalDamping.hasValue || data.originalElasticity.hasValue || data.originalStiffness.hasValue || data.originalInert.hasValue || data.originalRadius.hasValue)
-                    {
+                    if (this.LoadSingleBone(db, node))
                         changed = true;
-                        this.NotifyDynamicBoneForUpdate(db);
-                        this._dirtyDynamicBones.Add(db, data);
+                }
+            }
+            if (potentialChildrenNodes.Count > 0)
+            {
+                foreach (XmlNode node in potentialChildrenNodes)
+                {
+                    Transform t = this._parent.transform.Find(node.Attributes["root"].Value);
+                    if (t == null)
+                        continue;
+                    PoseController childController = t.GetComponent<PoseController>();
+                    if (childController == null)
+                        childController = t.GetComponentInParent<PoseController>();
+                    if (childController == null)
+                        continue;
+                    if (childController != this._parent)
+                    {
+                        childController.enabled = true;
+                        childController._dynamicBonesEditor._secondPassLoadingNodes.Add(node);
                     }
                 }
             }
-            return changed;
+
+            this._parent.ExecuteDelayed(() =>
+            {
+                foreach (XmlNode node in this._secondPassLoadingNodes)
+                {
+                    string root = node.Attributes["root"].Value;
+                    DynamicBone db = null;
+                    foreach (DynamicBone bone in this._dynamicBones)
+                    {
+                        if (bone.m_Root)
+                        {
+                            if ((root.EndsWith(bone.m_Root.GetPathFrom(this._parent.transform.parent)) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            if ((root.EndsWith(bone.transform.GetPathFrom(this._parent.transform.parent)) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            {
+                                db = bone;
+                                break;
+                            }
+                        }
+                    }
+                    if (db == null)
+                        continue;
+                    this.LoadSingleBone(db, node);
+                }
+                this._secondPassLoadingNodes.Clear();
+            }, 2);
+            return changed || this._secondPassLoadingNodes.Count > 0;
         }
         #endregion
 
         #region Private Methods
+        private bool LoadSingleBone(DynamicBone db, XmlNode node)
+        {
+            bool loaded = false;
+            DynamicBoneData data = new DynamicBoneData();
+
+            if (node.Attributes["weight"] != null)
+            {
+                float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
+                data.originalWeight = db.GetWeight();
+                db.SetWeight(weight);
+            }
+            if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
+            {
+                Vector3 gravity;
+                gravity.x = XmlConvert.ToSingle(node.Attributes["gravityX"].Value);
+                gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
+                gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
+                data.originalGravity = db.m_Gravity;
+                db.m_Gravity = gravity;
+            }
+            if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
+            {
+                Vector3 force;
+                force.x = XmlConvert.ToSingle(node.Attributes["forceX"].Value);
+                force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
+                force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
+                data.originalForce = db.m_Force;
+                db.m_Force = force;
+            }
+            if (node.Attributes["freezeAxis"] != null)
+            {
+                DynamicBone.FreezeAxis axis = (DynamicBone.FreezeAxis)XmlConvert.ToInt32(node.Attributes["freezeAxis"].Value);
+                data.originalFreezeAxis = db.m_FreezeAxis;
+                db.m_FreezeAxis = axis;
+            }
+            if (node.Attributes["damping"] != null)
+            {
+                float damping = XmlConvert.ToSingle(node.Attributes["damping"].Value);
+                data.originalDamping = db.m_Damping;
+                db.m_Damping = damping;
+            }
+            if (node.Attributes["elasticity"] != null)
+            {
+                float elasticity = XmlConvert.ToSingle(node.Attributes["elasticity"].Value);
+                data.originalElasticity = db.m_Elasticity;
+                db.m_Elasticity = elasticity;
+            }
+            if (node.Attributes["stiffness"] != null)
+            {
+                float stiffness = XmlConvert.ToSingle(node.Attributes["stiffness"].Value);
+                data.originalStiffness = db.m_Stiffness;
+                db.m_Stiffness = stiffness;
+            }
+
+            if (node.Attributes["inert"] != null)
+            {
+                float inert = XmlConvert.ToSingle(node.Attributes["inert"].Value);
+                data.originalInert = db.m_Inert;
+                db.m_Inert = inert;
+            }
+            if (node.Attributes["radius"] != null)
+            {
+                float radius = XmlConvert.ToSingle(node.Attributes["radius"].Value);
+                data.originalRadius = db.m_Radius;
+                db.m_Radius = radius;
+            }
+            if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue || data.originalDamping.hasValue || data.originalElasticity.hasValue || data.originalStiffness.hasValue || data.originalInert.hasValue || data.originalRadius.hasValue)
+            {
+                loaded = true;
+                this.NotifyDynamicBoneForUpdate(db);
+                this._dirtyDynamicBones.Add(db, data);
+                
+            }
+            return loaded;
+        }
+
         private void ResetAll()
         {
             foreach (DynamicBone bone in this._dynamicBones)

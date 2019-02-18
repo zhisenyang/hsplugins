@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -857,57 +858,66 @@ namespace LightingEditor
         [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
         public class Studio_Duplicate_Patches
         {
-            private static SortedList<int, OCILight> _toDuplicate;
+            internal static readonly List<OILightInfo> _sources = new List<OILightInfo>();
+            internal static readonly List<OILightInfo> _destinations = new List<OILightInfo>();
+            internal static bool _duplicateCalled = false;
 
-            public static void Prefix(Studio.Studio __instance)
+            public static void Prefix()
             {
-                _toDuplicate = new SortedList<int, OCILight>();
-                TreeNodeObject[] selectNodes = __instance.treeNodeCtrl.selectNodes;
-                for (int i = 0; i < selectNodes.Length; i++)
-                {
-                    Recurse(selectNodes[i], (node) =>
-                    {
-                        ObjectCtrlInfo objectCtrlInfo = null;
-                        if (__instance.dicInfo.TryGetValue(node, out objectCtrlInfo))
-                        {
-                            objectCtrlInfo.OnSavePreprocessing();
-                            OCILight ociLight = objectCtrlInfo as OCILight;
-                            if (ociLight != null)
-                                _toDuplicate.Add(objectCtrlInfo.objectInfo.dicKey, ociLight);
-                        }
-                    });
-                }
-            }
-
-            private static void Recurse(TreeNodeObject obj, Action<TreeNodeObject> action)
-            {
-                action(obj);
-                foreach (TreeNodeObject child in obj.child)
-                    Recurse(child, action);
+                _duplicateCalled = true;
             }
 
             public static void Postfix(Studio.Studio __instance)
             {
-                IEnumerator<KeyValuePair<int, OCILight>> enumerator = _toDuplicate.GetEnumerator();
-                foreach (KeyValuePair<int, ObjectInfo> keyValuePair in new SortedDictionary<int, ObjectInfo>(__instance.sceneInfo.dicImport))
+                for (int i = 0; i < _sources.Count; i++)
                 {
-                    Recurse(__instance.dicObjectCtrl[keyValuePair.Value.dicKey].treeNodeObject, (node) =>
+                    OCILight source = __instance.dicObjectCtrl[_sources[i].dicKey] as OCILight;
+                    OCILight destination = __instance.dicObjectCtrl[_destinations[i].dicKey] as OCILight;
+                    if (source != null && destination != null)
                     {
-                        ObjectCtrlInfo objectCtrlInfo = null;
-                        if (!__instance.dicInfo.TryGetValue(node, out objectCtrlInfo))
-                            return;
-                        OCILight dest = objectCtrlInfo as OCILight;
-                        if (dest != null && enumerator.MoveNext())
-                        {
-                            dest.light.shadowStrength = enumerator.Current.Value.light.shadowStrength;
-                            dest.light.shadowBias = enumerator.Current.Value.light.shadowBias;
-                            dest.light.shadowNormalBias = enumerator.Current.Value.light.shadowNormalBias;
-                            dest.light.shadowNearPlane = enumerator.Current.Value.light.shadowNearPlane;
-                            dest.light.cullingMask = enumerator.Current.Value.light.cullingMask;
-                        }
-                    });
+                        destination.light.shadowStrength = source.light.shadowStrength;
+                        destination.light.shadowBias = source.light.shadowBias;
+                        destination.light.shadowNormalBias = source.light.shadowNormalBias;
+                        destination.light.shadowNearPlane = source.light.shadowNearPlane;
+                        destination.light.cullingMask = source.light.cullingMask;
+                    }
                 }
-                enumerator.Dispose();
+                _sources.Clear();
+                _destinations.Clear();
+                _duplicateCalled = false;
+            }
+        }
+
+
+        [HarmonyPatch(typeof(OILightInfo), "Save", new[] { typeof(BinaryWriter), typeof(Version) })]
+        internal static class OILightInfo_Save_Patches
+        {
+            private static void Postfix(OILightInfo __instance)
+            {
+                if (Studio_Duplicate_Patches._duplicateCalled)
+                    Studio_Duplicate_Patches._sources.Add(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(OILightInfo), "Load", new[] { typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool) })]
+        internal static class OILightInfo_Load_Patches
+        {
+            private static void Postfix(OILightInfo __instance)
+            {
+                if (Studio_Duplicate_Patches._duplicateCalled)
+                    Studio_Duplicate_Patches._destinations.Add(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(AddObjectLight), "Load", new[] { typeof(OILightInfo), typeof(ObjectCtrlInfo), typeof(TreeNodeObject), typeof(bool), typeof(int) })]
+        internal static class AddObjectLightt_Load_Patches
+        {
+            private static void Postfix(AddObjectLight __instance, OCILight __result)
+            {
+                __result.treeNodeObject.onVisible = (TreeNodeObject.OnVisibleFunc)Delegate.Combine(__result.treeNodeObject.onVisible, new TreeNodeObject.OnVisibleFunc(state =>
+                {
+                    __result.SetEnable(state);
+                }));
             }
         }
         #endregion

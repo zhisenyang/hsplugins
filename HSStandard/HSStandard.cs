@@ -400,7 +400,7 @@ namespace HSStandard
             switch (mat.shader.name)
             {
                 case "Shader Forge/PBRsp": //Opaque
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         newMaterial = new Material(_hsStandard);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -413,7 +413,7 @@ namespace HSStandard
                     }
                     break;
                 case "Shader Forge/PBRsp_alpha": //Fade (but with alphatest as well)
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         newMaterial = new Material(_hsStandardFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -435,7 +435,7 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_texture_alpha": //Fade
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         newMaterial = new Material(_hsStandardFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -494,7 +494,7 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_culloff": //Opaque
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         newMaterial = new Material(_hsStandardTwoSided);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -508,7 +508,7 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_alpha_culloff": //Fade or Cutout it seems
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         switch (mat.GetTag("RenderType", false))
                         {
@@ -538,7 +538,7 @@ namespace HSStandard
                     }
                     break;
                 case "Shader Forge/PBRsp_texture_alpha_culloff": //Fade
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false)/* && _forceHair == false*/)
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
                         newMaterial = new Material(_hsStandardTwoSidedFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -575,7 +575,7 @@ namespace HSStandard
 
                 case "Shader Forge/PBRsp_2layer": //Opaque
                 case "Shader Forge/PBRsp_2layer_cutout": //Cutout
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair/* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
                         break;
                     switch (mat.GetTag("RenderType", false))
                     {
@@ -595,9 +595,8 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_2layer_culloff": //Opaque
-                case "Shader Forge/PBRsp_2layer_cutout_culloff": //Opaque
                 case "Shader Forge/PBRsp_2layer_alpha_culloff": //Transparent
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair/* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
                         break;
                     switch (mat.GetTag("RenderType", false))
                     {
@@ -623,6 +622,16 @@ namespace HSStandard
                             SetMaterialKeywords(newMaterial);
                             break;
                     }
+                    break;
+                case "Shader Forge/PBRsp_2layer_cutout_culloff": //Cutout
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                        break;
+                    newMaterial = new Material(_hsStandardTwoLayersTwoSidedCutout);
+                    SwapPropertiesTwoLayers(mat, newMaterial);
+
+                    newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                    SetMaterialKeywords(newMaterial);
                     break;
 
 

@@ -123,20 +123,10 @@ namespace Studio
                 ++i;
             }
             __instance.GetType().GetProperty("count", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).SetValue(__instance, i, null);
-            if (_isNew)
+            ((MonoBehaviour)__instance).ExecuteDelayed(() =>
             {
-                ((MonoBehaviour)__instance).ExecuteDelayed(() =>
-                {
-                    _ociItem.ActiveFK(false);
-                });
-            }
-            else
-            {
-                ((MonoBehaviour)__instance).ExecuteDelayed(() =>
-                {
-                    _ociItem.ActiveFK(_ociItem.itemFKCtrl.enabled);
-                });
-            }
+                _ociItem.ActiveFK(_ociItem.itemInfo.enableFK);
+            });
             return false;
         }
     }

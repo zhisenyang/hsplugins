@@ -604,28 +604,28 @@ namespace HSPE
             this._copyLeftArmButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightArm);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightArm, OIBoneInfo.BoneGroup.RightArm);
             });
 
             this._copyRightArmButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left Arm Button").GetComponent<Button>();
             this._copyRightArmButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftArm);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftArm, OIBoneInfo.BoneGroup.LeftArm);
             });
 
             this._copyLeftLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Leg Button").GetComponent<Button>();
             this._copyLeftLegButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightLeg);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.RightLeg, OIBoneInfo.BoneGroup.RightLeg);
             });
 
             this._copyRightLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left LegButton").GetComponent<Button>();
             this._copyRightLegButton.onClick.AddListener(() =>
             {
                 if (this._poseTarget != null)
-                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftLeg);
+                    ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftLeg, OIBoneInfo.BoneGroup.LeftLeg);
             });
 
             this._swapPostButton = this._ui.transform.Find("BG/Controls/Other buttons/Other/Swap Pose Button").GetComponent<Button>();
@@ -1077,7 +1077,7 @@ namespace HSPE
                 {
                     if (Input.GetKeyDown(kc))
                     {
-                        if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0)
+                        if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0 && kc != KeyCode.Mouse1 && kc != KeyCode.Mouse2 && kc != KeyCode.Mouse3 && kc != KeyCode.Mouse4 && kc != KeyCode.Mouse5 && kc != KeyCode.Mouse6)
                             this._mainWindowKeyCode = kc;
                         this._shortcutKeyButton.onClick.Invoke();
                         break;

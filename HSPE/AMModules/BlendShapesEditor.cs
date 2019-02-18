@@ -7,6 +7,7 @@ using Harmony;
 using Studio;
 using ToolBox;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace HSPE.AMModules
 {
@@ -110,6 +111,7 @@ namespace HSPE.AMModules
         private readonly Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> _links = new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper>();
         private string _search = "";
         private readonly GenericOCITarget _target;
+        private Dictionary<XmlNode, SkinnedMeshRenderer> _secondPassLoadingNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
         #endregion
 
         #region Public Fields
@@ -478,33 +480,79 @@ namespace HSPE.AMModules
         public override bool LoadXml(XmlNode xmlNode)
         {
             this.ResetAll();
+            this.RefreshSkinnedMeshRendererList();
+
             bool changed = false;
             XmlNode skinnedMeshesNode = xmlNode.FindChildNode("skinnedMeshes");
-            if (skinnedMeshesNode == null)
-                return changed;
-            foreach (XmlNode node in skinnedMeshesNode.ChildNodes)
+            Dictionary<XmlNode, SkinnedMeshRenderer> potentialChildrenNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
+            if (skinnedMeshesNode != null)
             {
-                SkinnedMeshRenderer renderer = this._parent.transform.Find(node.Attributes["name"].Value).GetComponent<SkinnedMeshRenderer>();
-                SkinnedMeshRendererData data = new SkinnedMeshRendererData();
-                foreach (XmlNode childNode in node.ChildNodes)
+                foreach (XmlNode node in skinnedMeshesNode.ChildNodes)
                 {
-                    int index = XmlConvert.ToInt32(childNode.Attributes["index"].Value);
-                    if (index >= renderer.sharedMesh.blendShapeCount)
+                    Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
+                    if (t == null)
                         continue;
-                    changed = true;
-                    BlendShapeData bsData = new BlendShapeData();
-                    bsData.originalWeight = renderer.GetBlendShapeWeight(index);
-                    bsData.weight = XmlConvert.ToSingle(childNode.Attributes["weight"].Value);
-                    data.dirtyBlendShapes.Add(index, bsData);
+                    SkinnedMeshRenderer renderer = t.GetComponent<SkinnedMeshRenderer>();
+                    if (renderer == null)
+                        continue;
+                    if (this._skinnedMeshRenderers.Contains(renderer) == false)
+                    {
+                        potentialChildrenNodes.Add(node, renderer);
+                        continue;
+                    }
+                    if (this.LoadSingleSkinnedMeshRenderer(node, renderer))
+                        changed = true;
                 }
-                data.path = renderer.transform.GetPathFrom(this._parent.transform);
-                this._dirtySkinnedMeshRenderers.Add(renderer, data);
             }
-            return changed;
+            if (potentialChildrenNodes.Count > 0)
+            {
+                foreach (KeyValuePair<XmlNode, SkinnedMeshRenderer> pair in potentialChildrenNodes)
+                {
+                    PoseController childController = pair.Value.GetComponentInParent<PoseController>();
+                    if (childController != this._parent)
+                    {
+                        childController.enabled = true;
+                        if (childController._blendShapesEditor._secondPassLoadingNodes.ContainsKey(pair.Key) == false)
+                            childController._blendShapesEditor._secondPassLoadingNodes.Add(pair.Key, pair.Value);
+                    }
+                }
+            }
+
+            this._parent.ExecuteDelayed(() =>
+            {
+                foreach (KeyValuePair<XmlNode, SkinnedMeshRenderer> pair in this._secondPassLoadingNodes)
+                {
+                    if (this._skinnedMeshRenderers.Contains(pair.Value) == false)
+                        continue;
+                    this.LoadSingleSkinnedMeshRenderer(pair.Key, pair.Value);
+                }
+                this._secondPassLoadingNodes.Clear();
+            }, 2);
+            return changed || this._secondPassLoadingNodes.Count > 0;
         }
         #endregion
 
         #region Private Methods
+        private bool LoadSingleSkinnedMeshRenderer(XmlNode node, SkinnedMeshRenderer renderer)
+        {
+            bool loaded = false;
+            SkinnedMeshRendererData data = new SkinnedMeshRendererData();
+            foreach (XmlNode childNode in node.ChildNodes)
+            {
+                int index = XmlConvert.ToInt32(childNode.Attributes["index"].Value);
+                if (index >= renderer.sharedMesh.blendShapeCount)
+                    continue;
+                loaded = true;
+                BlendShapeData bsData = new BlendShapeData();
+                bsData.originalWeight = renderer.GetBlendShapeWeight(index);
+                bsData.weight = XmlConvert.ToSingle(childNode.Attributes["weight"].Value);
+                data.dirtyBlendShapes.Add(index, bsData);
+            }
+            data.path = renderer.transform.GetPathFrom(this._parent.transform);
+            this._dirtySkinnedMeshRenderers.Add(renderer, data);
+            return loaded;
+        }
+
         private void Init()
         {
             this._eyesShapesCount = Int32.MaxValue;
@@ -566,9 +614,7 @@ namespace HSPE.AMModules
         private void ResetAll()
         {
             foreach (SkinnedMeshRenderer renderer in this._skinnedMeshRenderers)
-            {
                 this.SetMeshRendererNotDirty(renderer);
-            }
         }
 
         private void FaceBlendShapeOnPostLateUpdate()

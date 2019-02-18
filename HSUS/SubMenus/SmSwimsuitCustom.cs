@@ -70,6 +70,10 @@ namespace HSUS
                 HSUS._self._asyncMethods.Add(_setCharaInfoSub);
             }
 
+            originalComponent.objLineBase.transform.Find("Label").GetComponent<Text>().raycastTarget = false;
+            originalComponent.objLineBase.transform.Find("Background/Checkmark").GetComponent<Image>().raycastTarget = false;
+            if (HSUS._self._removeIsNew)
+                UnityEngine.Object.Destroy(originalComponent.objLineBase.transform.Find("imgNew").gameObject);
         }
         private static void Reset()
         {

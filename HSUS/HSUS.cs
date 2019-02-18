@@ -13,6 +13,7 @@ using Studio;
 #elif KOIKATSU
 using BepInEx;
 using ChaCustom;
+using UnityEngine.SceneManagement;
 #endif
 using StudioFileCheck;
 using Harmony;
@@ -20,7 +21,6 @@ using ToolBox;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -37,7 +37,7 @@ namespace HSUS
 #endif
     {
 #if HONEYSELECT
-        internal const string _version = "1.6.1";
+        internal const string _version = "1.7.0b";
 #elif KOIKATSU
         internal const string _version = "1.0.0";
 #endif
@@ -68,6 +68,7 @@ namespace HSUS
 #endif
 
         internal bool _optimizeCharaMaker = true;
+        internal bool _removeIsNew = true;
         internal bool _asyncLoading = false;
         internal float _gameUIScale = 1f;
         internal float _neoUIScale = 1f;
@@ -203,6 +204,10 @@ namespace HSUS
                                     case "asyncLoading":
                                         if (childNode.Attributes["enabled"] != null)
                                             this._asyncLoading = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "removeIsNew":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._removeIsNew = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                                         break;
                                 }
                             }
@@ -417,6 +422,12 @@ namespace HSUS
                         {
                             xmlWriter.WriteStartElement("asyncLoading");
                             xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._asyncLoading));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("removeIsNew");
+                            xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._removeIsNew));
                             xmlWriter.WriteEndElement();
                         }
 #endif
@@ -770,6 +781,11 @@ namespace HSUS
                             break;
                     }
                 }
+                foreach (Mask mask in Resources.FindObjectsOfTypeAll<Mask>()) //Thank you Henk for this tip
+                {
+                    mask.gameObject.AddComponent<RectMask2D>();
+                    GameObject.DestroyImmediate(mask);
+                }
                 foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
                 {
                     SmClothesLoad_Data.Init(f);
@@ -827,6 +843,53 @@ namespace HSUS
             this.ExecuteDelayed(() =>
 #endif
             {
+                switch (this._binary)
+                {
+                    case Binary.Game:
+#if HONEYSELECT
+                        GameObject go = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu");
+                        if (go != null)
+                        {
+                            RectTransform rt = (RectTransform)go.transform;
+                            Vector3 cachedPosition = rt.position;
+                            rt.anchorMax = Vector2.one;
+                            rt.anchorMin = Vector2.one;
+                            rt.position = cachedPosition;
+                        }
+                        go = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSystem/W_System");
+                        if (go != null)
+                        {
+                            RectTransform rt = (RectTransform)go.transform;
+                            Vector3 cachedPosition = rt.position;
+                            rt.anchorMax = Vector2.zero;
+                            rt.anchorMin = Vector2.zero;
+                            rt.position = cachedPosition;
+                        }
+                        go = GameObject.Find("CustomScene/CustomControl/CustomUI/ColorMenu/BasePanel");
+                        if (go != null)
+                        {
+                            RectTransform rt = (RectTransform)go.transform;
+                            Vector3 cachedPosition = rt.position;
+                            rt.anchorMax = new Vector2(1, 0);
+                            rt.anchorMin = new Vector2(1, 0);
+                            rt.position = cachedPosition;
+                        }
+#endif
+                        break;
+                    case Binary.Neo:
+                        go = GameObject.Find("StudioScene/Canvas Object List/Image Bar");
+                        if (go != null)
+                        {
+                            RectTransform rt = (RectTransform)go.transform;
+                            Vector3 cachedPosition = rt.position;
+                            rt.anchorMax = Vector2.one;
+                            rt.anchorMin = Vector2.one;
+                            rt.position = cachedPosition;
+                        }
+                        break;
+                }
+
+
                 foreach (Canvas c in Resources.FindObjectsOfTypeAll<Canvas>())
                 {
                     if (this._scaledCanvases.ContainsKey(c) == false && this.ShouldScaleUI(c))

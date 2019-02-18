@@ -706,6 +706,147 @@ namespace StudioFileCheck
             return TryGetLoop(_node.parent);
         }
     }
+
+    [HarmonyPatch(typeof(WorkspaceCtrl), "Awake")]
+    internal static class WorkspaceCtrl_Awake_Patches
+    {
+        private static List<TreeNodeObject> _treeNodeList;
+        private static InputField _search;
+        internal static bool _ignoreSearch = false;
+
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Postfix(WorkspaceCtrl __instance, TreeNodeCtrl ___treeNodeCtrl)
+        {
+            RectTransform viewport = __instance.transform.Find("Image Bar/Scroll View").GetComponent<ScrollRect>().viewport;
+            _search = UIUtility.CreateInputField("Search", viewport.parent, "Search...");
+            _search.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(viewport.offsetMin.x, viewport.offsetMin.y - 2f), new Vector2(viewport.offsetMax.x, viewport.offsetMin.y + 18));
+            viewport.offsetMin += new Vector2(0f, 18f);
+            foreach (Text t in _search.GetComponentsInChildren<Text>())
+                t.color = Color.white;
+            Image image = _search.GetComponent<Image>();
+            image.color = UIUtility.grayColor;
+            _search.onValueChanged.AddListener(OnSearchChanged);
+            _treeNodeList = (List<TreeNodeObject>)___treeNodeCtrl.GetPrivate("m_TreeNodeObject");
+        }
+
+        internal static void OnSearchChanged(string s = "")
+        {
+            foreach (TreeNodeObject o in _treeNodeList)
+            {
+                if (o.parent == null)
+                    PartialSearch(o);
+            }
+        }
+
+        internal static void PartialSearch(TreeNodeObject o)
+        {
+            if (_ignoreSearch)
+                return;
+            RecurseAny(o, t => t.textName.IndexOf(_search.text, StringComparison.CurrentCultureIgnoreCase) != -1,
+                       (t, r) => t.gameObject.SetActive(r && t.AllParentsOpen()));
+
+        }
+
+        private static bool RecurseAny(TreeNodeObject obj, Func<TreeNodeObject, bool> func, Action<TreeNodeObject, bool> onResult)
+        {
+            bool res = func(obj);
+            foreach (TreeNodeObject child in obj.child)
+            {
+                if (RecurseAny(child, func, onResult))
+                    res = true;
+            }
+            onResult(obj, res);
+            return res;
+        }
+
+        private static bool AllParentsOpen(this TreeNodeObject self)
+        {
+            if (self.parent == null)
+                return true;
+            TreeNodeObject parent = self.parent;
+            while (parent != null)
+            {
+                if (parent.treeState == TreeNodeObject.TreeState.Close)
+                    return false;
+                parent = parent.parent;
+            }
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickDuplicate")]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickParent")]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnParentage", new []{typeof(TreeNodeObject), typeof(TreeNodeObject)})]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickDelete")]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickFolder")]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickRemove")]
+    [HarmonyPatch(typeof(WorkspaceCtrl), "UpdateUI")]
+    internal static class WorkspaceCtrl_UpdateSearch_MultiPatch
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Postfix()
+        {
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+
+    [HarmonyPatch(typeof(TreeNodeObject), "SetTreeState", new[] {typeof(TreeNodeObject.TreeState)})]
+    [HarmonyPatch(typeof(TreeNodeObject), "set_treeState", new[] {typeof(TreeNodeObject.TreeState)})]
+    internal static class TreeNodeObject_SetTreeState_MultiPatch
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Postfix(TreeNodeObject __instance)
+        {
+            WorkspaceCtrl_Awake_Patches.PartialSearch(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(Studio.Studio), "LoadScene", new[] {typeof(string)})]
+    internal static class Studio_LoadScene_MultiPatch
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Prefix()
+        {
+            WorkspaceCtrl_Awake_Patches._ignoreSearch = true;
+        }
+        private static void Postfix()
+        {
+            WorkspaceCtrl_Awake_Patches._ignoreSearch = false;
+        }
+    }
+
+    [HarmonyPatch(typeof(TreeNodeCtrl), "AddNode", new[] {typeof(string), typeof(TreeNodeObject)})]
+    internal static class TreeNodeCtrl_AddNode_MultiPatch
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._translationMethod != null;
+        }
+
+        private static void Postfix(TreeNodeObject __result)
+        {
+            string name = __result.textName;
+            HSUS.HSUS._self._translationMethod(ref name);
+            __result.textName = name;
+        }
+    }
+
 #endif
 
 }

@@ -303,8 +303,30 @@ namespace HSUS
         }
     }
 
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickCopy")]
+    internal static class WorkspaceCtrl_OnClickCopy_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS._self._improvedTransformOperations;
+        }
+
+        private static void Postfix(WorkspaceCtrl __instance)
+        {
+            foreach (Button button in (Button[])__instance.GetType().GetProperty("buttons", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(__instance, null))
+                button.interactable = true;
+        }
+    }
+
     public class TransformOperations : MonoBehaviour
     {
+        private class TransformData
+        {
+            public Vector3 position;
+            public Vector3 rotation;
+            public Vector3 scale;
+        }
+
         private Button _copyTransform;
         private Button _pasteTransform;
         private Button _resetTransform;
@@ -314,6 +336,16 @@ namespace HSUS
         private Vector3 _savedPosition;
         private Vector3 _savedRotation;
         private Vector3 _savedScale;
+        private bool _draggingXPos = false;
+        private bool _draggingYPos = false;
+        private bool _draggingZPos = false;
+        private bool _draggingXRot = false;
+        private bool _draggingYRot = false;
+        private bool _draggingZRot = false;
+        private bool _draggingXScale = false;
+        private bool _draggingYScale = false;
+        private bool _draggingZScale = false;
+        private Dictionary<GuideObject, TransformData> _originalTransforms = new Dictionary<GuideObject, TransformData>();
 
         void Awake()
         {
@@ -390,6 +422,96 @@ namespace HSUS
             this._resetTransform.onClick.AddListener(this.ResetTransform);
 
             this._hashSelectObject = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
+
+            RectTransform posX = (RectTransform)guideInput.Find("Pos/InputField X");
+            RawImage posXDrag = UIUtility.CreateRawImage("DragX", posX.parent);
+            posXDrag.color = new Color32(0, 0, 0, 1);
+            posXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posX.offsetMin.x - 24, posX.offsetMin.y), new Vector2(posX.offsetMin.x, posX.offsetMax.y));
+            posXDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingXPos = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform posY = (RectTransform)guideInput.Find("Pos/InputField Y");
+            RawImage posYDrag = UIUtility.CreateRawImage("DragY", posY.parent);
+            posYDrag.color = new Color32(0, 0, 0, 1);
+            posYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posY.offsetMin.x - 24, posY.offsetMin.y), new Vector2(posY.offsetMin.x, posY.offsetMax.y));
+            posYDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingYPos = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform posZ = (RectTransform)guideInput.Find("Pos/InputField Z");
+            RawImage posZDrag = UIUtility.CreateRawImage("DragZ", posZ.parent);
+            posZDrag.color = new Color32(0, 0, 0, 1);
+            posZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posZ.offsetMin.x - 24, posZ.offsetMin.y), new Vector2(posZ.offsetMin.x, posZ.offsetMax.y));
+            posZDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingZPos = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform rotX = (RectTransform)guideInput.Find("Rot/InputField X");
+            RawImage rotXDrag = UIUtility.CreateRawImage("DragX", rotX.parent);
+            rotXDrag.color = new Color32(0, 0, 0, 1);
+            rotXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotX.offsetMin.x - 24, rotX.offsetMin.y), new Vector2(rotX.offsetMin.x, rotX.offsetMax.y));
+            rotXDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingXRot = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform rotY = (RectTransform)guideInput.Find("Rot/InputField Y");
+            RawImage rotYDrag = UIUtility.CreateRawImage( "DragY", rotY.parent);
+            rotYDrag.color = new Color32(0, 0, 0, 1);
+            rotYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotY.offsetMin.x - 24, rotY.offsetMin.y), new Vector2(rotY.offsetMin.x, rotY.offsetMax.y));
+            rotYDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingYRot = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform rotZ = (RectTransform)guideInput.Find("Rot/InputField Z");
+            RawImage rotZDrag = UIUtility.CreateRawImage( "DragZ", rotZ.parent);
+            rotZDrag.color = new Color32(0, 0, 0, 1);
+            rotZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotZ.offsetMin.x - 24, rotZ.offsetMin.y), new Vector2(rotZ.offsetMin.x, rotZ.offsetMax.y));
+            rotZDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingZRot = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform scaleX = (RectTransform)guideInput.Find("Scl/InputField X");
+            RawImage scaleXDrag = UIUtility.CreateRawImage( "DragX", scaleX.parent);
+            scaleXDrag.color = new Color32(0, 0, 0, 1);
+            scaleXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleX.offsetMin.x - 24, scaleX.offsetMin.y), new Vector2(scaleX.offsetMin.x, scaleX.offsetMax.y));
+            scaleXDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingXScale = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform scaleY = (RectTransform)guideInput.Find("Scl/InputField Y");
+            RawImage scaleYDrag = UIUtility.CreateRawImage( "DragY", scaleY.parent);
+            scaleYDrag.color = new Color32(0, 0, 0, 1);
+            scaleYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleY.offsetMin.x - 24, scaleY.offsetMin.y), new Vector2(scaleY.offsetMin.x, scaleY.offsetMax.y));
+            scaleYDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingYScale = true;
+                this.InitOriginalTransforms();
+            };
+
+            RectTransform scaleZ = (RectTransform)guideInput.Find("Scl/InputField Z");
+            RawImage scaleZDrag = UIUtility.CreateRawImage( "DragZ", scaleZ.parent);
+            scaleZDrag.color = new Color32(0, 0, 0, 1);
+            scaleZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleZ.offsetMin.x - 24, scaleZ.offsetMin.y), new Vector2(scaleZ.offsetMin.x, scaleZ.offsetMax.y));
+            scaleZDrag.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+            {
+                this._draggingZScale = true;
+                this.InitOriginalTransforms();
+            };
         }
 
         void Update()
@@ -397,6 +519,99 @@ namespace HSUS
             if (this._lastObjectCount != this._hashSelectObject.Count)
                 this.UpdateButtonsVisibility();
             this._lastObjectCount = this._hashSelectObject.Count;
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                if (this._draggingXPos || this._draggingYPos || this._draggingZPos ||
+                    this._draggingXRot || this._draggingYRot || this._draggingZRot ||
+                    this._draggingXScale || this._draggingYScale || this._draggingZScale)
+                {
+                    List<GuideCommand.EqualsInfo> moveChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+                    List<GuideCommand.EqualsInfo> rotateChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+                    List<GuideCommand.EqualsInfo> scaleChangeAmountInfo = new List<GuideCommand.EqualsInfo>();
+
+                    foreach (GuideObject guideObject in this._hashSelectObject)
+                    {
+                        TransformData data = this._originalTransforms[guideObject];
+                        if (guideObject.enablePos)
+                        {
+                            moveChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                            {
+                                dicKey = guideObject.dicKey,
+                                oldValue = data.position,
+                                newValue = guideObject.changeAmount.pos
+                            });
+                        }
+                        if (guideObject.enableRot)
+                        {
+                            rotateChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                            {
+                                dicKey = guideObject.dicKey,
+                                oldValue = data.rotation,
+                                newValue = guideObject.changeAmount.rot
+                            });
+                        }
+                        if (guideObject.enableScale)
+                        {
+                            scaleChangeAmountInfo.Add(new GuideCommand.EqualsInfo()
+                            {
+                                dicKey = guideObject.dicKey,
+                                oldValue = data.scale,
+                                newValue = guideObject.changeAmount.scale
+                            });
+                        }
+                    }
+                    UndoRedoManager.Instance.Push(new TransformEqualsCommand(moveChangeAmountInfo.ToArray(), rotateChangeAmountInfo.ToArray(), scaleChangeAmountInfo.ToArray()));
+                }
+                this._draggingXPos = false;
+                this._draggingYPos = false;
+                this._draggingZPos = false;
+                this._draggingXRot = false;
+                this._draggingYRot = false;
+                this._draggingZRot = false;
+                this._draggingXScale = false;
+                this._draggingYScale = false;
+                this._draggingZScale = false;
+            }
+
+            if (this._draggingXPos || this._draggingYPos || this._draggingZPos ||
+                this._draggingXRot || this._draggingYRot || this._draggingZRot ||
+                this._draggingXScale || this._draggingYScale || this._draggingZScale)
+            {
+                float delta = Input.GetAxisRaw("Mouse X") * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 6f : 1f) / 10f;
+
+                foreach (GuideObject guideObject in this._hashSelectObject)
+                {
+                    if (guideObject.enablePos)
+                    {
+                        if (this._draggingXPos)
+                            guideObject.changeAmount.pos += new Vector3(delta, 0f, 0f);
+                        else if (this._draggingYPos)
+                            guideObject.changeAmount.pos += new Vector3(0f, delta, 0f);
+                        else if (this._draggingZPos)
+                            guideObject.changeAmount.pos += new Vector3(0f, 0f, delta);
+                    }
+                    if (guideObject.enableRot)
+                    {
+
+                        if (this._draggingXRot)
+                            guideObject.changeAmount.rot = (Quaternion.Euler(guideObject.changeAmount.rot) * Quaternion.AngleAxis(delta * 20f, Vector3.right)).eulerAngles;
+                        else if (this._draggingYRot)
+                            guideObject.changeAmount.rot = (Quaternion.Euler(guideObject.changeAmount.rot) * Quaternion.AngleAxis(delta * 20f, Vector3.up)).eulerAngles;
+                        else if (this._draggingZRot)
+                            guideObject.changeAmount.rot = (Quaternion.Euler(guideObject.changeAmount.rot) * Quaternion.AngleAxis(delta * 20f, Vector3.forward)).eulerAngles;
+                    }
+                    if (guideObject.enableScale)
+                    {
+                        if (this._draggingXScale)
+                            guideObject.changeAmount.scale += new Vector3(delta, 0f, 0f);
+                        else if (this._draggingYScale)
+                            guideObject.changeAmount.scale += new Vector3(0f, delta, 0f);
+                        else if (this._draggingZScale)
+                            guideObject.changeAmount.scale += new Vector3(0f, 0f, delta);
+                    }
+                }
+            }
         }
 
         private void UpdateButtonsVisibility()
@@ -471,6 +686,13 @@ namespace HSUS
                 }
             }
             UndoRedoManager.Instance.Push(new TransformEqualsCommand(moveChangeAmountInfo.ToArray(), rotateChangeAmountInfo.ToArray(), scaleChangeAmountInfo.ToArray()));
+        }
+
+        private void InitOriginalTransforms()
+        {
+            this._originalTransforms.Clear();
+            foreach (GuideObject guideObject in this._hashSelectObject)
+                this._originalTransforms.Add(guideObject, new TransformData() {position = guideObject.changeAmount.pos, rotation = guideObject.changeAmount.rot, scale = guideObject.changeAmount.scale});
         }
     }
 

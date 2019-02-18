@@ -66,6 +66,9 @@ namespace HSUS
                 _createListObject = SmCharaLoad_CreateListObject_Patches.CreateListObject(originalComponent);
                 HSUS._self._asyncMethods.Add(_createListObject);
             }
+
+            originalComponent.objLineBase.transform.Find("Label").GetComponent<Text>().raycastTarget = false;
+            originalComponent.objLineBase.transform.Find("Background/Checkmark").GetComponent<Image>().raycastTarget = false;
         }
         private static void Reset()
         {
