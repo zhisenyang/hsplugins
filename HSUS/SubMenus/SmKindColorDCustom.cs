@@ -182,6 +182,18 @@ namespace HSUS
                 lastToggle = objectData.toggle;
             }
         }
+
+        public static void ResetSearch()
+        {
+            InputField.OnChangeEvent searchEvent = searchBar.onValueChanged;
+            searchBar.onValueChanged = null;
+            searchBar.text = "";
+            searchBar.onValueChanged = searchEvent;
+            if (objects.ContainsKey(previousType) == false)
+                return;
+            foreach (ObjectData objectData in objects[previousType].objects)
+                objectData.obj.SetActive(true);
+        }
     }
 
     [HarmonyPatch(typeof(SmKindColorD), "SetCharaInfoSub")]
@@ -194,7 +206,7 @@ namespace HSUS
 
         public static bool Prefix(SmKindColorD __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo, CharFileInfoCustomFemale ___customInfoF)
         {
-            SmKindColorD_Data.searchBar.text = "";
+            SmKindColorD_Data.ResetSearch();
             //SmKindColorD_Data.SearchChanged("");
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             if (null == ___chaInfo || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)

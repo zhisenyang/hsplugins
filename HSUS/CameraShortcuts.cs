@@ -114,20 +114,25 @@ namespace HSUS
     }
 
 #if HONEYSELECT
+    [HarmonyPatch]
     public static class HSSNAShortcutKeyCtrlOverride_Update_Patches
     {
         private static MethodInfo _getKeyDownMethod;
         private static readonly object[] _params = {4};
-        public static void ManualPatch(HarmonyInstance harmony)
+        private static bool Prepare()
         {
-            if (HSUS._self._alternativeCenterToObject == false)
-                return;
             Type t = Type.GetType("HSStudioNEOAddon.ShortcutKey.HSSNAShortcutKeyCtrlOverride,HSStudioNEOAddon");
-            if (t != null)
+            if (HSUS._self._binary == HSUS.Binary.Neo && HSUS._self._alternativeCenterToObject && t != null)
             {
-                harmony.Patch(t.GetMethod("Update", BindingFlags.Public | BindingFlags.Instance), null, new HarmonyMethod(typeof(HSSNAShortcutKeyCtrlOverride_Update_Patches).GetMethod(nameof(Postfix))));
                 _getKeyDownMethod = t.GetMethod("GetKeyDown", BindingFlags.NonPublic | BindingFlags.Instance);
+                return true;
             }
+            return false;
+        }
+
+        private static MethodInfo TargetMethod()
+        {
+            return Type.GetType("HSStudioNEOAddon.ShortcutKey.HSSNAShortcutKeyCtrlOverride,HSStudioNEOAddon").GetMethod("Update");
         }
 
         public static void Postfix(object __instance, Studio.CameraControl ___cameraControl)

@@ -13,7 +13,7 @@ namespace HSStandard
 {
     public class HSStandard : IEnhancedPlugin
     {
-        public const string versionNum = "1.0.0b";
+        public const string versionNum = "1.0.1b";
 
         #region Private Types
         private class SwapDetails
@@ -168,8 +168,8 @@ namespace HSStandard
 
         public void OnUpdate()
         {
-            _ignoreSwap = Input.GetKey(KeyCode.LeftShift);
-            if (Input.GetKeyDown(KeyCode.LeftShift))
+            _ignoreSwap = Input.GetKey(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftAlt);
+            if (Input.GetKeyDown(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftAlt) || Input.GetKeyDown(KeyCode.LeftAlt) && Input.GetKey(KeyCode.LeftControl))
             {
                 foreach (KeyValuePair<string, AssetBundleManager.BundlePack> pair in AssetBundleManager.ManifestBundlePack)
                 {
@@ -418,7 +418,7 @@ namespace HSStandard
                         newMaterial = new Material(_hsStandardFade);
                         SwapPropertiesClassic(mat, newMaterial);
 
-                        newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                         SetMaterialKeywords(newMaterial);
@@ -427,7 +427,7 @@ namespace HSStandard
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparent);
 
-                        newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                         SwapPropertiesAnisotropic(mat, newMaterial);
@@ -441,7 +441,13 @@ namespace HSStandard
                         SwapPropertiesClassic(mat, newMaterial);
 
                         newMaterial.SetFloat("_Cutoff", 0f);
-                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1); //Maybe set that to zero if more problems arise
+
+                        newMaterial.SetTexture("_BumpMap", mat.GetTexture("_SpecGlossMap"));
+                        newMaterial.SetTextureOffset("_BumpMap", mat.GetTextureOffset("_SpecGlossMap"));
+                        newMaterial.SetTextureScale("_BumpMap", mat.GetTextureScale("_SpecGlossMap"));
+
+                        newMaterial.SetFloat("_NormalStrength", 0.20f);
 
                         SetMaterialKeywords(newMaterial);
                     }
@@ -449,7 +455,7 @@ namespace HSStandard
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparent);
 
-                        newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                         SwapPropertiesAnisotropic(mat, newMaterial);
@@ -477,7 +483,7 @@ namespace HSStandard
                                 break;
                             newMaterial = new Material(_hsStandardTwoSidedCutout);
                             SwapPropertiesClassic(mat, newMaterial);
-                            newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
+                            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0f, 0.95f));
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
                             SetMaterialKeywords(newMaterial);
                             break;
@@ -486,7 +492,7 @@ namespace HSStandard
                                 break;
                             newMaterial = new Material(_hsStandardTwoSidedFade);
                             SwapPropertiesClassic(mat, newMaterial);
-                            newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                             newMaterial.SetInt("_ZWrite", 1);
                             SetMaterialKeywords(newMaterial);
                             break;
@@ -510,30 +516,17 @@ namespace HSStandard
                 case "Shader Forge/PBRsp_alpha_culloff": //Fade or Cutout it seems
                     if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
-                        switch (mat.GetTag("RenderType", false))
-                        {
-                            case "Transparent":
-                                newMaterial = new Material(_hsStandardTwoSidedFade);
-                                SwapPropertiesClassic(mat, newMaterial);
-                                newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
-                                newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
-                                break;
-                            case "TransparentCutout":
-                                newMaterial = new Material(_hsStandardTwoSidedCutout);
-                                SwapPropertiesClassic(mat, newMaterial);
-                                newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
-                                newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-                                break;
-                        }
+                        newMaterial = new Material(_hsStandardTwoSidedFade);
+                        SwapPropertiesClassic(mat, newMaterial);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
                         SetMaterialKeywords(newMaterial);
                     }
                     else
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
-
-                        newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-
                         SwapPropertiesAnisotropic(mat, newMaterial);
                     }
                     break;
@@ -549,10 +542,8 @@ namespace HSStandard
                     else
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
-
-                        newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-
                         SwapPropertiesAnisotropic(mat, newMaterial);
                     }
                     break;
@@ -587,7 +578,7 @@ namespace HSStandard
                         case "TransparentCutout":
                             newMaterial = new Material(_hsStandardTwoLayersCutout);
                             SwapPropertiesTwoLayers(mat, newMaterial);
-                            newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
+                            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0f, 0.95f));
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
                             SetMaterialKeywords(newMaterial);
                             break;
@@ -609,7 +600,7 @@ namespace HSStandard
                             newMaterial = new Material(_hsStandardTwoLayersTwoSidedFade);
                             SwapPropertiesTwoLayers(mat, newMaterial);
 
-                            newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
                             SetMaterialKeywords(newMaterial);
                             break;
@@ -681,7 +672,7 @@ namespace HSStandard
                         case "Transparent":
                             newMaterial = new Material(_hsStandardAnisotropicTransparent);
 
-                            newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                            newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                             SwapPropertiesAnisotropic(mat, newMaterial);
@@ -725,7 +716,7 @@ namespace HSStandard
                         case "TransparentCutout":
                             newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
 
-                            newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
+                            newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                             SwapPropertiesAnisotropic(mat, newMaterial);
@@ -845,15 +836,6 @@ namespace HSStandard
             
             SwapCommonProperties(mat, newMaterial);
 
-            if (mat.shader.name.StartsWith("Shader Forge/PBRsp_texture_alpha"))
-            {
-                newMaterial.SetTexture("_BumpMap", mat.GetTexture("_SpecGlossMap"));
-                newMaterial.SetTextureOffset("_BumpMap", mat.GetTextureOffset("_SpecGlossMap"));
-                newMaterial.SetTextureScale("_BumpMap", mat.GetTextureScale("_SpecGlossMap"));
-
-                newMaterial.SetFloat("_NormalStrength", 0.20f);
-            }
-
 
             newMaterial.SetTexture("_BlendNormalMap", mat.GetTexture("_BlendNormalMap"));
             newMaterial.SetTextureOffset("_BlendNormalMap", mat.GetTextureOffset("_BlendNormalMap"));
@@ -884,7 +866,7 @@ namespace HSStandard
             newMaterial.SetTextureOffset("_Tangent", mat.GetTextureOffset("_BumpMap"));
             newMaterial.SetTextureScale("_Tangent", mat.GetTextureScale("_BumpMap"));
 
-            newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.5f);
+            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.5f, 0f, 0.95f));
 
             newMaterial.SetInt("_HairEffect", 1);
         }
@@ -895,16 +877,22 @@ namespace HSStandard
 
             SwapCommonProperties(mat, newMaterial);
 
+            newMaterial.SetColor("_Color_2", mat.GetColor("_Color_2"));
             newMaterial.SetColor("_Color_3", mat.GetColor("_Color_3"));
             newMaterial.SetColor("_Color_4", mat.GetColor("_Color_4"));
 
 
+            newMaterial.SetColor("_SpecColor_2", mat.GetColor("_SpecColor_2"));
             newMaterial.SetColor("_SpecColor_3", mat.GetColor("_SpecColor_3"));
             newMaterial.SetColor("_SpecColor_4", mat.GetColor("_SpecColor_4"));
 
             newMaterial.SetTexture("_DetailNormalMap", mat.GetTexture("_DetailNormalMap"));
             newMaterial.SetTextureOffset("_DetailNormalMap", mat.GetTextureOffset("_DetailNormalMap"));
             newMaterial.SetTextureScale("_DetailNormalMap", mat.GetTextureScale("_DetailNormalMap"));
+
+            newMaterial.SetTexture("_DetailNormalMap_2", mat.GetTexture("_DetailNormalMap_2"));
+            newMaterial.SetTextureOffset("_DetailNormalMap_2", mat.GetTextureOffset("_DetailNormalMap_2"));
+            newMaterial.SetTextureScale("_DetailNormalMap_2", mat.GetTextureScale("_DetailNormalMap_2"));
 
             newMaterial.SetTexture("_DetailNormalMap_3", mat.GetTexture("_DetailNormalMap_3"));
             newMaterial.SetTextureOffset("_DetailNormalMap_3", mat.GetTextureOffset("_DetailNormalMap_3"));
@@ -923,10 +911,11 @@ namespace HSStandard
             newMaterial.SetTextureScale("_Colormask", mat.GetTextureScale("_Colormask"));
 
             newMaterial.SetFloat("_DetailNormalMapScale", mat.GetFloat("_DetailNormalMapScale"));
+            newMaterial.SetFloat("_DetailNormalMapScale_2", mat.GetFloat("_DetailNormalMapScale_2"));
             newMaterial.SetFloat("_DetailNormalMapScale_3", mat.GetFloat("_DetailNormalMapScale_3"));
             newMaterial.SetFloat("_DetailNormalMapScale_4", mat.GetFloat("_DetailNormalMapScale_4"));
 
-            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0.01f, 1f));
+            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0.01f, 0.95f));
 
             newMaterial.SetTexture("_Emission", null);
             newMaterial.SetColor("_EmissionColor", Color.black);
@@ -971,7 +960,7 @@ namespace HSStandard
             newMaterial.SetFloat("_BlendNormalMapScale", mat.GetFloat("_BlendNormalMapScale"));
             newMaterial.SetFloat("_DetailNormalMapScale", mat.GetFloat("_DetailNormalMapScale"));
             newMaterial.SetFloat("_DetailMask2", mat.GetFloat("_DetailMask2"));
-            newMaterial.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
+            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0f, 0.95f));
 
             newMaterial.SetTexture("_Emission", null);
             newMaterial.SetColor("_EmissionColor", Color.black);
@@ -979,10 +968,10 @@ namespace HSStandard
 
         private static void SetMaterialKeywords(Material material)
         {
-            SetKeyword(material, "_NORMALMAP", CheckTexture(material, "_BumpMap") || CheckTexture(material, "_BumpMap2") || CheckTexture(material, "_BlendNormalMap") || CheckTexture(material, "_DetailNormalMap") || CheckTexture(material, "_DetailNormalMap_3") || CheckTexture(material, "_DetailNormalMap_4"));
+            SetKeyword(material, "_NORMALMAP", CheckTexture(material, "_BumpMap") || CheckTexture(material, "_BumpMap2") || CheckTexture(material, "_BlendNormalMap") || CheckTexture(material, "_DetailNormalMap") || CheckTexture(material, "_DetailNormalMap_2") || CheckTexture(material, "_DetailNormalMap_3") || CheckTexture(material, "_DetailNormalMap_4"));
             SetKeyword(material, "_SPECGLOSSMAP", CheckTexture(material, "_SpecGlossMap") || CheckTexture(material, "_SpecGlossMap2"));
             SetKeyword(material, "_PARALLAXMAP", CheckTexture(material, "_Transmission"));
-            SetKeyword(material, "_DETAIL_MULX2", CheckTexture(material, "_DetailNormalMap") || CheckTexture(material, "_DetailNormalMap_3") || CheckTexture(material, "_DetailNormalMap_4"));
+            SetKeyword(material, "_DETAIL_MULX2", CheckTexture(material, "_DetailNormalMap") || CheckTexture(material, "_DetailNormalMap_2") || CheckTexture(material, "_DetailNormalMap_3") || CheckTexture(material, "_DetailNormalMap_4"));
 
             bool shouldEmissionBeEnabled = ShouldEmissionBeEnabled(material.HasProperty("_EmissionColor") ? material.GetColor("_EmissionColor") : Color.black);
             SetKeyword(material, "_EMISSION", shouldEmissionBeEnabled);
@@ -991,6 +980,7 @@ namespace HSStandard
             SetKeyword(material, "OCCLUSION_ON", material.HasProperty("_UseOCCLUSION") && material.GetFloat("_UseOCCLUSION") > 0.5);
             SetKeyword(material, "SPECULAR_ON", material.HasProperty("_UseSpecular") && material.GetFloat("_UseSpecular") > 0.5);
             SetKeyword(material, "NORMALMAP", material.HasProperty("_UseNormal") && material.GetFloat("_UseNormal") > 0.5);
+            SetKeyword(material, "FUZZ_ON", material.HasProperty("_UseNormal") && material.GetFloat("_UseNormal") > 0.5);
             SetKeyword(material, "DETAILNORMAL_ON", material.HasProperty("_UseDetail") && material.GetFloat("_UseDetail") > 0.5);
 
 
@@ -1055,6 +1045,8 @@ namespace HSStandard
                     break;
                 case CharReference.TagObjKey.ObjUnderHair:
                     material.SetFloat("_Cutoff", 0f);
+                    material.SetInt("_ZWrite", 0); //Might remove in the future if more problem arise
+                    material.DisableKeyword("_NORMALMAP");
                     break;
                 case CharReference.TagObjKey.ObjEyebrow: 
                     material.SetInt("_ZWrite", 0); //This might be replaced by disabling ZWrite on PBRsp_texture_alpha altoghether, but this might break other things, I don't know, we'll see I guess.

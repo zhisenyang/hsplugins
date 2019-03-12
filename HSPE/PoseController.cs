@@ -16,27 +16,40 @@ namespace HSPE
         public event Action onUpdate;
         public event Action onLateUpdate;
         public event Action onDestroy;
-        public event Action onDisable; 
+        public event Action onDisable;
+        #endregion
+
+        #region Public Types
+        public enum DragType
+        {
+            None,
+            Position,
+            Rotation,
+            Both
+        }
         #endregion
 
         #region Protected Variables
         protected BonesEditor _bonesEditor;
         internal DynamicBonesEditor _dynamicBonesEditor;
         internal BlendShapesEditor _blendShapesEditor;
-        internal bool _isLoneCollider = false;
+        internal CollidersEditor _collidersEditor;
         protected readonly List<AdvancedModeModule> _modules = new List<AdvancedModeModule>();
         protected AdvancedModeModule _currentModule;
         protected GenericOCITarget _target;
+        protected readonly Dictionary<int, Vector3> _oldRotValues = new Dictionary<int, Vector3>();
+        protected readonly Dictionary<int, Vector3> _oldPosValues = new Dictionary<int, Vector3>();
+        protected List<GuideCommand.EqualsInfo> _additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
+        protected bool _lockDrag = false;
+        internal DragType _currentDragType;
         #endregion
 
         #region Private Variables
         internal static bool _drawAdvancedMode = false;
-        internal static readonly HashSet<DynamicBoneCollider> _loneColliders = new HashSet<DynamicBoneCollider>();
         internal readonly HashSet<GameObject> _childObjects = new HashSet<GameObject>();
         #endregion
 
         #region Public Accessors
-        public bool colliderEditEnabled { get { return this._bonesEditor.colliderEditEnabled; } }
         public virtual bool isDraggingDynamicBone { get { return this._dynamicBonesEditor.isDraggingDynamicBone; } }
         public GenericOCITarget target { get { return this._target; } }
         #endregion
@@ -54,25 +67,12 @@ namespace HSPE
             }
 
             this.FillChildObjects();
-            DynamicBoneCollider collider;
-            if (this.transform.childCount == 1 && (collider = this.transform.GetChild(0).GetComponent<DynamicBoneCollider>()) != null)
-            {
-                this._isLoneCollider = true;
-                _loneColliders.Add(collider);
-                foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
-                {
-                    if (bone.m_Colliders.Contains(collider) == false)
-                        bone.m_Colliders.Add(collider);
-                }
-                foreach (DynamicBone_Ver02 bone in Resources.FindObjectsOfTypeAll<DynamicBone_Ver02>())
-                {
-                    if (bone.Colliders.Contains(collider) == false)
-                        bone.Colliders.Add(collider);
-                }
-            }
 
             this._bonesEditor = new BonesEditor(this, this._target);
             this._modules.Add(this._bonesEditor);
+
+            this._collidersEditor = new CollidersEditor(this, this._target);
+            this._modules.Add(this._collidersEditor);
 
             this._dynamicBonesEditor = new DynamicBonesEditor(this, this._target);
             this._modules.Add(this._dynamicBonesEditor);
@@ -80,7 +80,10 @@ namespace HSPE
             this._blendShapesEditor = new BlendShapesEditor(this, this._target);
             this._modules.Add(this._blendShapesEditor);
 
-            this._currentModule = this._bonesEditor;
+            if (this._collidersEditor._isLoneCollider)
+                this._currentModule = this._collidersEditor;
+            else
+                this._currentModule = this._bonesEditor;
             this._currentModule.isEnabled = true;
 
             onParentage += this.OnParentage;
@@ -103,8 +106,11 @@ namespace HSPE
 
         void OnGUI()
         {
-            if (this._bonesEditor._colliderTarget && this._bonesEditor._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this)
-                this._bonesEditor.OnGUI();
+            if (_drawAdvancedMode && MainWindow._self._poseTarget == this)
+            {
+                if (this._blendShapesEditor._isEnabled)
+                    this._blendShapesEditor.OnGUI();
+            }
         }
 
         void OnDisable()
@@ -116,21 +122,6 @@ namespace HSPE
         {
             onParentage -= this.OnParentage;
             this.onDestroy();
-            if (this._isLoneCollider)
-            {
-                DynamicBoneCollider collider = this.transform.GetChild(0).GetComponent<DynamicBoneCollider>();
-                _loneColliders.Remove(collider);
-                foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
-                {
-                    if (bone.m_Colliders.Contains(collider))
-                        bone.m_Colliders.Remove(collider);
-                }
-                foreach (DynamicBone_Ver02 bone in Resources.FindObjectsOfTypeAll<DynamicBone_Ver02>())
-                {
-                    if (bone.Colliders.Contains(collider))
-                        bone.Colliders.Remove(collider);
-                }
-            }
         }
         #endregion
 
@@ -140,6 +131,7 @@ namespace HSPE
             if (other == null)
                 return;
             this._bonesEditor.LoadFrom(other._bonesEditor);
+            this._collidersEditor.LoadFrom(other._collidersEditor);
             this._dynamicBonesEditor.LoadFrom(other._dynamicBonesEditor);
             this._blendShapesEditor.LoadFrom(other._blendShapesEditor);
             foreach (GameObject ignoredObject in other._childObjects)
@@ -178,8 +170,11 @@ namespace HSPE
                 return;
             }
             GUILayout.BeginHorizontal();
+            Color c = GUI.color;
             foreach (AdvancedModeModule module in this._modules)
             {
+                if (module == this._currentModule)
+                    GUI.color = Color.cyan;
                 if (module.shouldDisplay && GUILayout.Button(module.displayName))
                 {
                     this._currentModule = module;
@@ -190,9 +185,9 @@ namespace HSPE
                             module2.isEnabled = false;
                     }
                 }
+                GUI.color = c;
             }
 
-            Color c = GUI.color;
             GUI.color = Color.magenta;
             if (GUILayout.Button("Disable", GUILayout.ExpandWidth(false)))
                 this.enabled = false;
@@ -217,6 +212,7 @@ namespace HSPE
             if (self != null)
             {
                 BonesEditor.SelectionChanged(self._bonesEditor);
+                CollidersEditor.SelectionChanged(self._collidersEditor);
                 DynamicBonesEditor.SelectionChanged(self._dynamicBonesEditor);
                 CharaPoseController self2 = self as CharaPoseController;
                 BoobsEditor.SelectionChanged(self2 != null ? self2._boobsEditor : null);
@@ -224,6 +220,7 @@ namespace HSPE
             else
             {
                 BonesEditor.SelectionChanged(null);
+                CollidersEditor.SelectionChanged(null);
                 DynamicBonesEditor.SelectionChanged(null);
                 BoobsEditor.SelectionChanged(null);
             }
@@ -236,9 +233,86 @@ namespace HSPE
             onParentage += oldDelegate;
         }
 
+        public void StartDrag(DragType dragType)
+        {
+            if (this._lockDrag)
+                return;
+            this._currentDragType = dragType;
+        }
+
+        public void StopDrag()
+        {
+            if (this._lockDrag)
+                return;
+            GuideCommand.EqualsInfo[] moveCommands = new GuideCommand.EqualsInfo[this._oldPosValues.Count];
+            int i = 0;
+            if (this._currentDragType == DragType.Position || this._currentDragType == DragType.Both)
+            {
+                foreach (KeyValuePair<int, Vector3> kvp in this._oldPosValues)
+                {
+                    moveCommands[i] = new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = kvp.Key,
+                        oldValue = kvp.Value,
+                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].pos
+                    };
+                    ++i;
+                }
+            }
+            GuideCommand.EqualsInfo[] rotateCommands = new GuideCommand.EqualsInfo[this._oldRotValues.Count + this._additionalRotationEqualsCommands.Count];
+            i = 0;
+            if (this._currentDragType == DragType.Rotation || this._currentDragType == DragType.Both)
+            {
+                foreach (KeyValuePair<int, Vector3> kvp in this._oldRotValues)
+                {
+                    rotateCommands[i] = new GuideCommand.EqualsInfo()
+                    {
+                        dicKey = kvp.Key,
+                        oldValue = kvp.Value,
+                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].rot
+                    };
+                    ++i;
+                }
+            }
+            foreach (GuideCommand.EqualsInfo info in this._additionalRotationEqualsCommands)
+            {
+                rotateCommands[i] = info;
+                ++i;
+            }
+            UndoRedoManager.Instance.Push(new Commands.MoveRotateEqualsCommand(moveCommands, rotateCommands));
+            this._currentDragType = DragType.None;
+            this._oldPosValues.Clear();
+            this._oldRotValues.Clear();
+            this._additionalRotationEqualsCommands.Clear();
+        }
+
+        public void SeFKBoneTargetRotation(GuideObject bone, Quaternion targetRotation)
+        {
+            OCIChar.BoneInfo info;
+            if (this._target.fkObjects.TryGetValue(bone.transformTarget.gameObject, out info) == false)
+                return;
+            if (this._target.fkEnabled && info.active)
+            {
+                if (this._currentDragType != DragType.None)
+                {
+                    if (this._oldRotValues.ContainsKey(info.guideObject.dicKey) == false)
+                        this._oldRotValues.Add(info.guideObject.dicKey, info.guideObject.changeAmount.rot);
+                    info.guideObject.changeAmount.rot = targetRotation.eulerAngles;
+                }
+            }
+        }
+
+        public Quaternion GetFKBoneTargetRotation(GuideObject bone)
+        {
+            OCIChar.BoneInfo info;
+            if (this._target.fkObjects.TryGetValue(bone.transformTarget.gameObject, out info) == false || !this._target.fkEnabled || info.active == false)
+                return Quaternion.identity;
+            return info.guideObject.transformTarget.localRotation;
+        }
+
         public void ScheduleLoad(XmlNode node, Action<bool> onLoadEnd)
         {
-            this.StartCoroutine(this.LoadDefaultVersion_Routine(node, onLoadEnd));
+            MainWindow._self.StartCoroutine(this.LoadDefaultVersion_Routine(node, onLoadEnd));
         }
 
         public virtual void SaveXml(XmlTextWriter xmlWriter)
@@ -314,7 +388,8 @@ namespace HSPE
             yield return null;
             yield return null;
             bool changed = this.LoadDefaultVersion(xmlNode);
-            onLoadEnd(changed);
+            if (onLoadEnd != null)
+                onLoadEnd(changed);
         }
         #endregion
 

@@ -56,9 +56,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AMModules\BlendShapesEditor.cs" />
+    <Compile Include="AMModules\CollidersEditor.cs" />
     <Compile Include="AMModules\BonesEditor.cs" />
     <Compile Include="AMModules\BoobsEditor.cs" />
     <Compile Include="AMModules\GenericOCITarget.cs" />
+    <Compile Include="CameraEventsDispatcher.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="AMModules\DynamicBonesEditor.cs" />
     <Compile Include="EditableValue.cs" />

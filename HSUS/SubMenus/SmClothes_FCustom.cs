@@ -185,6 +185,20 @@ namespace HSUS
                 lastToggle = objectData.toggle;
             }
         }
+
+        public static void ResetSearch()
+        {
+            InputField.OnChangeEvent searchEvent = searchBar.onValueChanged;
+            searchBar.onValueChanged = null;
+            searchBar.text = "";
+            searchBar.onValueChanged = searchEvent;
+
+            TypeData data;
+            if (objects.TryGetValue((int)_originalComponent.GetPrivate("nowSubMenuTypeId"), out data) == false)
+                return;
+            foreach (ObjectData objectData in data.objects)
+                objectData.obj.SetActive(true);
+        }
     }
 
     [HarmonyPatch(typeof(SmClothes_F))]
@@ -198,8 +212,7 @@ namespace HSUS
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)
         {
-            SmClothes_F_Data.searchBar.text = "";
-            //SmClothes_F_Data.SearchChanged("");
+            SmClothes_F_Data.ResetSearch();
             int nowSubMenuTypeId = (int)__instance.GetPrivate("nowSubMenuTypeId");
             if (null == ___chaInfo || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
                 return false;

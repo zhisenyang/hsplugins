@@ -54,15 +54,19 @@ namespace HSUS
     }
 
 #if HONEYSELECT
+    [HarmonyPatch]
     public class TonemappingColorGrading_Ctor_Patches
     {
-        public static void ManualPatch(HarmonyInstance harmony)
+        private static bool Prepare()
         {
-            Type t = Type.GetType("UnityStandardAssets.CinematicEffects.TonemappingColorGrading,4KManager");
-            if (t == null)
-                return;
-            harmony.Patch(t.GetConstructor(new Type[0]), null, new HarmonyMethod(typeof(TonemappingColorGrading_Ctor_Patches), "Postfix"));
+            return Type.GetType("UnityStandardAssets.CinematicEffects.TonemappingColorGrading,4KManager") != null;
         }
+
+        private static ConstructorInfo TargetMethod()
+        {
+            return Type.GetType("UnityStandardAssets.CinematicEffects.TonemappingColorGrading,4KManager").GetConstructor(new Type[0]);
+        }
+
         public static void Postfix(object __instance)
         {
             object m_ColorGrading = __instance.GetPrivate("m_ColorGrading");

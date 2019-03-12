@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Xml;
 using Harmony;
 using Studio;
 using ToolBox;
 using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace HSPE.AMModules
 {
@@ -46,7 +47,9 @@ namespace HSPE.AMModules
         #endregion
 
         #region Statics
+        private const string _presetsPath = MainWindow._pluginDir + "BlendShapesPresets\\";
         private static Dictionary<FaceBlendShape, BlendShapesEditor> _instanceByFaceBlendShape = new Dictionary<FaceBlendShape, BlendShapesEditor>();
+        private static string[] _presets = new string[0];
         #endregion
 
         #region Private Types
@@ -112,6 +115,10 @@ namespace HSPE.AMModules
         private string _search = "";
         private readonly GenericOCITarget _target;
         private Dictionary<XmlNode, SkinnedMeshRenderer> _secondPassLoadingNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
+        private bool _showSaveLoadWindow = false;
+        private Vector2 _presetsScroll;
+        private string _presetName = "";
+        private bool _removePresetMode;
         #endregion
 
         #region Public Fields
@@ -154,6 +161,21 @@ namespace HSPE.AMModules
                 this._headlessDirtySkinnedMeshRenderers.Clear();
             if (this._target.type == GenericOCITarget.Type.Item)
                 this.ApplyBlendShapeWeights();
+        }
+
+        public void OnGUI()
+        {
+            if (this._showSaveLoadWindow == false)
+                return;
+            GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow._self.uiScale * MainWindow._self.resolutionRatio), new Vector2(Screen.width, Screen.height));
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
+            Rect windowRect = Rect.MinMaxRect(MainWindow._self._advancedModeRect.xMin - 180, MainWindow._self._advancedModeRect.yMin, MainWindow._self._advancedModeRect.xMin, MainWindow._self._advancedModeRect.yMax);
+            for (int i = 0; i < 3; ++i)
+                GUI.Box(windowRect, "", MainWindow._customBoxStyle);
+            GUI.backgroundColor = c;
+            GUILayout.Window(3, windowRect, this.SaveLoadWindow, "Presets");
+            GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
 
         private void OnDisable()
@@ -252,36 +274,38 @@ namespace HSPE.AMModules
             }
             GUILayout.EndScrollView();
 
-            GUI.color = Color.red;
-            if (this._skinnedMeshTarget != null && GUILayout.Button("Reset"))
+            GUI.color = Color.green;
+            if (GUILayout.Button("Save/Load preset"))
             {
-                this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
-                if (this._linkEyesAndEyelashes)
-                {
-                    SkinnedMeshRendererWrapper wrapper;
-                    if (this._links.TryGetValue(this._skinnedMeshTarget, out wrapper))
-                        foreach (SkinnedMeshRendererWrapper link in wrapper.links)
-                            this.SetMeshRendererNotDirty(link.renderer);
-                }
+                this._showSaveLoadWindow = true;
+                this.RefreshPresets();
             }
             GUI.color = c;
+
             if (this._target.type == GenericOCITarget.Type.Character)
                 this._linkEyesAndEyelashes = GUILayout.Toggle(this._linkEyesAndEyelashes, "Link eyes components");
             if (GUILayout.Button("Force refresh list"))
                 this.RefreshSkinnedMeshRendererList();
+            GUI.color = Color.red;
+            if (GUILayout.Button("Reset all"))
+            {
+                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> pair in new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData>(this._dirtySkinnedMeshRenderers))
+                    this.SetMeshRendererNotDirty(pair.Key);
+            }
+            GUI.color = c;
             GUILayout.EndVertical();
 
-            GUILayout.BeginVertical();
 
             if (this._skinnedMeshTarget != null)
             {
+                GUILayout.BeginVertical(GUI.skin.box);
                 GUILayout.BeginHorizontal();
                 this._search = GUILayout.TextField(this._search, GUILayout.ExpandWidth(true));
                 if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
                     this._search = "";
                 GUILayout.EndHorizontal();
 
-                this._blendShapesScroll = GUILayout.BeginScrollView(this._blendShapesScroll, false, true, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.ExpandWidth(false));
+                this._blendShapesScroll = GUILayout.BeginScrollView(this._blendShapesScroll, false, true, GUILayout.ExpandWidth(false));
 
                 SkinnedMeshRendererData data = null;
                 this._dirtySkinnedMeshRenderers.TryGetValue(this._skinnedMeshTarget, out data);
@@ -419,15 +443,35 @@ namespace HSPE.AMModules
                 }
 
                 GUILayout.EndScrollView();
+
+                GUILayout.BeginHorizontal();
+                GUI.color = Color.red;
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                {
+                    this.SetMeshRendererNotDirty(this._skinnedMeshTarget);
+                    if (this._linkEyesAndEyelashes)
+                    {
+                        SkinnedMeshRendererWrapper wrapper;
+                        if (this._links.TryGetValue(this._skinnedMeshTarget, out wrapper))
+                            foreach (SkinnedMeshRendererWrapper link in wrapper.links)
+                                this.SetMeshRendererNotDirty(link.renderer);
+                    }
+                }
+                GUI.color = c;
+                GUILayout.EndHorizontal();
+
+                GUILayout.EndVertical();
             }
             else
             {
+                GUILayout.BeginVertical();
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
+                GUILayout.EndVertical();
             }
 
-            GUILayout.EndVertical();
 
             GUILayout.EndHorizontal();
         }
@@ -551,6 +595,103 @@ namespace HSPE.AMModules
             data.path = renderer.transform.GetPathFrom(this._parent.transform);
             this._dirtySkinnedMeshRenderers.Add(renderer, data);
             return loaded;
+        }
+
+        private void RefreshPresets()
+        {
+            if (Directory.Exists(_presetsPath))
+            {
+                _presets = Directory.GetFiles(_presetsPath, "*.xml");
+                for (int i = 0; i < _presets.Length; i++)
+                    _presets[i] = Path.GetFileNameWithoutExtension(_presets[i]);
+            }
+        }
+
+        private void SaveLoadWindow(int id)
+        {
+            GUILayout.BeginVertical();
+
+            this._presetsScroll = GUILayout.BeginScrollView(this._presetsScroll, false, true, GUILayout.ExpandHeight(true));
+            foreach (string preset in _presets)
+            {
+                if (GUILayout.Button(preset))
+                {
+                    if (this._removePresetMode)
+                        this.DeletePreset(preset + ".xml");
+                    else
+                        this.LoadPreset(preset + ".xml");
+                }
+            }
+            GUILayout.EndScrollView();
+
+            Color c = GUI.color;
+            GUILayout.BeginVertical();
+            if (_presets.Any(p => p.Equals(this._presetName, StringComparison.OrdinalIgnoreCase)))
+                GUI.color = Color.red;
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Name", GUILayout.ExpandWidth(false));
+            this._presetName = GUILayout.TextField(this._presetName);
+            GUILayout.EndHorizontal();
+            GUI.color = c;
+
+            GUI.enabled = this._presetName.Length != 0;
+            if (GUILayout.Button("Save"))
+            {
+                this._presetName = this._presetName.Trim();
+                this._presetName = string.Join("_", this._presetName.Split(Path.GetInvalidFileNameChars()));
+                if (this._presetName.Length != 0)
+                {
+                    this.SavePreset(this._presetName + ".xml");
+                    this.RefreshPresets();
+                    this._removePresetMode = false;
+                }
+
+            }
+            GUI.enabled = true;
+            if (this._removePresetMode)
+                GUI.color = Color.red;
+            GUI.enabled = _presets.Length != 0;
+            if (GUILayout.Button(this._removePresetMode ? "Click on preset" : "Delete"))
+                this._removePresetMode = !this._removePresetMode;
+            GUI.enabled = true;
+            GUI.color = c;
+
+            if (GUILayout.Button("Close"))
+                this._showSaveLoadWindow = false;
+
+            GUILayout.EndVertical();
+
+            GUILayout.EndVertical();
+        }
+
+
+        private void SavePreset(string name)
+        {
+            if (Directory.Exists(_presetsPath) == false)
+                Directory.CreateDirectory(_presetsPath);
+            using (XmlTextWriter writer = new XmlTextWriter(Path.Combine(_presetsPath, name), Encoding.UTF8))
+            {
+                writer.WriteStartElement("root");
+                this.SaveXml(writer);
+                writer.WriteEndElement();
+            }
+        }
+
+        private void LoadPreset(string name)
+        {
+            string path = Path.Combine(_presetsPath, name);
+            if (File.Exists(path) == false)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.Load(path);
+            this.LoadXml(doc.FirstChild);
+        }
+
+        private void DeletePreset(string name)
+        {
+            File.Delete(Path.GetFullPath(Path.Combine(_presetsPath, name)));
+            this._removePresetMode = false;
+            this.RefreshPresets();
         }
 
         private void Init()

@@ -12,7 +12,7 @@ namespace HSPE.AMModules
         public static readonly Color _redColor = Color.red;
         public static readonly Color _greenColor = Color.green;
         public static readonly Color _blueColor = Color.Lerp(Color.blue, Color.cyan, 0.5f);
-        protected static float _inc = 1f;
+        protected float _inc = 1f;
         #endregion
 
         #region Protected Variables
@@ -24,7 +24,7 @@ namespace HSPE.AMModules
         internal static float _repeatTimer = 0f;
         internal static bool _repeatCalled = false;
         private const float _repeatBeforeDuration = 0.5f;
-        private int _incIndex = 0;
+        protected int _incIndex = 0;
         #endregion
 
         #region Abstract Fields
@@ -211,6 +211,7 @@ namespace HSPE.AMModules
     public enum AdvancedModeModuleType
     {
         BonesEditor = 0,
+        CollidersEditor,
         BoobsEditor,
         DynamicBonesEditor,
         BlendShapes

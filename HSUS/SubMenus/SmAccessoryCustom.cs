@@ -180,6 +180,17 @@ namespace HSUS
                 lastToggle = objectData.toggle;
             }
         }
+        public static void ResetSearch()
+        {
+            InputField.OnChangeEvent searchEvent = searchBar.onValueChanged;
+            searchBar.onValueChanged = null;
+            searchBar.text = "";
+            searchBar.onValueChanged = searchEvent;
+            if (types.ContainsKey(lastType) == false)
+                return;
+            foreach (ObjectData objectData in types[lastType].objects)
+                objectData.obj.SetActive(true);
+        }
     }
 
     [HarmonyPatch(typeof(SmAccessory))]
@@ -378,7 +389,7 @@ namespace HSUS
         {
             if (SmAccessory_Data.searchBar != null)
             {
-                SmAccessory_Data.searchBar.text = "";
+                SmAccessory_Data.ResetSearch();
                 //SmAccessory_Data.SearchChanged("");
             }
         }
@@ -398,7 +409,7 @@ namespace HSUS
         {
             if (SmAccessory_Data.searchBar != null)
             {
-                SmAccessory_Data.searchBar.text = "";
+                SmAccessory_Data.ResetSearch();
                 //SmAccessory_Data.SearchChanged("");
             }
         }

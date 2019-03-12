@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Harmony;
+using ILSetUtility.TimeUtility;
 using ToolBox;
 using UnityEngine;
 using UnityEngine.Events;
@@ -36,6 +37,36 @@ namespace HSUS
                 return this._hashCode;
             }
         }
+
+        private class FunctionTextWriter : TextWriter
+        {
+            public override Encoding Encoding { get { return Encoding.UTF8; } }
+
+            private readonly TextWriter _old;
+            private readonly StringBuilder _buffer = new StringBuilder();
+
+            public FunctionTextWriter(TextWriter old)
+            {
+                this._old = old;
+            }
+
+            public override void Write(char value)
+            {
+                if (value == '\n')
+                {
+                    _lastlogs.AddLast(new KeyValuePair<LogType, string>(LogType.Log, DateTime.Now.ToString("[HH:mm:ss] ") + this._buffer.ToString()));
+                    if (_lastlogs.Count == 1001)
+                        _lastlogs.RemoveFirst();
+                    _scroll3.y += 999999;
+                    this._buffer.Length = 0;
+                    this._buffer.Capacity = 0;
+                }
+                else
+                    this._buffer.Append(value);
+                this._old.Write(value);
+            }
+        }
+
 
         private Transform _target;
         private readonly HashSet<GameObject> _openedGameObjects = new HashSet<GameObject>();
@@ -68,8 +99,10 @@ namespace HSUS
 #if HONEYSELECT
             _has630Patch = File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "HoneySelect_" + _bits + "_Data\\Managed\\Vectrosity.dll"));
 #endif
+            Console.SetOut(new FunctionTextWriter(Console.Out));
         }
 
+ 
         void Awake()
         {
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
@@ -87,7 +120,7 @@ namespace HSUS
 
         private static void HandleLog(string condition, string stackTrace, LogType type)
         {
-            _lastlogs.AddLast(new KeyValuePair<LogType, string>(type, type + " " + condition));
+            _lastlogs.AddLast(new KeyValuePair<LogType, string>(type, DateTime.Now.ToString("[HH:mm:ss] ") + condition));
             if (_lastlogs.Count == 1001)
                 _lastlogs.RemoveFirst();
             _scroll3.y += 999999;
@@ -555,6 +588,39 @@ namespace HSUS
                 GUILayout.EndVertical();
                 GUILayout.EndHorizontal();
             }
+        }
+    }
+
+    [HarmonyPatch(typeof(TimeUtility), "Update")]
+    internal static class TimeUtility_Update_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS._self._debugEnabled;
+        }
+
+        private static bool Prefix(TimeUtility __instance, ref float ___deltaTime, ref float ___memTime, ref float ___time_cnt, ref float ___fps, ref uint ___frame_cnt)
+        {
+            if (Input.GetKey((KeyCode)303) && Input.GetKeyDown((KeyCode)127))
+            {
+                global::Config.DebugSystem debugStatus = Manager.Config.DebugStatus;
+                debugStatus.FPS = !debugStatus.FPS;
+                global::Singleton<Manager.Config>.Instance.Save();
+            }
+            ___deltaTime = Time.deltaTime * __instance.time_scale;
+            if (__instance.mode_mem)
+            {
+                ___memTime += Time.deltaTime;
+            }
+            ___time_cnt += Time.deltaTime;
+            ___frame_cnt += 1u;
+            if (0.25f <= ___time_cnt)
+            {
+                ___fps = ___frame_cnt / ___time_cnt;
+                ___frame_cnt = 0u;
+                ___time_cnt = 0f;
+            }
+            return false;
         }
     }
 }

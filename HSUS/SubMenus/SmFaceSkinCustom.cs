@@ -223,12 +223,6 @@ namespace HSUS
 
         public static bool Prefix(SmFaceSkin __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo)
         {
-            SmFaceSkin_Data.searchBarHead.text = "";
-            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listHead);
-            SmFaceSkin_Data.searchBarSkin.text = "";
-            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listFace);
-            SmFaceSkin_Data.searchBarDetail.text = "";
-            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listDetail);
             if (null == ___chaInfo || null == __instance.objListTopHead || null == __instance.objListTopSkin || null == __instance.objListTopDetail || null == __instance.objLineBase || null == __instance.rtfPanelHead || null == __instance.rtfPanelSkin || null == __instance.rtfPanelDetail)
                 return false;
 
@@ -278,6 +272,13 @@ namespace HSUS
                     __instance.inputDetail.text = (string)__instance.CallPrivate("ChangeTextFromFloat", ___customInfo.faceDetailWeight);
             }
             __instance.SetPrivate("nowChanging", false);
+            SmFaceSkin_Data.searchBarHead.text = "";
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listHead);
+            SmFaceSkin_Data.searchBarSkin.text = "";
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listFace);
+            SmFaceSkin_Data.searchBarDetail.text = "";
+            //SmFaceSkin_Data.SearchChanged("", SmFaceSkin_Data.listDetail);
+
             return false;
         }
 

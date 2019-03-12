@@ -14,8 +14,8 @@ using Studio;
 using BepInEx;
 using ChaCustom;
 using UnityEngine.SceneManagement;
-#endif
 using StudioFileCheck;
+#endif
 using Harmony;
 using ToolBox;
 using UILib;
@@ -37,13 +37,13 @@ namespace HSUS
 #endif
     {
 #if HONEYSELECT
-        internal const string _version = "1.7.0b";
+        internal const string _version = "1.7.0";
 #elif KOIKATSU
         internal const string _version = "1.0.0";
 #endif
 
         #region Private Types
-        private enum Binary
+        internal enum Binary
         {
             Neo,
             Game,
@@ -70,6 +70,7 @@ namespace HSUS
         internal bool _optimizeCharaMaker = true;
         internal bool _removeIsNew = true;
         internal bool _asyncLoading = false;
+        internal Color _subFoldersColor = Color.cyan;
         internal float _gameUIScale = 1f;
         internal float _neoUIScale = 1f;
         internal bool _deleteConfirmation = true;
@@ -116,11 +117,21 @@ namespace HSUS
         internal bool _fogEnabled = false;
         internal bool _sunShaftsEnabled = false;
 #endif
+#if HONEYSELECT
+        internal Color _fkHairColor = Color.white;
+        internal Color _fkNeckColor = Color.white;
+        internal Color _fkChestColor = Color.white;
+        internal Color _fkBodyColor = Color.white;
+        internal Color _fkRightHandColor = Color.white;
+        internal Color _fkLeftHandColor = Color.white;
+        internal Color _fkSkirtColor = Color.white;
+        internal Color _fkItemsColor = Color.white;
+#endif
 
         internal static HSUS _self;
         internal GameObject _go;
         internal RoutinesComponent _routines;
-        private Binary _binary;
+        internal Binary _binary;
         internal Sprite _searchBarBackground;
         internal Sprite _buttonBackground;
         private float _lastCleanup;
@@ -129,6 +140,8 @@ namespace HSUS
         private int _lastScreenHeight;
         internal TranslationDelegate _translationMethod;
         internal readonly List<IEnumerator> _asyncMethods = new List<IEnumerator>();
+        internal string _currentCharaPathGame = "";
+        internal string _currentClothesPathGame = "";
         #endregion
 
         #region Public Accessors
@@ -208,6 +221,9 @@ namespace HSUS
                                     case "removeIsNew":
                                         if (childNode.Attributes["enabled"] != null)
                                             this._removeIsNew = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
+                                    case "subFoldersColor":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["value"].Value, out this._subFoldersColor);
                                         break;
                                 }
                             }
@@ -304,6 +320,38 @@ namespace HSUS
                             if (node.Attributes["interval"] != null)
                                 this._automaticMemoryCleanInterval = XmlConvert.ToInt32(node.Attributes["interval"].Value);
                             break;
+                        case "fkColors":
+                            foreach (XmlNode childNode in node.ChildNodes)
+                            {
+                                switch (childNode.Name)
+                                {
+                                    case "hair":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkHairColor);
+                                        break;
+                                    case "neck":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkNeckColor);
+                                        break;
+                                    case "chest":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkChestColor);
+                                        break;
+                                    case "body":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkBodyColor);
+                                        break;
+                                    case "rightHand":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkRightHandColor);
+                                        break;
+                                    case "leftHand":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkLeftHandColor);
+                                        break;
+                                    case "skirt":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkSkirtColor);
+                                        break;
+                                    case "items":
+                                        ColorUtility.TryParseHtmlString("#" + childNode.Attributes["color"].Value, out this._fkItemsColor);
+                                        break;
+                                }
+                            }
+                            break;
                         case "postProcessing":
                             foreach (XmlNode childNode in node.ChildNodes)
                             {
@@ -322,10 +370,10 @@ namespace HSUS
                                             this._bloomEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                                         break;
 #if HONEYSELECT
-                                case "ssr":
-                                    if (childNode.Attributes["enabled"] != null)
-                                        this._ssrEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    break;
+                                    case "ssr":
+                                        if (childNode.Attributes["enabled"] != null)
+                                            this._ssrEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                        break;
 #elif KOIKATSU
                                     case "selfShadow":
                                         if (childNode.Attributes["enabled"] != null)
@@ -367,23 +415,6 @@ namespace HSUS
                 {
                     UnityEngine.Debug.Log("HSUS: Exception occured when patching: " + e.ToString());
                 }
-            }
-
-            //Manual Patching for various reasons:
-            {
-#if HONEYSELECT
-                if (this._binary == Binary.Neo)
-                {
-                    HSSNAShortcutKeyCtrlOverride_Update_Patches.ManualPatch(harmony);
-                    ABMStudioNEOSaveLoadHandler_OnLoad_Patches.ManualPatch(harmony);
-                }
-                ItemFKCtrl_InitBone_Patches.ManualPatch(harmony);
-                TonemappingColorGrading_Ctor_Patches.ManualPatch(harmony);
-                UI_ColorInfo_ConvertValueFromText_Patches.ManualPatch(harmony);
-
-#elif KOIKATSU
-                CostumeInfo_Init_Patches.ManualPatch(harmony);
-#endif
             }
         }
 
@@ -428,6 +459,12 @@ namespace HSUS
                         {
                             xmlWriter.WriteStartElement("removeIsNew");
                             xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._removeIsNew));
+                            xmlWriter.WriteEndElement();
+                        }
+
+                        {
+                            xmlWriter.WriteStartElement("subFoldersColor");
+                            xmlWriter.WriteAttributeString("value", ColorUtility.ToHtmlStringRGB(this._subFoldersColor));
                             xmlWriter.WriteEndElement();
                         }
 #endif
@@ -569,6 +606,51 @@ namespace HSUS
                     }
 
                     {
+                        xmlWriter.WriteStartElement("fkColors");
+                        {
+                            xmlWriter.WriteStartElement("hair");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkHairColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("neck");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkNeckColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("chest");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkChestColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("body");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkBodyColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("rightHand");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkRightHandColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("leftHand");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkLeftHandColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("skirt");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkSkirtColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        {
+                            xmlWriter.WriteStartElement("items");
+                            xmlWriter.WriteAttributeString("color", ColorUtility.ToHtmlStringRGB(this._fkItemsColor));
+                            xmlWriter.WriteEndElement();
+                        }
+                        xmlWriter.WriteEndElement();
+                    }
+
+                    {
                         xmlWriter.WriteStartElement("postProcessing");
 
                         {
@@ -643,12 +725,12 @@ namespace HSUS
             this._go.AddComponent<ObjectTreeDebug>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
 
-//#if HONEYSELECT
-//            if (level == 3)
-//#elif KOIKATSU
-//            if (level == 1)
-//#endif
-                this.SetProcessAffinity();
+            //#if HONEYSELECT
+            //            if (level == 3)
+            //#elif KOIKATSU
+            //            if (level == 1)
+            //#endif
+            this.SetProcessAffinity();
             switch (this._binary)
             {
                 case Binary.Game:
@@ -657,6 +739,8 @@ namespace HSUS
                         this.InitFasterCharaMakerLoading();
                     if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                         this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+                    this._currentCharaPathGame = "";
+                    this._currentClothesPathGame = "";
 #elif KOIKATSU
                     if (level == 2)
                     {
@@ -738,8 +822,16 @@ namespace HSUS
             if (this._asyncMethods.Count != 0)
             {
                 IEnumerator method = this._asyncMethods[0];
-                if (method.MoveNext() == false)
+                try
+                {
+                    if (method.MoveNext() == false)
+                        this._asyncMethods.RemoveAt(0);
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(e);
                     this._asyncMethods.RemoveAt(0);
+                }
             }
         }
 
@@ -784,7 +876,7 @@ namespace HSUS
                 foreach (Mask mask in Resources.FindObjectsOfTypeAll<Mask>()) //Thank you Henk for this tip
                 {
                     mask.gameObject.AddComponent<RectMask2D>();
-                    GameObject.DestroyImmediate(mask);
+                    Object.DestroyImmediate(mask);
                 }
                 foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
                 {
@@ -1259,7 +1351,7 @@ namespace HSUS
             });
             this._routines.ExecuteDelayed(() =>
             {
-                const long affinityMask = long.MaxValue;
+                const long affinityMask = Int64.MaxValue;
                 Process proc = Process.GetCurrentProcess();
                 proc.ProcessorAffinity = (IntPtr)affinityMask;
 
@@ -1268,22 +1360,22 @@ namespace HSUS
             }, 300);
         }
 #endregion
+
     }
 
     [HarmonyPatch(typeof(SetRenderQueue), "Awake")]
     public class SetRenderQueue_Awake_Patches
     {
-        public static bool Prefix(SetRenderQueue __instance)
+        public static bool Prefix(SetRenderQueue __instance, int[] ___m_queues)
         {
             Renderer renderer = __instance.GetComponent<Renderer>();
-            int[] queues = (int[])__instance.GetPrivate("m_queues");
             if (renderer != null)
             {
                 Material[] materials = renderer.materials;
                 int num = 0;
-                while (num < materials.Length && num < queues.Length)
+                while (num < materials.Length && num < ___m_queues.Length)
                 {
-                    materials[num].renderQueue = queues[num];
+                    materials[num].renderQueue = ___m_queues[num];
                     num++;
                 }
             }
@@ -1296,13 +1388,61 @@ namespace HSUS
                         return;
                     Material[] materials = renderer.materials;
                     int num = 0;
-                    while (num < materials.Length && num < queues.Length)
+                    while (num < materials.Length && num < ___m_queues.Length)
                     {
-                        materials[num].renderQueue = queues[num];
+                        materials[num].renderQueue = ___m_queues[num];
                         num++;
                     }
                 }, 3);
             }
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(DragObject), "OnBeginDrag", typeof(PointerEventData))]
+    internal static class DragObject_OnBeginDrag_Patches
+    {
+        internal static Vector2 _cachedDragPosition;
+        internal static Vector2 _cachedMousePosition;
+
+        private static bool Prefix(DragObject __instance)
+        {
+            _cachedDragPosition = __instance.transform.position;
+            _cachedMousePosition = Input.mousePosition;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(DragObject), "OnDrag", typeof(PointerEventData))]
+    internal static class DragObject_OnDrag_Patches
+    {
+        private static bool Prefix(DragObject __instance)
+        {
+            __instance.transform.position = DragObject_OnBeginDrag_Patches._cachedDragPosition + ((Vector2)Input.mousePosition - DragObject_OnBeginDrag_Patches._cachedMousePosition);
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(UI_DragWindow), "OnBeginDrag", typeof(PointerEventData))]
+    internal static class UI_DragWindow_OnBeginDrag_Patches
+    {
+        internal static Vector2 _cachedDragPosition;
+        internal static Vector2 _cachedMousePosition;
+
+        private static bool Prefix(UI_DragWindow __instance)
+        {
+            _cachedDragPosition = __instance.rtMove.position;
+            _cachedMousePosition = Input.mousePosition;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(UI_DragWindow), "OnDrag", typeof(PointerEventData))]
+    internal static class UI_DragWindow_OnDrag_Patches
+    {
+        private static bool Prefix(UI_DragWindow __instance)
+        {
+            __instance.rtMove.position = UI_DragWindow_OnBeginDrag_Patches._cachedDragPosition + ((Vector2)Input.mousePosition - UI_DragWindow_OnBeginDrag_Patches._cachedMousePosition);
             return false;
         }
     }

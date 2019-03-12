@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
+using Harmony;
 using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
@@ -28,14 +29,23 @@ namespace HSPE
         internal static MainWindow _self;
         #endregion
 
+        #region Private Types
+        private class FKBoneEntry
+        {
+            public Toggle toggle;
+            public Text text;
+            public GameObject target;
+        }
+        #endregion
+
         #region Constants
 #if HONEYSELECT
         private const string _config = "configNEO.xml";
-        private const string _pluginDir = "Plugins\\HSPE\\";
+        internal const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
 #elif KOIKATSU
         private const string _config = "config.xml";
-        private const string _pluginDir = "BepInEx\\KKPE\\";
+        internal const string _pluginDir = "BepInEx\\KKPE\\";
         private const string _extSaveKey = "kkpe";
 #endif
         internal static readonly GUIStyle _customBoxStyle = new GUIStyle {normal = new GUIStyleState {background = Texture2D.whiteTexture}};
@@ -43,12 +53,13 @@ namespace HSPE
 
         #region Private Variables
         internal PoseController _poseTarget;
+        internal CameraEventsDispatcher _cameraEventsDispatcher;
         private HashSet<TreeNodeObject> _selectedNodes;
-        private readonly List<FullBodyBipedEffector> _boneTargets = new List<FullBodyBipedEffector>();
-        private readonly Vector3[] _lastBonesPositions = new Vector3[14];
-        private readonly Quaternion[] _lastBonesRotations = new Quaternion[14];
-        private readonly List<FullBodyBipedChain> _bendGoalTargets = new List<FullBodyBipedChain>();
-        private readonly Vector3[] _lastBendGoalsPositions = new Vector3[4];
+        private readonly List<FullBodyBipedEffector> _ikBoneTargets = new List<FullBodyBipedEffector>();
+        private readonly Vector3[] _lastIKBonesPositions = new Vector3[14];
+        private readonly Quaternion[] _lastIKBonesRotations = new Quaternion[14];
+        private readonly List<FullBodyBipedChain> _ikBendGoalTargets = new List<FullBodyBipedChain>();
+        private readonly Vector3[] _lastIKBendGoalsPositions = new Vector3[4];
         private readonly Dictionary<string, KeyCode> _nameToKeyCode = new Dictionary<string, KeyCode>();
         private KeyCode _mainWindowKeyCode = KeyCode.H;
         private int _lastObjectCount = 0;
@@ -63,7 +74,7 @@ namespace HSPE
         private bool _mouseInAdvMode = false;
         private bool _blockCamera = false;
         private bool _isVisible = false;
-        private Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
+        internal Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
         private readonly Rect[] _advancedModeRects = {
             new Rect(Screen.width - 650, Screen.height - 370, 650, 370),
             new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
@@ -87,7 +98,7 @@ namespace HSPE
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
         private KeyCode[] _possibleKeyCodes;
-        private bool _positionOperationWorld = true;
+        private bool _positionOperationWorld = false;
         private Toggle _optimizeIKToggle;
         private bool _windowMoving;
         private Image _hspeButtonImage;
@@ -107,6 +118,16 @@ namespace HSPE
         private Button _copyLeftLegButton;
         private Button _copyRightLegButton;
         private Button _swapPostButton;
+        private Transform _ikBonesButtons;
+        private Transform _fkBonesButtons;
+        private bool _currentModeIK = true;
+        private ScrollRect _fkScrollRect;
+        private GameObject _fkBoneTogglePrefab;
+        private ToggleGroup _fkToggleGroup;
+        private Quaternion _lastFKBonesRotation;
+        private readonly List<FKBoneEntry> _fkBoneEntries = new List<FKBoneEntry>();
+        private Dictionary<Transform, GuideObject> _dicGuideObject = new Dictionary<Transform, GuideObject>();
+        //private bool _enableButtPhysic = true;
         #endregion
 
         #region Public Accessors
@@ -185,6 +206,11 @@ namespace HSPE
                 }
             }
             PoseController.InstallOnParentageEvent();
+            OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
+            OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
+            OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
+            this._cameraEventsDispatcher = Camera.main.gameObject.AddComponent<CameraEventsDispatcher>();
+            this._dicGuideObject = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
 #if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
 #elif KOIKATSU
@@ -287,7 +313,7 @@ namespace HSPE
                         GUI.Box(this._advancedModeRect, "", _customBoxStyle);
                     GUI.backgroundColor = c;
                     this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
-                    if (this._advancedModeRect.Contains(Event.current.mousePosition) || (this._poseTarget.colliderEditEnabled && BonesEditor._colliderEditRect.Contains(Event.current.mousePosition)))
+                    if (this._advancedModeRect.Contains(Event.current.mousePosition))
                         this._mouseInAdvMode = true;
                     else
                         this._mouseInAdvMode = false;
@@ -437,6 +463,7 @@ namespace HSPE
 #elif KOIKATSU
             this._ui = Instantiate(bundle.LoadAsset<GameObject>("KKPECanvas")).GetComponent<Canvas>();
 #endif
+            this._fkBoneTogglePrefab = bundle.LoadAsset<GameObject>("FKBoneTogglePrefab");
             bundle.Unload(false);
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
@@ -446,87 +473,107 @@ namespace HSPE
             mw.onDrag += this.OnWindowDrag;
             mw.onPointerUp += this.OnWindowEndDrag;
 
-            this._nothingText = this._ui.transform.Find("BG/Nothing Text").gameObject;
-            this._nothingText.gameObject.SetActive(false);
-            this._controls = this._ui.transform.Find("BG/Controls");
+            Toggle ikToggle = this._ui.transform.Find("BG/Top Container/Buttons/IK").GetComponent<Toggle>();
+            ikToggle.onValueChanged.AddListener((b) =>
+            {
+                this._ikBonesButtons.gameObject.SetActive(ikToggle.isOn);
+                this._fkBonesButtons.gameObject.SetActive(!ikToggle.isOn);
+                this._currentModeIK = ikToggle.isOn;
+            });
+            Toggle fkToggle = this._ui.transform.Find("BG/Top Container/Buttons/FK").GetComponent<Toggle>();
+            fkToggle.onValueChanged.AddListener((b) =>
+            {
+                this._fkBonesButtons.gameObject.SetActive(fkToggle.isOn);
+                this._ikBonesButtons.gameObject.SetActive(!fkToggle.isOn);
+                this._currentModeIK = !fkToggle.isOn;
+            });
 
-            Button rightShoulder = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Shoulder Button").GetComponent<Button>();
+            this._nothingText = this._ui.transform.Find("BG/Nothing Text").gameObject;
+            //this._nothingText.gameObject.SetActive(false);
+            this._controls = this._ui.transform.Find("BG/Controls");
+            this._ikBonesButtons = this._ui.transform.Find("BG/Controls/IK Bones Buttons");
+            this._fkBonesButtons = this._ui.transform.Find("BG/Controls/FK Bones Buttons");
+
+            Button rightShoulder = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Shoulder Button").GetComponent<Button>();
             rightShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightShoulder));
             Text t = rightShoulder.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.RightShoulder] = rightShoulder;
             this._effectorsTexts[(int)FullBodyBipedEffector.RightShoulder] = t;
 
-            Button leftShoulder = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Shoulder Button").GetComponent<Button>();
+            Button leftShoulder = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Shoulder Button").GetComponent<Button>();
             leftShoulder.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftShoulder));
             t = leftShoulder.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.LeftShoulder] = leftShoulder;
             this._effectorsTexts[(int)FullBodyBipedEffector.LeftShoulder] = t;
 
-            Button rightArmBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Arm Bend Goal Button").GetComponent<Button>();
+            Button rightArmBendGoal = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Arm Bend Goal Button").GetComponent<Button>();
             rightArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightArm));
             t = rightArmBendGoal.GetComponentInChildren<Text>();
             this._bendGoalsButtons[(int)FullBodyBipedChain.RightArm] = rightArmBendGoal;
             this._bendGoalsTexts[(int)FullBodyBipedChain.RightArm] = t;
 
-            Button leftArmBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Arm Bend Goal Button").GetComponent<Button>();
+            Button leftArmBendGoal = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Arm Bend Goal Button").GetComponent<Button>();
             leftArmBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftArm));
             t = leftArmBendGoal.GetComponentInChildren<Text>();
             this._bendGoalsButtons[(int)FullBodyBipedChain.LeftArm] = leftArmBendGoal;
             this._bendGoalsTexts[(int)FullBodyBipedChain.LeftArm] = t;
 
-            Button rightHand = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Hand Button").GetComponent<Button>();
+            Button rightHand = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Hand Button").GetComponent<Button>();
             rightHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightHand));
             t = rightHand.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.RightHand] = rightHand;
             this._effectorsTexts[(int)FullBodyBipedEffector.RightHand] = t;
 
-            Button leftHand = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Hand Button").GetComponent<Button>();
+            Button leftHand = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Hand Button").GetComponent<Button>();
             leftHand.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftHand));
             t = leftHand.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.LeftHand] = leftHand;
             this._effectorsTexts[(int)FullBodyBipedEffector.LeftHand] = t;
 
-            Button body = this._ui.transform.Find("BG/Controls/Bones Buttons/Body Button").GetComponent<Button>();
+            Button body = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Body Button").GetComponent<Button>();
             body.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.Body));
             t = body.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.Body] = body;
             this._effectorsTexts[(int)FullBodyBipedEffector.Body] = t;
 
-            Button rightThigh = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Thigh Button").GetComponent<Button>();
+            Button rightThigh = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Thigh Button").GetComponent<Button>();
             rightThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightThigh));
             t = rightThigh.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.RightThigh] = rightThigh;
             this._effectorsTexts[(int)FullBodyBipedEffector.RightThigh] = t;
 
-            Button leftThigh = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Thigh Button").GetComponent<Button>();
+            Button leftThigh = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Thigh Button").GetComponent<Button>();
             leftThigh.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftThigh));
             t = leftThigh.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.LeftThigh] = leftThigh;
             this._effectorsTexts[(int)FullBodyBipedEffector.LeftThigh] = t;
 
-            Button rightLegBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Leg Bend Goal Button").GetComponent<Button>();
+            Button rightLegBendGoal = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Leg Bend Goal Button").GetComponent<Button>();
             rightLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.RightLeg));
             t = rightLegBendGoal.GetComponentInChildren<Text>();
             this._bendGoalsButtons[(int)FullBodyBipedChain.RightLeg] = rightLegBendGoal;
             this._bendGoalsTexts[(int)FullBodyBipedChain.RightLeg] = t;
 
-            Button leftLegBendGoal = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Leg Bend Goal Button").GetComponent<Button>();
+            Button leftLegBendGoal = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Leg Bend Goal Button").GetComponent<Button>();
             leftLegBendGoal.onClick.AddListener(() => this.SetBendGoalTarget(FullBodyBipedChain.LeftLeg));
             t = leftLegBendGoal.GetComponentInChildren<Text>();
             this._bendGoalsButtons[(int)FullBodyBipedChain.LeftLeg] = leftLegBendGoal;
             this._bendGoalsTexts[(int)FullBodyBipedChain.LeftLeg] = t;
 
-            Button rightFoot = this._ui.transform.Find("BG/Controls/Bones Buttons/Right Foot Button").GetComponent<Button>();
+            Button rightFoot = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Right Foot Button").GetComponent<Button>();
             rightFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.RightFoot));
             t = rightFoot.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.RightFoot] = rightFoot;
             this._effectorsTexts[(int)FullBodyBipedEffector.RightFoot] = t;
 
-            Button leftFoot = this._ui.transform.Find("BG/Controls/Bones Buttons/Left Foot Button").GetComponent<Button>();
+            Button leftFoot = this._ui.transform.Find("BG/Controls/IK Bones Buttons/Left Foot Button").GetComponent<Button>();
             leftFoot.onClick.AddListener(() => this.SetBoneTarget(FullBodyBipedEffector.LeftFoot));
             t = leftFoot.GetComponentInChildren<Text>();
             this._effectorsButtons[(int)FullBodyBipedEffector.LeftFoot] = leftFoot;
             this._effectorsTexts[(int)FullBodyBipedEffector.LeftFoot] = t;
+
+            this._fkScrollRect = this._fkBonesButtons.GetComponentInChildren<ScrollRect>();
+            this._fkToggleGroup = this._fkBonesButtons.GetComponentInChildren<ToggleGroup>();
 
             Button xMoveButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/X Move Button").GetComponent<Button>();
             xMoveButton.onClick.AddListener(() => EventSystem.current.SetSelectedGameObject(null));
@@ -990,16 +1037,16 @@ namespace HSPE
             this.ResetBoneButtons();
             if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl))
             {
-                this._boneTargets.Clear();
-                this._bendGoalTargets.Clear();
-                this._boneTargets.Add(bone);
+                this._ikBoneTargets.Clear();
+                this._ikBendGoalTargets.Clear();
+                this._ikBoneTargets.Add(bone);
             }
             else
             {
-                if (this._boneTargets.Contains(bone))
-                    this._boneTargets.Remove(bone);
+                if (this._ikBoneTargets.Contains(bone))
+                    this._ikBoneTargets.Remove(bone);
                 else
-                    this._boneTargets.Add(bone);
+                    this._ikBoneTargets.Add(bone);
             }
             this.SelectBoneButtons();
             EventSystem.current.SetSelectedGameObject(null);
@@ -1010,16 +1057,16 @@ namespace HSPE
             this.ResetBoneButtons();
             if (!Input.GetKey(KeyCode.LeftControl) && !Input.GetKey(KeyCode.RightControl))
             {
-                this._boneTargets.Clear();
-                this._bendGoalTargets.Clear();
-                this._bendGoalTargets.Add(bendGoal);
+                this._ikBoneTargets.Clear();
+                this._ikBendGoalTargets.Clear();
+                this._ikBendGoalTargets.Add(bendGoal);
             }
             else
             {
-                if (this._bendGoalTargets.Contains(bendGoal))
-                    this._bendGoalTargets.Remove(bendGoal);
+                if (this._ikBendGoalTargets.Contains(bendGoal))
+                    this._ikBendGoalTargets.Remove(bendGoal);
                 else
-                    this._bendGoalTargets.Add(bendGoal);
+                    this._ikBendGoalTargets.Add(bendGoal);
             }
             this.SelectBoneButtons();
             EventSystem.current.SetSelectedGameObject(null);
@@ -1027,7 +1074,7 @@ namespace HSPE
 
         private void ResetBoneButtons()
         {
-            foreach (FullBodyBipedChain bendGoal in this._bendGoalTargets)
+            foreach (FullBodyBipedChain bendGoal in this._ikBendGoalTargets)
             {
                 Button b = this._bendGoalsButtons[(int)bendGoal];
                 ColorBlock cb = b.colors;
@@ -1036,7 +1083,7 @@ namespace HSPE
                 b.colors = cb;
                 this._bendGoalsTexts[(int)bendGoal].fontStyle = FontStyle.Normal;
             }
-            foreach (FullBodyBipedEffector effector in this._boneTargets)
+            foreach (FullBodyBipedEffector effector in this._ikBoneTargets)
             {
                 Button b = this._effectorsButtons[(int)effector];
                 ColorBlock cb = b.colors;
@@ -1049,7 +1096,7 @@ namespace HSPE
 
         private void SelectBoneButtons()
         {
-            foreach (FullBodyBipedChain bendGoal in this._bendGoalTargets)
+            foreach (FullBodyBipedChain bendGoal in this._ikBendGoalTargets)
             {
                 Button b = this._bendGoalsButtons[(int)bendGoal];
                 ColorBlock cb = b.colors;
@@ -1058,7 +1105,7 @@ namespace HSPE
                 b.colors = cb;
                 this._bendGoalsTexts[(int)bendGoal].fontStyle = FontStyle.Bold;
             }
-            foreach (FullBodyBipedEffector effector in this._boneTargets)
+            foreach (FullBodyBipedEffector effector in this._ikBoneTargets)
             {
                 Button b = this._effectorsButtons[(int)effector];
                 ColorBlock cb = b.colors;
@@ -1114,105 +1161,154 @@ namespace HSPE
             if (this._poseTarget == null)
                 return;
 
-            CharaPoseController poseTarget = null;
-            bool isCharacter = this._poseTarget.target.type == GenericOCITarget.Type.Character;
-
-            if (isCharacter)
+            CharaPoseController charaPoseTarget = this._poseTarget as CharaPoseController;
+            bool isCharacter = charaPoseTarget != null;
+            if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
             {
-                poseTarget = (CharaPoseController)this._poseTarget;
-                if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
-                {
-                    this._delta += new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) / (10f * (Input.GetMouseButton(1) ? 2f : 1f));
+                this._delta += (new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 6f : 1f)) / 10f;
 
-                    if (poseTarget.currentDragType == CharaPoseController.DragType.None)
-                        poseTarget.StartDrag(this._xMove || this._yMove || this._zMove ? CharaPoseController.DragType.Position : CharaPoseController.DragType.Rotation);
-                    for (int i = 0; i < this._boneTargets.Count; ++i)
+                if (this._poseTarget._currentDragType == PoseController.DragType.None)
+                    this._poseTarget.StartDrag(this._xMove || this._yMove || this._zMove ? PoseController.DragType.Position : PoseController.DragType.Rotation);
+                if (this._currentModeIK)
+                {
+                    if (isCharacter)
                     {
-                        bool changePosition = false;
-                        bool changeRotation = false;
-                        Vector3 newPosition = this._lastBonesPositions[i];
-                        Quaternion newRotation = this._lastBonesRotations[i];
-                        if (this._xMove)
+                        for (int i = 0; i < this._ikBoneTargets.Count; ++i)
                         {
-                            newPosition.x += this._delta.y * this._intensityValue;
-                            changePosition = true;
+                            bool changePosition = false;
+                            bool changeRotation = false;
+                            Vector3 newPosition = this._lastIKBonesPositions[i];
+                            Quaternion newRotation = this._lastIKBonesRotations[i];
+                            if (this._xMove)
+                            {
+                                newPosition.x += this._delta.y * this._intensityValue;
+                                changePosition = true;
+                            }
+                            if (this._yMove)
+                            {
+                                newPosition.y += this._delta.y * this._intensityValue;
+                                changePosition = true;
+                            }
+                            if (this._zMove)
+                            {
+                                newPosition.z += this._delta.y * this._intensityValue;
+                                changePosition = true;
+                            }
+                            if (this._xRot)
+                            {
+                                newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.right);
+                                changeRotation = true;
+                            }
+                            if (this._yRot)
+                            {
+                                newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.up);
+                                changeRotation = true;
+                            }
+                            if (this._zRot)
+                            {
+                                newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.forward);
+                                changeRotation = true;
+                            }
+                            FullBodyBipedEffector bone = this._ikBoneTargets[i];
+                            if (changePosition && charaPoseTarget.IsPartEnabled(bone))
+                                charaPoseTarget.SetBoneTargetPosition(bone, newPosition, this._positionOperationWorld);
+                            if (changeRotation && charaPoseTarget.IsPartEnabled(bone))
+                                charaPoseTarget.SetBoneTargetRotation(this._ikBoneTargets[i], newRotation);
                         }
-                        if (this._yMove)
+                        for (int i = 0; i < this._ikBendGoalTargets.Count; ++i)
                         {
-                            newPosition.y += this._delta.y * this._intensityValue;
-                            changePosition = true;
+                            Vector3 newPosition = this._lastIKBendGoalsPositions[i];
+                            if (this._xMove)
+                                newPosition.x += this._delta.y * this._intensityValue;
+                            if (this._yMove)
+                                newPosition.y += this._delta.y * this._intensityValue;
+                            if (this._zMove)
+                                newPosition.z += this._delta.y * this._intensityValue;
+                            FullBodyBipedChain bendGoal = this._ikBendGoalTargets[i];
+                            if (charaPoseTarget.IsPartEnabled(bendGoal))
+                                charaPoseTarget.SetBendGoalPosition(bendGoal, newPosition, this._positionOperationWorld);
                         }
-                        if (this._zMove)
-                        {
-                            newPosition.z += this._delta.y * this._intensityValue;
-                            changePosition = true;
-                        }
-                        if (this._xRot)
-                        {
-                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.right);
-                            changeRotation = true;
-                        }
-                        if (this._yRot)
-                        {
-                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.up);
-                            changeRotation = true;
-                        }
-                        if (this._zRot)
-                        {
-                            newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.forward);
-                            changeRotation = true;
-                        }
-                        FullBodyBipedEffector bone = this._boneTargets[i];
-                        if (changePosition && poseTarget.IsPartEnabled(bone))
-                                poseTarget.SetBoneTargetPosition(bone, newPosition, this._positionOperationWorld);
-                        if (changeRotation && poseTarget.IsPartEnabled(bone))
-                            poseTarget.SetBoneTargetRotation(this._boneTargets[i], newRotation);                            
-                    }
-                    for (int i = 0; i < this._bendGoalTargets.Count; ++i)
-                    {
-                        Vector3 newPosition = this._lastBendGoalsPositions[i];
-                        if (this._xMove)
-                            newPosition.x += this._delta.y * this._intensityValue;
-                        if (this._yMove)
-                            newPosition.y += this._delta.y * this._intensityValue;
-                        if (this._zMove)
-                            newPosition.z += this._delta.y * this._intensityValue;
-                        FullBodyBipedChain bendGoal = this._bendGoalTargets[i];
-                        if (poseTarget.IsPartEnabled(bendGoal))
-                            poseTarget.SetBendGoalPosition(bendGoal, newPosition, this._positionOperationWorld);
                     }
                 }
                 else
                 {
-                    this._delta = Vector2.zero;
-                    if (poseTarget.currentDragType != CharaPoseController.DragType.None)
-                        poseTarget.StopDrag();
-                    for (int i = 0; i < this._boneTargets.Count; ++i)
+                    bool changeRotation = false;
+                    Quaternion newRotation = this._lastFKBonesRotation;
+                    if (this._xRot)
                     {
-                        this._lastBonesPositions[i] = poseTarget.GetBoneTargetPosition(this._boneTargets[i], this._positionOperationWorld);
-                        this._lastBonesRotations[i] = poseTarget.GetBoneTargetRotation(this._boneTargets[i]);
+                        newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.right);
+                        changeRotation = true;
                     }
-                    for (int i = 0; i < this._bendGoalTargets.Count; ++i)
-                        this._lastBendGoalsPositions[i] = poseTarget.GetBendGoalPosition(this._bendGoalTargets[i], this._positionOperationWorld);
+                    if (this._yRot)
+                    {
+                        newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.up);
+                        changeRotation = true;
+                    }
+                    if (this._zRot)
+                    {
+                        newRotation *= Quaternion.AngleAxis(this._delta.x * 20f * this._intensityValue, Vector3.forward);
+                        changeRotation = true;
+                    }
+                    if (changeRotation)
+                        this._poseTarget.SeFKBoneTargetRotation(GuideObjectManager.Instance.selectObject, newRotation);
+                }
+            }
+            else
+            {
+                this._delta = Vector2.zero;
+                if (this._poseTarget._currentDragType != PoseController.DragType.None)
+                    this._poseTarget.StopDrag();
+                if (this._currentModeIK)
+                {
+                    if (isCharacter)
+                    {
+                        for (int i = 0; i < this._ikBoneTargets.Count; ++i)
+                        {
+                            this._lastIKBonesPositions[i] = charaPoseTarget.GetBoneTargetPosition(this._ikBoneTargets[i], this._positionOperationWorld);
+                            this._lastIKBonesRotations[i] = charaPoseTarget.GetBoneTargetRotation(this._ikBoneTargets[i]);
+                        }
+                        for (int i = 0; i < this._ikBendGoalTargets.Count; ++i)
+                            this._lastIKBendGoalsPositions[i] = charaPoseTarget.GetBendGoalPosition(this._ikBendGoalTargets[i], this._positionOperationWorld);
+                    }
+                }
+                else
+                {
+                    this._lastFKBonesRotation = this._poseTarget.GetFKBoneTargetRotation(GuideObjectManager.Instance.selectObject);
+                    for (int i = 0; i < this._ikBoneTargets.Count; ++i)
+                    {
+                        this._lastIKBonesPositions[i] = charaPoseTarget.GetBoneTargetPosition(this._ikBoneTargets[i], this._positionOperationWorld);
+                        this._lastIKBonesRotations[i] = charaPoseTarget.GetBoneTargetRotation(this._ikBoneTargets[i]);
+                    }
+                    for (int i = 0; i < this._ikBendGoalTargets.Count; ++i)
+                        this._lastIKBendGoalsPositions[i] = charaPoseTarget.GetBendGoalPosition(this._ikBendGoalTargets[i], this._positionOperationWorld);
                 }
             }
 
-            for (int i = 0; i < this._effectorsButtons.Length; i++)
-                this._effectorsButtons[i].interactable = isCharacter && poseTarget.IsPartEnabled((FullBodyBipedEffector)i);
+            if (this._currentModeIK)
+            {
+                for (int i = 0; i < this._effectorsButtons.Length; i++)
+                    this._effectorsButtons[i].interactable = isCharacter && charaPoseTarget.IsPartEnabled((FullBodyBipedEffector)i);
 
-            for (int i = 0; i < this._bendGoalsButtons.Length; i++)
-                this._bendGoalsButtons[i].interactable = isCharacter && poseTarget.IsPartEnabled((FullBodyBipedChain)i);
+                for (int i = 0; i < this._bendGoalsButtons.Length; i++)
+                    this._bendGoalsButtons[i].interactable = isCharacter && charaPoseTarget.IsPartEnabled((FullBodyBipedChain)i);
 
-            for (int i = 0; i < this._positionButtons.Length; i++)
-                this._positionButtons[i].interactable = isCharacter && poseTarget.target.ikEnabled;
+                for (int i = 0; i < this._positionButtons.Length; i++)
+                    this._positionButtons[i].interactable = isCharacter && charaPoseTarget.target.ikEnabled;
+            }
 
-            bool interactableRotation = true;
-            if (isCharacter)
-                interactableRotation = this._bendGoalTargets.Count == 0 && this._boneTargets.Intersect(CharaPoseController.nonRotatableEffectors).Any() == false;
-
+            bool interactableRotation = false;
+            if (this._currentModeIK)
+            {
+                if (isCharacter)
+                    interactableRotation = charaPoseTarget.target.ikEnabled && this._ikBendGoalTargets.Count == 0 && this._ikBoneTargets.Intersect(CharaPoseController.nonRotatableEffectors).Any() == false;
+            }
+            else
+            {
+                OCIChar.BoneInfo bone;
+                interactableRotation = this._poseTarget.target.fkEnabled && this._poseTarget.target.fkObjects.TryGetValue(GuideObjectManager.Instance.selectObject.transformTarget.gameObject, out bone) && bone.active;
+            }
             for (int i = 0; i < this._rotationButtons.Length; i++)
-                this._rotationButtons[i].interactable = isCharacter && poseTarget.target.ikEnabled && interactableRotation;
-
+                this._rotationButtons[i].interactable = interactableRotation;
         }
         #endregion
 
@@ -1250,7 +1346,8 @@ namespace HSPE
                             if (kvp.Value.guideObject.transformTarget.GetComponent<PoseController>() == null)
                             {
                                 PoseController controller = kvp.Value.guideObject.transformTarget.gameObject.AddComponent<PoseController>();
-                                this.ExecuteDelayed(() => { controller.enabled = false; }, 2);
+                                if (controller._collidersEditor._isLoneCollider == false)
+                                    this.ExecuteDelayed(() => { controller.enabled = false; }, 2);
                             }
                             break;
                     }
@@ -1280,13 +1377,108 @@ namespace HSPE
                 this._swapPostButton.interactable = isCharacter;
                 this._nothingText.gameObject.SetActive(false);
                 this._controls.gameObject.SetActive(true);
+                this._poseTarget.target.RefreshFKBones();
+                this.RefreshFKBonesList();
             }
             else
             {
                 this._nothingText.gameObject.SetActive(true);
                 this._controls.gameObject.SetActive(false);
             }
-            CharaPoseController.SelectionChanged(this._poseTarget);
+            PoseController.SelectionChanged(this._poseTarget);
+        }
+
+        private void OnCharacterReplaced(OCIChar chara)
+        {
+            if (this._poseTarget != null && this._poseTarget.target.oci == chara)
+                this.ExecuteDelayed(this.RefreshFKBonesList);
+        }
+
+        private void OnLoadClothesFile(OCIChar chara)
+        {
+            if (this._poseTarget != null && this._poseTarget.target.oci == chara)
+                this.ExecuteDelayed(this.RefreshFKBonesList);
+        }
+
+        private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType coord, bool b)
+        {
+            if (this._poseTarget != null && this._poseTarget.target.oci == chara)
+                this.ExecuteDelayed(this.RefreshFKBonesList);
+        }
+
+        private void RefreshFKBonesList()
+        {
+            int i = 0;
+            List<KeyValuePair<GameObject, OCIChar.BoneInfo>> list = this._poseTarget.target.fkObjects.ToList();
+
+            for (; i < list.Count; ++i)
+            {
+                FKBoneEntry entry;
+                KeyValuePair<GameObject, OCIChar.BoneInfo> pair = list[i];
+                if (i < this._fkBoneEntries.Count)
+                    entry = this._fkBoneEntries[i];
+                else
+                {
+                    entry = new FKBoneEntry();
+                    entry.toggle = GameObject.Instantiate(this._fkBoneTogglePrefab).GetComponent<Toggle>();
+                    entry.text = entry.toggle.GetComponentInChildren<Text>();
+
+                    entry.toggle.transform.SetParent(this._fkScrollRect.content);
+                    entry.toggle.transform.localScale = Vector3.one;
+                    entry.toggle.group = this._fkToggleGroup;
+                    this._fkBoneEntries.Add(entry);
+                }
+
+                entry.text.text = pair.Key.name;
+
+                entry.toggle.onValueChanged = new Toggle.ToggleEvent();
+                entry.toggle.isOn = GuideObjectManager.Instance.selectObject.transformTarget == pair.Key.transform;
+                entry.toggle.onValueChanged.AddListener((b) =>
+                {
+                    if (entry.toggle.isOn)
+                    {
+                        if (this._poseTarget.target.fkEnabled == false || pair.Value.active == false)
+                        {
+                            entry.toggle.isOn = false;
+                            this.SelectCurrentFKBoneEntry();
+                            return;
+                        }
+                        GuideObjectManager.Instance.selectObject = this._dicGuideObject[pair.Key.transform];
+                    }
+                });
+                entry.target = pair.Key;
+                entry.toggle.gameObject.SetActive(true);
+            }
+            for (; i < this._fkBoneEntries.Count; ++i)
+            {
+                FKBoneEntry entry = this._fkBoneEntries[i];
+
+                entry.toggle.gameObject.SetActive(false);
+                entry.target = null;
+            }
+            LayoutRebuilder.ForceRebuildLayoutImmediate(this._fkScrollRect.content);
+        }
+
+        private FKBoneEntry SelectCurrentFKBoneEntry()
+        {
+            FKBoneEntry entry = this._fkBoneEntries.Find(e => e.target == GuideObjectManager.Instance.selectObject.transformTarget.gameObject);
+            if (entry != null)
+                entry.toggle.isOn = true;
+            return entry;
+        }
+
+        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", typeof(PointerEventData))]
+        private static class GuideSelect_OnPointerClick_Patches
+        {
+            private static void Postfix()
+            {
+                FKBoneEntry entry = _self.SelectCurrentFKBoneEntry();
+                if (entry != null)
+                {
+                    if (_self._fkScrollRect.normalizedPosition.y > 0.0001f)
+                        _self._fkScrollRect.content.anchoredPosition = new Vector2(_self._fkScrollRect.content.anchoredPosition.x, _self._fkScrollRect.transform.InverseTransformPoint(_self._fkScrollRect.content.position).y - _self._fkScrollRect.transform.InverseTransformPoint(entry.toggle.transform.position).y - 10) ;
+                }
+            }
         }
 
         private bool CameraControllerCondition()
@@ -1372,6 +1564,7 @@ namespace HSPE
             this.ExecuteDelayed(() => {
                 UnityEngine.Debug.LogError("objects in scene " + Studio.Studio.Instance.dicObjectCtrl.Count);
             }, 6);
+            UnityEngine.Debug.LogError("loading scene");
             if (node == null || node.Name != "root")
             {
                 return;

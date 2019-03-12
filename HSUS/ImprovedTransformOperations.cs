@@ -578,7 +578,7 @@ namespace HSUS
                 this._draggingXRot || this._draggingYRot || this._draggingZRot ||
                 this._draggingXScale || this._draggingYScale || this._draggingZScale)
             {
-                float delta = Input.GetAxisRaw("Mouse X") * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 6f : 1f) / 10f;
+                float delta = Input.GetAxisRaw("Mouse X") * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 8f : 1f) / 10f;
 
                 foreach (GuideObject guideObject in this._hashSelectObject)
                 {

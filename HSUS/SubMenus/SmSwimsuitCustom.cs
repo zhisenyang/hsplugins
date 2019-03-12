@@ -152,6 +152,16 @@ namespace HSUS
                 lastToggle = objectData.toggle;
             }
         }
+
+        public static void ResetSearch()
+        {
+            InputField.OnChangeEvent searchEvent = searchBar.onValueChanged;
+            searchBar.onValueChanged = null;
+            searchBar.text = "";
+            searchBar.onValueChanged = searchEvent;
+            foreach (ObjectData objectData in objects)
+                objectData.obj.SetActive(true);
+        }
     }
 
     [HarmonyPatch(typeof(SmSwimsuit), "SetCharaInfoSub")]
@@ -164,8 +174,7 @@ namespace HSUS
 
         public static bool Prefix(SmSwimsuit __instance, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo, CharFileInfoClothesFemale ___clothesInfoF)
         {
-            SmSwimsuit_Data.searchBar.text = "";
-            //SmSwimsuit_Data.SearchChanged("");
+            SmSwimsuit_Data.ResetSearch();
             if (null == ___chaInfo || null == __instance.objListTop || null == __instance.objLineBase || null == __instance.rtfPanel)
                 return false;
             if (null != __instance.tglTab)

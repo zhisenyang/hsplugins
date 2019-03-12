@@ -1,12 +1,19 @@
 ﻿using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Harmony;
 using Manager;
 using Studio;
 using ToolBox;
 using UILib;
+using UniRx.Triggers;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -290,14 +297,17 @@ namespace StudioFileCheck
         }
     }
 
+    [HarmonyPatch]
     internal class CostumeInfo_Init_Patches
     {
-        internal static void ManualPatch(HarmonyInstance harmony)
+        internal static bool Prepare()
         {
-            if (HSUS.HSUS._self._optimizeNeo)
-            {
-                harmony.Patch(typeof(MPCharCtrl).GetNestedType("CostumeInfo", BindingFlags.NonPublic).GetMethod("Init", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), null, new HarmonyMethod(typeof(CostumeInfo_Init_Patches), nameof(Postfix)));
-            }
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo;
+        }
+        
+        internal static MethodInfo TargetMethod()
+        {
+            return typeof(MPCharCtrl).GetNestedType("CostumeInfo", BindingFlags.NonPublic).GetMethod("Init", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
         }
 
         private static void Postfix(object __instance)
@@ -323,6 +333,554 @@ namespace StudioFileCheck
                 info.node.gameObject.SetActive(info.node.text.IndexOf(text, StringComparison.OrdinalIgnoreCase) != -1);
         }
     }
+
+#elif HONEYSELECT
+    internal class EntryListData
+    {
+        public class FolderData
+        {
+            public string fullPath;
+            public string name;
+            public GameObject displayObject;
+            public Button button;
+            public Text text;
+        }
+
+        public class EntryData
+        {
+            public GameSceneNode node;
+            public Button button;
+            public bool enabled;
+        }
+
+        public static Dictionary<object, EntryListData> dataByInstance = new Dictionary<object, EntryListData>();
+
+        public string currentPath = "";
+        public GameObject parentFolder;
+        public readonly List<FolderData> folders = new List<FolderData>();
+        public readonly List<EntryData> entries = new List<EntryData>();
+        public CharaFileSort sort;
+    }
+
+    [HarmonyPatch(typeof(CharaList), "InitCharaList", typeof(bool))]
+    internal static class CharaList_InitCharaList_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static bool Prefix(CharaList __instance, bool _force, CharaFileSort ___charaFileSort, int ___sex, GameObject ___objectNode, RawImage ___imageChara, Button ___buttonLoad, Button ___buttonChange)
+        {
+            if (__instance.isInit && !_force)
+            {
+                return false;
+            }
+            EntryListData data;
+            if (EntryListData.dataByInstance.TryGetValue(__instance, out data) == false)
+            {
+                data = new EntryListData();
+                data.sort = ___charaFileSort;
+                EntryListData.dataByInstance.Add(__instance, data);
+            }
+            ___charaFileSort.DeleteAllNode();
+            string basePath;
+            if (___sex == 1)
+            {
+                basePath = global::UserData.Path + "chara/female";
+                __instance.CallPrivate("InitFemaleList");
+            }
+            else
+            {
+                basePath = global::UserData.Path + "chara/male";
+                __instance.CallPrivate("InitMaleList");
+            }
+            string path = basePath + data.currentPath;
+
+            if (data.parentFolder == null)
+            {
+                data.parentFolder = Object.Instantiate(___objectNode);
+                data.parentFolder.transform.SetParent(___charaFileSort.root, false);
+                Object.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
+                Text t = data.parentFolder.GetComponentInChildren<Text>();
+                t.text = "../ (Parent folder)";
+                t.alignment = TextAnchor.MiddleCenter;
+                t.fontStyle = FontStyle.BoldAndItalic;
+                data.parentFolder.GetComponent<Image>().color = HSUS.HSUS._self._subFoldersColor;
+                data.parentFolder.GetComponent<Button>().onClick.AddListener(() =>
+                {
+                    int index = data.currentPath.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
+                    data.currentPath = data.currentPath.Remove(index);
+                    Prefix(__instance, true, ___charaFileSort, ___sex, ___objectNode, ___imageChara, ___buttonLoad, ___buttonChange);
+                });
+            }
+
+            data.parentFolder.SetActive(data.currentPath.Length > 1);
+
+            string[] directories = Directory.GetDirectories(path);
+            int i = 0;
+            for (; i < directories.Length; i++)
+            {
+                string directory = directories[i];
+                EntryListData.FolderData folder;
+                if (i < data.folders.Count)
+                    folder = data.folders[i];
+                else
+                {
+                    folder = new EntryListData.FolderData();
+                    folder.displayObject = Object.Instantiate(___objectNode);
+                    folder.button = folder.displayObject.GetComponent<Button>();
+                    folder.text = folder.displayObject.GetComponentInChildren<Text>();
+
+                    folder.displayObject.SetActive(true);
+                    folder.displayObject.transform.SetParent(___charaFileSort.root, false);
+                    Object.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
+                    folder.text.alignment = TextAnchor.MiddleCenter;
+                    folder.text.fontStyle = FontStyle.BoldAndItalic;
+                    folder.displayObject.GetComponent<Image>().color = HSUS.HSUS._self._subFoldersColor;
+
+                    data.folders.Add(folder);
+                }
+                folder.displayObject.SetActive(true);
+                string localDirectory = directory.Replace("\\", "/").Replace(path, "");
+                folder.text.text = localDirectory.Substring(1);
+                folder.fullPath = directory;
+                folder.name = localDirectory.Substring(1);
+                folder.button.onClick = new Button.ButtonClickedEvent();
+                folder.button.onClick.AddListener(() =>
+                {
+                    data.currentPath += localDirectory;
+                    Prefix(__instance, true, ___charaFileSort, ___sex, ___objectNode, ___imageChara, ___buttonLoad, ___buttonChange);
+                });
+            }
+            for (; i < data.folders.Count; ++i)
+                data.folders[i].displayObject.SetActive(false);
+
+            int count = ___charaFileSort.cfiList.Count;
+            i = 0;
+            MethodInfo onSelectCharaMI = __instance.GetType().GetMethod("OnSelectChara", BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo loadCharaImageMI = __instance.GetType().GetMethod("LoadCharaImage", BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+
+            for (; i < count; i++)
+            {
+                CharaFileInfo info = ___charaFileSort.cfiList[i];
+                info.index = i;
+                EntryListData.EntryData chara;
+                if (i < data.entries.Count)
+                    chara = data.entries[i];
+                else
+                {
+                    chara = new EntryListData.EntryData();
+                    chara.node = Object.Instantiate(___objectNode).GetComponent<GameSceneNode>();
+                    chara.button = chara.node.GetComponent<Button>();
+
+                    chara.node.gameObject.transform.SetParent(___charaFileSort.root, false);
+                    data.entries.Add(chara);
+                }
+                chara.enabled = true;
+                chara.node.gameObject.SetActive(true);
+                info.gameSceneNode = chara.node;
+                info.button = chara.button;
+                info.button.onClick = new Button.ButtonClickedEvent();
+                Action<int> onSelect = (Action<int>)Delegate.CreateDelegate(typeof(Action<int>), __instance, onSelectCharaMI);
+                info.gameSceneNode.AddActionToButton(delegate
+                {
+                    onSelect(info.index);
+                });
+                info.gameSceneNode.text = info.name;
+                info.gameSceneNode.listEnterAction.Clear();
+                Action<int> loadImage = (Action<int>)Delegate.CreateDelegate(typeof(Action<int>), __instance, loadCharaImageMI);
+                info.gameSceneNode.listEnterAction.Add(delegate
+                {
+                    loadImage(info.index);
+                });
+            }
+            for (; i < data.entries.Count; ++i)
+            {
+                data.entries[i].node.gameObject.SetActive(false);
+                data.entries[i].enabled = false;
+            }
+            ___imageChara.color = Color.clear;
+            ___charaFileSort.Sort(0, false);
+            ___buttonLoad.interactable = false;
+            ___buttonChange.interactable = false;
+            __instance.GetType().GetProperty("isInit", BindingFlags.Instance|BindingFlags.Public).SetValue(__instance, true, null);
+            return false;
+        }
+
+    }
+
+    [HarmonyPatch(typeof(CharaList), "InitFemaleList")]
+    internal static class CharaList_InitFemaleList_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static bool Prefix(CharaList __instance, CharaFileSort ___charaFileSort)
+        {
+            EntryListData data = EntryListData.dataByInstance[__instance];
+            string path = global::UserData.Path + "chara/female" + data.currentPath;
+            List<string> list = Directory.GetFiles(path, "*.png").ToList();
+            ___charaFileSort.cfiList.Clear();
+            int count = list.Count;
+            for (int i = 0; i < count; i++)
+            {
+                CharFemaleFile charFemaleFile = null;
+                if (SceneAssist.Assist.LoadFemaleCustomInfoAndParamerer(ref charFemaleFile, list[i]))
+                {
+                    if (!charFemaleFile.femaleCustomInfo.isConcierge)
+                    {
+                        ___charaFileSort.cfiList.Add(new CharaFileInfo(string.Empty, string.Empty)
+                        {
+                            file = list[i],
+                            name = charFemaleFile.femaleCustomInfo.name,
+                            time = File.GetLastWriteTime(list[i])
+                        });
+                    }
+                }
+            }
+            return false;
+        }
+    }
+    [HarmonyPatch(typeof(CharaList), "InitMaleList")]
+    internal static class CharaList_InitMaleList_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static bool Prefix(CharaList __instance, CharaFileSort ___charaFileSort)
+        {
+            EntryListData data = EntryListData.dataByInstance[__instance];
+            string path = global::UserData.Path + "chara/male" + data.currentPath;
+            List<string> list = Directory.GetFiles(path, "*.png").ToList();
+            ___charaFileSort.cfiList.Clear();
+            int count = list.Count;
+            for (int i = 0; i < count; i++)
+            {
+                CharMaleFile charMaleFile = new CharMaleFile();
+                if (Path.GetFileNameWithoutExtension(list[i]) != "ill_Player")
+                {
+                    if (charMaleFile.LoadBlockData(charMaleFile.maleCustomInfo, list[i]))
+                    {
+                        ___charaFileSort.cfiList.Add(new CharaFileInfo(string.Empty, string.Empty)
+                        {
+                            file = list[i],
+                            name = charMaleFile.maleCustomInfo.name,
+                            time = File.GetLastWriteTime(list[i])
+                        });
+                    }
+                }
+            }
+            return false;
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class CostumeInfo_InitList_Patches
+    {
+        private static MethodInfo TargetMethod()
+        {
+            return AccessTools.Method(Type.GetType("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp"), "InitList", new []{typeof(int)});
+        }
+
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static bool Prefix(object __instance, int _sex, ref int ___sex, CharaFileSort ___fileSort, GameObject ___prefabNode, Button ___buttonLoad, RawImage ___imageThumbnail)
+        {
+            EntryListData data;
+            if (EntryListData.dataByInstance.TryGetValue(__instance, out data) == false)
+            {
+                data = new EntryListData();
+                data.sort = ___fileSort;
+                EntryListData.dataByInstance.Add(__instance, data);
+            }
+            if (___sex != _sex)
+                data.currentPath = "";
+
+            ___fileSort.DeleteAllNode();
+            string basePath = _sex == 1 ? (global::UserData.Path + "coordinate/female") : (global::UserData.Path + "coordinate/male");
+            string path = basePath + data.currentPath;
+
+            if (data.parentFolder == null)
+            {
+                data.parentFolder = Object.Instantiate(___prefabNode);
+                data.parentFolder.transform.SetParent(___fileSort.root, false);
+                Object.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
+                Text t = data.parentFolder.GetComponentInChildren<Text>();
+                t.text = "../ (Parent folder)";
+                t.alignment = TextAnchor.MiddleCenter;
+                t.fontStyle = FontStyle.BoldAndItalic;
+                data.parentFolder.GetComponent<Image>().color = HSUS.HSUS._self._subFoldersColor;
+                data.parentFolder.GetComponent<Button>().onClick.AddListener(() =>
+                {
+                    int index = data.currentPath.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
+                    data.currentPath = data.currentPath.Remove(index);
+                    int refSex = _sex;
+                    Prefix(__instance, _sex, ref refSex, ___fileSort, ___prefabNode, ___buttonLoad, ___imageThumbnail);
+                });
+            }
+
+            data.parentFolder.SetActive(data.currentPath.Length > 1);
+
+            string[] directories = Directory.GetDirectories(path);
+            int i = 0;
+            for (; i < directories.Length; i++)
+            {
+                EntryListData.FolderData folder;
+                if (i < data.folders.Count)
+                    folder = data.folders[i];
+                else
+                {
+                    folder = new EntryListData.FolderData();
+                    folder.displayObject = Object.Instantiate(___prefabNode);
+                    folder.text = folder.displayObject.GetComponentInChildren<Text>();
+                    folder.button = folder.displayObject.GetComponent<Button>();
+
+                    folder.text.alignment = TextAnchor.MiddleCenter;
+                    folder.text.fontStyle = FontStyle.BoldAndItalic;
+                    folder.displayObject.GetComponent<Image>().color = HSUS.HSUS._self._subFoldersColor;
+                    folder.displayObject.transform.SetParent(___fileSort.root, false);
+                    Object.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
+                    data.folders.Add(folder);
+                }
+                folder.displayObject.SetActive(true);
+                string directory = directories[i];
+                string localDirectory = directory.Replace("\\", "/").Replace(path, "");
+                folder.text.text = localDirectory.Substring(1);
+                folder.fullPath = directory;
+                folder.name = localDirectory.Substring(1);
+                folder.button.onClick = new Button.ButtonClickedEvent();
+                folder.button.GetComponent<Button>().onClick.AddListener(() =>
+                {
+                    data.currentPath += localDirectory;
+                    int refSex = _sex;
+                    Prefix(__instance, _sex, ref refSex, ___fileSort, ___prefabNode, ___buttonLoad, ___imageThumbnail);
+                });
+            }
+            for (; i < data.folders.Count; ++i)
+                data.folders[i].displayObject.SetActive(false);
+
+            InitFileList(_sex, ___fileSort, data);
+            int count = ___fileSort.cfiList.Count;
+            MethodInfo onSelectMI = __instance.GetType().GetMethod("OnSelect", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy | BindingFlags.NonPublic);
+            MethodInfo loadImageMI = __instance.GetType().GetMethod("LoadImage", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy | BindingFlags.NonPublic);
+            i = 0;
+            for (; i < count; i++)
+            {
+                EntryListData.EntryData coord;
+                if (i < data.entries.Count)
+                    coord = data.entries[i];
+                else
+                {
+                    coord = new EntryListData.EntryData();
+                    coord.node = Object.Instantiate(___prefabNode).GetComponent<GameSceneNode>();
+                    coord.button = coord.node.GetComponent<Button>();
+                    coord.node.transform.SetParent(___fileSort.root, false);
+                    data.entries.Add(coord);
+                }
+                coord.enabled = true;
+                coord.node.gameObject.SetActive(true);
+                CharaFileInfo info = ___fileSort.cfiList[i];
+                info.gameSceneNode = coord.node;
+                info.index = i;
+                info.button = coord.button;
+                Action<int> onSelect = (Action<int>)Delegate.CreateDelegate(typeof(Action<int>), __instance, onSelectMI);
+                info.button.onClick = new Button.ButtonClickedEvent();
+                info.gameSceneNode.AddActionToButton(delegate
+                {
+                    onSelect(info.index);
+                });
+                info.gameSceneNode.text = info.name;
+                Action<int> loadImage = (Action<int>)Delegate.CreateDelegate(typeof(Action<int>), __instance, loadImageMI);
+                info.gameSceneNode.listEnterAction.Clear();
+                info.gameSceneNode.listEnterAction.Add(delegate
+                {
+                    loadImage(info.index);
+                });
+            }
+            for (; i < data.entries.Count; ++i)
+            {
+                data.entries[i].node.gameObject.SetActive(false);
+                data.entries[i].enabled = false;
+            }
+            ___sex = _sex;
+            ___fileSort.Sort(0, false);
+            ___buttonLoad.interactable = false;
+            ___imageThumbnail.color = Color.clear;
+            return false;
+        }
+
+        private static void InitFileList(int _sex, CharaFileSort ___fileSort, EntryListData data)
+        {
+            string path = global::UserData.Path + (_sex != 1 ? "coordinate/male" : "coordinate/female") + data.currentPath;
+            List<string> list = Directory.GetFiles(path, "*.png").ToList();
+            ___fileSort.cfiList.Clear();
+            int count = list.Count;
+            CharFileInfoClothes charFileInfoClothes;
+            if (_sex == 1)
+                charFileInfoClothes = new CharFileInfoClothesFemale();
+            else
+                charFileInfoClothes = new CharFileInfoClothesMale();
+            for (int i = 0; i < count; i++)
+            {
+                if (charFileInfoClothes.Load(list[i], true))
+                {
+                    ___fileSort.cfiList.Add(new CharaFileInfo(list[i], charFileInfoClothes.comment)
+                    {
+                        time = File.GetLastWriteTime(list[i])
+                    });
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharaFileSort), "DeleteAllNode")]
+    internal static class CharaFileSort_DeleteAllNode_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static bool Prefix(ref int ___m_Select)
+        {
+            ___m_Select = -1;
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharaFileSort), "SortTime", typeof(bool))]
+    internal static class CharaFileSort_SortTime_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Postfix(CharaFileSort __instance, bool _ascend, bool[] ___sortType)
+        {
+            EntryListData data = EntryListData.dataByInstance.FirstOrDefault(e => e.Value.sort == __instance).Value;
+            if (data != null)
+            {
+                ___sortType[1] = _ascend;
+                CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
+                Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
+                if (_ascend)
+                {
+                    data.folders.Sort((a, b) => Directory.GetLastWriteTime(a.fullPath).CompareTo(Directory.GetLastWriteTime(b.fullPath)));
+                }
+                else
+                {
+                    data.folders.Sort((a, b) => Directory.GetLastWriteTime(b.fullPath).CompareTo(Directory.GetLastWriteTime(a.fullPath)));
+                }
+                Thread.CurrentThread.CurrentCulture = currentCulture;
+                for (int i = data.folders.Count - 1; i >= 0; i--)
+                {
+                    data.folders[i].displayObject.transform.SetAsFirstSibling();
+                }
+                data.parentFolder.transform.SetAsFirstSibling();
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(CharaFileSort), "SortName", typeof(bool))]
+    internal static class CharaFileSort_SortName_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo;
+        }
+
+        private static void Postfix(CharaFileSort __instance, bool _ascend, bool[] ___sortType)
+        {
+            EntryListData data = EntryListData.dataByInstance.FirstOrDefault(e => e.Value.sort == __instance).Value;
+            if (data != null)
+            {
+                ___sortType[1] = _ascend;
+                CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
+                Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
+                if (_ascend)
+                {
+                    data.folders.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.CurrentCultureIgnoreCase));
+                }
+                else
+                {
+                    data.folders.Sort((a, b) => string.Compare(b.name, a.name, StringComparison.CurrentCultureIgnoreCase));
+                }
+                Thread.CurrentThread.CurrentCulture = currentCulture;
+                for (int i = data.folders.Count - 1; i >= 0; i--)
+                {
+                    data.folders[i].displayObject.transform.SetAsFirstSibling();
+                }
+                data.parentFolder.transform.SetAsFirstSibling();
+            }
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class StudioCharaListSortUtil_ExecuteSort_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo && Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
+        }
+
+        private static MethodInfo TargetMethod()
+        {
+            return AccessTools.Method(Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon"), "ExecuteSort");
+        }
+
+        private static void Postfix(CharaFileSort ___charaFileSort)
+        {
+            EntryListData data = EntryListData.dataByInstance.FirstOrDefault(e => e.Value.sort == ___charaFileSort).Value;
+            if (data == null)
+                return;
+            foreach (EntryListData.EntryData chara in data.entries)
+                chara.node.gameObject.SetActive(chara.node.gameObject.activeSelf && chara.enabled);
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class TextSlideEffectCtrl_Check_Patches
+    {
+        private static MethodInfo TargetMethod()
+        {
+            return AccessTools.Method(Type.GetType("Studio.TextSlideEffectCtrl,Assembly-CSharp"), "Check");
+        }
+
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo && Type.GetType("Studio.TextSlideEffectCtrl,Assembly-CSharp") != null;
+        }
+
+        private static bool Prefix(object __instance, Text ___text, object ___textSlideEffect)
+        {
+            float preferredWidth = ___text.preferredWidth;
+            if (preferredWidth < 104)
+            {
+                ObservableLateUpdateTrigger component = ((Component)__instance).GetComponent<ObservableLateUpdateTrigger>();
+                if (component != null)
+                    Object.Destroy(component);
+                Object.Destroy((Component)__instance);
+                Object.Destroy((Component)___textSlideEffect);
+                return false;
+            }
+            ___text.alignment = (TextAnchor)3;
+            ___text.horizontalOverflow = (HorizontalWrapMode)1;
+            ___text.raycastTarget = true;
+            __instance.CallPrivate("AddFunc");
+            return false;
+        }
+    }
+
+
 #endif
 
 #if HONEYSELECT
@@ -334,7 +892,7 @@ namespace StudioFileCheck
 
         public static bool Prepare()
         {
-            return HSUS.HSUS.self._optimizeNeo;
+            return HSUS.HSUS.self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo;
         }
 
         public static void Postfix(object __instance)
@@ -344,7 +902,6 @@ namespace StudioFileCheck
             _searchBar = UIUtility.CreateInputField("Search Bar", _parent, "Search...");
             Image image = _searchBar.GetComponent<Image>();
             image.color = UIUtility.grayColor;
-            //image.sprite = null;
             RectTransform rt = _searchBar.transform as RectTransform;
             rt.localPosition = Vector3.zero;
             rt.localScale = Vector3.one;
@@ -467,15 +1024,17 @@ namespace StudioFileCheck
         }
     }
 
+    [HarmonyPatch]
     public class ABMStudioNEOSaveLoadHandler_OnLoad_Patches
     {
-        public static void ManualPatch(HarmonyInstance harmony)
+        private static bool Prepare()
         {
-            Type t = Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO");
-            if (t != null)
-            {
-                harmony.Patch(t.GetMethod("OnLoad", BindingFlags.Public | BindingFlags.Instance), null, new HarmonyMethod(typeof(ABMStudioNEOSaveLoadHandler_OnLoad_Patches).GetMethod(nameof(Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
-            }
+            return HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo && HSUS.HSUS._self._optimizeNeo && Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO") != null;
+        }
+
+        private static MethodInfo TargetMethod()
+        {
+            return Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO").GetMethod("OnLoad", BindingFlags.Public | BindingFlags.Instance);
         }
 
         private static void Postfix()
@@ -591,7 +1150,7 @@ namespace StudioFileCheck
     {
         public static bool Prepare()
         {
-            return HSUS.HSUS._self._optimizeNeo;
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo;
         }
         public static void Postfix(GuideObject __instance)
         {
@@ -711,7 +1270,7 @@ namespace StudioFileCheck
     internal static class WorkspaceCtrl_Awake_Patches
     {
         private static List<TreeNodeObject> _treeNodeList;
-        private static InputField _search;
+        internal static InputField _search;
         internal static bool _ignoreSearch = false;
 
         private static bool Prepare()
@@ -735,6 +1294,8 @@ namespace StudioFileCheck
 
         internal static void OnSearchChanged(string s = "")
         {
+            if (_ignoreSearch)
+                return;
             foreach (TreeNodeObject o in _treeNodeList)
             {
                 if (o.parent == null)
@@ -746,7 +1307,8 @@ namespace StudioFileCheck
         {
             if (_ignoreSearch)
                 return;
-            RecurseAny(o, t => t.textName.IndexOf(_search.text, StringComparison.CurrentCultureIgnoreCase) != -1,
+            string searchText = _search.text;
+            RecurseAny(o, t => t.textName.IndexOf(searchText, StringComparison.CurrentCultureIgnoreCase) != -1,
                        (t, r) => t.gameObject.SetActive(r && t.AllParentsOpen()));
 
         }
@@ -779,17 +1341,101 @@ namespace StudioFileCheck
     }
 
     [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickDuplicate")]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickParent")]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "OnParentage", new []{typeof(TreeNodeObject), typeof(TreeNodeObject)})]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickDelete")]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickFolder")]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickRemove")]
-    [HarmonyPatch(typeof(WorkspaceCtrl), "UpdateUI")]
-    internal static class WorkspaceCtrl_UpdateSearch_MultiPatch
+    internal static class WorkspaceCtrl_OnClickDuplicate_Patches
     {
         private static bool Prepare()
         {
-            return HSUS.HSUS._self._optimizeNeo;
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickParent")]
+    internal static class WorkspaceCtrl_OnClickParent_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnParentage", new []{typeof(TreeNodeObject), typeof(TreeNodeObject)})]
+    internal static class WorkspaceCtrl_OnParentage_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickDelete")]
+    internal static class WorkspaceCtrl_OnClickDelete_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickFolder")]
+    internal static class WorkspaceCtrl_OnClickFolder_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickRemove")]
+    internal static class WorkspaceCtrl_OnClickRemove_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix()
+        {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
+            WorkspaceCtrl_Awake_Patches.OnSearchChanged();
+        }
+    }
+    [HarmonyPatch(typeof(WorkspaceCtrl), "UpdateUI")]
+    internal static class WorkspaceCtrl_UpdateUI_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._optimizeNeo && HSUS.HSUS.self._binary == HSUS.HSUS.Binary.Neo;
         }
 
         private static void Postfix()
@@ -809,6 +1455,8 @@ namespace StudioFileCheck
 
         private static void Postfix(TreeNodeObject __instance)
         {
+            if (WorkspaceCtrl_Awake_Patches._search.text == string.Empty)
+                return;
             WorkspaceCtrl_Awake_Patches.PartialSearch(__instance);
         }
     }
@@ -844,6 +1492,67 @@ namespace StudioFileCheck
             string name = __result.textName;
             HSUS.HSUS._self._translationMethod(ref name);
             __result.textName = name;
+        }
+    }
+
+    [HarmonyPatch]
+    internal static class BoneInfo_Ctor_Patches
+    {
+        private static ConstructorInfo TargetMethod()
+        {
+            return typeof(OCIChar.BoneInfo).GetConstructor(new[] { typeof(GuideObject), typeof(OIBoneInfo)});
+        }
+
+        private static bool Prepare()
+        {
+            return HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo;
+        }
+
+        private static void Postfix(GuideObject _guideObject, OIBoneInfo _boneInfo)
+        {
+            switch (_boneInfo.group)
+            {
+                case OIBoneInfo.BoneGroup.Body:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkBodyColor;
+                    break;
+                case (OIBoneInfo.BoneGroup)3:
+                case OIBoneInfo.BoneGroup.RightLeg:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkBodyColor;
+                    break;
+                case (OIBoneInfo.BoneGroup)5:
+                case OIBoneInfo.BoneGroup.LeftLeg:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkBodyColor;
+                    break;
+                case (OIBoneInfo.BoneGroup)9:
+                case OIBoneInfo.BoneGroup.RightArm:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkBodyColor;
+                    break;
+                case (OIBoneInfo.BoneGroup)17:
+                case OIBoneInfo.BoneGroup.LeftArm:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkBodyColor;
+                    break;
+                case OIBoneInfo.BoneGroup.RightHand:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkRightHandColor;
+                    break;
+                case OIBoneInfo.BoneGroup.LeftHand:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkLeftHandColor;
+                    break;
+                case OIBoneInfo.BoneGroup.Hair:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkHairColor;
+                    break;
+                case OIBoneInfo.BoneGroup.Neck:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkNeckColor;
+                    break;
+                case OIBoneInfo.BoneGroup.Breast:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkChestColor;
+                    break;
+                case OIBoneInfo.BoneGroup.Skirt:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkSkirtColor;
+                    break;
+                case (OIBoneInfo.BoneGroup)0:
+                    _guideObject.guideSelect.color = HSUS.HSUS._self._fkItemsColor;
+                    break;
+            }
         }
     }
 

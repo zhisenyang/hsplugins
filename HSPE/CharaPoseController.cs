@@ -124,68 +124,12 @@ namespace HSPE
                     onPostLateUpdate(__instance);
             }
         }
-
-        [HarmonyPatch(typeof(OCIChar), "LoadClothesFile", new[] { typeof(string) })]
-        private class OCIChar_LoadClothesFile_Patches
-        {
-            public static event Action<OCIChar> onLoadClothesFile;
-            public static void Postfix(OCIChar __instance, string _path)
-            {
-                if (onLoadClothesFile != null)
-                    onLoadClothesFile(__instance);
-            }
-        }
-
-        [HarmonyPatch(typeof(OCIChar), "ChangeChara", new[] { typeof(string) })]
-        private class OCIChar_ChangeChara_Patches
-        {
-            public static event Action<OCIChar> onChangeChara;
-            public static void Postfix(OCIChar __instance, string _path)
-            {
-                if (onChangeChara != null)
-                    onChangeChara(__instance);
-            }
-        }
-
-#if HONEYSELECT
-        [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(CharDefine.CoordinateType), typeof(bool) })]
-#elif KOIKATSU
-        [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(ChaFileDefine.CoordinateType), typeof(bool) })]        
-#endif
-        private class OCIChar_SetCoordinateInfo_Patches
-        {
-#if HONEYSELECT
-            public static event Action<OCIChar, CharDefine.CoordinateType, bool> onSetCoordinateInfo; 
-            public static void Postfix(OCIChar __instance, CharDefine.CoordinateType _type, bool _force)
-#elif KOIKATSU
-            public static event Action<OCIChar, ChaFileDefine.CoordinateType, bool> onSetCoordinateInfo;
-            public static void Postfix(OCIChar __instance, ChaFileDefine.CoordinateType _type, bool _force)
-#endif
-            {
-                if (onSetCoordinateInfo != null)
-                    onSetCoordinateInfo(__instance, _type, _force);
-            }
-        }
-
-        #endregion
-
-        #region Public Types
-        public enum DragType
-        {
-            None,
-            Position,
-            Rotation,
-            Both
-        }
         #endregion
 
         #region Private Variables
         private FullBodyBipedIK _body;
         private float _cachedSpineStiffness;
         private float _cachedPullBodyVertical;
-        private readonly Dictionary<int, Vector3> _oldPosValues = new Dictionary<int, Vector3>();
-        private readonly Dictionary<int, Vector3> _oldRotValues = new Dictionary<int, Vector3>();
-        private bool _lockDrag = false;
         private bool _optimizeIK = true;
 
         private Transform _siriDamL;
@@ -215,11 +159,9 @@ namespace HSPE
         private Action _scheduleNextIKPostUpdate = null;
         private FullBodyBipedChain _nextIKLimbCopy;
         private OIBoneInfo.BoneGroup _nextFKLimbCopy;
-        private List<GuideCommand.EqualsInfo> _additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
         #endregion
 
         #region Public Accessors
-        public DragType currentDragType { get; private set; }
         public bool optimizeIK
         {
             get { return this._optimizeIK; }
@@ -386,58 +328,7 @@ namespace HSPE
             }
         }
 
-        public void StartDrag(DragType dragType)
-        {
-            if (this._lockDrag)
-                return;
-            this.currentDragType = dragType;
-        }
 
-        public void StopDrag()
-        {
-            if (this._lockDrag)
-                return;
-            GuideCommand.EqualsInfo[] moveCommands = new GuideCommand.EqualsInfo[this._oldPosValues.Count];
-            int i = 0;
-            if (this.currentDragType == DragType.Position || this.currentDragType == DragType.Both)
-            {
-                foreach (KeyValuePair<int, Vector3> kvp in this._oldPosValues)
-                {
-                    moveCommands[i] = new GuideCommand.EqualsInfo()
-                    {
-                        dicKey = kvp.Key,
-                        oldValue = kvp.Value,
-                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].pos
-                    };
-                    ++i;
-                }
-            }
-            GuideCommand.EqualsInfo[] rotateCommands = new GuideCommand.EqualsInfo[this._oldRotValues.Count + this._additionalRotationEqualsCommands.Count];
-            i = 0;
-            if (this.currentDragType == DragType.Rotation || this.currentDragType == DragType.Both)
-            {
-                foreach (KeyValuePair<int, Vector3> kvp in this._oldRotValues)
-                {
-                    rotateCommands[i] = new GuideCommand.EqualsInfo()
-                    {
-                        dicKey = kvp.Key,
-                        oldValue = kvp.Value,
-                        newValue = Studio.Studio.Instance.dicChangeAmount[kvp.Key].rot
-                    };
-                    ++i;
-                }
-            }
-            foreach (GuideCommand.EqualsInfo info in this._additionalRotationEqualsCommands)
-            {
-                rotateCommands[i] = info;
-                ++i;
-            }
-            UndoRedoManager.Instance.Push(new Commands.MoveRotateEqualsCommand(moveCommands, rotateCommands));
-            this.currentDragType = DragType.None;
-            this._oldPosValues.Clear();
-            this._oldRotValues.Clear();
-            this._additionalRotationEqualsCommands.Clear();
-        }
 
         public bool IsPartEnabled(FullBodyBipedEffector part)
         {
@@ -454,7 +345,7 @@ namespace HSPE
             OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_effectorToIndex[type]];
             if (this._target.ikEnabled && info.active)
             {
-                if (this.currentDragType != DragType.None)
+                if (this._currentDragType != DragType.None)
                 {
                     if (this._oldRotValues.ContainsKey(info.guideObject.dicKey) == false)
                         this._oldRotValues.Add(info.guideObject.dicKey, info.guideObject.changeAmount.rot);
@@ -476,7 +367,7 @@ namespace HSPE
             OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_effectorToIndex[type]];
             if (this._target.ikEnabled && info.active)
             {
-                if (this.currentDragType != DragType.None)
+                if (this._currentDragType != DragType.None)
                 {
                     if (this._oldPosValues.ContainsKey(info.guideObject.dicKey) == false)
                         this._oldPosValues.Add(info.guideObject.dicKey, info.guideObject.changeAmount.pos);
@@ -498,7 +389,7 @@ namespace HSPE
             OCIChar.IKInfo info = this._target.ociChar.listIKTarget[_chainToIndex[type]];
             if (this._target.ikEnabled && info.active)
             {
-                if (this.currentDragType != DragType.None)
+                if (this._currentDragType != DragType.None)
                 {
                     if (this._oldPosValues.ContainsKey(info.guideObject.dicKey) == false)
                         this._oldPosValues.Add(info.guideObject.dicKey, info.guideObject.changeAmount.pos);
@@ -613,6 +504,7 @@ namespace HSPE
         {
             if (this._target.ociChar != chara)
                 return;
+            this._target.RefreshFKBones();
             foreach (AdvancedModeModule module in this._modules)
                 module.OnCharacterReplaced();
         }
@@ -620,6 +512,7 @@ namespace HSPE
         {
             if (this._target.ociChar != chara)
                 return;
+            this._target.RefreshFKBones();
             foreach (AdvancedModeModule module in this._modules)
                 module.OnLoadClothesFile();
         }
@@ -632,6 +525,7 @@ namespace HSPE
         {
             if (this._target.ociChar != chara)
                 return;
+            this._target.RefreshFKBones();
             foreach (AdvancedModeModule module in this._modules)
                 module.OnCoordinateReplaced(type, force);
         }

@@ -19,7 +19,6 @@ using DepthOfField = UnityStandardAssets.ImageEffects.DepthOfField;
 
 namespace HSIBL
 {
-
     public class HSIBL : MonoBehaviour
     {
 
@@ -79,7 +78,6 @@ namespace HSIBL
         private readonly int _windowId = 14333;
         private int _reflectionProbeRefreshRate;
 
-        private Studio.CameraControl _cameraCtrl;
         private bool _windowdragflag = false;
         private int _tabMenu;
         private bool _frontLightAnchor = true;
@@ -646,20 +644,24 @@ namespace HSIBL
 
                 if (_isStudio)
                 {
+                    GUILayout.BeginHorizontal();
                     if (GUILayout.Button("Move Reflection Probe to target", UIUtils.buttonstyleNoStretch))
                     {
-                        this.probeGameObject.transform.position = this._cameraCtrl.targetTex.position;
+                        this.probeGameObject.transform.position = Studio.Studio.Instance.cameraCtrl.targetTex.position;
                         if (this._probeComponent.refreshMode == ReflectionProbeRefreshMode.ViaScripting)
-                        {
                             this._probeComponent.RenderProbe();
-                        }
                     }
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label(this.probeGameObject.transform.position.ToString(), UIUtils.labelstyle);
+                    GUILayout.EndHorizontal();
                 }
                 GUILayout.Space(UIUtils.space);
 
                 this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity, "N3");
 
                 this._probeComponent.shadowDistance = UIUtils.SliderGUI(this._probeComponent.shadowDistance, 1f, 100f, 100f, "Shadow Distance", "N1");
+
+                this._probeComponent.nearClipPlane = UIUtils.SliderGUI(this._probeComponent.nearClipPlane, 0f, 25f, 1.01f, "Near Clip Plane", "N3");
 
                 RenderSettings.reflectionBounces = Mathf.RoundToInt(UIUtils.SliderGUI(RenderSettings.reflectionBounces, 1, 5, 1, "Reflection Bounces", "The number of times a reflection includes other reflections. If set to 1, the scene will be rendered once, which means that a reflection will not be able to reflect another reflection and reflective objects will show up black, when seen in other reflective surfaces. If set to 2, the scene will be rendered twice and reflective objects will show reflections from the first pass, when seen in other reflective surfaces.", "0"));
             }
@@ -1379,16 +1381,16 @@ namespace HSIBL
             GUILayout.BeginVertical(GUI.skin.box);
             this._presetsScroll = GUILayout.BeginScrollView(this._presetsScroll, false, true, GUILayout.MaxHeight(300));
             if (this._presets.Length != 0)
-            foreach (string preset in this._presets)
-            {
-                if (GUILayout.Button(preset, UIUtils.buttonstyleStrechWidth))
+                foreach (string preset in this._presets)
                 {
-                    if (this._removePresetMode)
-                        this.DeletePreset(preset + ".xml");
-                    else
-                        this.LoadPreset(preset + ".xml");
+                    if (GUILayout.Button(preset, UIUtils.buttonstyleStrechWidth))
+                    {
+                        if (this._removePresetMode)
+                            this.DeletePreset(preset + ".xml");
+                        else
+                            this.LoadPreset(preset + ".xml");
+                    }
                 }
-            }
             else
                 GUILayout.Label("No preset...", UIUtils.labelstyle);
             GUILayout.EndScrollView();
@@ -1439,7 +1441,6 @@ namespace HSIBL
         {
             if (_isStudio)
             {
-                this._cameraCtrl = Singleton<Studio.Studio>.Instance.cameraCtrl;
                 SceneInfo sceneInfo = Singleton<Studio.Studio>.Instance.sceneInfo;
                 sceneInfo.enableFog = false;
                 sceneInfo.enableDepth = false;
@@ -1700,6 +1701,7 @@ namespace HSIBL
                                                                                  );
                         if (moduleNode.Attributes["shadowDistance"] != null)
                             this._probeComponent.shadowDistance = XmlConvert.ToSingle(moduleNode.Attributes["shadowDistance"].Value);
+                        this._probeComponent.nearClipPlane = moduleNode.Attributes["nearClipPlane"] != null ? XmlConvert.ToSingle(moduleNode.Attributes["nearClipPlane"].Value) : 1.1f;
                         RenderSettings.reflectionBounces = moduleNode.Attributes["bounces"] != null ? XmlConvert.ToInt32(moduleNode["bounces"].Value) : 1;
                         break;
                     case "defaultLight":
@@ -2088,6 +2090,7 @@ namespace HSIBL
                 writer.WriteAttributeString("resolution", XmlConvert.ToString(this._reflectionProbeResolution));
                 writer.WriteAttributeString("intensity", XmlConvert.ToString(this._probeComponent.intensity));
                 writer.WriteAttributeString("shadowDistance", XmlConvert.ToString(this._probeComponent.shadowDistance));
+                writer.WriteAttributeString("nearClipPlane", XmlConvert.ToString(this._probeComponent.nearClipPlane));
                 writer.WriteAttributeString("positionX", XmlConvert.ToString(this.probeGameObject.transform.position.x));
                 writer.WriteAttributeString("positionY", XmlConvert.ToString(this.probeGameObject.transform.position.y));
                 writer.WriteAttributeString("positionZ", XmlConvert.ToString(this.probeGameObject.transform.position.z));

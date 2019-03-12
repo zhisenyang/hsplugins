@@ -244,17 +244,22 @@ namespace HSPE.AMModules
             this._rightBoob = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
 #endif
             foreach (DynamicBone_Ver02 bone in this._parent.GetComponentsInChildren<DynamicBone_Ver02>(true))
-                foreach (DynamicBoneCollider collider in PoseController._loneColliders)
+                foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
                 {
                     if (bone.Colliders.Contains(collider) == false)
+                    {
+                        UnityEngine.Debug.LogError("adding lone collider to boob " + bone.Root);
+
                         bone.Colliders.Add(collider);
+                    }
                 }
+            this._incIndex = -3;
+            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
         }
 
         private void Update()
         {
-            bool flag = this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent;
-            if (flag)
+            if (this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent)
                 this.DynamicBoneDraggingLogic();
             if (this._dirtyBoobs.Count != 0)
                 foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
@@ -264,8 +269,6 @@ namespace HSPE.AMModules
                     if (kvp.Value.force.hasValue)
                         kvp.Key.Force = kvp.Value.force;
                 }
-            if (flag)
-                _debugLines.Draw(this._leftBoob, this._rightBoob);
         }
 
         public override void OnDestroy()
@@ -275,6 +278,7 @@ namespace HSPE.AMModules
 #if HONEYSELECT
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate -= this.ShouldExecuteDynamicBoneLateUpdate;
 #endif
+            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
         }
         #endregion
 
@@ -503,6 +507,11 @@ namespace HSPE.AMModules
         }
 #endif
 
+        private void UpdateGizmosIf()
+        {
+            if (this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent)
+                _debugLines.Draw(this._leftBoob, this._rightBoob);
+        }
 
         private void DisplaySingleBoob(DynamicBone_Ver02 boob)
         {
@@ -612,14 +621,14 @@ namespace HSPE.AMModules
                         this.SetBoobDirty(this._leftBoob);
                         if (this._dirtyBoobs[this._leftBoob].originalGravity.hasValue == false)
                             this._dirtyBoobs[this._leftBoob].originalGravity = this._leftBoob.Gravity;
-                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
+                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
                         break;
                     case DynamicBoneDragType.RightBoob:
                         this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
                         this.SetBoobDirty(this._rightBoob);
                         if (this._dirtyBoobs[this._rightBoob].originalGravity.hasValue == false)
                             this._dirtyBoobs[this._rightBoob].originalGravity = this._rightBoob.Gravity;
-                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
+                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
                         break;
                 }
             }

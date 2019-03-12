@@ -19,14 +19,23 @@ namespace HSPE.AMModules
         private class DynamicBoneData
         {
             public EditableValue<Vector3> originalGravity;
+            public Vector3 currentGravity;
             public EditableValue<Vector3> originalForce;
+            public Vector3 currentForce;
             public EditableValue<DynamicBone.FreezeAxis> originalFreezeAxis;
+            public DynamicBone.FreezeAxis currentFreezeAxis;
             public EditableValue<float> originalWeight;
+            public float currentWeight;
             public EditableValue<float> originalDamping;
+            public float currentDamping;
             public EditableValue<float> originalElasticity;
+            public float currentElasticity;
             public EditableValue<float> originalStiffness;
+            public float currentStiffness;
             public EditableValue<float> originalInert;
+            public float currentInert;
             public EditableValue<float> originalRadius;
+            public float currentRadius;
 
             public DynamicBoneData()
             {
@@ -43,6 +52,16 @@ namespace HSPE.AMModules
                 this.originalStiffness = other.originalStiffness;
                 this.originalInert = other.originalInert;
                 this.originalRadius = other.originalRadius;
+
+                this.currentWeight = other.currentWeight;
+                this.currentGravity = other.currentGravity;
+                this.currentForce = other.currentForce;
+                this.currentFreezeAxis = other.currentFreezeAxis;
+                this.currentDamping = other.currentDamping;
+                this.currentElasticity = other.currentElasticity;
+                this.currentStiffness = other.currentStiffness;
+                this.currentInert = other.currentInert;
+                this.currentRadius = other.currentRadius;
             }
         }
 
@@ -50,7 +69,7 @@ namespace HSPE.AMModules
         {
             private List<DebugDynamicBone> _debugLines = new List<DebugDynamicBone>();
 
-            public void Draw(List<DynamicBone> dynamicBones, DynamicBone target)
+            public void Draw(List<DynamicBone> dynamicBones, DynamicBone target, Dictionary<DynamicBone, DynamicBoneData> dirtyDynamicBones)
             {
                 int i = 0;
                 for (; i < dynamicBones.Count; i++)
@@ -69,7 +88,7 @@ namespace HSPE.AMModules
                         debug = new DebugDynamicBone(db);
                         this._debugLines.Add(debug);
                     }
-                    debug.Draw(db, db == target);
+                    debug.Draw(db, db == target, dirtyDynamicBones.ContainsKey(db));
                 }
                 for (; i < this._debugLines.Count; ++i)
                 {
@@ -138,7 +157,7 @@ namespace HSPE.AMModules
                 this.circle.MakeCircle(end.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dynamicBonesDragRadius);
             }
 
-            public void Draw(DynamicBone db, bool isTarget)
+            public void Draw(DynamicBone db, bool isTarget, bool isDirty)
             {
                 Transform end = (db.m_Root ?? db.transform).GetFirstLeaf();
 
@@ -160,6 +179,11 @@ namespace HSPE.AMModules
                 origin = end.position;
 
                 if (isTarget)
+                {
+                    this.both.color = Color.cyan;
+                    this.circle.color = Color.cyan;
+                }
+                else if (isDirty)
                 {
                     this.both.color = Color.magenta;
                     this.circle.color = Color.magenta;
@@ -213,7 +237,9 @@ namespace HSPE.AMModules
         private bool _firstRefresh;
         private readonly GenericOCITarget _target;
         private Vector2 _dynamicBonesScroll2;
-        private List<XmlNode> _secondPassLoadingNodes = new List<XmlNode>();
+        private readonly List<XmlNode> _secondPassLoadingNodes = new List<XmlNode>();
+        private readonly Dictionary<Transform, DynamicBoneData> _headlessDirtyDynamicBones = new Dictionary<Transform, DynamicBoneData>();
+        private int _headlessReconstructionTimeout;
         #endregion
 
         #region Public Fields
@@ -228,7 +254,7 @@ namespace HSPE.AMModules
                 UpdateDebugLinesState(this);
             }
         }
-        public override bool shouldDisplay { get { return this._dynamicBones.Count > 0; } }
+        public override bool shouldDisplay { get { return this._dynamicBones.Count(b => b.m_Root != null) > 0; } }
         #endregion
 
         #region Unity Methods
@@ -236,43 +262,53 @@ namespace HSPE.AMModules
         {
             this._target = target;
             this._parent.onUpdate += this.Update;
+            this._parent.onLateUpdate += this.LateUpdate;
             if (_debugLines == null)
                 _debugLines = new DebugLines();
 
-            DynamicBone leftButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
-            leftButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_L");
-            leftButtCheek.m_Damping = 0.1f;
-            leftButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            //this._leftButtCheek.m_Elasticity = 0.3f;
-            leftButtCheek.m_Elasticity = 0.06f;
-            leftButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            //this._leftButtCheek.m_Stiffness = 0.65f;
-            leftButtCheek.m_Stiffness = 0.06f;
-            leftButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            leftButtCheek.m_Radius = 0.0003f;
-            leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
-            leftButtCheek.m_Exclusions = new List<Transform>();
-            leftButtCheek.m_notRolls = new List<Transform>();
+            if (this._target.type == GenericOCITarget.Type.Character)
+            {
+                this._parent.ExecuteDelayed(() =>
+                {
+                    DynamicBone leftButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
+                    leftButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_L");
+                    leftButtCheek.m_Damping = 0.1f;
+                    leftButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    //this._leftButtCheek.m_Elasticity = 0.3f;
+                    leftButtCheek.m_Elasticity = 0.06f;
+                    leftButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    //this._leftButtCheek.m_Stiffness = 0.65f;
+                    leftButtCheek.m_Stiffness = 0.06f;
+                    leftButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    leftButtCheek.m_Radius = 0.0003f;
+                    leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                    leftButtCheek.m_Exclusions = new List<Transform>();
+                    leftButtCheek.m_notRolls = new List<Transform>();
 
-            DynamicBone rightButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
-            rightButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_R");
-            rightButtCheek.m_Damping = 0.1f;
-            rightButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            //this._rightButtCheek.m_Elasticity = 0.3f;
-            rightButtCheek.m_Elasticity = 0.06f;
-            rightButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            //this._rightButtCheek.m_Stiffness = 0.65f;
-            rightButtCheek.m_Stiffness = 0.06f;
-            rightButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            rightButtCheek.m_Radius = 0.0003f;
-            rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-            rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
-            rightButtCheek.m_Exclusions = new List<Transform>();
-            rightButtCheek.m_notRolls = new List<Transform>();
+                    DynamicBone rightButtCheek = this._parent.gameObject.AddComponent<DynamicBone>();
+                    rightButtCheek.m_Root = this._parent.transform.FindDescendant("cf_J_SiriDam01_R");
+                    rightButtCheek.m_Damping = 0.1f;
+                    rightButtCheek.m_DampingDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    //this._rightButtCheek.m_Elasticity = 0.3f;
+                    rightButtCheek.m_Elasticity = 0.06f;
+                    rightButtCheek.m_ElasticityDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    //this._rightButtCheek.m_Stiffness = 0.65f;
+                    rightButtCheek.m_Stiffness = 0.06f;
+                    rightButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    rightButtCheek.m_Radius = 0.0003f;
+                    rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
+                    rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                    rightButtCheek.m_Exclusions = new List<Transform>();
+                    rightButtCheek.m_notRolls = new List<Transform>();
+                }, 2);
+            }
 
             this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 3);
+            this._incIndex = -3;
+            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
         }
 
         private void Update()
@@ -282,28 +318,110 @@ namespace HSPE.AMModules
                 this.RefreshDynamicBoneList();
                 this._firstRefresh = true;
             }
+
             if (!this._isEnabled || !PoseController._drawAdvancedMode || MainWindow._self._poseTarget != this._parent)
                 return;
             this.DynamicBoneDraggingLogic();
-            _debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget);
+        }
+
+        private void LateUpdate()
+        {
+            if (this._headlessReconstructionTimeout >= 0)
+            {
+                this._headlessReconstructionTimeout--;
+                foreach (KeyValuePair<Transform, DynamicBoneData> pair in new Dictionary<Transform, DynamicBoneData>(this._headlessDirtyDynamicBones))
+                {
+                    foreach (DynamicBone db in this._dynamicBones)
+                    {
+                        if (db != null && this._dirtyDynamicBones.ContainsKey(db) == false && (db.m_Root == pair.Key || db.transform == pair.Key))
+                        {
+                            this._dirtyDynamicBones.Add(db, pair.Value);
+
+                            if (pair.Value.originalWeight.hasValue)
+                            {
+                                pair.Value.originalWeight = db.GetWeight();
+                                db.SetWeight(pair.Value.currentWeight);
+                            }
+                            if (pair.Value.originalGravity.hasValue)
+                            {
+                                pair.Value.originalGravity = db.m_Gravity;
+                                db.m_Gravity = pair.Value.currentGravity;
+                            }
+                            if (pair.Value.originalForce.hasValue)
+                            {
+                                pair.Value.originalForce = db.m_Force;
+                                db.m_Force = pair.Value.currentForce;
+                            }
+                            if (pair.Value.originalFreezeAxis.hasValue)
+                            {
+                                pair.Value.originalFreezeAxis = db.m_FreezeAxis;
+                                db.m_FreezeAxis = pair.Value.currentFreezeAxis;
+                            }
+                            if (pair.Value.originalDamping.hasValue)
+                            {
+                                pair.Value.originalDamping = db.m_Damping;
+                                db.m_Damping = pair.Value.currentDamping;
+                            }
+                            if (pair.Value.originalElasticity.hasValue)
+                            {
+                                pair.Value.originalElasticity = db.m_Elasticity;
+                                db.m_Elasticity = pair.Value.currentElasticity;
+                            }
+                            if (pair.Value.originalStiffness.hasValue)
+                            {
+                                pair.Value.originalStiffness = db.m_Stiffness;
+                                db.m_Stiffness = pair.Value.currentStiffness;
+                            }
+                            if (pair.Value.originalInert.hasValue)
+                            {
+                                pair.Value.originalInert = db.m_Inert;
+                                db.m_Inert = pair.Value.currentInert;
+                            }
+                            if (pair.Value.originalRadius.hasValue)
+                            {
+                                pair.Value.originalRadius = db.m_Radius;
+                                db.m_Radius = pair.Value.currentRadius;
+                            }
+                            this._headlessDirtyDynamicBones.Remove(pair.Key);
+                            this.NotifyDynamicBoneForUpdate(db);
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (this._headlessDirtyDynamicBones.Count != 0)
+                this._headlessDirtyDynamicBones.Clear();
         }
 
         public override void OnDestroy()
         {
             base.OnDestroy();
             this._parent.onUpdate -= this.Update;
+            this._parent.onLateUpdate -= this.LateUpdate;
+            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
+        }
+
+        private void UpdateGizmosIf()
+        {
+            if (!this._isEnabled || !PoseController._drawAdvancedMode || MainWindow._self._poseTarget != this._parent)
+                return;
+            _debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget, this._dirtyDynamicBones);
         }
         #endregion
 
         #region Public Methods
         public override void OnCharacterReplaced()
         {
+            this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
 
         public override void OnLoadClothesFile()
         {
+            this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
 
 #if HONEYSELECT
@@ -312,7 +430,9 @@ namespace HSPE.AMModules
         public override void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force)
 #endif
         {
+            this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
+            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
 
         public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
@@ -349,8 +469,11 @@ namespace HSPE.AMModules
                 string newName;
                 if (BonesEditor._boneAliases.TryGetValue(dName, out newName))
                     dName = newName;
+                GUILayout.BeginHorizontal();
                 if (GUILayout.Button(dName + (this.IsDynamicBoneDirty(db) ? "*" : "")))
                     this._dynamicBoneTarget = db;
+                GUILayout.Space(GUI.skin.verticalScrollbar.fixedWidth);
+                GUILayout.EndHorizontal();
                 GUI.color = c;
             }
             GUILayout.EndScrollView();
@@ -365,13 +488,13 @@ namespace HSPE.AMModules
                 GUI.color = Color.red;
                 if (GUILayout.Button("Reset all") && this._dynamicBoneTarget != null)
                 {
-                    this.RefreshDynamicBoneList();
                     foreach (KeyValuePair<DynamicBone, DynamicBoneData> pair in new Dictionary<DynamicBone, DynamicBoneData>(this._dirtyDynamicBones))
                     {
                         if (pair.Key == null)
                             continue;
                         this.SetDynamicBoneNotDirty(pair.Key);
                     }
+                    this.RefreshDynamicBoneList();
                     this._dirtyDynamicBones.Clear();
                 }
                 GUI.color = c;
@@ -397,8 +520,9 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalGravity.hasValue == false)
                             data.originalGravity = this._dynamicBoneTarget.m_Gravity;
+                        data.currentGravity = g;
+                        this._dynamicBoneTarget.m_Gravity = g;
                     }
-                    this._dynamicBoneTarget.m_Gravity = g;
                 }
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -408,6 +532,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Gravity = data.originalGravity;
+                    data.currentGravity = data.originalGravity;
                     data.originalGravity.Reset();
                 }
                 GUI.color = c;
@@ -430,8 +555,9 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalForce.hasValue == false)
                             data.originalForce = this._dynamicBoneTarget.m_Force;
+                        data.currentForce = f;
+                        this._dynamicBoneTarget.m_Force = f;
                     }
-                    this._dynamicBoneTarget.m_Force = f;
                 }
 
                 GUILayout.BeginHorizontal();
@@ -442,6 +568,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Force = data.originalForce;
+                    data.currentForce = data.originalForce;
                     data.originalForce.Reset();
                 }
                 GUI.color = c;
@@ -472,8 +599,9 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalFreezeAxis.hasValue == false)
                             data.originalFreezeAxis = this._dynamicBoneTarget.m_FreezeAxis;
+                        data.currentFreezeAxis = fa;
+                        this._dynamicBoneTarget.m_FreezeAxis = fa;
                     }
-                    this._dynamicBoneTarget.m_FreezeAxis = fa;
                 }
 
                 c = GUI.color;
@@ -482,6 +610,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_FreezeAxis = data.originalFreezeAxis;
+                    data.currentFreezeAxis = data.originalFreezeAxis;
                     data.originalFreezeAxis.Reset();
                 }
                 GUI.color = c;
@@ -504,8 +633,9 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalWeight.hasValue == false)
                             data.originalWeight = this._dynamicBoneTarget.GetWeight();
+                        data.currentWeight = w;
+                        this._dynamicBoneTarget.SetWeight(w);
                     }
-                    this._dynamicBoneTarget.SetWeight(w);
                 }
                 GUILayout.Label(w.ToString("0.000"), GUILayout.ExpandWidth(false));
 
@@ -515,6 +645,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.SetWeight(data.originalWeight);
+                    data.currentWeight = data.originalWeight;
                     data.originalWeight.Reset();
                 }
                 GUI.color = c;
@@ -536,6 +667,7 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalDamping.hasValue == false)
                             data.originalDamping = this._dynamicBoneTarget.m_Damping;
+                        data.currentDamping = v;
                         this._dynamicBoneTarget.m_Damping = v;
                         this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                     }
@@ -548,6 +680,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Damping = data.originalDamping;
+                    data.currentDamping = data.originalDamping;
                     data.originalDamping.Reset();
                     this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                 }
@@ -571,6 +704,7 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalElasticity.hasValue == false)
                             data.originalElasticity = this._dynamicBoneTarget.m_Elasticity;
+                        data.currentElasticity = v;
                         this._dynamicBoneTarget.m_Elasticity = v;
                         this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                     }
@@ -583,6 +717,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Elasticity = data.originalElasticity;
+                    data.currentElasticity = data.originalElasticity;
                     data.originalElasticity.Reset();
                     this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                 }
@@ -606,6 +741,7 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalStiffness.hasValue == false)
                             data.originalStiffness = this._dynamicBoneTarget.m_Stiffness;
+                        data.currentStiffness = v;
                         this._dynamicBoneTarget.m_Stiffness = v;
                         this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                     }
@@ -618,6 +754,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Stiffness = data.originalStiffness;
+                    data.currentStiffness = data.originalStiffness;
                     data.originalStiffness.Reset();
                     this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                 }
@@ -641,6 +778,7 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalInert.hasValue == false)
                             data.originalInert = this._dynamicBoneTarget.m_Inert;
+                        data.currentInert = v;
                         this._dynamicBoneTarget.m_Inert = v;
                         this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                     }
@@ -653,6 +791,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Inert = data.originalInert;
+                    data.currentInert = data.originalInert;
                     data.originalInert.Reset();
                     this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                 }
@@ -676,6 +815,7 @@ namespace HSPE.AMModules
                         DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                         if (data.originalRadius.hasValue == false)
                             data.originalRadius = this._dynamicBoneTarget.m_Radius;
+                        data.currentRadius = v;
                         this._dynamicBoneTarget.m_Radius = v;
                         this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                     }
@@ -688,6 +828,7 @@ namespace HSPE.AMModules
                 {
                     DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
                     this._dynamicBoneTarget.m_Radius = data.originalRadius;
+                    data.currentRadius = data.originalRadius;
                     data.originalRadius.Reset();
                     this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
                 }
@@ -701,6 +842,7 @@ namespace HSPE.AMModules
             GUILayout.BeginHorizontal();
             c = GUI.color;
             GUI.color = Color.red;
+            GUILayout.FlexibleSpace();
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dynamicBoneTarget != null)
                 this.SetDynamicBoneNotDirty(this._dynamicBoneTarget);
             GUI.color = c;
@@ -772,7 +914,6 @@ namespace HSPE.AMModules
 
         public override int SaveXml(XmlTextWriter xmlWriter)
         {
-            this.RefreshDynamicBoneList();
             int written = 0;
             if (this._dirtyDynamicBones.Count != 0)
             {
@@ -815,15 +956,16 @@ namespace HSPE.AMModules
                 }
                 xmlWriter.WriteEndElement();
             }
+            //this.RefreshDynamicBoneList();
+
             return written;
         }
 
         public override bool LoadXml(XmlNode xmlNode)
         {
             this.ResetAll();
-
-            bool changed = false;
             this.RefreshDynamicBoneList();
+            bool changed = false;
             List<XmlNode> potentialChildrenNodes = new List<XmlNode>();
 
             XmlNode dynamicBonesNode = xmlNode.FindChildNode("dynamicBones");
@@ -926,6 +1068,7 @@ namespace HSPE.AMModules
             {
                 float weight = XmlConvert.ToSingle(node.Attributes["weight"].Value);
                 data.originalWeight = db.GetWeight();
+                data.currentWeight = weight;
                 db.SetWeight(weight);
             }
             if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
@@ -935,6 +1078,7 @@ namespace HSPE.AMModules
                 gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
                 gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
                 data.originalGravity = db.m_Gravity;
+                data.currentGravity = gravity;
                 db.m_Gravity = gravity;
             }
             if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
@@ -944,30 +1088,35 @@ namespace HSPE.AMModules
                 force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
                 force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
                 data.originalForce = db.m_Force;
+                data.currentForce = force;
                 db.m_Force = force;
             }
             if (node.Attributes["freezeAxis"] != null)
             {
                 DynamicBone.FreezeAxis axis = (DynamicBone.FreezeAxis)XmlConvert.ToInt32(node.Attributes["freezeAxis"].Value);
                 data.originalFreezeAxis = db.m_FreezeAxis;
+                data.currentFreezeAxis = axis;
                 db.m_FreezeAxis = axis;
             }
             if (node.Attributes["damping"] != null)
             {
                 float damping = XmlConvert.ToSingle(node.Attributes["damping"].Value);
                 data.originalDamping = db.m_Damping;
+                data.currentDamping = damping;
                 db.m_Damping = damping;
             }
             if (node.Attributes["elasticity"] != null)
             {
                 float elasticity = XmlConvert.ToSingle(node.Attributes["elasticity"].Value);
                 data.originalElasticity = db.m_Elasticity;
+                data.currentElasticity = elasticity;
                 db.m_Elasticity = elasticity;
             }
             if (node.Attributes["stiffness"] != null)
             {
                 float stiffness = XmlConvert.ToSingle(node.Attributes["stiffness"].Value);
                 data.originalStiffness = db.m_Stiffness;
+                data.currentStiffness = stiffness;
                 db.m_Stiffness = stiffness;
             }
 
@@ -975,20 +1124,21 @@ namespace HSPE.AMModules
             {
                 float inert = XmlConvert.ToSingle(node.Attributes["inert"].Value);
                 data.originalInert = db.m_Inert;
+                data.currentInert = inert;
                 db.m_Inert = inert;
             }
             if (node.Attributes["radius"] != null)
             {
                 float radius = XmlConvert.ToSingle(node.Attributes["radius"].Value);
                 data.originalRadius = db.m_Radius;
+                data.currentRadius = radius;
                 db.m_Radius = radius;
             }
             if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue || data.originalDamping.hasValue || data.originalElasticity.hasValue || data.originalStiffness.hasValue || data.originalInert.hasValue || data.originalRadius.hasValue)
             {
                 loaded = true;
                 this.NotifyDynamicBoneForUpdate(db);
-                this._dirtyDynamicBones.Add(db, data);
-                
+                this._dirtyDynamicBones.Add(db, data);                
             }
             return loaded;
         }
@@ -1034,46 +1184,55 @@ namespace HSPE.AMModules
                 if (data.originalWeight.hasValue)
                 {
                     bone.SetWeight(data.originalWeight);
+                    data.currentWeight = data.originalWeight;
                     data.originalWeight.Reset();
                 }
                 if (data.originalGravity.hasValue)
                 {
                     bone.m_Gravity = data.originalGravity;
+                    data.currentGravity = data.originalGravity;
                     data.originalGravity.Reset();
                 }
                 if (data.originalForce.hasValue)
                 {
                     bone.m_Force = data.originalForce;
+                    data.currentGravity = data.originalGravity;
                     data.originalForce.Reset();
                 }
                 if (data.originalFreezeAxis.hasValue)
                 {
                     bone.m_FreezeAxis = data.originalFreezeAxis;
+                    data.currentFreezeAxis = data.originalFreezeAxis;
                     data.originalFreezeAxis.Reset();
                 }
                 if (data.originalDamping.hasValue)
                 {
                     bone.m_Damping = data.originalDamping;
+                    data.currentDamping = data.originalDamping;
                     data.originalDamping.Reset();
                 }
                 if (data.originalElasticity.hasValue)
                 {
                     bone.m_Elasticity = data.originalElasticity;
+                    data.currentElasticity = data.originalElasticity;
                     data.originalElasticity.Reset();
                 }
                 if (data.originalStiffness.hasValue)
                 {
                     bone.m_Stiffness = data.originalStiffness;
+                    data.currentStiffness = data.originalStiffness;
                     data.originalStiffness.Reset();
                 }
                 if (data.originalInert.hasValue)
                 {
                     bone.m_Inert = data.originalInert;
+                    data.currentInert = data.originalInert;
                     data.originalInert.Reset();
                 }
                 if (data.originalRadius.hasValue)
                 {
                     bone.m_Radius = data.originalRadius;
+                    data.currentRadius = data.originalRadius;
                     data.originalRadius.Reset();
                 }
                 this._dirtyDynamicBones.Remove(bone);
@@ -1134,7 +1293,7 @@ namespace HSPE.AMModules
                 this.SetDynamicBoneDirty(this._draggedDynamicBone);
                 if (this._dirtyDynamicBones[this._draggedDynamicBone].originalForce.hasValue == false)
                     this._dirtyDynamicBones[this._draggedDynamicBone].originalForce = this._draggedDynamicBone.m_Force;
-                this._draggedDynamicBone.m_Force = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * _inc / 12f;
+                this._draggedDynamicBone.m_Force = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
             }
             else if (Input.GetMouseButtonUp(0))
             {
@@ -1153,14 +1312,19 @@ namespace HSPE.AMModules
                         toDelete = new List<DynamicBone>();
                     toDelete.Add(db);
                 }
+            foreach (KeyValuePair<DynamicBone, DynamicBoneData> pair in this._dirtyDynamicBones) //Putting every dirty one into headless, that should help
+            {
+                if (pair.Key != null)
+                {
+                    this._headlessDirtyDynamicBones.Add(pair.Key.m_Root != null ? pair.Key.m_Root : pair.Key.transform, pair.Value);
+                    this._headlessReconstructionTimeout = 5;
+                }
+            }
+            this._dirtyDynamicBones.Clear();
             if (toDelete != null)
             {
                 foreach (DynamicBone db in toDelete)
-                {
-                    if (this._dirtyDynamicBones.ContainsKey(db))
-                        this._dirtyDynamicBones.Remove(db);
                     this._dynamicBones.Remove(db);
-                }
             }
             List<DynamicBone> toAdd = null;
             foreach (DynamicBone db in dynamicBones)
@@ -1179,10 +1343,14 @@ namespace HSPE.AMModules
                 this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
             foreach (DynamicBone bone in this._dynamicBones)
             {
-                foreach (DynamicBoneCollider collider in PoseController._loneColliders)
+                foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
                 {
                     if (bone.m_Colliders.Contains(collider) == false)
+                    {
+                        UnityEngine.Debug.LogError("adding lone collider to " + bone.m_Root);
+
                         bone.m_Colliders.Add(collider);
+                    }
                 }
             }
         }

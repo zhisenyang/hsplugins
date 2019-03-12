@@ -64,6 +64,18 @@ namespace HSPE.AMModules
                 this.type = Type.Unknown;
         }
 
+        public void RefreshFKBones()
+        {
+            if (this.type == Type.Character)
+            {
+                this.fkObjects.Clear();
+                foreach (OCIChar.BoneInfo bone in this.ociChar.listBones)
+                {
+                    if (bone.guideObject != null && bone.guideObject.transformTarget != null)
+                        this.fkObjects.Add(bone.guideObject.transformTarget.gameObject, bone);
+                }
+            }
+        }
 
     }
 }

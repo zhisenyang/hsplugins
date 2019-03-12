@@ -38,11 +38,12 @@ namespace HSUS
         }
     }
 
+    [HarmonyPatch]
     internal static class UI_ColorInfo_ConvertValueFromText_Patches
     {
-        internal static void ManualPatch(HarmonyInstance harmony)
+        private static MethodInfo TargetMethod()
         {
-            harmony.Patch(typeof(UI_ColorInfo).GetMethod("ConvertValueFromText", BindingFlags.Public | BindingFlags.Instance), new HarmonyMethod(typeof(UI_ColorInfo_ConvertValueFromText_Patches), nameof(Prefix)), null);
+            return typeof(UI_ColorInfo).GetMethod("ConvertValueFromText", BindingFlags.Public | BindingFlags.Instance);
         }
 
         private static bool Prefix(UI_ColorInfo.ColorType type, string buf, ref bool OutOfRange, ref float __result)
@@ -195,6 +196,11 @@ namespace HSUS
     [HarmonyPatch(typeof(ColorPaletteCtrl), "set_visible", new[] { typeof(bool) })]
     internal static class ColorPaletteCtrl_set_visible_Patches
     {
+        private static bool Prepare()
+        {
+            return HSUS._self._binary == HSUS.Binary.Neo;
+        }
+
         private static void Postfix(ColorPaletteCtrl __instance, bool value, UI_ColorMenu ___colorMenu)
         {
             if (value)

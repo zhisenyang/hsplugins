@@ -53,4 +53,48 @@ namespace HSPE
                 Studio_Duplicate_Patches._destinations.Add(__instance);
         }
     }
+
+
+    [HarmonyPatch(typeof(OCIChar), "LoadClothesFile", new[] { typeof(string) })]
+    internal static class OCIChar_LoadClothesFile_Patches
+    {
+        public static event Action<OCIChar> onLoadClothesFile;
+        public static void Postfix(OCIChar __instance, string _path)
+        {
+            if (onLoadClothesFile != null)
+                onLoadClothesFile(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(OCIChar), "ChangeChara", new[] { typeof(string) })]
+    internal static class OCIChar_ChangeChara_Patches
+    {
+        public static event Action<OCIChar> onChangeChara;
+        public static void Postfix(OCIChar __instance, string _path)
+        {
+            if (onChangeChara != null)
+                onChangeChara(__instance);
+        }
+    }
+
+#if HONEYSELECT
+    [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] { typeof(CharDefine.CoordinateType), typeof(bool) })]
+#elif KOIKATSU
+        [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] {typeof(ChaFileDefine.CoordinateType), typeof(bool) })]        
+#endif
+    internal static class OCIChar_SetCoordinateInfo_Patches
+    {
+#if HONEYSELECT
+        public static event Action<OCIChar, CharDefine.CoordinateType, bool> onSetCoordinateInfo;
+        public static void Postfix(OCIChar __instance, CharDefine.CoordinateType _type, bool _force)
+#elif KOIKATSU
+            public static event Action<OCIChar, ChaFileDefine.CoordinateType, bool> onSetCoordinateInfo;
+            public static void Postfix(OCIChar __instance, ChaFileDefine.CoordinateType _type, bool _force)
+#endif
+        {
+            if (onSetCoordinateInfo != null)
+                onSetCoordinateInfo(__instance, _type, _force);
+        }
+    }
+
 }

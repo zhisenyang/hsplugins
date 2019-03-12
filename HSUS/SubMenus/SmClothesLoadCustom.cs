@@ -3,13 +3,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Reflection;
 using System.Threading;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
 using ToolBox;
-using UILib;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -17,9 +17,29 @@ namespace HSUS
 {
     public static class SmClothesLoad_Data
     {
+        public class FolderInfo
+        {
+            public string fullPath;
+            public string path;
+            public string name;
+            public EntryDisplay display;
+        }
+
+        public class EntryDisplay
+        {
+            public GameObject gameObject;
+            public Toggle toggle;
+            public Text text;
+        }
+
+        public static readonly Dictionary<SmClothesLoad.FileInfo, SmClothesLoad.FileInfoComponent> clothes = new Dictionary<SmClothesLoad.FileInfo, SmClothesLoad.FileInfoComponent>();
+        public static readonly LinkedList<SmClothesLoad.FileInfoComponent> clothesEntryPool = new LinkedList<SmClothesLoad.FileInfoComponent>();
+        public static readonly List<EntryDisplay> folders = new List<EntryDisplay>();
+
         public static bool created;
         public static RectTransform container;
-        public static readonly Dictionary<SmClothesLoad.FileInfo, GameObject> objects = new Dictionary<SmClothesLoad.FileInfo, GameObject>();
+        public static readonly List<FolderInfo> folderInfos = new List<FolderInfo>();
+        public static Toggle parentFolder;
         public static InputField searchBar;
         internal static IEnumerator _createListObject;
         internal static PropertyInfo _translateProperty = null;
@@ -43,13 +63,21 @@ namespace HSUS
             group.childForceExpandWidth = true;
             group.childForceExpandHeight = false;
 
-            searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform, SearchChanged, -24f);
+            List<SmClothesLoad.FileInfo> fileInfos = (List<SmClothesLoad.FileInfo>)originalComponent.GetPrivate("lstFileInfo");
+
+            searchBar = CharaMakerSearch.SpawnSearchBar(_originalComponent.transform, (s) =>
+            {
+                SearchChanged(fileInfos);
+            }, -24f);
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
             if (HSUS._self._asyncLoading)
             {
-                _createListObject = SmClothesLoad_CreateListObject_Patches.CreateListObject(originalComponent);
+                bool initEnd = false;
+                byte folderInfoSex = 0;
+                SmClothesLoad_Init_Patches.Prefix(originalComponent, ref initEnd, ref folderInfoSex, originalComponent.customControl.chainfo, fileInfos);
+                _createListObject = SmClothesLoad_CreateListObject_Patches.CreateListObject(originalComponent, originalComponent.customControl.chainfo, fileInfos, (List<RectTransform>)originalComponent.GetPrivate("lstRtfTgl"));
                 HSUS._self._asyncMethods.Add(_createListObject);
             }
 
@@ -59,21 +87,95 @@ namespace HSUS
 
         private static void Reset()
         {
-            objects.Clear();
+            //folderInfos.Clear();
+            folders.Clear();
+            clothes.Clear();
             created = false;
             _createListObject = null;
         }
 
-        public static void SearchChanged(string arg0)
+        public static void SearchChanged(List<SmClothesLoad.FileInfo> lstFileInfo)
         {
             string search = searchBar.text.Trim();
-            if (objects != null && objects.Count != 0)
-                foreach (SmClothesLoad.FileInfo fi in (List<SmClothesLoad.FileInfo>)_originalComponent.GetPrivate("lstFileInfo"))
+            if (clothes != null && clothes.Count != 0)
+                foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
                 {
-                    GameObject go;
-                    if (objects.TryGetValue(fi, out go))
-                        go.SetActive(fi.comment.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
+                    SmClothesLoad.FileInfoComponent fileInfoComponent;
+                    if (clothes.TryGetValue(fi, out fileInfoComponent))
+                        fileInfoComponent.gameObject.SetActive(fi.comment.IndexOf(search, StringComparison.OrdinalIgnoreCase) != -1);
                 }
+        }
+
+        public static void ResetSearch(List<SmClothesLoad.FileInfo> lstFileInfo)
+        {
+            InputField.OnChangeEvent searchEvent = searchBar.onValueChanged;
+            searchBar.onValueChanged = null;
+            searchBar.text = "";
+            searchBar.onValueChanged = searchEvent;
+            if (clothes != null && clothes.Count != 0)
+                foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
+                {
+                    SmClothesLoad.FileInfoComponent fileInfoComponent;
+                    if (clothes.TryGetValue(fi, out fileInfoComponent))
+                        fileInfoComponent.gameObject.SetActive(true);
+                }
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesLoad), "Init")]
+    internal static class SmClothesLoad_Init_Patches
+    {
+        internal static void Prefix(SmClothesLoad __instance, ref bool ___initEnd, ref byte ___folderInfoSex, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo)
+        {
+            if (___initEnd && ___folderInfoSex == ___chaInfo.Sex)
+            {
+                return;
+            }
+            if (null == ___chaInfo)
+            {
+                return;
+            }
+            global::FolderAssist folderAssist = new global::FolderAssist();
+
+            string path = global::UserData.Path + (___chaInfo.Sex != 0 ? "coordinate/female" : "coordinate/male") + HSUS._self._currentClothesPathGame;
+            folderAssist.CreateFolderInfoEx(path, new[] {"*.png"});
+            CharFileInfoClothes charFileInfoClothes;
+            if (___chaInfo.Sex == 0)
+                charFileInfoClothes = new CharFileInfoClothesMale();
+            else
+                charFileInfoClothes = new CharFileInfoClothesFemale();
+            ___lstFileInfo.Clear();
+            int fileCount = folderAssist.GetFileCount();
+            int num = 0;
+            for (int i = 0; i < fileCount; i++)
+            {
+                if (charFileInfoClothes.Load(folderAssist.lstFile[i].FullPath, false))
+                {
+                    if (charFileInfoClothes.clothesTypeSex == ___chaInfo.Sex)
+                    {
+                        SmClothesLoad.FileInfo fileInfo = new SmClothesLoad.FileInfo
+                        {
+                            no = num,
+                            fullPath = folderAssist.lstFile[i].FullPath,
+                            fileName = folderAssist.lstFile[i].FileName,
+                            time = folderAssist.lstFile[i].time,
+                            comment = charFileInfoClothes.comment
+                        };
+                        ___lstFileInfo.Add(fileInfo);
+                        num++;
+                    }
+                }
+            }
+
+            string[] directories = Directory.GetDirectories(path);
+            SmClothesLoad_Data.folderInfos.Clear();
+            foreach (string directory in directories)
+            {
+                string localDirectory = directory.Replace("\\", "/").Replace(path, "");
+                SmClothesLoad_Data.folderInfos.Add(new SmClothesLoad_Data.FolderInfo() { fullPath = directory, path = localDirectory, name = localDirectory.Substring(1) });
+            }
+            ___folderInfoSex = ___chaInfo.Sex;
+            ___initEnd = true;
         }
     }
 
@@ -85,100 +187,172 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static bool Prefix(SmClothesLoad __instance)
+        public static bool Prefix(SmClothesLoad __instance, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo, List<RectTransform> ___lstRtfTgl)
         {
             if (__instance.imgPrev)
                 __instance.imgPrev.enabled = false;
             if (SmClothesLoad_Data.created == false)
             {
+                if (SmClothesLoad_Data.searchBar != null)
+                    SmClothesLoad_Data.ResetSearch(___lstFileInfo);
+
                 if (SmClothesLoad_Data._createListObject == null || SmClothesLoad_Data._createListObject.MoveNext() == false)
-                    SmClothesLoad_Data._createListObject = CreateListObject(__instance);
+                    SmClothesLoad_Data._createListObject = CreateListObject(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
 
                 while (SmClothesLoad_Data._createListObject.MoveNext());
 
                 SmClothesLoad_Data._createListObject = null;
             }
 
-            if (SmClothesLoad_Data.searchBar != null)
-            {
-                SmClothesLoad_Data.searchBar.text = "";
-                //SmClothesLoad_Data.SearchChanged("");
-            }
-
             return false;
         }
 
-        internal static IEnumerator CreateListObject(SmClothesLoad __instance)
+        internal static IEnumerator CreateListObject(SmClothesLoad __instance, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo, List<RectTransform> ___lstRtfTgl)
         {
-            List<RectTransform> lstRtfTgl = ((List<RectTransform>)__instance.GetPrivate("lstRtfTgl"));
-            if (__instance.objListTop.transform.childCount > 0 && SmClothesLoad_Data.objects.ContainsValue(__instance.objListTop.transform.GetChild(0).gameObject) == false)
+            if (__instance.objListTop.transform.childCount > 0 && SmClothesLoad_Data.clothes.ContainsValue(__instance.objListTop.transform.GetComponentInChildren<SmClothesLoad.FileInfoComponent>()) == false)
             {
-                lstRtfTgl.Clear();
-                for (int i = 0; i < __instance.objListTop.transform.childCount; i++)
+                ___lstRtfTgl.Clear();
+                for (int j = 0; j < __instance.objListTop.transform.childCount; j++)
                 {
-                    GameObject go = __instance.objListTop.transform.GetChild(i).gameObject;
+                    GameObject go = __instance.objListTop.transform.GetChild(j).gameObject;
                     GameObject.Destroy(go);
-
                 }
+                SmClothesLoad_Data.folders.Clear();
+                SmClothesLoad_Data.clothes.Clear();
+                SmClothesLoad_Data.parentFolder = null;
                 yield return null;
             }
-            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
-            ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
-            int num2 = 0;
-            if (lstFileInfo.Count > SmClothesLoad_Data.objects.Count)
+
+            if (SmClothesLoad_Data.parentFolder == null)
             {
-                foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
+                SmClothesLoad_Data.parentFolder = GameObject.Instantiate(__instance.objLineBase).GetComponent<Toggle>();
+                SmClothesLoad_Data.parentFolder.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                SmClothesLoad_Data.parentFolder.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                SmClothesLoad_Data.parentFolder.transform.SetParent(__instance.objListTop.transform, false);
+                SmClothesLoad_Data.parentFolder.transform.localScale = Vector3.one;
+                Text text = SmClothesLoad_Data.parentFolder.GetComponentInChildren<Text>();
+                SmClothesLoad_Data.parentFolder.onValueChanged.AddListener((b) =>
                 {
-                    if (SmClothesLoad_Data.objects.ContainsKey(fi))
-                        continue;
-                    GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
-                    SmClothesLoad_Data.objects.Add(fi, gameObject);
-                    gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                    SmClothesLoad.FileInfoComponent fileInfoComponent = gameObject.AddComponent<SmClothesLoad.FileInfoComponent>();
-                    fileInfoComponent.info = fi;
+                    if (SmClothesLoad_Data.parentFolder.isOn)
+                    {
+                        bool initEnd = false;
+                        byte folderInfoSex = 0;
+                        SmClothesLoad_Data.created = false;
+                        int index = HSUS._self._currentClothesPathGame.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
+                        HSUS._self._currentClothesPathGame = HSUS._self._currentClothesPathGame.Remove(index);
+                        SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
+                        Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
+                    }
+                });
+                text.fontStyle = FontStyle.BoldAndItalic;
+                text.text = "../ (Parent folder)";
+            }
+
+            SmClothesLoad_Data.parentFolder.isOn = false;
+            SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
+            SmClothesLoad_Data.parentFolder.gameObject.SetActive(HSUS._self._currentClothesPathGame.Length > 1);
+
+            int i = 0;
+            for (; i < SmClothesLoad_Data.folderInfos.Count; i++)
+            {
+                SmClothesLoad_Data.FolderInfo fi = SmClothesLoad_Data.folderInfos[i];
+                SmClothesLoad_Data.EntryDisplay display;
+                if (i < SmClothesLoad_Data.folders.Count)
+                    display = SmClothesLoad_Data.folders[i];
+                else
+                {
+                    display = new SmClothesLoad_Data.EntryDisplay();
+                    display.gameObject = GameObject.Instantiate(__instance.objLineBase);
+                    display.toggle = display.gameObject.GetComponent<Toggle>();
+                    display.text = display.gameObject.GetComponentInChildren<Text>();
+                    display.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    display.gameObject.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                    display.gameObject.transform.SetParent(__instance.objListTop.transform, false);
+                    display.gameObject.transform.localScale = Vector3.one;
+                    ___lstRtfTgl.Add((RectTransform)display.gameObject.transform);
+                    display.text.fontStyle = FontStyle.BoldAndItalic;
+                    SmClothesLoad_Data.folders.Add(display);
+                }
+                fi.display = display;
+                display.gameObject.SetActive(true);
+                display.gameObject.transform.SetAsLastSibling();
+                display.toggle.onValueChanged = new Toggle.ToggleEvent();
+                display.toggle.onValueChanged.AddListener((b) =>
+                {
+                    if (display.toggle.isOn)
+                    {
+                        bool initEnd = false;
+                        byte folderInfoSex = 0;
+                        SmClothesLoad_Data.created = false;
+                        HSUS._self._currentClothesPathGame += fi.path;
+                        SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
+                        Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
+                    }
+                });
+                display.toggle.isOn = false;
+                display.text.text = fi.name;
+                yield return null;
+            }
+            for(;i < SmClothesLoad_Data.folders.Count; ++i)
+                SmClothesLoad_Data.folders[i].gameObject.SetActive(false);
+
+            foreach (KeyValuePair<SmClothesLoad.FileInfo, SmClothesLoad.FileInfoComponent> pair in SmClothesLoad_Data.clothes)
+            {
+                pair.Value.gameObject.SetActive(false);
+                SmClothesLoad_Data.clothesEntryPool.AddLast(pair.Value);
+            }
+            SmClothesLoad_Data.clothes.Clear();
+
+            ToggleGroup component = __instance.objListTop.GetComponent<ToggleGroup>();
+            i = 0;
+            for (; i < ___lstFileInfo.Count; i++)
+            {
+                SmClothesLoad.FileInfo fi = ___lstFileInfo[i];
+                SmClothesLoad.FileInfoComponent fileInfoComponent;
+                if (i < SmClothesLoad_Data.clothes.Count)
+                {
+                    fileInfoComponent = SmClothesLoad_Data.clothesEntryPool.Last.Value;
+                    SmClothesLoad_Data.clothesEntryPool.RemoveFirst();
+                }
+                else
+                {
+                    fileInfoComponent = GameObject.Instantiate(__instance.objLineBase).AddComponent<SmClothesLoad.FileInfoComponent>();
+                    fileInfoComponent.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                    fileInfoComponent.transform.SetParent(__instance.objListTop.transform, false);
                     GameObject gameObject2 = null;
-                    fileInfoComponent.tgl = gameObject.GetComponent<Toggle>();
-                    gameObject2 = gameObject.transform.FindLoop("Background");
+                    gameObject2 = fileInfoComponent.transform.FindLoop("Background");
                     if (gameObject2)
                         fileInfoComponent.imgBG = gameObject2.GetComponent<Image>();
-                    gameObject2 = gameObject.transform.FindLoop("Checkmark");
+                    gameObject2 = fileInfoComponent.transform.FindLoop("Checkmark");
                     if (gameObject2)
                         fileInfoComponent.imgCheck = gameObject2.GetComponent<Image>();
-                    gameObject2 = gameObject.transform.FindLoop("Label");
+                    gameObject2 = fileInfoComponent.transform.FindLoop("Label");
                     if (gameObject2)
                         fileInfoComponent.text = gameObject2.GetComponent<Text>();
+                    fileInfoComponent.tgl = fileInfoComponent.GetComponent<Toggle>();
                     fileInfoComponent.tgl.group = component;
-                    if (HSUS._self._asyncLoading && SmClothesLoad_Data._translateProperty != null) // Fuck you translation plugin
-                    {
-                        SmClothesLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
-                        string t = fileInfoComponent.info.comment;
-                        HSUS._self._translationMethod(ref t);
-                        fileInfoComponent.text.text = t;
-                    }
-                    else
-                        fileInfoComponent.text.text = fileInfoComponent.info.comment;
-                    __instance.CallPrivate("SetButtonClickHandler", gameObject);
-                    gameObject.SetActive(true);
-                    gameObject.transform.SetParent(__instance.objListTop.transform, false);
-                    RectTransform rectTransform = (RectTransform)gameObject.transform;
+                    __instance.CallPrivate("SetButtonClickHandler", fileInfoComponent.gameObject);
+                    RectTransform rectTransform = (RectTransform)fileInfoComponent.transform;
                     rectTransform.localScale = Vector3.one;
-                    lstRtfTgl.Add(rectTransform);
-                    num2++;
-                    yield return null;
-                } 
-            }
-            else if (lstFileInfo.Count < SmClothesLoad_Data.objects.Count)
-            {
-                foreach (KeyValuePair<SmClothesLoad.FileInfo, GameObject> pair in new Dictionary<SmClothesLoad.FileInfo, GameObject>(SmClothesLoad_Data.objects))
-                {
-                    if (lstFileInfo.IndexOf(pair.Key) != -1)
-                        continue;
-                    lstRtfTgl.Remove(pair.Value.transform as RectTransform);
-                    GameObject.Destroy(pair.Value);
-                    SmClothesLoad_Data.objects.Remove(pair.Key);
-                    yield return null;
+                    ___lstRtfTgl.Add(rectTransform);
                 }
+
+                fileInfoComponent.info = fi;
+                fileInfoComponent.tgl.isOn = false;
+                if (HSUS._self._asyncLoading && SmClothesLoad_Data._translateProperty != null) // Fuck you translation plugin
+                {
+                    SmClothesLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
+                    string t = fileInfoComponent.info.comment;
+                    HSUS._self._translationMethod(ref t);
+                    fileInfoComponent.text.text = t;
+                }
+                else
+                    fileInfoComponent.text.text = fileInfoComponent.info.comment;
+                fileInfoComponent.gameObject.SetActive(true);
+                SmClothesLoad_Data.clothes.Add(fi, fileInfoComponent);
+                yield return null;
             }
+
             SmClothesLoad_Data.created = true;
             LayoutRebuilder.MarkLayoutForRebuild(__instance.rtfPanel);
         }
@@ -187,9 +361,46 @@ namespace HSUS
     [HarmonyPatch(typeof(SmClothesLoad), "ExecuteSaveNew")]
     public class SmClothesLoad_ExecuteSaveNew_Patches
     {
-        public static void Prefix()
+        public static bool Prefix(SmClothesLoad __instance, CharInfo ___chaInfo, ref bool ___nowSave, CharFileInfoClothes ___clothesInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo)
         {
             SmClothesLoad_Data.created = false;
+            if (null == ___chaInfo || ___chaInfo.chaFile == null)
+            {
+                return false;
+            }
+            if (___nowSave)
+            {
+                return false;
+            }
+            ___nowSave = true;
+            __instance.CreateClothesPngBefore();
+            __instance.StartCoroutine(ExecuteSaveNewCoroutine(__instance, ___chaInfo, ___clothesInfo, ___lstFileInfo));
+            return false;
+        }
+
+        private static IEnumerator ExecuteSaveNewCoroutine(SmClothesLoad __instance, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo)
+        {
+            yield return new WaitForEndOfFrame();
+            __instance.CreateClothesPng();
+            string filename = string.Empty;
+            if (___chaInfo.Sex == 0)
+                filename = "coordM_" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
+            else
+                filename = "coordF_" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
+            string fullPath = ___clothesInfo.ConvertClothesFilePath(filename);
+            fullPath = Path.GetDirectoryName(fullPath) + HSUS._self._currentClothesPathGame + "/" + Path.GetFileName(fullPath);
+            __instance.customControl.CustomSaveClothesAssist(fullPath);
+            SmClothesLoad.FileInfo fi = new SmClothesLoad.FileInfo();
+            fi.no = 0;
+            fi.time = DateTime.Now;
+            fi.fileName = filename;
+            fi.fullPath = fullPath;
+            fi.comment = ___clothesInfo.comment;
+            ___lstFileInfo.Add(fi);
+            __instance.CreateListObject();
+            __instance.UpdateSort();
+            __instance.StartCoroutine(__instance.CreateClothesPngAfter());
+            yield return null;
         }
     }
 
@@ -238,27 +449,35 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static bool Prefix(SmClothesLoad __instance, bool ascend)
+        public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
         {
             __instance.SetPrivateExplicit<SmClothesLoad>("ascendDate", ascend);
-            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
-            if (lstFileInfo.Count == 0)
+            if (___lstFileInfo.Count == 0)
                 return false;
             __instance.SetPrivateExplicit<SmClothesLoad>("lastSort", (byte)1);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
             if (ascend)
-                lstFileInfo.Sort((a, b) => a.time.CompareTo(b.time));
+            {
+                ___lstFileInfo.Sort((a, b) => a.time.CompareTo(b.time));
+                SmClothesLoad_Data.folderInfos.Sort((a, b) => Directory.GetLastWriteTime(a.fullPath).CompareTo(Directory.GetLastWriteTime(b.fullPath)));
+            }
             else
-                lstFileInfo.Sort((a, b) => b.time.CompareTo(a.time));
+            {
+                ___lstFileInfo.Sort((a, b) => b.time.CompareTo(a.time));
+                SmClothesLoad_Data.folderInfos.Sort((a, b) => Directory.GetLastWriteTime(b.fullPath).CompareTo(Directory.GetLastWriteTime(a.fullPath)));
+            }
             Thread.CurrentThread.CurrentCulture = currentCulture;
+            SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
+            foreach (SmClothesLoad_Data.FolderInfo fi in SmClothesLoad_Data.folderInfos)
+                fi.display.gameObject.transform.SetAsLastSibling();
             int i = 0;
-            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
+            foreach (SmClothesLoad.FileInfo fi in ___lstFileInfo)
             {
                 fi.no = i;
-                GameObject go;
-                if (SmClothesLoad_Data.objects.TryGetValue(fi, out go))
-                    go.transform.SetAsLastSibling();
+                SmClothesLoad.FileInfoComponent fileInfoComponent;
+                if (SmClothesLoad_Data.clothes.TryGetValue(fi, out fileInfoComponent))
+                    fileInfoComponent.transform.SetAsLastSibling();
                 ++i;
             }
             return false;
@@ -273,27 +492,35 @@ namespace HSUS
             return HSUS.self.optimizeCharaMaker;
         }
 
-        public static bool Prefix(SmClothesLoad __instance, bool ascend)
+        public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
         {
             __instance.SetPrivate("ascendName", ascend);
-            List<SmClothesLoad.FileInfo> lstFileInfo = (List<SmClothesLoad.FileInfo>)__instance.GetPrivate("lstFileInfo");
-            if (lstFileInfo.Count == 0)
+            if (___lstFileInfo.Count == 0)
                 return false;
             __instance.SetPrivate("lastSort", (byte)0);
             CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
             Thread.CurrentThread.CurrentCulture = CultureInfo.GetCultureInfo("ja-JP");
             if (ascend)
-                lstFileInfo.Sort((a, b) => a.comment.CompareTo(b.comment));
+            {
+                ___lstFileInfo.Sort((a, b) => string.Compare(a.comment, b.comment, StringComparison.CurrentCultureIgnoreCase));
+                SmClothesLoad_Data.folderInfos.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.CurrentCultureIgnoreCase));
+            }
             else
-                lstFileInfo.Sort((a, b) => b.comment.CompareTo(a.comment));
+            {
+                ___lstFileInfo.Sort((a, b) => string.Compare(b.comment, a.comment, StringComparison.CurrentCultureIgnoreCase));
+                SmClothesLoad_Data.folderInfos.Sort((a, b) => string.Compare(b.name, a.name, StringComparison.CurrentCultureIgnoreCase));
+            }
             Thread.CurrentThread.CurrentCulture = currentCulture;
+            SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
+            foreach (SmClothesLoad_Data.FolderInfo fi in SmClothesLoad_Data.folderInfos)
+                fi.display.gameObject.transform.SetAsLastSibling();
             int i = 0;
-            foreach (SmClothesLoad.FileInfo fi in lstFileInfo)
+            foreach (SmClothesLoad.FileInfo fi in ___lstFileInfo)
             {
                 fi.no = i;
-                GameObject go;
-                if (SmClothesLoad_Data.objects.TryGetValue(fi, out go))
-                    go.transform.SetAsLastSibling();
+                SmClothesLoad.FileInfoComponent fileInfoComponent;
+                if (SmClothesLoad_Data.clothes.TryGetValue(fi, out fileInfoComponent))
+                    fileInfoComponent.transform.SetAsLastSibling();
                 ++i;
             }
             return false;
