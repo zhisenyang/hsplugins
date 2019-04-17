@@ -115,12 +115,8 @@
     <Compile Include="VideoExport.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="app.config" />
     <None Include="gifski\LICENSE" />
     <None Include="ILMerge.props">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="ILRepack.targets">
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
