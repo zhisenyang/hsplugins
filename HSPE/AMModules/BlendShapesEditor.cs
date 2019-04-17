@@ -36,12 +36,16 @@ namespace HSPE.AMModules
         {
             {"cf_O_face",  "Eyes / Mouth"},
             {"cf_O_tooth",  "Teeth"},
+            {"cf_O_canine",  "Canines"},
             {"cf_O_eyeline",  "Upper Eyelashes"},
             {"cf_O_eyeline_low",  "Lower Eyelashes"},
             {"cf_O_mayuge",  "Eyebrows"},
             {"cf_Ohitomi_L",  "Left Eye White"},
             {"cf_Ohitomi_R",  "Right Eye White"},
             {"o_tang",  "Tongue"},
+            {"cf_O_namida_L",  "Tears L"},
+            {"cf_O_namida_M",  "Tears M"},
+            {"cf_O_namida_S",  "Tears S"},
         };
 #endif
         #endregion

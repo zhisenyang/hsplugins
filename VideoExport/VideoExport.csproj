@@ -1,0 +1,168 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props')" />
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration>Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A1CBF48D-D9A9-4D7B-8673-1C2374573941}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>VideoExport</RootNamespace>
+    <AssemblyName>VideoExport</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'HS|AnyCPU'">
+    <OutputPath>bin\HS\</OutputPath>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>HONEYSELECT</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'KOI|AnyCPU'">
+    <OutputPath>bin\KOI\</OutputPath>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>KOIKATSU</DefineConstants>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="0Harmony">
+      <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="IllusionPlugin">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="0Harmony">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="Assembly-CSharp-firstpass">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="BepInEx">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\BepInEx.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="ExtensibleSaveFormat">
+      <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\ExtensibleSaveFormat.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml.Linq">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.Linq.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="TextMeshPro-1.0.55.56.0b12">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\TextMeshPro-1.0.55.56.0b12.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine.UI">
+      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Extensions\AFFMPEGBasedExtension.cs" />
+    <Compile Include="Extensions\GIFExtension.cs" />
+    <Compile Include="Extensions\IExtension.cs" />
+    <Compile Include="Extensions\MP4Extension.cs" />
+    <Compile Include="Extensions\WEBMExtension.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ScreenshotPlugins\HoneyShot.cs" />
+    <Compile Include="ScreenshotPlugins\IScreenshotPlugin.cs" />
+    <Compile Include="ScreenshotPlugins\PlayShot24ZHNeo.cs" />
+    <Compile Include="VideoExport.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+    <None Include="gifski\LICENSE" />
+    <None Include="ILMerge.props">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="ILRepack.targets">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ffmpeg\ffmpeg-64.exe" />
+    <Content Include="ffmpeg\ffmpeg.exe" />
+    <Content Include="ffmpeg\LICENSE.txt" />
+    <Content Include="gifski\gifski.exe" />
+    <Content Include="ILMergeOrder.txt" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup Condition=" '$(Configuration)' == 'KOI' ">
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\Koikatu/BepInEx"</PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>
+  </PropertyGroup>
+  <UsingTask AssemblyFile="$(SolutionDir)packages\ILMerge.Tools.MSBuildToolTask.2.14.1208\tools\ILMerge.Tools.MSBuildToolTask.dll" TaskName="ILMerge.Tools.MSBuildToolTask.ILMergeTool" />
+  <ItemGroup>
+    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
+      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
+      <Name>ToolBox</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Target Name="MergeAssemblies">
+    <ILMergeTool InputAssemblies="@(ILMergeInputAssemblies)" OutputFile="$(OutputPath)$(AssemblyName).dll" ToolPath="$(SolutionDir)packages\ILMerge.Tools.2.14.1208\tools\ILMerge.exe" />
+  </Target>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>Ce projet fait référence à des packages NuGet qui sont manquants sur cet ordinateur. Utilisez l'option de restauration des packages NuGet pour les télécharger. Pour plus d'informations, consultez http://go.microsoft.com/fwlink/?LinkID=322105. Le fichier manquant est : {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props'))" />
+    <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets'))" />
+  </Target>
+  <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" />
+  <PropertyGroup>
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"
+if not exist "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\ffmpeg" mkdir "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\ffmpeg"
+copy /Y "$(ProjectDir)ffmpeg\*" "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\ffmpeg"
+if not exist "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\gifski" mkdir "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\gifski"
+copy /Y "$(ProjectDir)gifski\*" "D:\Program Files (x86)\HoneySelect\Plugins\VideoExport\gifski"
+</PostBuildEvent>
+  </PropertyGroup>
+</Project>

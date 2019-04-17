@@ -37,14 +37,6 @@
     <Reference Condition=" '$(Configuration)' == 'HS' " Include="0Harmony">
       <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
     </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp-firstpass">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Condition=" '$(Configuration)' == 'HS' " Include="IllusionPlugin">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
       <Private>False</Private>
@@ -53,28 +45,8 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System.Xml, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="System.Xml.Linq, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.Linq.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine.UI">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="UnityEngine.UI.Translation">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Vectrosity">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Vectrosity.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="0Harmony">
@@ -89,7 +61,7 @@
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
       <Private>False</Private>
     </Reference>
-	    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="BepInEx">
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="BepInEx">
       <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\core\BepInEx.dll</HintPath>
       <Private>False</Private>
     </Reference>

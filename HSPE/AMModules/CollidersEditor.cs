@@ -254,14 +254,13 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Variables
-        private static string _search = "";
         internal static readonly HashSet<DynamicBoneCollider> _loneColliders = new HashSet<DynamicBoneCollider>();
 
         private readonly GenericOCITarget _target;
         private Vector2 _collidersEditionScroll;
         internal readonly Dictionary<Transform, DynamicBoneCollider> _colliders = new Dictionary<Transform, DynamicBoneCollider>();
-        internal bool _isLoneCollider = false;
-        internal DynamicBoneCollider _colliderTarget;
+        internal readonly bool _isLoneCollider = false;
+        private DynamicBoneCollider _colliderTarget;
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
         private static ColliderDebugLines _colliderDebugLines;
         #endregion
@@ -294,20 +293,13 @@ namespace HSPE.AMModules
                 _loneColliders.Add(collider);
                 foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
                 {
-
                     if (bone.m_Colliders.Contains(collider) == false)
-                    {
-                        UnityEngine.Debug.LogError("adding to " + bone.m_Root);
                         bone.m_Colliders.Add(collider);
-                    }
                 }
                 foreach (DynamicBone_Ver02 bone in Resources.FindObjectsOfTypeAll<DynamicBone_Ver02>())
                 {
                     if (bone.Colliders.Contains(collider) == false)
-                    {
-                        UnityEngine.Debug.LogError("adding to " + bone.Root);
                         bone.Colliders.Add(collider);                        
-                    }
                 }
             }
 

@@ -15,9 +15,9 @@ namespace HSPE.AMModules
     {
         #region Constants
 #if HONEYSELECT
-        private const float _boobsDragRadius = 0.05f;
+        private const float _dragRadius = 0.05f;
 #elif KOIKATSU
-        private const float _boobsDragRadius = 0.03f;
+        private const float _dragRadius = 0.03f;
 #endif
         #endregion
 
@@ -46,6 +46,10 @@ namespace HSPE.AMModules
         {
             LeftBoob,
             RightBoob,
+#if KOIKATSU
+            LeftButtCheek,
+            RightButtCheek,
+#endif
         }
 
         private class DebugLines
@@ -92,56 +96,56 @@ namespace HSPE.AMModules
                 this.rightCircle = VectorLine.SetLine(_greenColor, new Vector3[37]);
                 this.leftCircle.lineWidth = 4f;
                 this.rightCircle.lineWidth = 4f;
-                this.leftCircle.MakeCircle(Vector3.zero, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _boobsDragRadius);
-                this.rightCircle.MakeCircle(Vector3.zero, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _boobsDragRadius);
+                this.leftCircle.MakeCircle(Vector3.zero, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dragRadius);
+                this.rightCircle.MakeCircle(Vector3.zero, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dragRadius);
             }
 
-            public void Draw(DynamicBone_Ver02 leftBoob, DynamicBone_Ver02 rightBoob)
+            public void Draw(DynamicBone_Ver02 left, DynamicBone_Ver02 right, int index)
             {
                 float scale = 20f;
-                Vector3 origin = leftBoob.Bones[leftBoob.Bones.Count - 1].position;
-                Vector3 final = origin + (leftBoob.Gravity) * scale;
+                Vector3 origin = left.Bones[left.Bones.Count - 1].position;
+                Vector3 final = origin + (left.Gravity) * scale;
 
                 this.leftGravity.points3[0] = origin;
                 this.leftGravity.points3[1] = final;
                 this.leftGravity.Draw();
 
                 origin = final;
-                final += leftBoob.Force * scale;
+                final += left.Force * scale;
 
                 this.leftForce.points3[0] = origin;
                 this.leftForce.points3[1] = final;
                 this.leftForce.Draw();
 
-                origin = leftBoob.Bones[leftBoob.Bones.Count - 1].position;
+                origin = left.Bones[left.Bones.Count - 1].position;
 
                 this.leftBoth.points3[0] = origin;
                 this.leftBoth.points3[1] = final;
                 this.leftBoth.Draw();
 
-                origin = rightBoob.Bones[rightBoob.Bones.Count - 1].position;
-                final = origin + (rightBoob.Gravity) * scale;
+                origin = right.Bones[right.Bones.Count - 1].position;
+                final = origin + (right.Gravity) * scale;
 
                 this.rightGravity.points3[0] = origin;
                 this.rightGravity.points3[1] = final;
                 this.rightGravity.Draw();
 
                 origin = final;
-                final += rightBoob.Force * scale;
+                final += right.Force * scale;
 
                 this.rightForce.points3[0] = origin;
                 this.rightForce.points3[1] = final;
                 this.rightForce.Draw();
 
-                origin = rightBoob.Bones[rightBoob.Bones.Count - 1].position;
+                origin = right.Bones[right.Bones.Count - 1].position;
 
                 this.rightBoth.points3[0] = origin;
                 this.rightBoth.points3[1] = final;
                 this.rightBoth.Draw();
-
-                this.leftCircle.MakeCircle(leftBoob.Bones[2].position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _boobsDragRadius);
+                
+                this.leftCircle.MakeCircle(left.Bones[index].position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dragRadius);
                 this.leftCircle.Draw();
-                this.rightCircle.MakeCircle(rightBoob.Bones[2].position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _boobsDragRadius);
+                this.rightCircle.MakeCircle(right.Bones[index].position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dragRadius);
                 this.rightCircle.Draw();
             }
 
@@ -188,19 +192,29 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Variables
+#if HONEYSELECT
         private static MethodInfo _initTransforms;
         private static MethodInfo _updateDynamicBones;
         private static readonly object[] _paramArray = new object[1];
+#endif
 
         private readonly OCIChar _chara;
         private readonly DynamicBone_Ver02 _rightBoob;
         private readonly DynamicBone_Ver02 _leftBoob;
-        private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyBoobs = new Dictionary<DynamicBone_Ver02, BoobData>(2);
+#if KOIKATSU
+        private readonly DynamicBone_Ver02 _rightButtCheek;
+        private readonly DynamicBone_Ver02 _leftButtCheek;
+#endif
+        private readonly Dictionary<DynamicBone_Ver02, BoobData> _dirtyDynamicBones = new Dictionary<DynamicBone_Ver02, BoobData>(2);
         private DynamicBoneDragType _dynamicBoneDragType;
         private Vector3 _dragDynamicBoneStartPosition;
         private Vector3 _dragDynamicBoneEndPosition;
         private Vector3 _lastDynamicBoneGravity;
         private static DebugLines _debugLines;
+#if KOIKATSU
+        private static DebugLines _debugLinesButt;
+        private Vector2 _scroll;
+#endif
 #if HONEYSELECT
         private bool _alternativeUpdateMode = false;
 #endif
@@ -208,7 +222,11 @@ namespace HSPE.AMModules
 
         #region Public Fields        
         public override AdvancedModeModuleType type { get { return AdvancedModeModuleType.BoobsEditor; } }
+#if HONEYSELECT
         public override string displayName { get { return "Boobs"; } }
+#elif KOIKATSU
+        public override string displayName { get { return "Boobs & Butt"; } }
+#endif
         public bool isDraggingDynamicBone { get; private set; }
         public override bool isEnabled
         {
@@ -229,6 +247,10 @@ namespace HSPE.AMModules
             {
                 _debugLines = new DebugLines();
                 _debugLines.SetActive(false);
+#if KOIKATSU
+                _debugLinesButt = new DebugLines();
+                _debugLinesButt.SetActive(false);
+#endif
             }
 #if HONEYSELECT
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
@@ -242,16 +264,14 @@ namespace HSPE.AMModules
 #elif KOIKATSU
             this._leftBoob = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastL);
             this._rightBoob = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.BreastR);
+            this._leftButtCheek = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.HipL); // "Hip" ( ͡° ͜ʖ ͡°)
+            this._rightButtCheek = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.HipR);
 #endif
             foreach (DynamicBone_Ver02 bone in this._parent.GetComponentsInChildren<DynamicBone_Ver02>(true))
                 foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
                 {
                     if (bone.Colliders.Contains(collider) == false)
-                    {
-                        UnityEngine.Debug.LogError("adding lone collider to boob " + bone.Root);
-
                         bone.Colliders.Add(collider);
-                    }
                 }
             this._incIndex = -3;
             MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
@@ -261,8 +281,8 @@ namespace HSPE.AMModules
         {
             if (this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent)
                 this.DynamicBoneDraggingLogic();
-            if (this._dirtyBoobs.Count != 0)
-                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
+            if (this._dirtyDynamicBones.Count != 0)
+                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyDynamicBones)
                 {
                     if (kvp.Value.gravity.hasValue)
                         kvp.Key.Gravity = kvp.Value.gravity;
@@ -337,12 +357,50 @@ namespace HSPE.AMModules
         {
             GUILayout.BeginVertical();
 
+#if KOIKATSU
+            GUILayout.BeginHorizontal();
+            this._scroll = GUILayout.BeginScrollView(this._scroll);
+#endif
+
             GUILayout.BeginHorizontal();
 
             GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label("Right boob" + (this.IsBoobDirty(this._rightBoob) ? "*" : ""));
-            this.DisplaySingleBoob(this._rightBoob);
+            GUILayout.Label("Right boob" + (this.IsDirty(this._rightBoob) ? "*" : ""));
+            this.DisplaySingle(this._rightBoob);
             GUILayout.EndVertical();
+
+#if HONEYSELECT
+            GUILayout.BeginVertical();
+            GUILayout.FlexibleSpace();
+            this.IncEditor(150, true);
+            GUILayout.FlexibleSpace();
+            GUILayout.EndVertical();
+#endif
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("Left boob" + (this.IsDirty(this._leftBoob) ? "*" : ""));
+            this.DisplaySingle(this._leftBoob);
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+
+#if KOIKATSU
+            //// BUTT
+            GUILayout.BeginHorizontal();
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("Right butt cheek" + (this.IsDirty(this._rightButtCheek) ? "*" : ""));
+            this.DisplaySingle(this._rightButtCheek);
+            GUILayout.EndVertical();
+
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("Left butt cheek" + (this.IsDirty(this._leftButtCheek) ? "*" : ""));
+            this.DisplaySingle(this._leftButtCheek);
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndScrollView();
 
             GUILayout.BeginVertical();
             GUILayout.FlexibleSpace();
@@ -350,12 +408,9 @@ namespace HSPE.AMModules
             GUILayout.FlexibleSpace();
             GUILayout.EndVertical();
 
-            GUILayout.BeginVertical(GUI.skin.box);
-            GUILayout.Label("Left boob" + (this.IsBoobDirty(this._leftBoob) ? "*" : ""));
-            this.DisplaySingleBoob(this._leftBoob);
-            GUILayout.EndVertical();
-
             GUILayout.EndHorizontal();
+#endif
+
 #if HONEYSELECT
             this._alternativeUpdateMode = GUILayout.Toggle(this._alternativeUpdateMode, "Alternative update mode");
 #endif
@@ -374,7 +429,7 @@ namespace HSPE.AMModules
                 ChaControl charFemale = this._chara.charInfo;
                 ChaControl otherFemale = other._chara.charInfo;
 #endif
-                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyBoobs)
+                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in other._dirtyDynamicBones)
                 {
                     DynamicBone_Ver02 db = null;
 #if HONEYSELECT
@@ -395,7 +450,7 @@ namespace HSPE.AMModules
                             db.Force = kvp.Key.Force;
                         if (kvp.Value.originalGravity.hasValue)
                             db.Gravity = kvp.Key.Gravity;
-                        this._dirtyBoobs.Add(db, new BoobData(kvp.Value));
+                        this._dirtyDynamicBones.Add(db, new BoobData(kvp.Value));
                     }
                 }
             }, 2);
@@ -409,11 +464,22 @@ namespace HSPE.AMModules
             xmlWriter.WriteAttributeString("alternativeUpdateMode", XmlConvert.ToString(this._alternativeUpdateMode));
 #endif
             written++;
-            if (this._dirtyBoobs.Count != 0)
+            if (this._dirtyDynamicBones.Count != 0)
             {
-                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyBoobs)
+                foreach (KeyValuePair<DynamicBone_Ver02, BoobData> kvp in this._dirtyDynamicBones)
                 {
-                    xmlWriter.WriteStartElement(kvp.Key == this._leftBoob ? "left" : "right");
+                    string name = "";
+                    if (kvp.Key == this._leftBoob)
+                        name = "left";
+                    else if (kvp.Key == this._rightBoob)
+                        name = "right";
+#if KOIKATSU
+                    else if (kvp.Key == this._leftButtCheek)
+                        name = "leftButt";
+                    else if (kvp.Key == this._rightButtCheek)
+                        name = "rightButt";
+#endif
+                    xmlWriter.WriteStartElement(name);
 
                     if (kvp.Value.originalGravity.hasValue)
                     {
@@ -439,8 +505,8 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
-            this.SetBoobNotDirty(this._leftBoob);
-            this.SetBoobNotDirty(this._rightBoob);
+            this.SetNotDirty(this._leftBoob);
+            this.SetNotDirty(this._rightBoob);
 
             bool changed = false;
             XmlNode boobs = xmlNode.FindChildNode("boobs");
@@ -464,6 +530,14 @@ namespace HSPE.AMModules
                         case "right":
                             boob = this._rightBoob;
                             break;
+#if KOIKATSU
+                        case "leftButt":
+                            boob = this._leftButtCheek;
+                            break;
+                        case "rightButt":
+                            boob = this._rightButtCheek;
+                            break;
+#endif
                     }
                     if (boob != null)
                     {
@@ -489,7 +563,7 @@ namespace HSPE.AMModules
                         if (data.originalGravity.hasValue || data.originalForce.hasValue)
                         {
                             changed = true;
-                            this._dirtyBoobs.Add(boob, data);
+                            this._dirtyDynamicBones.Add(boob, data);
                         }
                     }
                 }
@@ -510,34 +584,39 @@ namespace HSPE.AMModules
         private void UpdateGizmosIf()
         {
             if (this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent)
-                _debugLines.Draw(this._leftBoob, this._rightBoob);
+            {
+                _debugLines.Draw(this._leftBoob, this._rightBoob, 2);
+#if KOIKATSU
+                _debugLinesButt.Draw(this._leftButtCheek, this._rightButtCheek, 1);
+#endif
+            }
         }
 
-        private void DisplaySingleBoob(DynamicBone_Ver02 boob)
+        private void DisplaySingle(DynamicBone_Ver02 elem)
         {
             GUILayout.BeginVertical();
             GUILayout.Label("Gravity");
-            Vector3 gravity = boob.Gravity;
+            Vector3 gravity = elem.Gravity;
             gravity = this.Vector3Editor(gravity, AdvancedModeModule._redColor);
-            if (gravity != boob.Gravity)
+            if (gravity != elem.Gravity)
             {
-                this.SetBoobDirty(boob);
-                if (this._dirtyBoobs[boob].originalGravity.hasValue == false)
-                    this._dirtyBoobs[boob].originalGravity = boob.Gravity;
-                this._dirtyBoobs[boob].gravity.value = gravity;
+                this.SetDirty(elem);
+                if (this._dirtyDynamicBones[elem].originalGravity.hasValue == false)
+                    this._dirtyDynamicBones[elem].originalGravity = elem.Gravity;
+                this._dirtyDynamicBones[elem].gravity.value = gravity;
             }
             GUILayout.EndVertical();
 
             GUILayout.BeginVertical();
             GUILayout.Label("Force");
-            Vector3 force = boob.Force;
+            Vector3 force = elem.Force;
             force = this.Vector3Editor(force, AdvancedModeModule._blueColor);
-            if (force != boob.Force)
+            if (force != elem.Force)
             {
-                this.SetBoobDirty(boob);
-                if (this._dirtyBoobs[boob].originalForce.hasValue == false)
-                    this._dirtyBoobs[boob].originalForce = boob.Force;
-                this._dirtyBoobs[boob].force.value = force;
+                this.SetDirty(elem);
+                if (this._dirtyDynamicBones[elem].originalForce.hasValue == false)
+                    this._dirtyDynamicBones[elem].originalForce = elem.Force;
+                this._dirtyDynamicBones[elem].force.value = force;
             }
             GUILayout.EndVertical();
 
@@ -546,27 +625,27 @@ namespace HSPE.AMModules
             Color c = GUI.color;
             GUI.color = AdvancedModeModule._redColor;
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
-                this.SetBoobNotDirty(boob);
+                this.SetNotDirty(elem);
             GUI.color = c;
             GUILayout.EndHorizontal();
         }
 
-        private bool IsBoobDirty(DynamicBone_Ver02 boob)
+        private bool IsDirty(DynamicBone_Ver02 boob)
         {
-            return (this._dirtyBoobs.ContainsKey(boob));
+            return (this._dirtyDynamicBones.ContainsKey(boob));
         }
 
-        private void SetBoobDirty(DynamicBone_Ver02 boob)
+        private void SetDirty(DynamicBone_Ver02 boob)
         {
-            if (!this.IsBoobDirty(boob))
-                this._dirtyBoobs.Add(boob, new BoobData());
+            if (!this.IsDirty(boob))
+                this._dirtyDynamicBones.Add(boob, new BoobData());
         }
 
-        private void SetBoobNotDirty(DynamicBone_Ver02 boob)
+        private void SetNotDirty(DynamicBone_Ver02 boob)
         {
-            if (this.IsBoobDirty(boob))
+            if (this.IsDirty(boob))
             {
-                BoobData data = this._dirtyBoobs[boob];
+                BoobData data = this._dirtyDynamicBones[boob];
                 if (data.gravity.hasValue)
                     data.gravity.Reset();
                 if (data.force.hasValue)
@@ -581,7 +660,7 @@ namespace HSPE.AMModules
                     boob.Force = data.originalForce;
                     data.originalForce.Reset();
                 }
-                this._dirtyBoobs.Remove(boob);
+                this._dirtyDynamicBones.Remove(boob);
             }
         }
 
@@ -590,8 +669,9 @@ namespace HSPE.AMModules
             if (Input.GetMouseButtonDown(0))
             {
                 float distanceFromCamera = float.PositiveInfinity;
+
                 Vector3 leftBoobRaycastPos = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._leftBoob.Bones[2].position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
-                if ((leftBoobRaycastPos - this._leftBoob.Bones[2].position).sqrMagnitude < (_boobsDragRadius * _boobsDragRadius))
+                if ((leftBoobRaycastPos - this._leftBoob.Bones[2].position).sqrMagnitude < (_dragRadius * _dragRadius))
                 {
                     this.isDraggingDynamicBone = true;
                     distanceFromCamera = (leftBoobRaycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude;
@@ -601,7 +681,7 @@ namespace HSPE.AMModules
                 }
 
                 Vector3 rightBoobRaycastPos = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._rightBoob.Bones[2].position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
-                if ((rightBoobRaycastPos - this._rightBoob.Bones[2].position).sqrMagnitude < (_boobsDragRadius * _boobsDragRadius) &&
+                if ((rightBoobRaycastPos - this._rightBoob.Bones[2].position).sqrMagnitude < (_dragRadius * _dragRadius) &&
                     (rightBoobRaycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude < distanceFromCamera)
                 {
                     this.isDraggingDynamicBone = true;
@@ -610,27 +690,57 @@ namespace HSPE.AMModules
                     this._dragDynamicBoneStartPosition = rightBoobRaycastPos;
                     this._lastDynamicBoneGravity = this._rightBoob.Gravity;
                 }
+
+#if KOIKATSU
+                Vector3 leftButtCheekRaycastPos = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._leftButtCheek.Bones[1].position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
+                if ((leftButtCheekRaycastPos - this._leftButtCheek.Bones[1].position).sqrMagnitude < (_dragRadius * _dragRadius))
+                {
+                    this.isDraggingDynamicBone = true;
+                    distanceFromCamera = (leftButtCheekRaycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude;
+                    this._dynamicBoneDragType = DynamicBoneDragType.LeftButtCheek;
+                    this._dragDynamicBoneStartPosition = leftButtCheekRaycastPos;
+                    this._lastDynamicBoneGravity = this._leftButtCheek.Gravity;
+                }
+
+                Vector3 rightButtCheekRaycastPos = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._rightButtCheek.Bones[1].position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
+                if ((rightButtCheekRaycastPos - this._rightButtCheek.Bones[1].position).sqrMagnitude < (_dragRadius * _dragRadius) &&
+                    (rightButtCheekRaycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude < distanceFromCamera)
+                {
+                    this.isDraggingDynamicBone = true;
+                    distanceFromCamera = (leftButtCheekRaycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude;
+                    this._dynamicBoneDragType = DynamicBoneDragType.RightButtCheek;
+                    this._dragDynamicBoneStartPosition = rightButtCheekRaycastPos;
+                    this._lastDynamicBoneGravity = this._rightButtCheek.Gravity;
+                }
+#endif
                 MainWindow._self.SetNoControlCondition();
             }
             else if (Input.GetMouseButton(0) && this.isDraggingDynamicBone)
             {
+                this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
+                DynamicBone_Ver02 db = null;
                 switch (this._dynamicBoneDragType)
                 {
                     case DynamicBoneDragType.LeftBoob:
-                        this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
-                        this.SetBoobDirty(this._leftBoob);
-                        if (this._dirtyBoobs[this._leftBoob].originalGravity.hasValue == false)
-                            this._dirtyBoobs[this._leftBoob].originalGravity = this._leftBoob.Gravity;
-                        this._leftBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
+                        db = this._leftBoob;
                         break;
                     case DynamicBoneDragType.RightBoob:
-                        this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
-                        this.SetBoobDirty(this._rightBoob);
-                        if (this._dirtyBoobs[this._rightBoob].originalGravity.hasValue == false)
-                            this._dirtyBoobs[this._rightBoob].originalGravity = this._rightBoob.Gravity;
-                        this._rightBoob.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
+                        db = this._rightBoob;
                         break;
+#if KOIKATSU
+                    case DynamicBoneDragType.LeftButtCheek:
+                        db = this._leftButtCheek;
+                        break;
+                    case DynamicBoneDragType.RightButtCheek:
+                        db = this._rightButtCheek;
+                        break;
+#endif
                 }
+                this.SetDirty(db);
+                if (this._dirtyDynamicBones[db].originalGravity.hasValue == false)
+                    this._dirtyDynamicBones[db].originalGravity = db.Gravity;
+                db.Gravity = this._lastDynamicBoneGravity + (this._dragDynamicBoneEndPosition - this._dragDynamicBoneStartPosition) * (this._inc * 1000f) / 12f;
+
             }
             else if (Input.GetMouseButtonUp(0))
             {
@@ -641,7 +751,13 @@ namespace HSPE.AMModules
         private static void UpdateDebugLinesState(BoobsEditor self)
         {
             if (_debugLines != null)
-                _debugLines.SetActive(self != null && self._isEnabled && PoseController._drawAdvancedMode && self._parent != null);
+            {
+                bool flag = self != null && self._isEnabled && PoseController._drawAdvancedMode && self._parent != null;
+                _debugLines.SetActive(flag);
+#if KOIKATSU
+                _debugLinesButt.SetActive(flag);
+#endif
+            }
         }
         #endregion
     }

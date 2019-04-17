@@ -13,7 +13,7 @@ namespace HSStandard
 {
     public class HSStandard : IEnhancedPlugin
     {
-        public const string versionNum = "1.0.1b";
+        public const string versionNum = "1.0.1b2";
 
         #region Private Types
         private class SwapDetails
@@ -23,6 +23,7 @@ namespace HSStandard
         #endregion
 
         #region Private Variables
+        private static Material _depthTextureOnly;
         private static Material _hsStandard;
         private static Material _hsStandardFade;
         private static Material _hsStandardCutout;
@@ -59,6 +60,9 @@ namespace HSStandard
         private static bool _replaceOther = true;
         private static bool _replaceSingleColorOther = true;
         private static bool _replaceTwoColorsOther = true;
+        private static bool _fixHairDOF = false;
+
+        private static FieldInfo _moreAccCharAdditionalDataObjAccessory;
         #endregion
 
         #region Public Accessors
@@ -71,6 +75,7 @@ namespace HSStandard
         public void OnApplicationStart()
         {
             AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.HSStandardResources);
+            _depthTextureOnly = bundle.LoadAsset<Material>("DepthTextureOnly");
             _hsStandard = bundle.LoadAsset<Material>("HSStandard");
             _hsStandardTwoSided = bundle.LoadAsset<Material>("HSStandardTwoSided");
             _hsStandardFade = bundle.LoadAsset<Material>("HSStandardFade");
@@ -89,6 +94,19 @@ namespace HSStandard
             _hsStandardTwoLayersTwoSidedCutout = bundle.LoadAsset<Material>("HSStandardTwoLayersTwoSidedCutout");
             _hsStandardTwoLayersTwoSidedFade = bundle.LoadAsset<Material>("HSStandardTwoLayersTwoSidedFade");
             bundle.Unload(false);
+
+            _replaceHair = ModPrefs.GetBool("HSStandard", "replaceHair", true, true);
+            _replaceSkin = ModPrefs.GetBool("HSStandard", "replaceSkin", true, true);
+            _replaceBodyStuff = ModPrefs.GetBool("HSStandard", "replaceBodyStuff", true, true);
+            _replaceClothes = ModPrefs.GetBool("HSStandard", "replaceClothes", true, true);
+            _replaceSingleColorClothes = ModPrefs.GetBool("HSStandard", "replaceSingleColorClothes", true, true);
+            _replaceTwoColorsClothes = ModPrefs.GetBool("HSStandard", "replaceTwoColorsClothes", true, true);
+            _replaceVanillaMaps = ModPrefs.GetBool("HSStandard", "replaceVanillaMaps", false, true);
+            _replaceOther = ModPrefs.GetBool("HSStandard", "replaceOther", true, true);
+            _replaceSingleColorOther = ModPrefs.GetBool("HSStandard", "replaceSingleColorOther", true, true);
+            _replaceTwoColorsOther = ModPrefs.GetBool("HSStandard", "replaceTwoColorsOther", true, true);
+            _fixHairDOF = ModPrefs.GetBool("HSStandard", "fixHairDOF", false, true);
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsstandard");
 
             harmony.Patch(AccessTools.Method(typeof(AssetBundleManager), "LoadAsset", new []{typeof(string), typeof(string), typeof(Type), typeof(string)}), null, new HarmonyMethod(typeof(HSStandard), nameof(LoadAssetPostfix)));
@@ -123,10 +141,16 @@ namespace HSStandard
             //harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHair", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetForceHairTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetForceHair)));
             //harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHair", new[] { typeof(int), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetForceHairTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetForceHair)));
 
-
             //IsClothes Modifiers
-            harmony.Patch(AccessTools.Method(typeof(CharBody), "ChangeAccessory", new []{ typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsClothesTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsClothes)));
-            harmony.Patch(AccessTools.Method(typeof(CharBody), "ChangeAccessory", new []{ typeof(int), typeof(int), typeof(int), typeof(string), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsClothesTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsClothes)));
+            harmony.Patch(AccessTools.Method(typeof(CharBody), "ChangeAccessory", new []{ typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsClothesTrue)), new HarmonyMethod(typeof(HSStandard), nameof(OnChangeAccessoryPostfix)));
+            harmony.Patch(AccessTools.Method(typeof(CharBody), "ChangeAccessory", new []{ typeof(int), typeof(int), typeof(int), typeof(string), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsClothesTrue)), new HarmonyMethod(typeof(HSStandard), nameof(OnChangeAccessoryPostfixSingle)));
+
+            Type moreAccessoriesPatch = Type.GetType("MoreAccessories.CharBody_ChangeAccessory_Patches,MoreAccessories");
+            if (moreAccessoriesPatch != null)
+            {
+                harmony.Patch(moreAccessoriesPatch.GetMethod("ChangeAccessoryAsync", BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic), new HarmonyMethod(typeof(HSStandard), nameof(SetIsClothesTrue)), new HarmonyMethod(typeof(HSStandard), nameof(OnChangeAccessoryPostfixMoreAccessories)));
+                _moreAccCharAdditionalDataObjAccessory = Type.GetType("MoreAccessories.MoreAccessories+CharAdditionalData,MoreAccessories").GetField("objAccessory", BindingFlags.Public | BindingFlags.Instance);
+            }
 
             //IsSkin Modifiers
             harmony.Patch(typeof(CustomTextureControl).GetMethod("Initialize", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), new HarmonyMethod(typeof(HSStandard), nameof(SetIsSkinTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsSkin)));
@@ -145,19 +169,17 @@ namespace HSStandard
             harmony.Patch(typeof(CharMaleCustom).GetMethod("ChangeEyeL", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuff)));
             harmony.Patch(typeof(CharMaleCustom).GetMethod("ChangeEyeR", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuff)));
 
-            //IsVanillaMapModifiers
+            //IsVanillaMap Modifiers
             harmony.Patch(typeof(Manager.Map).GetMethod("LoadMap", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), new HarmonyMethod(typeof(HSStandard), nameof(SetIsVanillaMapTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsVanillaMap)));
 
-            _replaceHair = ModPrefs.GetBool("HSStandard", "replaceHair", true, true);
-            _replaceSkin = ModPrefs.GetBool("HSStandard", "replaceSkin", true, true);
-            _replaceBodyStuff = ModPrefs.GetBool("HSStandard", "replaceBodyStuff", true, true);
-            _replaceClothes = ModPrefs.GetBool("HSStandard", "replaceClothes", true, true);
-            _replaceSingleColorClothes = ModPrefs.GetBool("HSStandard", "replaceSingleColorClothes", true, true);
-            _replaceTwoColorsClothes = ModPrefs.GetBool("HSStandard", "replaceTwoColorsClothes", true, true);
-            _replaceVanillaMaps = ModPrefs.GetBool("HSStandard", "replaceVanillaMaps", false, true);
-            _replaceOther = ModPrefs.GetBool("HSStandard", "replaceOther", true, true);
-            _replaceSingleColorOther = ModPrefs.GetBool("HSStandard", "replaceSingleColorOther", true, true);
-            _replaceTwoColorsOther = ModPrefs.GetBool("HSStandard", "replaceTwoColorsOther", true, true);
+            if (_fixHairDOF)
+            {
+                //DepthTextureOnly
+                harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHair", new[] { typeof(bool) }), null, new HarmonyMethod(typeof(HSStandard), nameof(AddDepthTextureOnlyMaterialToFemaleHair)));
+                harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHair", new[] { typeof(int), typeof(int), typeof(int), typeof(int), typeof(bool) }), null, new HarmonyMethod(typeof(HSStandard), nameof(AddDepthTextureOnlyMaterialToFemaleHair)));
+                harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHair", new[] { typeof(bool) }), null, new HarmonyMethod(typeof(HSStandard), nameof(AddDepthTextureOnlyMaterialToMaleHair)));
+                harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHair", new[] { typeof(int), typeof(bool) }), null, new HarmonyMethod(typeof(HSStandard), nameof(AddDepthTextureOnlyMaterialToMaleHair)));
+            }
         }
 
         public void OnLevelWasInitialized(int level) { }
@@ -209,9 +231,7 @@ namespace HSStandard
                             {
                                 Material material = renderer.materials[j];
                                 if (material != null)
-                                {
                                     newMaterials[j] = SwapShader(material, out bool _);
-                                }
                             }
                             else
                                 newMaterials[j] = renderer.materials[j];
@@ -253,6 +273,8 @@ namespace HSStandard
                     int i = 0;
                     foreach (Renderer renderer in go.GetComponentsInChildren<Renderer>(true))
                     {
+                        if (renderer is ParticleSystemRenderer)
+                            continue;
                         Material[] newMaterials = new Material[renderer.sharedMaterials.Length];
                         for (int j = 0; j < renderer.sharedMaterials.Length; j++)
                         {
@@ -277,6 +299,9 @@ namespace HSStandard
                         }
                         renderer.materials = newMaterials;
                         ++i;
+                        SkinnedMeshRenderer skinnedMeshRenderer = renderer as SkinnedMeshRenderer;
+                        if (skinnedMeshRenderer != null)
+                            skinnedMeshRenderer.updateWhenOffscreen = true;
                     }
                     _toSwap.Add(new KeyValuePair<GameObject, SwapDetails>(go, details));
                 }
@@ -586,16 +611,23 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_2layer_culloff": //Opaque
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                        break;
+                    newMaterial = new Material(_hsStandardTwoLayersTwoSided);
+                    SwapPropertiesTwoLayers(mat, newMaterial);
+                    SetMaterialKeywords(newMaterial);
+                    break;
+
                 case "Shader Forge/PBRsp_2layer_alpha_culloff": //Transparent
                     if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
                         break;
                     switch (mat.GetTag("RenderType", false))
                     {
-                        default: //Opaque
-                            newMaterial = new Material(_hsStandardTwoLayersTwoSided);
-                            SwapPropertiesTwoLayers(mat, newMaterial);
-                            SetMaterialKeywords(newMaterial);
-                            break;
+                        //default: //Opaque
+                        //    newMaterial = new Material(_hsStandardTwoLayersTwoSided);
+                        //    SwapPropertiesTwoLayers(mat, newMaterial);
+                        //    SetMaterialKeywords(newMaterial);
+                        //    break;
                         case "Transparent":
                             newMaterial = new Material(_hsStandardTwoLayersTwoSidedFade);
                             SwapPropertiesTwoLayers(mat, newMaterial);
@@ -614,15 +646,33 @@ namespace HSStandard
                             break;
                     }
                     break;
-                case "Shader Forge/PBRsp_2layer_cutout_culloff": //Cutout
+                case "Shader Forge/PBRsp_2layer_cutout_culloff": //Opaque
                     if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
                         break;
-                    newMaterial = new Material(_hsStandardTwoLayersTwoSidedCutout);
-                    SwapPropertiesTwoLayers(mat, newMaterial);
 
-                    newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+                    switch (mat.GetTag("RenderType", false))
+                    {
+                        default: //Opaque
+                            newMaterial = new Material(_hsStandardTwoLayersTwoSided);
+                            SwapPropertiesTwoLayers(mat, newMaterial);
 
-                    SetMaterialKeywords(newMaterial);
+                            newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                            SetMaterialKeywords(newMaterial);
+
+                            break;
+                        case "Transparent":
+                        case "TransparentCutout":
+                            newMaterial = new Material(_hsStandardTwoLayersTwoSidedCutout);
+                            SwapPropertiesTwoLayers(mat, newMaterial);
+
+                            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                            newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                            SetMaterialKeywords(newMaterial);
+
+                            break;
+                    }
                     break;
 
 
@@ -1125,6 +1175,101 @@ namespace HSStandard
         private static void ResetIsVanillaMap()
         {
             _isVanillaMap = false;
+        }
+
+        private static void OnChangeAccessoryPostfixSingle(CharBody __instance, int _slotNo)
+        {
+            GameObject accessoryObj = __instance.objAccessory[_slotNo];
+            if (accessoryObj != null)
+            {
+                foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
+                    {
+                        AddDepthTextureOnlyMaterial(renderer);
+                    }
+                }
+            }
+            ResetIsClothes();
+        }
+
+        private static void OnChangeAccessoryPostfix(CharBody __instance)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                GameObject accessoryObj = __instance.objAccessory[i];
+                if (accessoryObj != null)
+                {
+                    foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
+                            AddDepthTextureOnlyMaterial(renderer);
+                    }
+                }
+            }
+            ResetIsClothes();
+        }
+
+        private static void OnChangeAccessoryPostfixMoreAccessories(object data, int _slotNo)
+        {
+            List<GameObject> objAccessory = (List<GameObject>)_moreAccCharAdditionalDataObjAccessory.GetValue(data);
+            if (objAccessory != null)
+            {
+                GameObject accessoryObj = objAccessory[_slotNo];
+                if (accessoryObj != null)
+                {
+                    foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
+                    {
+                        if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
+                        {
+                            AddDepthTextureOnlyMaterial(renderer);
+                        }
+                    }
+                }
+            }
+            ResetIsClothes();
+        }
+
+        private static void AddDepthTextureOnlyMaterialToFemaleHair(CharFemaleBody __instance) //Check about hair accs
+        {
+            foreach (GameObject gameObject in __instance.objHair)
+            {
+                foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer.sharedMaterials.Length == 1)
+                    {
+                        AddDepthTextureOnlyMaterial(renderer);
+                    }
+                }
+            }
+        }
+
+        private static void AddDepthTextureOnlyMaterialToMaleHair(CharMaleBody __instance)
+        {
+            foreach (GameObject gameObject in __instance.objHair)
+            {
+                foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
+                {
+                    if (renderer.sharedMaterials.Length == 1)
+                    {
+                        AddDepthTextureOnlyMaterial(renderer);
+                    }
+                }
+            }
+        }
+
+        private static void AddDepthTextureOnlyMaterial(Renderer renderer)
+        {
+            Material mat = renderer.materials[0];
+            if (mat.GetTag("RenderType", false).StartsWith("Transparent"))
+            {
+                Material[] newMaterials = new Material[2];
+                newMaterials[0] = mat;
+                Material depthOnlyMat = new Material(_depthTextureOnly);
+                depthOnlyMat.SetTexture("_MainTex", mat.GetTexture("_MainTex"));
+                newMaterials[1] = depthOnlyMat;
+                renderer.materials = newMaterials;
+            }
         }
         #endregion
 

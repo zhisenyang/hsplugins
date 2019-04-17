@@ -177,7 +177,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_FuzzBias", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_WrapDiffuse", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_BumpScale", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_Parallax", floatRange = new Vector2(0.005f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_Parallax", floatRange = new Vector2(0f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_FresnelScale", floatRange = new Vector2(0.15f, 4), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_GerstnerIntensity", type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Shininess", floatRange = new Vector2(2, 500), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -186,7 +186,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_NormalIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_NormalStrength", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_NormalStrength2", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
-            new ShaderProperty() {name = "_TransmissionScale", floatRange = new Vector2(0.005f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TransmissionScale", floatRange = new Vector2(0f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_AmbientOcclusionScale", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Transparency", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_ReflectionEdges", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -2098,6 +2098,8 @@ namespace RendererEditor
                                                                     if (i > 0) //Doing this because I fucked up an older version
                                                                         texturePath = texturePath.Substring(i);
                                                                     texturePath = Path.GetFullPath(texturePath);
+                                                                    if (File.Exists(texturePath) == false)
+                                                                        continue;
                                                                     texture = this.GetTexture(texturePath);
                                                                     if (texture == null)
                                                                         continue;

@@ -792,6 +792,61 @@ namespace HSUS
         }
     }
 
+    [HarmonyPatch(typeof(GameScene), "InitCharaList")]
+    [HarmonyPatch(typeof(GameScene), "InitMaleList")]
+    internal static class GameScene_InitLists_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> instructionsList = instructions.ToList();
+            for (int i = 0; i < instructionsList.Count; i++)
+            {
+                CodeInstruction inst = instructionsList[i];
+                if (inst.ToString().Equals("call Void GetAllFiles(System.String, System.String, System.Collections.Generic.List`1[System.String])"))
+                    yield return new CodeInstruction(OpCodes.Call, typeof(GameScene_InitLists_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                else
+                    yield return inst;
+            }
+        }
+
+        private static void Injected(string path, string searchPattern, List<string> lst)
+        {
+            
+            lst.AddRange(Directory.GetFiles(path, searchPattern, SearchOption.AllDirectories));
+        }
+    }
+
+    [HarmonyPatch(typeof(GameScene), "OnRegisterRoom")]
+    internal static class GameScene_OnRegisterRoom_Patches
+    {
+        public static bool Prepare()
+        {
+            return HSUS.self.optimizeCharaMaker;
+        }
+
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            List<CodeInstruction> instructionsList = instructions.ToList();
+            for (int i = 0; i < instructionsList.Count; i++)
+            {
+                CodeInstruction inst = instructionsList[i];
+                if (inst.ToString().Equals("call System.String GetFileNameWithoutExtension(System.String)"))
+                    yield return new CodeInstruction(OpCodes.Call, typeof(GameScene_OnRegisterRoom_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                else
+                    yield return inst;
+            }
+        }
+
+        private static string Injected(string path)
+        {
+            return path;
+        }
+    }
 }
 
 #endif

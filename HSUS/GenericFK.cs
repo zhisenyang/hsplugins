@@ -16,9 +16,11 @@ namespace Studio
     [HarmonyPatch(typeof(AddObjectItem), "Load", new[] { typeof(OIItemInfo), typeof(ObjectCtrlInfo), typeof(TreeNodeObject), typeof(bool), typeof(int) })]
     public class AddObjectItem_Load_Patches
     {
+        private static Type _itemFKCtrl;
         public static bool Prepare()
         {
-            return HSUS.HSUS._self._enableGenericFK && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo && Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp") != null;
+            _itemFKCtrl = Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp");
+            return HSUS.HSUS._self._enableGenericFK && HSUS.HSUS._self._binary == HSUS.HSUS.Binary.Neo && _itemFKCtrl != null;
         }
 
         public static bool Prefix(OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition, ref OCIItem __result)
@@ -180,10 +182,10 @@ namespace Studio
 
         private static MethodInfo TargetMethod()
         {
-            return AccessTools.Method(typeof(ItemFKCtrl), "InitBone", new[] {typeof(OCIItem), typeof(Info.ItemLoadInfo), typeof(bool)});
+            return AccessTools.Method(Type.GetType("Studio.ItemFKCtrl,Assembly-CSharp"), "InitBone", new[] {typeof(OCIItem), typeof(Info.ItemLoadInfo), typeof(bool)});
         }
 
-        public static bool Prefix(ItemFKCtrl __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew, object ___listBones)
+        public static bool Prefix(object __instance, OCIItem _ociItem, Info.ItemLoadInfo _loadInfo, bool _isNew, object ___listBones)
         {
             if (_loadInfo != null && _loadInfo.bones.Count > 0)
                 return true;

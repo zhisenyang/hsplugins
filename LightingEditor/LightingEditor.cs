@@ -909,6 +909,7 @@ namespace LightingEditor
             }
         }
 
+#if HONEYSELECT
         [HarmonyPatch(typeof(AddObjectLight), "Load", new[] { typeof(OILightInfo), typeof(ObjectCtrlInfo), typeof(TreeNodeObject), typeof(bool), typeof(int) })]
         internal static class AddObjectLightt_Load_Patches
         {
@@ -920,6 +921,7 @@ namespace LightingEditor
                 }));
             }
         }
+#endif
         #endregion
     }
 }

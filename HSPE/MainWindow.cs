@@ -112,7 +112,6 @@ namespace HSPE
         private bool _anklesCorrectionByDefault;
         private int _lastScreenWidth = Screen.width;
         private int _lastScreenHeight = Screen.height;
-        private IKExecutionOrder _ikExecutionOrder;
         private Button _copyLeftArmButton;
         private Button _copyRightArmButton;
         private Button _copyLeftLegButton;
@@ -127,7 +126,6 @@ namespace HSPE
         private Quaternion _lastFKBonesRotation;
         private readonly List<FKBoneEntry> _fkBoneEntries = new List<FKBoneEntry>();
         private Dictionary<Transform, GuideObject> _dicGuideObject = new Dictionary<Transform, GuideObject>();
-        //private bool _enableButtPhysic = true;
         #endregion
 
         #region Public Accessors
@@ -144,8 +142,8 @@ namespace HSPE
         {
             _self = this;
 
-            this._ikExecutionOrder = this.gameObject.AddComponent<IKExecutionOrder>();
-            this._ikExecutionOrder.IKComponents = new IK[0];
+            if (Resources.FindObjectsOfTypeAll<IKExecutionOrder>().Length == 0)
+                this.gameObject.AddComponent<IKExecutionOrder>().IKComponents = new IK[0];
 
             string path = _pluginDir + _config;
             if (File.Exists(path) == false)
@@ -216,9 +214,9 @@ namespace HSPE
 #elif KOIKATSU
             ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
             ExtendedSave.CardBeingSaved += this.OnCharaSave;
-            //ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
-            //ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
-            //ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += this.OnSceneSave;
+            ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
+            ExtendedSave.SceneBeingImported += this.OnSceneImport;
+            ExtendedSave.SceneBeingSaved += this.OnSceneSave;
 #endif
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
 
@@ -313,10 +311,7 @@ namespace HSPE
                         GUI.Box(this._advancedModeRect, "", _customBoxStyle);
                     GUI.backgroundColor = c;
                     this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
-                    if (this._advancedModeRect.Contains(Event.current.mousePosition))
-                        this._mouseInAdvMode = true;
-                    else
-                        this._mouseInAdvMode = false;
+                    this._mouseInAdvMode = this._advancedModeRect.Contains(Event.current.mousePosition);
                 }
                 else
                     this._mouseInAdvMode = false;
@@ -573,6 +568,7 @@ namespace HSPE
             this._effectorsTexts[(int)FullBodyBipedEffector.LeftFoot] = t;
 
             this._fkScrollRect = this._fkBonesButtons.GetComponentInChildren<ScrollRect>();
+            this._fkScrollRect.movementType = ScrollRect.MovementType.Clamped;
             this._fkToggleGroup = this._fkBonesButtons.GetComponentInChildren<ToggleGroup>();
 
             Button xMoveButton = this._ui.transform.Find("BG/Controls/Buttons/MoveRotateButtons/X Move Button").GetComponent<Button>();
@@ -1160,7 +1156,6 @@ namespace HSPE
 
             if (this._poseTarget == null)
                 return;
-
             CharaPoseController charaPoseTarget = this._poseTarget as CharaPoseController;
             bool isCharacter = charaPoseTarget != null;
             if (this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot)
@@ -1273,14 +1268,8 @@ namespace HSPE
                 }
                 else
                 {
-                    this._lastFKBonesRotation = this._poseTarget.GetFKBoneTargetRotation(GuideObjectManager.Instance.selectObject);
-                    for (int i = 0; i < this._ikBoneTargets.Count; ++i)
-                    {
-                        this._lastIKBonesPositions[i] = charaPoseTarget.GetBoneTargetPosition(this._ikBoneTargets[i], this._positionOperationWorld);
-                        this._lastIKBonesRotations[i] = charaPoseTarget.GetBoneTargetRotation(this._ikBoneTargets[i]);
-                    }
-                    for (int i = 0; i < this._ikBendGoalTargets.Count; ++i)
-                        this._lastIKBendGoalsPositions[i] = charaPoseTarget.GetBendGoalPosition(this._ikBendGoalTargets[i], this._positionOperationWorld);
+                    if (GuideObjectManager.Instance.selectObject != null)
+                        this._lastFKBonesRotation = this._poseTarget.GetFKBoneTargetRotation(GuideObjectManager.Instance.selectObject);
                 }
             }
 
@@ -1305,8 +1294,9 @@ namespace HSPE
             else
             {
                 OCIChar.BoneInfo bone;
-                interactableRotation = this._poseTarget.target.fkEnabled && this._poseTarget.target.fkObjects.TryGetValue(GuideObjectManager.Instance.selectObject.transformTarget.gameObject, out bone) && bone.active;
+                interactableRotation = this._poseTarget.target.fkEnabled && GuideObjectManager.Instance.selectObject != null && this._poseTarget.target.fkObjects.TryGetValue(GuideObjectManager.Instance.selectObject.transformTarget.gameObject, out bone) && bone.active;
             }
+
             for (int i = 0; i < this._rotationButtons.Length; i++)
                 this._rotationButtons[i].interactable = interactableRotation;
         }
@@ -1400,7 +1390,11 @@ namespace HSPE
                 this.ExecuteDelayed(this.RefreshFKBonesList);
         }
 
-        private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType coord, bool b)
+#if HONEYSELECT
+        private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType coord, bool force)
+#elif KOIKATSU
+        private void OnCoordinateReplaced(OCIChar chara, ChaFileDefine.CoordinateType type, bool force)
+#endif
         {
             if (this._poseTarget != null && this._poseTarget.target.oci == chara)
                 this.ExecuteDelayed(this.RefreshFKBonesList);
@@ -1427,6 +1421,12 @@ namespace HSPE
                     entry.toggle.transform.localScale = Vector3.one;
                     entry.toggle.group = this._fkToggleGroup;
                     this._fkBoneEntries.Add(entry);
+                }
+                if (pair.Key == null)
+                {
+                    entry.toggle.gameObject.SetActive(false);
+                    entry.target = null;
+                    continue;
                 }
 
                 entry.text.text = pair.Key.name;
@@ -1461,22 +1461,27 @@ namespace HSPE
 
         private FKBoneEntry SelectCurrentFKBoneEntry()
         {
-            FKBoneEntry entry = this._fkBoneEntries.Find(e => e.target == GuideObjectManager.Instance.selectObject.transformTarget.gameObject);
-            if (entry != null)
-                entry.toggle.isOn = true;
+            FKBoneEntry entry = null;
+            if (GuideObjectManager.Instance.selectObject != null)
+            {
+                entry = this._fkBoneEntries.Find(e => e.target == GuideObjectManager.Instance.selectObject.transformTarget.gameObject);
+                if (entry != null)
+                    entry.toggle.isOn = true;                
+            }
             return entry;
         }
 
-        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", typeof(PointerEventData))]
+        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", new []{ typeof(PointerEventData) })]
         private static class GuideSelect_OnPointerClick_Patches
         {
             private static void Postfix()
             {
+                _self._fkToggleGroup.SetAllTogglesOff();
                 FKBoneEntry entry = _self.SelectCurrentFKBoneEntry();
                 if (entry != null)
                 {
-                    if (_self._fkScrollRect.normalizedPosition.y > 0.0001f)
-                        _self._fkScrollRect.content.anchoredPosition = new Vector2(_self._fkScrollRect.content.anchoredPosition.x, _self._fkScrollRect.transform.InverseTransformPoint(_self._fkScrollRect.content.position).y - _self._fkScrollRect.transform.InverseTransformPoint(entry.toggle.transform.position).y - 10) ;
+                    _self._fkScrollRect.content.anchoredPosition = new Vector2(_self._fkScrollRect.content.anchoredPosition.x, _self._fkScrollRect.transform.InverseTransformPoint(_self._fkScrollRect.content.position).y - _self._fkScrollRect.transform.InverseTransformPoint(entry.toggle.transform.position).y - 10);
+                    _self._fkScrollRect.normalizedPosition = new Vector2(_self._fkScrollRect.normalizedPosition.x, Mathf.Clamp01(_self._fkScrollRect.normalizedPosition.y));
                 }
             }
         }
@@ -1649,8 +1654,98 @@ namespace HSPE
                         data.data.Add("characterInfo", stringWriter.ToString());
                         ExtendedSave.SetExtendedDataById(file, _extSaveKey, data);
                     }
-
                 }
+            }
+        }
+
+        private void OnSceneLoad(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            this.LoadSceneGeneric(node);
+        }
+
+        private void OnSceneImport(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            int max = -1;
+            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            {
+                if (pair.Key > max)
+                    max = pair.Key;
+            }
+            this.LoadSceneGeneric(node, max);
+        }
+
+        private void LoadSceneGeneric(XmlNode node, int lastIndex = -1)
+        {
+            if (node == null || node.Name != "root")
+                return;
+            string v = node.Attributes["version"].Value;
+            this.ExecuteDelayed(() =>
+            {
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
+                int i = 0;
+                foreach (XmlNode childNode in node.ChildNodes)
+                {
+                    switch (childNode.Name)
+                    {
+                        case "itemInfo":
+                            OCIItem ociItem = null;
+                            while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
+                                ++i;
+                            if (i == dic.Count)
+                                break;
+                            this.LoadElement(ociItem, childNode);
+                            ++i;
+                            break;
+                    }
+                }
+            });
+        }
+
+        private void OnSceneSave(string path)
+        {
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+
+                xmlWriter.WriteStartElement("root");
+                xmlWriter.WriteAttributeString("version", KKPE.versionNum);
+                SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+                foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
+                {
+                    OCIItem item = kvp.Value as OCIItem;
+                    if (item != null)
+                    {
+                        xmlWriter.WriteStartElement("itemInfo");
+                        xmlWriter.WriteAttributeString("name", item.treeNodeObject.textName);
+                        xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
+
+                        this.SaveElement(item, xmlWriter);
+
+                        xmlWriter.WriteEndElement();
+                    }
+                }
+                xmlWriter.WriteEndElement();
+
+                PluginData data = new PluginData();
+                data.version = KKPE.saveVersion;
+                data.data.Add("sceneInfo", stringWriter.ToString());
+                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
             }
         }
 #endif

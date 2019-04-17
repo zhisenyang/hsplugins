@@ -149,6 +149,7 @@ namespace FogEditor
             this._heightFogEnabled = this._ui.transform.LinkToggleTo("BG/Height Fog/Enabled", this.HeightFogEnabledChanged);
 
             this._heightSlider = this._ui.transform.LinkSliderTo("BG/Height Fog/Height/Slider", this.HeightChanged);
+            this._heightSlider.maxValue = 100;
             this._heightInputField = this._ui.transform.LinkInputFieldTo("BG/Height Fog/Height/InputField", null, this.HeightChanged);
             this._heightContainer = this._heightSlider.transform.parent.gameObject;
 
@@ -332,7 +333,7 @@ namespace FogEditor
         private void HeightChanged(float f)
         {
             this._fog.height = this._heightSlider.value;
-            this._heightInputField.text = this._heightSlider.value.ToString("0.000");
+            this._heightInputField.text = this._fog.height.ToString("0.000");
         }
 
         private void HeightChanged(string s)
@@ -528,7 +529,6 @@ namespace FogEditor
 
             private static void Injected(Camera camera)
             {
-                UnityEngine.Debug.LogError("injected called");
                 if (camera.CompareTag("MainCamera"))
                     Effects_OnRenderImage_Patches._alreadyRendered = false;
             }

@@ -85,7 +85,7 @@ namespace HSUS
 
 
 #if HONEYSELECT
-        private static readonly bool _has630Patch;
+        private static readonly string _has630Patch;
 #endif
 
         static ObjectTreeDebug()
@@ -97,7 +97,17 @@ namespace HSUS
             else if (IntPtr.Size == 8)
                 _bits = 64;
 #if HONEYSELECT
-            _has630Patch = File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "HoneySelect_" + _bits + "_Data\\Managed\\Vectrosity.dll"));
+            bool vectrosity = File.Exists(Path.Combine(Directory.GetCurrentDirectory(), "HoneySelect_" + _bits + "_Data\\Managed\\Vectrosity.dll"));
+            bool type = Type.GetType("Studio.OCIPathMove,Assembly-CSharp") != null;
+            if (vectrosity && type)
+                _has630Patch = "Yes";
+            else if (vectrosity)
+                _has630Patch = "Partial (missing classes)";
+            else if (type)
+                _has630Patch = "Partial (missing Vectrosity)";
+            else
+                _has630Patch = "No";
+            UnityEngine.Debug.Log("HSUS " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits" + " | 630 patch: " + _has630Patch);
 #endif
             Console.SetOut(new FunctionTextWriter(Console.Out));
         }
@@ -187,7 +197,7 @@ namespace HSUS
             GUI.backgroundColor = c;
             this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits"
 #if HONEYSELECT
-                                                                                       + " | 630 patch: " + (_has630Patch ? "Yes" : "No")
+                                                                                       + " | 630 patch: " + _has630Patch
 #endif
                                          );
         }
@@ -601,11 +611,15 @@ namespace HSUS
 
         private static bool Prefix(TimeUtility __instance, ref float ___deltaTime, ref float ___memTime, ref float ___time_cnt, ref float ___fps, ref uint ___frame_cnt)
         {
-            if (Input.GetKey((KeyCode)303) && Input.GetKeyDown((KeyCode)127))
+            if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
             {
                 global::Config.DebugSystem debugStatus = Manager.Config.DebugStatus;
                 debugStatus.FPS = !debugStatus.FPS;
                 global::Singleton<Manager.Config>.Instance.Save();
+            }
+            if (!__instance.ForceDrawFPS && !Manager.Config.DebugStatus.FPS)
+            {
+                return false;
             }
             ___deltaTime = Time.deltaTime * __instance.time_scale;
             if (__instance.mode_mem)

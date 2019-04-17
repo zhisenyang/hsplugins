@@ -266,7 +266,8 @@ namespace HSPE.AMModules
             if (_debugLines == null)
                 _debugLines = new DebugLines();
 
-            if (this._target.type == GenericOCITarget.Type.Character)
+#if HONEYSELECT
+            if (this._target.type == GenericOCITarget.Type.Character && this._target.ociChar.charInfo.Sex == 1)
             {
                 this._parent.ExecuteDelayed(() =>
                 {
@@ -303,6 +304,7 @@ namespace HSPE.AMModules
                     rightButtCheek.m_notRolls = new List<Transform>();
                 }, 2);
             }
+#endif
 
             this.RefreshDynamicBoneList();
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
@@ -435,10 +437,10 @@ namespace HSPE.AMModules
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
 
-        public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
-        {
-            MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
-        }
+        //public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
+        //{
+        //    MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 10);
+        //}
 
         public override void DrawAdvancedModeChanged()
         {
@@ -1346,11 +1348,7 @@ namespace HSPE.AMModules
                 foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
                 {
                     if (bone.m_Colliders.Contains(collider) == false)
-                    {
-                        UnityEngine.Debug.LogError("adding lone collider to " + bone.m_Root);
-
                         bone.m_Colliders.Add(collider);
-                    }
                 }
             }
         }

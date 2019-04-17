@@ -37,7 +37,7 @@ namespace HSUS
 #endif
     {
 #if HONEYSELECT
-        internal const string _version = "1.7.0";
+        internal const string _version = "1.7.1";
 #elif KOIKATSU
         internal const string _version = "1.0.0";
 #endif
@@ -320,6 +320,7 @@ namespace HSUS
                             if (node.Attributes["interval"] != null)
                                 this._automaticMemoryCleanInterval = XmlConvert.ToInt32(node.Attributes["interval"].Value);
                             break;
+#if HONEYSELECT
                         case "fkColors":
                             foreach (XmlNode childNode in node.ChildNodes)
                             {
@@ -352,6 +353,7 @@ namespace HSUS
                                 }
                             }
                             break;
+#endif
                         case "postProcessing":
                             foreach (XmlNode childNode in node.ChildNodes)
                             {
@@ -605,6 +607,7 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
+#if HONEYSELECT
                     {
                         xmlWriter.WriteStartElement("fkColors");
                         {
@@ -649,6 +652,7 @@ namespace HSUS
                         }
                         xmlWriter.WriteEndElement();
                     }
+#endif
 
                     {
                         xmlWriter.WriteStartElement("postProcessing");
@@ -969,6 +973,9 @@ namespace HSUS
 #endif
                         break;
                     case Binary.Neo:
+#if KOIKATSU
+                        GameObject go;
+#endif
                         go = GameObject.Find("StudioScene/Canvas Object List/Image Bar");
                         if (go != null)
                         {
@@ -1398,7 +1405,7 @@ namespace HSUS
             return false;
         }
     }
-
+#if HONEYSELECT
     [HarmonyPatch(typeof(DragObject), "OnBeginDrag", typeof(PointerEventData))]
     internal static class DragObject_OnBeginDrag_Patches
     {
@@ -1446,7 +1453,7 @@ namespace HSUS
             return false;
         }
     }
-
+#endif
     //[HarmonyPatch(typeof(Studio.Info), "LoadItemLoadInfoCoroutine", new[] { typeof(string), typeof(string) })]
     //public class Testetetetetet
     //{
