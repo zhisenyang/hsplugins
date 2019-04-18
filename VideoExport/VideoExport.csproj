@@ -107,6 +107,7 @@
     <Compile Include="Extensions\GIFExtension.cs" />
     <Compile Include="Extensions\IExtension.cs" />
     <Compile Include="Extensions\MP4Extension.cs" />
+    <Compile Include="Extensions\AVIExtension.cs" />
     <Compile Include="Extensions\WEBMExtension.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ScreenshotPlugins\HoneyShot.cs" />

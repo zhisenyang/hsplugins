@@ -164,6 +164,7 @@ namespace VideoExport
             this._extensions.Add(new MP4Extension());
             this._extensions.Add(new WEBMExtension());
             this._extensions.Add(new GIFExtension());
+            this._extensions.Add(new AVIExtension());
 
             if (this._screenshotPlugins.Count == 0)
                 UnityEngine.Debug.LogError("VideoExport: No compatible screenshot plugin found, please install one.");
@@ -373,7 +374,9 @@ namespace VideoExport
                             if (this._currentAnimator != null)
                             {
                                 AnimatorStateInfo info = this._currentAnimator.GetCurrentAnimatorStateInfo(0);
-                                GUILayout.Label($"Estimated {info.length * this._limitDurationNumber:0.00} seconds, {Mathf.RoundToInt(info.length * this._limitDurationNumber * this._fps)} frames");
+                                    float totalLength = info.length * this._limitDurationNumber;
+                                    float totalFrames = totalLength * this._fps;
+                                GUILayout.Label($"Estimated {totalLength:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
                             }
                             break;
                         }
@@ -415,8 +418,11 @@ namespace VideoExport
 
                 GUILayout.BeginHorizontal();
                 {
+                    guiEnabled = GUI.enabled;
+                    GUI.enabled = guiEnabled && this._autoGenerateVideo;
                     GUILayout.Label("Format", GUILayout.ExpandWidth(false));
-                    this._selectedExtension = (ExtensionsType)GUILayout.SelectionGrid((int)this._selectedExtension, this._extensionsNames, 3);
+                    this._selectedExtension = (ExtensionsType)GUILayout.SelectionGrid((int)this._selectedExtension, this._extensionsNames, 4);
+                    GUI.enabled = guiEnabled;
                 }
                 GUILayout.EndHorizontal();
 

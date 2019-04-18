@@ -23,7 +23,8 @@ namespace VideoExport.Extensions
     {
         MP4,
         WEBM,
-        GIF
+        GIF,
+        AVI
     }
 
 }
