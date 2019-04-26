@@ -52,10 +52,6 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Condition=" '$(Configuration)' == 'HS' " Include="Assembly-CSharp-firstpass">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Condition=" '$(Configuration)' == 'HS' " Include="IllusionPlugin">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
       <Private>False</Private>
@@ -100,16 +96,16 @@
       <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\ExtensibleSaveFormat.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="KKAPI">
+      <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\KKAPI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Condition=" '$(Configuration)' == 'KOI' " Include="System.Xml.Linq">
-      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.Linq.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Condition=" '$(Configuration)' == 'KOI' " Include="UnityEngine">
@@ -139,7 +135,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
-    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "C:\Program Files (x86)\HoneySelect\illusion\HoneySelect\Plugins"</PostBuildEvent>
+    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'KOI' ">
     <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\Koikatu/BepInEx"</PostBuildEvent>
@@ -152,7 +148,4 @@
     <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets'))" />
   </Target>
   <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" />
-  <PropertyGroup>
-    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>
-  </PropertyGroup>
 </Project>

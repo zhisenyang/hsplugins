@@ -274,6 +274,9 @@ namespace VideoExport
                 IScreenshotPlugin plugin = this._screenshotPlugins[this._selectedPlugin];
                 plugin.DisplayParams();
 
+                Vector2 currentSize = plugin.currentSize;
+                GUILayout.Label($"Current Size: {currentSize.x:#}x{currentSize.y:#}");
+
                 GUILayout.BeginHorizontal();
                 {
                     GUILayout.Label("Framerate", GUILayout.ExpandWidth(false));
@@ -328,6 +331,10 @@ namespace VideoExport
 
                             }
                             GUILayout.EndHorizontal();
+
+                            float totalSeconds = this._limitDurationNumber / this._fps;
+                            GUILayout.Label($"Estimated {totalSeconds:0.0000} seconds, {Mathf.RoundToInt(this._limitDurationNumber)} frames");
+
                             break;
                         }
                         case LimitDurationType.Seconds:
@@ -341,9 +348,12 @@ namespace VideoExport
                                 if (float.TryParse(s, out res) == false || res <= 0f)
                                     res = 0.001f;
                                 this._limitDurationNumber = res;
-
                             }
                             GUILayout.EndHorizontal();
+
+                            float totalFrames = this._limitDurationNumber * this._fps;
+                            GUILayout.Label($"Estimated {this._limitDurationNumber:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
+
                             break;
                         }
                         case LimitDurationType.Animation:
@@ -413,8 +423,6 @@ namespace VideoExport
                     GUI.enabled = guiEnabled;
                 }
                 GUILayout.EndHorizontal();
-                Vector2 currentSize = plugin.currentSize;
-                GUILayout.Label($"Current Size: {currentSize.x:#}x{currentSize.y:#}");
 
                 GUILayout.BeginHorizontal();
                 {
@@ -458,11 +466,11 @@ namespace VideoExport
                 Color c = GUI.color;
                 GUI.color = this._messageColor;
 
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
+                GUIStyle customLabel = GUI.skin.label;
+                TextAnchor cachedAlignment = customLabel.alignment;
+                customLabel.alignment = TextAnchor.UpperCenter;
                 GUILayout.Label(this._currentMessage);
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
+                customLabel.alignment = cachedAlignment;
 
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -532,7 +540,7 @@ namespace VideoExport
                 yield return new WaitForEndOfFrame();
             }
 
-            float startTime = Time.unscaledTime;
+            DateTime startTime = DateTime.Now;
             this._progressBarPercentage = 0f;
 
             int limit = 1;
@@ -552,6 +560,7 @@ namespace VideoExport
                 }
             }
 
+            TimeSpan elapsed = TimeSpan.Zero;
             int i = 0;
             for (; ; i++)
             {
@@ -570,17 +579,22 @@ namespace VideoExport
                 }
                 byte[] frame = screenshotPlugin.Capture();
                 File.WriteAllBytes($"{framesFolder}/{i}.{screenshotPlugin.extension}", frame);
-                TimeSpan remaining = TimeSpan.FromSeconds((limit - i - 1) * (Time.unscaledTime - startTime) / (i + 1));
+
+                elapsed = DateTime.Now - startTime;
+
+                TimeSpan remaining = TimeSpan.FromSeconds((limit - i - 1) * elapsed.TotalSeconds / (i + 1));
 
                 if (this._limitDuration)
                     this._progressBarPercentage = (i + 1f) / limit;
                 else
                     this._progressBarPercentage = (i % this._fps) / (float)this._fps;
 
-                this._currentMessage = $"Taking screenshot {i + 1}{(this._limitDuration ? $"/{limit} {this._progressBarPercentage * 100:#.0}% ETA: {remaining.TotalHours:0}:{remaining.Minutes:00}:{remaining.Seconds:00}" : "")}";
+                this._currentMessage = $"Taking screenshot {i + 1}{(this._limitDuration ? $"/{limit} {this._progressBarPercentage * 100:0.0}%\nETA: {remaining.TotalHours:0}:{remaining.Minutes:00}:{remaining.Seconds:00} Elapsed: {elapsed.TotalHours:0}:{elapsed.Minutes:00}:{elapsed.Seconds:00}" : "")}";
                 yield return new WaitForEndOfFrame();
             }
             Time.captureFramerate = cachedCaptureFramerate;
+
+            UnityEngine.Debug.Log($"Time spent taking screenshots: {elapsed.TotalHours:0}:{elapsed.Minutes:00}:{elapsed.Seconds:00}");
 
             foreach (DynamicBone dynamicBone in Resources.FindObjectsOfTypeAll<DynamicBone>())
                 dynamicBone.m_UpdateRate = 60;
@@ -599,7 +613,7 @@ namespace VideoExport
                 IExtension extension = this._extensions[(int)this._selectedExtension];
                 string executable = extension.GetExecutable();
                 string arguments = extension.GetArguments(framesFolder, screenshotPlugin.extension, this._fps, screenshotPlugin.transparency, this._resize, this._resizeX, this._resizeY, _outputFolder + tempName);
-                startTime = Time.unscaledTime;
+                startTime = DateTime.Now;
                 Process proc = this.StartExternalProcess(executable, arguments, extension.canProcessStandardOutput, extension.canProcessStandardError);
                 while (proc.HasExited == false)
                 {
@@ -611,14 +625,16 @@ namespace VideoExport
                         yield return null;
                     }
 
+                    elapsed = DateTime.Now - startTime;
+
                     if (extension.progress != 0)
                     {
-                        TimeSpan eta = TimeSpan.FromSeconds((i - extension.progress) * (Time.unscaledTime - startTime) / extension.progress);
+                        TimeSpan eta = TimeSpan.FromSeconds((i - extension.progress) * elapsed.TotalSeconds / extension.progress);
                         this._progressBarPercentage = extension.progress / (float)i;
-                        this._currentMessage = $"Generating video {extension.progress}/{i} {this._progressBarPercentage * 100:#.0}% ETA: {eta.TotalHours:0}:{eta.Minutes:00}:{eta.Seconds:00}";
+                        this._currentMessage = $"Generating video {extension.progress}/{i} {this._progressBarPercentage * 100:0.0}%\nETA: {eta.TotalHours:0}:{eta.Minutes:00}:{eta.Seconds:00} Elapsed: {elapsed.TotalHours:0}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
                     }
                     else
-                        this._progressBarPercentage = ((Time.unscaledTime - startTime) % 6) / 6;
+                        this._progressBarPercentage = (float)((elapsed.TotalSeconds % 6) / 6);
 
 
                     Resources.UnloadUnusedAssets();
@@ -644,6 +660,7 @@ namespace VideoExport
                 }
                 proc.Close();
                 this._generatingVideo = false;
+                UnityEngine.Debug.Log($"Time spent generating video: {elapsed.TotalHours:0}:{elapsed.Minutes:00}:{elapsed.Seconds:00}");
             }
             else
             {

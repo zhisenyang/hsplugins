@@ -14,6 +14,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Instrumentation
 {

@@ -13,7 +13,7 @@ namespace HSStandard
 {
     public class HSStandard : IEnhancedPlugin
     {
-        public const string versionNum = "1.0.1b2";
+        public const string versionNum = "1.0.1";
 
         #region Private Types
         private class SwapDetails
@@ -33,6 +33,7 @@ namespace HSStandard
         private static Material _hsStandardAnisotropic;
         private static Material _hsStandardAnisotropicTwoSided;
         private static Material _hsStandardAnisotropicTransparent;
+        private static Material _hsStandardAnisotropicTransparentBlend;
         private static Material _hsStandardAnisotropicTransparentTwoSided;
         private static Material _hsStandardTwoColorsCutout;
         private static Material _hsStandardTwoColorsFade;
@@ -85,6 +86,7 @@ namespace HSStandard
             _hsStandardAnisotropic = bundle.LoadAsset<Material>("HSStandardAnisotropic");
             _hsStandardAnisotropicTwoSided = bundle.LoadAsset<Material>("HSStandardAnisotropicTwoSided");
             _hsStandardAnisotropicTransparent = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparent");
+            _hsStandardAnisotropicTransparentBlend = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparentBlend");
             _hsStandardAnisotropicTransparentTwoSided = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparentTwoSided");
             _hsStandardTwoColorsCutout = bundle.LoadAsset<Material>("HSStandardTwoColorsCutout");
             _hsStandardTwoColorsFade = bundle.LoadAsset<Material>("HSStandardTwoColorsFade");
@@ -172,7 +174,7 @@ namespace HSStandard
             //IsVanillaMap Modifiers
             harmony.Patch(typeof(Manager.Map).GetMethod("LoadMap", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy), new HarmonyMethod(typeof(HSStandard), nameof(SetIsVanillaMapTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsVanillaMap)));
 
-            if (_fixHairDOF)
+            if (_fixHairDOF && _replaceHair)
             {
                 //DepthTextureOnly
                 harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHair", new[] { typeof(bool) }), null, new HarmonyMethod(typeof(HSStandard), nameof(AddDepthTextureOnlyMaterialToFemaleHair)));
@@ -346,6 +348,7 @@ namespace HSStandard
                 {
                     case "Shader Forge/PBRsp":
                     case "Shader Forge/PBRsp_alpha":
+                    case "Shader Forge/PBRsp_alpha_blend":
                     case "Shader Forge/PBRsp_texture_alpha":
                     case "Shader Forge/Standard_culloff":
                     case "Shader Forge/PBRsp_culloff":
@@ -392,6 +395,7 @@ namespace HSStandard
                 {
                     case "Shader Forge/PBRsp":
                     case "Shader Forge/PBRsp_alpha":
+                    case "Shader Forge/PBRsp_alpha_blend":
                     case "Shader Forge/PBRsp_texture_alpha":
                     case "Shader Forge/Standard_culloff":
                     case "Shader Forge/PBRsp_culloff":
@@ -454,6 +458,28 @@ namespace HSStandard
 
                         newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                        SwapPropertiesAnisotropic(mat, newMaterial);
+                    }
+                    break;
+
+                case "Shader Forge/PBRsp_alpha_blend": //custom edit of PBRsp_alpha
+                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    {
+                        newMaterial = new Material(_hsStandardFade);
+                        SwapPropertiesClassic(mat, newMaterial);
+
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
+
+                        SetMaterialKeywords(newMaterial);
+                    }
+                    else
+                    {
+                        newMaterial = new Material(_hsStandardAnisotropicTransparentBlend);
+
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
 
                         SwapPropertiesAnisotropic(mat, newMaterial);
                     }
@@ -691,8 +717,6 @@ namespace HSStandard
                             SwapPropertiesClassic(mat, newMaterial);
 
                             newMaterial.SetFloat("_Cutoff", mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f);
-                            //if (mat.shader.name.Equals("Shader Forge/PBRsp_alpha"))
-                            //    newMaterial.SetInt("_ZWrite", 1);
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                             SetMaterialKeywords(newMaterial);
@@ -874,7 +898,7 @@ namespace HSStandard
 
             newMaterial.SetFloat("_Metallic", mat.GetFloat("_Metallic"));
             newMaterial.SetFloat("_Smoothness", mat.GetFloat("_Smoothness"));
-            newMaterial.SetFloat("_OcclusionStrength", mat.GetFloat("_OcclusionStrength"));
+            newMaterial.SetFloat("_OcclusionStrength", Mathf.Clamp01(mat.GetFloat("_OcclusionStrength")));
 
             newMaterial.renderQueue = mat.renderQueue;
             newMaterial.globalIlluminationFlags = mat.globalIlluminationFlags;
@@ -1179,43 +1203,9 @@ namespace HSStandard
 
         private static void OnChangeAccessoryPostfixSingle(CharBody __instance, int _slotNo)
         {
-            GameObject accessoryObj = __instance.objAccessory[_slotNo];
-            if (accessoryObj != null)
+            if (_ignoreSwap == false)
             {
-                foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
-                {
-                    if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
-                    {
-                        AddDepthTextureOnlyMaterial(renderer);
-                    }
-                }
-            }
-            ResetIsClothes();
-        }
-
-        private static void OnChangeAccessoryPostfix(CharBody __instance)
-        {
-            for (int i = 0; i < 10; i++)
-            {
-                GameObject accessoryObj = __instance.objAccessory[i];
-                if (accessoryObj != null)
-                {
-                    foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
-                    {
-                        if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
-                            AddDepthTextureOnlyMaterial(renderer);
-                    }
-                }
-            }
-            ResetIsClothes();
-        }
-
-        private static void OnChangeAccessoryPostfixMoreAccessories(object data, int _slotNo)
-        {
-            List<GameObject> objAccessory = (List<GameObject>)_moreAccCharAdditionalDataObjAccessory.GetValue(data);
-            if (objAccessory != null)
-            {
-                GameObject accessoryObj = objAccessory[_slotNo];
+                GameObject accessoryObj = __instance.objAccessory[_slotNo];
                 if (accessoryObj != null)
                 {
                     foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
@@ -1230,8 +1220,53 @@ namespace HSStandard
             ResetIsClothes();
         }
 
-        private static void AddDepthTextureOnlyMaterialToFemaleHair(CharFemaleBody __instance) //Check about hair accs
+        private static void OnChangeAccessoryPostfix(CharBody __instance)
         {
+            if (_ignoreSwap == false)
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    GameObject accessoryObj = __instance.objAccessory[i];
+                    if (accessoryObj != null)
+                    {
+                        foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
+                        {
+                            if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
+                                AddDepthTextureOnlyMaterial(renderer);
+                        }
+                    }
+                }
+            }
+            ResetIsClothes();
+        }
+
+        private static void OnChangeAccessoryPostfixMoreAccessories(object data, int _slotNo)
+        {
+            if (_ignoreSwap == false)
+            {
+                List<GameObject> objAccessory = (List<GameObject>)_moreAccCharAdditionalDataObjAccessory.GetValue(data);
+                if (objAccessory != null)
+                {
+                    GameObject accessoryObj = objAccessory[_slotNo];
+                    if (accessoryObj != null)
+                    {
+                        foreach (Renderer renderer in accessoryObj.GetComponentsInChildren<Renderer>(true))
+                        {
+                            if (renderer.CompareTag("ObjHairAcs") && renderer.sharedMaterials.Length == 1)
+                            {
+                                AddDepthTextureOnlyMaterial(renderer);
+                            }
+                        }
+                    }
+                }
+            }
+            ResetIsClothes();
+        }
+
+        private static void AddDepthTextureOnlyMaterialToFemaleHair(CharFemaleBody __instance)
+        {
+            if (_ignoreSwap)
+                return;
             foreach (GameObject gameObject in __instance.objHair)
             {
                 foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
@@ -1246,6 +1281,8 @@ namespace HSStandard
 
         private static void AddDepthTextureOnlyMaterialToMaleHair(CharMaleBody __instance)
         {
+            if (_ignoreSwap)
+                return;
             foreach (GameObject gameObject in __instance.objHair)
             {
                 foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
@@ -1261,7 +1298,7 @@ namespace HSStandard
         private static void AddDepthTextureOnlyMaterial(Renderer renderer)
         {
             Material mat = renderer.materials[0];
-            if (mat.GetTag("RenderType", false).StartsWith("Transparent"))
+            if (mat.GetTag("RenderType", false).StartsWith("Transparent") && mat.shader.name.EndsWith("blend", StringComparison.OrdinalIgnoreCase) == false)
             {
                 Material[] newMaterials = new Material[2];
                 newMaterials[0] = mat;

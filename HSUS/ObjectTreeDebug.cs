@@ -6,6 +6,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Config;
 using Harmony;
 using ILSetUtility.TimeUtility;
 using ToolBox;
@@ -601,6 +602,7 @@ namespace HSUS
         }
     }
 
+#if HONEYSELECT
     [HarmonyPatch(typeof(TimeUtility), "Update")]
     internal static class TimeUtility_Update_Patches
     {
@@ -613,9 +615,9 @@ namespace HSUS
         {
             if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
             {
-                global::Config.DebugSystem debugStatus = Manager.Config.DebugStatus;
+                DebugSystem debugStatus = Manager.Config.DebugStatus;
                 debugStatus.FPS = !debugStatus.FPS;
-                global::Singleton<Manager.Config>.Instance.Save();
+                Singleton<Manager.Config>.Instance.Save();
             }
             if (!__instance.ForceDrawFPS && !Manager.Config.DebugStatus.FPS)
             {
@@ -637,5 +639,6 @@ namespace HSUS
             return false;
         }
     }
+#endif
 }
 

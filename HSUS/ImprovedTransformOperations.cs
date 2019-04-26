@@ -303,6 +303,7 @@ namespace HSUS
         }
     }
 
+#if HONEYSELECT
     [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickCopy")]
     internal static class WorkspaceCtrl_OnClickCopy_Patches
     {
@@ -317,15 +318,18 @@ namespace HSUS
                 button.interactable = true;
         }
     }
+#endif
 
     public class TransformOperations : MonoBehaviour
     {
+#if HONEYSELECT
         private class TransformData
         {
             public Vector3 position;
             public Vector3 rotation;
             public Vector3 scale;
         }
+#endif
 
         private Button _copyTransform;
         private Button _pasteTransform;
@@ -336,6 +340,7 @@ namespace HSUS
         private Vector3 _savedPosition;
         private Vector3 _savedRotation;
         private Vector3 _savedScale;
+#if HONEYSELECT
         private bool _draggingXPos = false;
         private bool _draggingYPos = false;
         private bool _draggingZPos = false;
@@ -346,6 +351,7 @@ namespace HSUS
         private bool _draggingYScale = false;
         private bool _draggingZScale = false;
         private Dictionary<GuideObject, TransformData> _originalTransforms = new Dictionary<GuideObject, TransformData>();
+#endif
 
         void Awake()
         {
@@ -423,6 +429,7 @@ namespace HSUS
 
             this._hashSelectObject = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
 
+#if HONEYSELECT
             RectTransform posX = (RectTransform)guideInput.Find("Pos/InputField X");
             RawImage posXDrag = UIUtility.CreateRawImage("DragX", posX.parent);
             posXDrag.color = new Color32(0, 0, 0, 1);
@@ -512,6 +519,7 @@ namespace HSUS
                 this._draggingZScale = true;
                 this.InitOriginalTransforms();
             };
+#endif
         }
 
         void Update()
@@ -520,6 +528,7 @@ namespace HSUS
                 this.UpdateButtonsVisibility();
             this._lastObjectCount = this._hashSelectObject.Count;
 
+#if HONEYSELECT
             if (Input.GetMouseButtonUp(0))
             {
                 if (this._draggingXPos || this._draggingYPos || this._draggingZPos ||
@@ -612,6 +621,7 @@ namespace HSUS
                     }
                 }
             }
+#endif
         }
 
         private void UpdateButtonsVisibility()
@@ -688,12 +698,14 @@ namespace HSUS
             UndoRedoManager.Instance.Push(new TransformEqualsCommand(moveChangeAmountInfo.ToArray(), rotateChangeAmountInfo.ToArray(), scaleChangeAmountInfo.ToArray()));
         }
 
+#if HONEYSELECT
         private void InitOriginalTransforms()
         {
             this._originalTransforms.Clear();
             foreach (GuideObject guideObject in this._hashSelectObject)
                 this._originalTransforms.Add(guideObject, new TransformData() {position = guideObject.changeAmount.pos, rotation = guideObject.changeAmount.rot, scale = guideObject.changeAmount.scale});
         }
+#endif
     }
 
     public class TransformEqualsCommand : ICommand

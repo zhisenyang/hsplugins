@@ -1,19 +1,20 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using Harmony;
-using RootMotion.FinalIK;
 using ToolBox;
 #if HONEYSELECT
-//using RootMotion.FinalIK;
+using System.Collections;
 using IllusionPlugin;
 #elif KOIKATSU
+using System.Reflection;
 using BepInEx;
+using KKAPI.Studio.SaveLoad;
 using ExtensibleSaveFormat;
 using UnityEngine.SceneManagement;
 using System.IO;
+using MessagePack;
 #endif
 using Studio;
 using UnityEngine;
@@ -25,6 +26,7 @@ namespace NodesConstraints
 #if KOIKATSU
     [BepInPlugin(GUID: "com.joan6694.illusionplugins.nodesconstraints", Name: "NodesConstraints", Version: NodesConstraints.versionNum)]
     [BepInDependency("com.bepis.bepinex.extendedsave")]
+    [BepInDependency("marco.kkapi")]
     [BepInProcess("CharaStudio")]
 #endif
     public class NodesConstraints :
@@ -34,7 +36,11 @@ namespace NodesConstraints
         BaseUnityPlugin
 #endif
     {
+#if HONEYSELECT
         public const string versionNum = "1.0.0";
+#elif KOIKATSU
+        public const string versionNum = "1.0.1";
+#endif
 
         private static NodesConstraints _self;
         private const string _extSaveKey = "nodesConstraints";
@@ -47,6 +53,13 @@ namespace NodesConstraints
 #endif
 
         #region Private Types
+        private enum SimpleListShowNodeType
+        {
+            All,
+            IK,
+            FK
+        }
+
         private class Constraint
         {
             public bool enabled = true;
@@ -87,11 +100,30 @@ namespace NodesConstraints
                 VectorLine.Destroy(ref this._debugLine);
             }
         }
+
+#if KOIKATSU
+        [Serializable]
+        [MessagePackObject]
+        private class AnimationControllerInfo
+        {
+            [Key("CharDicKey")]
+            public int CharDicKey { get; set; }
+            [Key("ItemDicKey")]
+            public int ItemDicKey { get; set; }
+            [Key("IKPart")]
+            public string IKPart { get; set; }
+            [Key("Version")]
+            public string Version { get; set; }
+            public static AnimationControllerInfo Unserialize(byte[] data) => MessagePackSerializer.Deserialize<AnimationControllerInfo>(data);
+            public byte[] Serialize() => MessagePackSerializer.Serialize(this);
+        }
+#endif
         #endregion
 
         #region Private Variables
         //private static readonly Dictionary<string, string> _boneAliases = new Dictionary<string, string>();
         private readonly HashSet<GameObject> _openedBones = new HashSet<GameObject>();
+        private readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
 
         private bool _studioLoaded;
         private bool _showUI = false;
@@ -117,6 +149,11 @@ namespace NodesConstraints
         private CameraEventsDispatcher _dispatcher;
         private bool _advancedList = false;
         private string _search = "";
+        private GuideObject _selectedWorkspaceObject;
+        private GuideObject _lastSelectedWorkspaceObject;
+        private bool _kkAnimationControllerInstalled = true;
+        private SimpleListShowNodeType _selectedShowNodeType = SimpleListShowNodeType.All;
+        private string[] _simpleListShowNodeTypeNames;
         #endregion
 
         #region Unity Methods
@@ -143,6 +180,8 @@ namespace NodesConstraints
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.nodesconstraints");
             harmony.PatchAll();
+
+            this._simpleListShowNodeTypeNames = Enum.GetNames(typeof(SimpleListShowNodeType));
         }
 
 
@@ -166,7 +205,6 @@ namespace NodesConstraints
 
         void Init()
         {
-
             this._studioLoaded = true;
             this._selectedWorkspaceObjects = (HashSet<TreeNodeObject>)Studio.Studio.Instance.treeNodeCtrl.GetPrivate("hashSelectNode");
             this._selectedGuideObjects = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
@@ -179,8 +217,17 @@ namespace NodesConstraints
 #elif KOIKATSU
             this._dispatcher.onPreCull += this.ApplyConstraints;
             this._dispatcher.onPreRender += this.DrawDebugLines;
+            this._kkAnimationControllerInstalled = BepInEx.Bootstrap.Chainloader.Plugins
+                                                          .Select(MetadataHelper.GetMetadata)
+                                                          .FirstOrDefault(x => x.GUID == "com.deathweasel.bepinex.animationcontroller") != null;
 #endif
+#if HONEYSELECT
             this._dispatcher.ExecuteDelayed(() =>
+            
+#elif KOIKATSU
+            this.ExecuteDelayed(() =>
+#endif
+
             {
                 this._parentCircle = VectorLine.SetLine(Color.green, new Vector3[16]);
                 this._childCircle = VectorLine.SetLine(Color.red, new Vector3[16]);
@@ -218,7 +265,17 @@ namespace NodesConstraints
                 this._onPreCullAction();
                 this._onPreCullAction = null;
             }
-
+            this._selectedWorkspaceObject = null;
+            TreeNodeObject treeNode = this._selectedWorkspaceObjects?.FirstOrDefault();
+            if (treeNode != null)
+            {
+                ObjectCtrlInfo info;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNode, out info))
+                    this._selectedWorkspaceObject = info.guideObject;
+            }
+            if (this._selectedWorkspaceObject != this._lastSelectedWorkspaceObject && this._selectedWorkspaceObject != null)
+                this._selectedBone = this._selectedWorkspaceObject.transformTarget;
+            this._lastSelectedWorkspaceObject = this._selectedWorkspaceObject;
         }
 
 #if HONEYSELECT
@@ -226,7 +283,6 @@ namespace NodesConstraints
         {
         }
 #endif
-
 
         void OnGUI()
         {
@@ -241,6 +297,11 @@ namespace NodesConstraints
             }
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Nodes Constraints");
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
+            GUI.Box(this._windowRect, "", this._customBoxStyle);
+            GUI.backgroundColor = c;
+
             if (this._mouseInWindow)
                 Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUI;
         }
@@ -277,9 +338,11 @@ namespace NodesConstraints
         {
             private static void Postfix()
             {
-                if (GuideObjectManager.Instance.selectObject != null)
+                GuideObject selectedGuideObject = _self._selectedGuideObjects.FirstOrDefault();
+
+                if (selectedGuideObject != null)
                 {
-                    _self._selectedBone = GuideObjectManager.Instance.selectObject.transformTarget;
+                    _self._selectedBone = selectedGuideObject.transformTarget;
                 }
             }
         }
@@ -321,36 +384,45 @@ namespace NodesConstraints
 
         private void DrawDebugLines()
         {
-            this._parentCircle.active = this._displayedConstraint.parentTransform != null && this._showUI;
-            if (this._parentCircle.active)
+            if (this._parentCircle != null)
             {
-                this._parentCircle.MakeCircle(this._displayedConstraint.parentTransform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
-                this._parentCircle.Draw();
-            }
-            this._childCircle.active = this._displayedConstraint.childTransform != null && this._showUI;
-            if (this._childCircle.active)
-            {
-                this._childCircle.MakeCircle(this._displayedConstraint.childTransform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
-                this._childCircle.Draw();
-            }
-
-            if (this._advancedList)
-            {
-                this._selectedCircle.active = this._selectedBone != null && this._showUI;
-                if (this._selectedCircle.active)
+                this._parentCircle.active = this._displayedConstraint.parentTransform != null && this._showUI;
+                if (this._parentCircle.active)
                 {
-                    this._selectedCircle.MakeCircle(this._selectedBone.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
-                    this._selectedCircle.Draw();
+                    this._parentCircle.MakeCircle(this._displayedConstraint.parentTransform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
+                    this._parentCircle.Draw();
                 }
             }
-            else
+            if (this._childCircle != null)
             {
-                GuideObject selectedGuideObject = this._selectedGuideObjects.FirstOrDefault();
-                this._selectedCircle.active = selectedGuideObject != null && this._showUI;
-                if (this._selectedCircle.active)
+                this._childCircle.active = this._displayedConstraint.childTransform != null && this._showUI;
+                if (this._childCircle.active)
                 {
-                    this._selectedCircle.MakeCircle(selectedGuideObject.transformTarget.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
-                    this._selectedCircle.Draw();
+                    this._childCircle.MakeCircle(this._displayedConstraint.childTransform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
+                    this._childCircle.Draw();
+                }
+            }
+
+            if (this._selectedCircle != null)
+            {
+                if (this._advancedList)
+                {
+                    this._selectedCircle.active = this._selectedBone != null && this._showUI;
+                    if (this._selectedCircle.active)
+                    {
+                        this._selectedCircle.MakeCircle(this._selectedBone.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
+                        this._selectedCircle.Draw();
+                    }
+                }
+                else
+                {
+                    GuideObject selectedGuideObject = this._selectedGuideObjects.FirstOrDefault();
+                    this._selectedCircle.active = selectedGuideObject != null && this._showUI;
+                    if (this._selectedCircle.active)
+                    {
+                        this._selectedCircle.MakeCircle(selectedGuideObject.transformTarget.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, 0.01f);
+                        this._selectedCircle.Draw();
+                    }
                 }
             }
 
@@ -527,6 +599,7 @@ namespace NodesConstraints
                 this._scroll = GUILayout.BeginScrollView(this._scroll, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.Height(150));
                 {
                     int toDelete = -1;
+                    Action afterLoopAction = null;
                     for (int i = 0; i < this._constraints.Count; i++)
                     {
                         Constraint constraint = this._constraints[i];
@@ -571,6 +644,26 @@ namespace NodesConstraints
                                 this._displayedConstraint.positionOffset = this._selectedConstraint.positionOffset;
                                 this._displayedConstraint.rotationOffset = this._selectedConstraint.rotationOffset;
                             }
+
+                            if (GUILayout.Button("↑", GUILayout.ExpandWidth(false)) && i != 0)
+                            {
+                                int cachedI = i;
+                                afterLoopAction = () =>
+                                {
+                                    this._constraints.RemoveAt(cachedI);
+                                    this._constraints.Insert(cachedI - 1, constraint);
+                                };
+                            }
+                            if (GUILayout.Button("↓", GUILayout.ExpandWidth(false)) && i != this._constraints.Count - 1)
+                            {
+                                int cachedI = i;
+                                afterLoopAction = () =>
+                                {
+                                    this._constraints.RemoveAt(cachedI);
+                                    this._constraints.Insert(cachedI + 1, constraint);
+                                };
+                            }
+
                             GUI.color = Color.red;
                             if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
                                 toDelete = i;
@@ -578,21 +671,14 @@ namespace NodesConstraints
                         }
                         GUILayout.EndHorizontal();
                     }
+                    if (afterLoopAction != null)
+                        afterLoopAction();
                     if (toDelete != -1)
                         this.RemoveConstraintAt(toDelete);
                 }
                 GUILayout.EndScrollView();
 
                 this._advancedList = GUILayout.Toggle(this._advancedList, "Advanced List");
-
-                GuideObject selectedWorkspaceObject = null;
-                TreeNodeObject treeNode = this._selectedWorkspaceObjects?.FirstOrDefault();
-                if (treeNode != null)
-                {
-                    ObjectCtrlInfo info;
-                    if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNode, out info))
-                        selectedWorkspaceObject = info.guideObject;
-                }
 
                 GUILayout.BeginHorizontal();
                 string oldSearch = this._search;
@@ -610,7 +696,7 @@ namespace NodesConstraints
                     //    aliased = false;
                     //}
                     if (this._selectedBone.name.IndexOf(oldSearch, StringComparison.OrdinalIgnoreCase) != -1/* || (aliased && displayedName.IndexOf(oldSearch, StringComparison.OrdinalIgnoreCase) != -1)*/)
-                        this.OpenParents(this._selectedBone, selectedWorkspaceObject.transformTarget);
+                        this.OpenParents(this._selectedBone, this._selectedWorkspaceObject.transformTarget);
                 }
                 GUILayout.EndHorizontal();
 
@@ -618,15 +704,31 @@ namespace NodesConstraints
 
                 if (this._advancedList == false)
                 {
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("Show nodes", GUILayout.ExpandWidth(false));
+                    this._selectedShowNodeType = (SimpleListShowNodeType)GUILayout.SelectionGrid((int)this._selectedShowNodeType, this._simpleListShowNodeTypeNames, 3);
+                    GUILayout.EndHorizontal();
+
                     this._simpleModeScroll = GUILayout.BeginScrollView(this._simpleModeScroll, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box);
-                    if (selectedWorkspaceObject != null)
+                    if (this._selectedWorkspaceObject != null)
                     {
                         foreach (KeyValuePair<Transform, GuideObject> pair in this._allGuideObjects)
                         {
                             if (pair.Key == null)
                                 continue;
-                            if (pair.Key.IsChildOf(selectedWorkspaceObject.transformTarget) == false && pair.Key != selectedWorkspaceObject.transformTarget)
+                            if (pair.Key.IsChildOf(this._selectedWorkspaceObject.transformTarget) == false && pair.Key != this._selectedWorkspaceObject.transformTarget)
                                 continue;
+                            switch (this._selectedShowNodeType)
+                            {
+                                case SimpleListShowNodeType.IK:
+                                    if (pair.Value.enablePos == false)
+                                        continue;
+                                    break;
+                                case SimpleListShowNodeType.FK:
+                                    if (pair.Value.enablePos)
+                                        continue;
+                                    break;
+                            }
                             if (pair.Key.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1)
                                 continue;
                             Color c = GUI.color;
@@ -638,7 +740,10 @@ namespace NodesConstraints
                                 GUI.color = Color.red;
 
                             if (GUILayout.Button(pair.Key.name))
+                            {
                                 GuideObjectManager.Instance.selectObject = pair.Value;
+                                this._selectedBone = pair.Value.transformTarget;
+                            }
                             GUI.color = c;
                         }
                     }
@@ -647,8 +752,8 @@ namespace NodesConstraints
                 else
                 {
                     this._advancedModeScroll = GUILayout.BeginScrollView(this._advancedModeScroll, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box);
-                    if (selectedWorkspaceObject != null)
-                        this.DisplayObjectTree(selectedWorkspaceObject.transformTarget.GetChild(0).gameObject, 0);
+                    if (this._selectedWorkspaceObject != null)
+                        this.DisplayObjectTree(this._selectedWorkspaceObject.transformTarget.GetChild(0).gameObject, 0);
                     GUILayout.EndScrollView();
                 }
 
@@ -772,6 +877,12 @@ namespace NodesConstraints
 #elif KOIKATSU
         private void OnSceneLoad(string path)
         {
+            if (this._kkAnimationControllerInstalled == false)
+                this._dispatcher.ExecuteDelayed(() =>
+                {
+                    this.LoadDataFromKKAnimationController(Studio.Studio.Instance.dicObjectCtrl);
+                }, 2);
+
             PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
             if (data == null)
                 return;
@@ -799,6 +910,12 @@ namespace NodesConstraints
 #elif KOIKATSU
         private void OnSceneImport(string path)
         {
+            if (this._kkAnimationControllerInstalled == false)
+                this._dispatcher.ExecuteDelayed(() =>
+                {
+                    this.LoadDataFromKKAnimationController((Dictionary<int, ObjectCtrlInfo>)typeof(StudioSaveLoadApi).GetMethod("GetLoadedObjects", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] {SceneOperationKind.Import}));
+                }, 2);
+
             PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
             if (data == null)
                 return;
@@ -854,6 +971,14 @@ namespace NodesConstraints
                     }
 
 
+                    foreach (Constraint c in this._constraints)
+                    {
+                        if (c.parentTransform == parentTransform && c.childTransform == childTransform ||
+                            c.childTransform == parentTransform && c.parentTransform == childTransform)
+                            return;
+                    }
+
+
                     Constraint constraint = new Constraint();
                     constraint.enabled = childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
                     constraint.parentTransform = parentTransform;
@@ -882,6 +1007,145 @@ namespace NodesConstraints
                 }
             }, 5);
         }
+
+#if KOIKATSU
+        private void LoadDataFromKKAnimationController(Dictionary<int, ObjectCtrlInfo> loadedObjects)
+        {
+            PluginData v1Data = ExtendedSave.GetSceneExtendedDataById("KK_AnimationController");
+            object animationInfo;
+            List<AnimationControllerInfo> animationControllerInfoList = null;
+            if (v1Data != null && v1Data.data != null && v1Data.data.TryGetValue("AnimationInfo", out animationInfo))
+                animationControllerInfoList = ((object[])animationInfo).Select(x => AnimationControllerInfo.Unserialize((byte[])x)).ToList();
+
+            foreach (var kvp in loadedObjects)
+            {
+                OCIChar ociChar = kvp.Value as OCIChar;
+                if (ociChar == null)
+                    continue;
+                try
+                {
+                    //Version 1 save data
+                    if (animationControllerInfoList != null)
+                    {
+                        foreach (AnimationControllerInfo animInfo in animationControllerInfoList)
+                        {
+                            //See if this is the right character
+                            if (animInfo.CharDicKey != kvp.Key)
+                                continue;
+
+                            ObjectCtrlInfo linkedItem = loadedObjects[animInfo.ItemDicKey];
+
+                            if (!animInfo.Version.IsNullOrEmpty())
+                                this.AddLink(ociChar, animInfo.IKPart, linkedItem);
+                        }
+                        UnityEngine.Debug.Log($"NodesConstraints: Loaded KK_AnimationController animations for character {ociChar.charInfo.chaFile.parameter.fullname.Trim()}");
+                    }
+                    //Version 2 save data
+                    else
+                    {
+                        PluginData data = ExtendedSave.GetExtendedDataById(ociChar.charInfo.chaFile, "com.deathweasel.bepinex.animationcontroller");
+                        if (data != null && data.data != null)
+                        {
+                            if (data.data.TryGetValue("Links", out object loadedLinks) && loadedLinks != null)
+                                foreach (KeyValuePair<object, object> link in (Dictionary<object, object>)loadedLinks)
+                                    this.AddLink(ociChar, (string)link.Key, loadedObjects[(int)link.Value]);
+
+                            if (data.data.TryGetValue("Eyes", out var loadedEyeLink) && loadedEyeLink != null)
+                                this.AddEyeLink(ociChar, loadedObjects[(int)loadedEyeLink]);
+
+                            UnityEngine.Debug.Log($"NodesConstraints: Loaded KK_AnimationController animations for character {ociChar.charInfo.chaFile.parameter.fullname.Trim()}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError("NodesConstraints: Could not load KK_AnimationController animations.\n" + ex);
+                }
+            }
+        }
+
+        public void AddLink(OCIChar ociChar, string selectedGuideObject, ObjectCtrlInfo selectedObject)
+        {
+            OCIChar.IKInfo ikInfo = ociChar.listIKTarget.First(x => x.boneObject.name == selectedGuideObject);
+
+            Transform parent = this.GetChildRootFromObjectCtrl(selectedObject);
+            Transform child = ikInfo.guideObject.transformTarget;
+
+            if (parent == null || child == null)
+                return;
+            foreach (Constraint c in this._constraints)
+            {
+                if (c.parentTransform == parent && c.childTransform == child ||
+                    c.childTransform == parent && c.parentTransform == child)
+                    return;
+            }
+
+            Constraint constraint = new Constraint();
+            constraint.enabled = true;
+            constraint.parentTransform = parent;
+            constraint.childTransform = child;
+
+            if (this._allGuideObjects.TryGetValue(constraint.parentTransform, out constraint.parent) == false)
+                constraint.parent = null;
+            if (this._allGuideObjects.TryGetValue(constraint.childTransform, out constraint.child) == false)
+                constraint.child = null;
+
+            constraint.position = true;
+            constraint.positionOffset = Vector3.zero;
+            constraint.rotation = true;
+            constraint.rotationOffset = Quaternion.identity;
+
+            this._constraints.Add(constraint);
+        }
+
+        public void AddEyeLink(OCIChar ociChar, ObjectCtrlInfo selectedObject)
+        {
+            Transform parent = selectedObject.guideObject.transformTarget;
+            Transform child = ociChar.lookAtInfo.target;
+
+            if (parent == null || child == null)
+                return;
+            foreach (Constraint c in this._constraints)
+            {
+                if (c.parentTransform == parent && c.childTransform == child ||
+                    c.childTransform == parent && c.parentTransform == child)
+                    return;
+            }
+
+            Constraint constraint = new Constraint();
+            constraint.enabled = true;
+            constraint.parentTransform = parent;
+            constraint.childTransform = child;
+
+            if (this._allGuideObjects.TryGetValue(constraint.parentTransform, out constraint.parent) == false)
+                constraint.parent = null;
+            if (this._allGuideObjects.TryGetValue(constraint.childTransform, out constraint.child) == false)
+                constraint.child = null;
+
+            constraint.position = true;
+            constraint.positionOffset = Vector3.zero;
+            constraint.rotation = true;
+            constraint.rotationOffset = Quaternion.identity;
+
+            this._constraints.Add(constraint);
+        }
+
+        private Transform GetChildRootFromObjectCtrl(ObjectCtrlInfo objectCtrlInfo)
+        {
+            if (objectCtrlInfo == null)
+                return null;
+            OCIItem ociitem;
+            if ((ociitem = (objectCtrlInfo as OCIItem)) != null)
+                return ociitem.childRoot;
+            OCIFolder ocifolder;
+            if ((ocifolder = (objectCtrlInfo as OCIFolder)) != null)
+                return ocifolder.childRoot;
+            OCIRoute ociroute;
+            if ((ociroute = (objectCtrlInfo as OCIRoute)) != null)
+                return ociroute.childRoot;
+            return null;
+        }
+#endif
 
 #if HONEYSELECT
         private void OnSceneSave(string path, XmlTextWriter writer)

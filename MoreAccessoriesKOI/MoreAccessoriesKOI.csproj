@@ -74,10 +74,6 @@
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Xml.Linq">
-      <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.Xml.Linq.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="TextMeshPro-1.0.55.56.0b12">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\TextMeshPro-1.0.55.56.0b12.dll</HintPath>
       <Private>False</Private>

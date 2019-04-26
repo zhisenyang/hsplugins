@@ -1370,6 +1370,7 @@ namespace HSUS
 
     }
 
+#if HONEYSELECT
     [HarmonyPatch(typeof(SetRenderQueue), "Awake")]
     public class SetRenderQueue_Awake_Patches
     {
@@ -1405,7 +1406,7 @@ namespace HSUS
             return false;
         }
     }
-#if HONEYSELECT
+
     [HarmonyPatch(typeof(DragObject), "OnBeginDrag", typeof(PointerEventData))]
     internal static class DragObject_OnBeginDrag_Patches
     {

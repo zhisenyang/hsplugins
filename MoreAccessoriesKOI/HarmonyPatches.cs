@@ -1358,6 +1358,7 @@ namespace MoreAccessoriesKOI
     {
         private static MethodInfo _loadCharaFbxData;
         private static readonly object[] _params = new object[9];
+
         internal static void ManualPatch(HarmonyInstance harmony)
         {
             foreach (MethodInfo info in typeof(ChaControl).GetMethods(BindingFlags.Instance | BindingFlags.Public))

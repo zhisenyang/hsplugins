@@ -22,7 +22,7 @@ namespace VideoExport.Extensions
         {
             Color c = GUI.color;
             GUI.color = Color.yellow;
-            GUILayout.Label("Only use this format if you want your video to be compatible with older system, otherwise prefer MP4/WEBM");
+            GUILayout.Label("Only use this format if you want your video to be compatible with older systems, otherwise prefer MP4/WEBM");
             GUI.color = c;
 
 

@@ -171,7 +171,6 @@ namespace HSPE.AMModules
         {
             if (this._showSaveLoadWindow == false)
                 return;
-            GUIUtility.ScaleAroundPivot(Vector2.one * (MainWindow._self.uiScale * MainWindow._self.resolutionRatio), new Vector2(Screen.width, Screen.height));
             Color c = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
             Rect windowRect = Rect.MinMaxRect(MainWindow._self._advancedModeRect.xMin - 180, MainWindow._self._advancedModeRect.yMin, MainWindow._self._advancedModeRect.xMin, MainWindow._self._advancedModeRect.yMax);
@@ -179,7 +178,6 @@ namespace HSPE.AMModules
                 GUI.Box(windowRect, "", MainWindow._customBoxStyle);
             GUI.backgroundColor = c;
             GUILayout.Window(3, windowRect, this.SaveLoadWindow, "Presets");
-            GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
 
         private void OnDisable()
@@ -304,6 +302,7 @@ namespace HSPE.AMModules
             {
                 GUILayout.BeginVertical(GUI.skin.box);
                 GUILayout.BeginHorizontal();
+                GUILayout.Label("Search", GUILayout.ExpandWidth(false));
                 this._search = GUILayout.TextField(this._search, GUILayout.ExpandWidth(true));
                 if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
                     this._search = "";

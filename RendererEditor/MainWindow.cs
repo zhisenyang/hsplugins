@@ -3,11 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Xml;
 #if KOIKATSU
 using ExtensibleSaveFormat;
 #endif
 using Harmony;
+using IllusionPlugin;
 using Studio;
 using UnityEngine;
 using ToolBox;
@@ -49,6 +51,82 @@ namespace RendererEditor
             public ShadowCastingMode originalShadowCastingMode;
             public bool originalReceiveShadow;
             public readonly Dictionary<Material, MaterialData> dirtyMaterials = new Dictionary<Material, MaterialData>();
+        }
+
+        private class TextureWrapper
+        {
+            public class TextureSettings
+            {
+                public bool bypassSRGBSampling = false;
+                public FilterMode filterMode = FilterMode.Bilinear;
+                public int anisoLevel = 1;
+                public int maxWidth = 2048;
+                public int maxHeight = 2048;
+
+                public TextureSettings() { }
+
+                public TextureSettings(TextureSettings other)
+                {
+                    this.bypassSRGBSampling = other.bypassSRGBSampling;
+                    this.filterMode = other.filterMode;
+                    this.anisoLevel = other.anisoLevel;
+                    this.maxWidth = other.maxWidth;
+                    this.maxHeight = other.maxHeight;
+                }
+                
+                public static TextureSettings Load(string texturePath)
+                {
+                    string settingsFile = texturePath + ".settings.xml";
+                    XmlDocument doc = new XmlDocument();
+                    doc.Load(settingsFile);
+                    return Load(doc.FirstChild);
+                }
+
+                public static TextureSettings Load(XmlNode node)
+                {
+                    TextureSettings settings = new TextureSettings();
+                    if (node.Attributes["bypassSRGBSampling"] != null)
+                        settings.bypassSRGBSampling = XmlConvert.ToBoolean(node.Attributes["bypassSRGBSampling"].Value);
+                    if (node.Attributes["filterMode"] != null)
+                        settings.filterMode = (FilterMode)XmlConvert.ToInt32(node.Attributes["filterMode"].Value);
+                    if (node.Attributes["anisoLevel"] != null)
+                        settings.anisoLevel = XmlConvert.ToInt32(node.Attributes["anisoLevel"].Value);
+                    if (node.Attributes["maxWidth"] != null)
+                        settings.maxWidth = XmlConvert.ToInt32(node.Attributes["maxWidth"].Value);
+                    if (node.Attributes["maxHeight"] != null)
+                        settings.maxHeight = XmlConvert.ToInt32(node.Attributes["maxHeight"].Value);
+                    return settings;
+                }
+
+                public static void Save(string texturePath, TextureSettings settings)
+                {
+                    string settingsFile = texturePath + ".settings.xml";
+
+                    if (File.Exists(settingsFile))
+                        File.SetAttributes(settingsFile, FileAttributes.Normal);
+
+                    using (XmlTextWriter xmlWriter = new XmlTextWriter(settingsFile, Encoding.UTF8))
+                    {
+                        xmlWriter.WriteStartElement("root");
+                        Save(xmlWriter, settings);
+                        xmlWriter.WriteEndElement();
+                    }
+                    File.SetAttributes(settingsFile, FileAttributes.Hidden);
+                }
+
+                public static void Save(XmlTextWriter xmlWriter, TextureSettings settings)
+                {
+                    xmlWriter.WriteAttributeString("bypassSRGBSampling", XmlConvert.ToString(settings.bypassSRGBSampling));
+                    xmlWriter.WriteAttributeString("filterMode", XmlConvert.ToString((int)settings.filterMode));
+                    xmlWriter.WriteAttributeString("anisoLevel", XmlConvert.ToString(settings.anisoLevel));
+                    xmlWriter.WriteAttributeString("maxWidth", XmlConvert.ToString(settings.maxWidth));
+                    xmlWriter.WriteAttributeString("maxHeight", XmlConvert.ToString(settings.maxHeight));
+                }
+            }
+
+            public string path;
+            public Texture2D texture;
+            public TextureSettings settings;
         }
 
         private class ShaderProperty
@@ -279,11 +357,11 @@ namespace RendererEditor
             new ShaderProperty() {name = "_Patternuv3", type = ShaderProperty.Type.Vector4},
 #endif
         };
-        private const float _width = 604;
-        private const float _height = 600;
         private string _workingDirectory;
         private string _workingDirectoryParent;
-        private Rect _windowRect = new Rect((Screen.width - _width) / 2f, (Screen.height - _height) / 2f, _width, _height);
+        private float _width = 604;
+        private float _height = 600;
+        private Rect _windowRect;
         private int _randomId;
         private bool _enabled;
         private bool _mouseInWindow;
@@ -298,7 +376,7 @@ namespace RendererEditor
         private Vector2 _propertiesScroll;
         private readonly Texture2D _simpleTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
         private Action<string, Texture> _selectTextureCallback;
-        private readonly Dictionary<string, Texture2D> _textures = new Dictionary<string, Texture2D>();
+        private readonly Dictionary<string, TextureWrapper> _textures = new Dictionary<string, TextureWrapper>();
         private Vector2 _textureScroll;
         private string _textureFilter = "";
         private Dictionary<Material, MaterialInfo> _selectedMaterials = new Dictionary<Material, MaterialInfo>();
@@ -317,6 +395,13 @@ namespace RendererEditor
         private string _materialsFilter = "";
         private bool _rendererFilterIncludeMaterials = true;
         private GUIStyle _alignLeftButton;
+        private readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+        private Action<bool> _changeTextureSettingsCallback;
+        private TextureWrapper _selectedTextureForUpdateSettings;
+        private TextureWrapper.TextureSettings _displayedSettings;
+        private string[] _filterModeNames;
+        private readonly DateTime _v150Release = new DateTime(2019, 04, 26);
+
         #endregion
 
         #region Unity Methods
@@ -324,7 +409,10 @@ namespace RendererEditor
         {
             _self = this;
 #if HONEYSELECT
-            HSExtSave.HSExtSave.RegisterHandler("rendererEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
+            HSExtSave.HSExtSave.RegisterHandler("rendererEditor", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
+            this._width = ModPrefs.GetFloat("RendererEditor", "windowWidth", this._width, true);
+            this._height = ModPrefs.GetFloat("RendererEditor", "windowHeight", this._height, true);
+            this._windowRect = new Rect((Screen.width - this._width) / 2f, (Screen.height - this._height) / 2f, this._width, this._height);
 #elif KOIKATSU
             ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
             //ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
@@ -332,6 +420,7 @@ namespace RendererEditor
 #endif
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
             this._shadowCastingModes = (ShadowCastingMode[])Enum.GetValues(typeof(ShadowCastingMode));
+            this._filterModeNames = Enum.GetNames(typeof(FilterMode));
 
             float size = 0.012f;
             Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
@@ -379,7 +468,7 @@ namespace RendererEditor
 #elif KOIKATSU
                 Studio.Studio.Instance.colorPalette.visible = false;
 #endif
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
                 this.CheckGizmosEnabled();
             }
             if (Studio.Studio.Instance.treeNodeCtrl.selectNode != this._lastSelectedNode)
@@ -390,7 +479,7 @@ namespace RendererEditor
 #elif KOIKATSU
                 Studio.Studio.Instance.colorPalette.visible = false;
 #endif
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
                 this.CheckGizmosEnabled();
             }
 
@@ -441,7 +530,7 @@ namespace RendererEditor
                     }
                 }
                 this._selectedMaterials = newMaterialDic;
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
             }
             HashSet<Renderer> newRendererHashSet = null;
             foreach (Renderer renderer in this._selectedRenderers)
@@ -460,7 +549,7 @@ namespace RendererEditor
                         newRendererHashSet.Add(renderer);
                 }
                 this._selectedRenderers = newRendererHashSet;
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
             }
         }
 
@@ -482,18 +571,30 @@ namespace RendererEditor
             }
             if (!this._enabled || Studio.Studio.Instance.treeNodeCtrl.selectNode == null)
                 return;
-            GUI.Box(this._windowRect, "", GUI.skin.window);
-            GUI.Box(this._windowRect, "", GUI.skin.window);
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(1f, 1f, 1f, 0.5f);
+            GUI.Box(this._windowRect, "", this._customBoxStyle);
+            GUI.backgroundColor = c;
             this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Renderer Editor");            
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             if (this._selectTextureCallback != null)
             {
                 Rect selectTextureRect = new Rect(this._windowRect.max.x + 4, this._windowRect.max.y - 440, 230, 440);
-                GUI.Box(selectTextureRect, "", GUI.skin.window);
-                GUI.Box(selectTextureRect, "", GUI.skin.window);
-                GUI.Box(selectTextureRect, "", GUI.skin.window);
+                GUI.backgroundColor = new Color(1f, 1f, 1f, 0.5f);
+                GUI.Box(selectTextureRect, "", this._customBoxStyle);
+                GUI.backgroundColor = c;
                 selectTextureRect = GUILayout.Window(this._randomId + 1, selectTextureRect, this.SelectTextureWindow, "Select Texture");
                 this._mouseInWindow = this._mouseInWindow || selectTextureRect.Contains(Event.current.mousePosition);
+                if (this._changeTextureSettingsCallback != null)
+                {
+                    Rect settingsRect = new Rect(selectTextureRect.max.x + 4, selectTextureRect.max.y - 240, 230, 240);
+                    GUI.backgroundColor = new Color(1f, 1f, 1f, 0.5f);
+                    GUI.Box(settingsRect, "", this._customBoxStyle);
+                    GUI.backgroundColor = c;
+                    settingsRect = GUILayout.Window(this._randomId + 2, settingsRect, this.ChangeTextureSettingsWindow, "Properties");
+                    this._mouseInWindow = this._mouseInWindow || settingsRect.Contains(Event.current.mousePosition);
+
+                }
             }
             if (this._mouseInWindow)
                 Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._enabled && Studio.Studio.Instance.treeNodeCtrl.selectNode != null;
@@ -609,7 +710,7 @@ namespace RendererEditor
 #elif KOIKATSU
                 Studio.Studio.Instance.colorPalette.visible = false;
 #endif
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
             }            
             GUILayout.EndHorizontal();
 
@@ -649,7 +750,7 @@ namespace RendererEditor
 #elif KOIKATSU
                             Studio.Studio.Instance.colorPalette.visible = false;
 #endif
-                            this._selectTextureCallback = null;
+                            this.CloseTextureWindow();
                         }
                         GUI.color = c;
                     }
@@ -865,7 +966,7 @@ namespace RendererEditor
 #elif KOIKATSU
                     Studio.Studio.Instance.colorPalette.visible = false;
 #endif
-                    this._selectTextureCallback = null;
+                    this.CloseTextureWindow();
                     this.CheckGizmosEnabled();
                 }
                 GUI.color = c;
@@ -922,7 +1023,7 @@ namespace RendererEditor
                 if (GUILayout.Button("No Texture"))
                 {
                     this._selectTextureCallback("", null);
-                    this._selectTextureCallback = null;
+                    this.CloseTextureWindow();
                 }
                 this._textureScroll = GUILayout.BeginScrollView(this._textureScroll);
                 Color c = GUI.color;
@@ -931,6 +1032,7 @@ namespace RendererEditor
                 {
                     this._pwd = Directory.GetParent(this._pwd).FullName;
                     this.ExploreCurrentFolder();
+                    this._changeTextureSettingsCallback = null;
                 }
                 foreach (string folder in this._localFolders)
                 {
@@ -943,7 +1045,7 @@ namespace RendererEditor
                         {
                             this._pwd = folder;
                             this.ExploreCurrentFolder();
-                            
+                            this._changeTextureSettingsCallback = null;
                         }
                         GUILayout.FlexibleSpace();
                         GUILayout.EndHorizontal();
@@ -957,7 +1059,7 @@ namespace RendererEditor
                         continue;
                     if (RendererEditor.previewTextures)
                     {
-                        Texture2D texture = this.GetTexture(file);
+                        TextureWrapper texture = this.GetTexture(file);
                         if (texture != null)
                         {
                             GUILayout.BeginVertical(GUI.skin.box);
@@ -966,8 +1068,8 @@ namespace RendererEditor
                             GUILayout.FlexibleSpace();
                             if (GUILayout.Button(GUIContent.none, GUILayout.Width(178), GUILayout.Height(178)))
                             {
-                                this._selectTextureCallback(file, texture);
-                                this._selectTextureCallback = null;
+                                this._selectTextureCallback(file, texture.texture);
+                                this.CloseTextureWindow();
                             }
                             Rect layoutRectangle = GUILayoutUtility.GetLastRect();
                             GUILayout.FlexibleSpace();
@@ -977,7 +1079,25 @@ namespace RendererEditor
                             layoutRectangle.xMax -= 4;
                             layoutRectangle.yMin += 4;
                             layoutRectangle.yMax -= 4;
-                            GUI.DrawTexture(layoutRectangle, texture, ScaleMode.StretchToFill, true);
+                            GUI.DrawTexture(layoutRectangle, texture.texture, ScaleMode.StretchToFill, true);
+                            GUILayout.BeginHorizontal();
+                            GUILayout.FlexibleSpace();
+                            if (GUILayout.Button("Properties", GUILayout.ExpandWidth(false)))
+                            {
+                                this._selectedTextureForUpdateSettings = texture;
+                                this._displayedSettings = new TextureWrapper.TextureSettings(texture.settings);
+                                this._changeTextureSettingsCallback = (saved) =>
+                                {
+                                    if (saved)
+                                    {
+                                        texture.settings = new TextureWrapper.TextureSettings(this._displayedSettings);
+                                        TextureWrapper.TextureSettings.Save(texture.path, texture.settings);
+                                        this.RefreshSingleTexture(texture);
+                                    }
+                                };
+                            }
+                            GUILayout.FlexibleSpace();
+                            GUILayout.EndHorizontal();
                             GUILayout.EndVertical();
                         }
                     }
@@ -987,8 +1107,8 @@ namespace RendererEditor
                         GUILayout.FlexibleSpace();
                         if (GUILayout.Button(localFileName, this._multiLineButton, GUILayout.Width(178)))
                         {
-                            this._selectTextureCallback(file, this.GetTexture(file));
-                            this._selectTextureCallback = null;
+                            this._selectTextureCallback(file, this.GetTexture(file)?.texture);
+                            this.CloseTextureWindow();
                         }
                         GUILayout.FlexibleSpace();
                         GUILayout.EndHorizontal();
@@ -1000,7 +1120,7 @@ namespace RendererEditor
             if (GUILayout.Button("Refresh") && this._loadingTextures == false)
                 this.RefreshTextures();
             if (GUILayout.Button("Close"))
-                this._selectTextureCallback = null;
+                this.CloseTextureWindow();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Open folder"))
@@ -1021,18 +1141,55 @@ namespace RendererEditor
                         }
                     }
                 }
-                foreach (KeyValuePair<string, Texture2D> pair in new Dictionary<string, Texture2D>(this._textures))
+                foreach (KeyValuePair<string, TextureWrapper> pair in new Dictionary<string, TextureWrapper>(this._textures))
                 {
                     if (usedTextures.Contains(pair.Key) == false)
                     {
                         this._textures.Remove(pair.Key);
-                        Destroy(pair.Value);
+                        Destroy(pair.Value.texture);
                     }
                 }
                 Resources.UnloadUnusedAssets();
                 GC.Collect();
             }
             GUILayout.EndHorizontal();
+        }
+
+        private void ChangeTextureSettingsWindow(int id)
+        {
+            GUILayout.BeginVertical();
+            {
+                GUILayout.Label(Path.GetFileName(this._selectedTextureForUpdateSettings.path));
+                GUILayout.Label("Size: " + this._selectedTextureForUpdateSettings.texture.width + "x" + this._selectedTextureForUpdateSettings.texture.height);
+                this._displayedSettings.bypassSRGBSampling = GUILayout.Toggle(this._displayedSettings.bypassSRGBSampling, "Bypass sRGB sampling");
+                GUILayout.Label("Filter Mode");
+                this._displayedSettings.filterMode = (FilterMode)GUILayout.SelectionGrid((int)this._displayedSettings.filterMode, this._filterModeNames, 3);
+                GUILayout.Label("Aniso Level", GUILayout.ExpandWidth(false));
+                GUILayout.BeginHorizontal();
+                this._displayedSettings.anisoLevel = Mathf.RoundToInt(GUILayout.HorizontalSlider(this._displayedSettings.anisoLevel, 0, 16));
+                string s = GUILayout.TextField(this._displayedSettings.anisoLevel.ToString(), GUILayout.Width(40));
+                int res;
+                if (int.TryParse(s, out res))
+                {
+                    res = Mathf.Clamp(res, 0, 16);
+                    this._displayedSettings.anisoLevel = res;                    
+                }
+                GUILayout.EndHorizontal();
+                GUILayout.FlexibleSpace();
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Save"))
+                {
+                    this._changeTextureSettingsCallback(true);
+                    this._changeTextureSettingsCallback = null;
+                }
+                if (GUILayout.Button("Cancel"))
+                {
+                    this._changeTextureSettingsCallback(false);
+                    this._changeTextureSettingsCallback = null;
+                }
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndVertical();
         }
 
         private void RefreshTextures()
@@ -1048,34 +1205,75 @@ namespace RendererEditor
             {
                 foreach (string file in this._localFiles)
                 {
-                    Texture2D texture;
-                    if (this._textures.TryGetValue(file, out texture))
-                    {
-                        Destroy(texture);
-                        this._textures.Remove(file);
-                    }
-                }
-                foreach (string file in this._localFiles)
-                {
                     yield return null;
-                    this.LoadSingleTexture(file);
+                    this.RefreshSingleTexture(file);
                 }
             }
             this._loadingTextures = false;
         }
 
-        private Texture2D LoadSingleTexture(string path)
+        private void RefreshSingleTexture(string path)
         {
-            Texture2D texture = new Texture2D(64, 64, TextureFormat.ARGB32, true);
-            if (!texture.LoadImage(File.ReadAllBytes(path)))
-                return null;
-            texture.Apply(true);
-            if (this._textures.ContainsKey(path) == false)
-                this._textures.Add(path, texture);
+            TextureWrapper texture;
+            if (this._textures.TryGetValue(path, out texture))
+                this.RefreshSingleTexture(texture);
+        }
+
+        private void RefreshSingleTexture(TextureWrapper texture)
+        {
+            Destroy(texture.texture);
+            this._textures.Remove(texture.path);
+            this.LoadSingleTexture(texture.path);
+        }
+
+        private TextureWrapper LoadSingleTexture(string path, TextureWrapper.TextureSettings settings = null)
+        {
+            string settingsFile = path + ".settings.xml";
+            if (File.Exists(settingsFile))
+                settings = TextureWrapper.TextureSettings.Load(path);
             else
             {
-                UnityEngine.Object.Destroy(this._textures[path]);
-                this._textures[path] = texture;
+                if (settings == null)
+                {
+                    settings = new TextureWrapper.TextureSettings();
+                    if (File.GetLastWriteTime(path) < this._v150Release)
+                        settings.bypassSRGBSampling = false;
+                }
+                TextureWrapper.TextureSettings.Save(path, settings);
+            }
+
+            Texture2D texture = new Texture2D(1024, 1024, TextureFormat.ARGB32, true, settings.bypassSRGBSampling);
+            if (!texture.LoadImage(File.ReadAllBytes(path)))
+                return null;
+
+            switch (settings.filterMode)
+            {
+                case FilterMode.Point:
+                    TextureScale.Point(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
+                    break;
+                case FilterMode.Bilinear:
+                case FilterMode.Trilinear:
+                    TextureScale.Bilinear(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
+                    break;
+            }
+
+            texture.filterMode = settings.filterMode;
+            texture.anisoLevel = settings.anisoLevel;
+            texture.Apply(true);
+
+            TextureWrapper textureWrapper = new TextureWrapper
+            {
+                path = path,
+                texture = texture,
+                settings = settings
+            };
+
+            if (this._textures.ContainsKey(path) == false)
+                this._textures.Add(path, textureWrapper);
+            else
+            {
+                Destroy(this._textures[path].texture);
+                this._textures[path] = textureWrapper;
             }
             foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
             {
@@ -1090,7 +1288,7 @@ namespace RendererEditor
                     }
                 }
             }
-            return texture;
+            return textureWrapper;
         }
 
         private void ExploreCurrentFolder()
@@ -1104,36 +1302,42 @@ namespace RendererEditor
             this._localFolders = Directory.GetDirectories(this._pwd);
         }
 
-        private Texture2D GetTexture(string path)
+        private TextureWrapper GetTexture(string path, TextureWrapper.TextureSettings settings = null)
         {
-            Texture2D t;
+            TextureWrapper t;
             if (this._textures.TryGetValue(path, out t))
                 return t;
-            return this.LoadSingleTexture(path);
+            return this.LoadSingleTexture(path, settings);
+        }
+
+        private void CloseTextureWindow()
+        {
+            this._selectTextureCallback = null;
+            this._changeTextureSettingsCallback = null;
         }
 
         private void SelectMaterial(Material material, Renderer renderer, int index)
         {
             this._selectedMaterials.Add(material, new MaterialInfo{index = index, renderer = renderer});
-            this._selectTextureCallback = null;
+            this.CloseTextureWindow();
         }
 
         private void UnselectMaterial(Material material)
         {
             this._selectedMaterials.Remove(material);
-            this._selectTextureCallback = null;
+            this.CloseTextureWindow();
         }
 
         private void ClearSelectedMaterials()
         {
             this._selectedMaterials.Clear();
-            this._selectTextureCallback = null;
+            this.CloseTextureWindow();
         }
 
         private void SelectRenderer(Renderer renderer)
         {
             this._selectedRenderers.Add(renderer);
-            this._selectTextureCallback = null;
+            this.CloseTextureWindow();
         }
 
         private void UnselectRenderer(Renderer renderer)
@@ -1144,7 +1348,7 @@ namespace RendererEditor
                 if (pair.Value.renderer == renderer)
                     this.UnselectMaterial(pair.Key);
             }
-            this._selectTextureCallback = null;
+            this.CloseTextureWindow();
         }
 
         private void ClearSelectedRenderers()
@@ -1313,107 +1517,123 @@ namespace RendererEditor
 
         private void OnDuplicate(ObjectCtrlInfo source, ObjectCtrlInfo destination)
         {
-            Renderer[] sourceRenderers = source.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true);
-            Renderer[] destinationRenderers = destination.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true);
-            for (int i = 0; i < sourceRenderers.Length && i < destinationRenderers.Length; i++)
+            this.ExecuteDelayed(() =>
             {
-                Renderer sourceRenderer = sourceRenderers[i];
-                Renderer destinationRenderer = destinationRenderers[i];
-                RendererData sourceData;
-                RendererData destinationData;
-                if (this._dirtyRenderers.TryGetValue(sourceRenderer, out sourceData) == false)
-                    continue;
-                if (this._dirtyRenderers.ContainsKey(destinationRenderer))
-                    continue;
-                this.SetRendererDirty(destinationRenderer, out destinationData);
-
-                destinationRenderer.enabled = sourceRenderer.enabled;
-                destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-                destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
-
-                List<Material> materials = sourceRenderer.sharedMaterials.ToList();
-                foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in sourceData.dirtyMaterials)
+                List<Renderer> sourceRenderers = source.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).ToList();
+                sourceRenderers.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
+                List<Renderer> destinationRenderers = destination.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).ToList();
+                destinationRenderers.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
+                for (int i = 0; i < sourceRenderers.Count && i < destinationRenderers.Count; i++)
                 {
-                    if (materialPair.Key == null)
+                    Renderer sourceRenderer = sourceRenderers[i];
+                    Renderer destinationRenderer = destinationRenderers[i];
+                    RendererData sourceData;
+                    RendererData destinationData;
+                    if (this._dirtyRenderers.TryGetValue(sourceRenderer, out sourceData) == false)
                         continue;
-                    int index = materials.IndexOf(materialPair.Key);
-                    Material destinationMaterial = destinationRenderer.materials[index];
-                    RendererData.MaterialData destinationMaterialData;
-                    this.SetMaterialDirty(destinationMaterial, out destinationMaterialData, destinationData);
+                    if (this._dirtyRenderers.ContainsKey(destinationRenderer))
+                        continue;
+                    this.SetRendererDirty(destinationRenderer, out destinationData);
 
-                    if (materialPair.Value.hasRenderQueue)
-                    {
-                        destinationMaterialData.originalRenderQueue = destinationMaterial.renderQueue;
-                        destinationMaterialData.hasRenderQueue = true;
-                        destinationMaterial.renderQueue = materialPair.Key.renderQueue;
-                    }
-                    if (materialPair.Value.hasRenderType)
-                    {
-                        destinationMaterialData.originalRenderType = destinationMaterial.GetTag("RenderType", false);
-                        destinationMaterialData.hasRenderType = true;
-                        destinationMaterial.SetOverrideTag("RenderType", materialPair.Key.GetTag("RenderType", false));
-                    }
+                    destinationRenderer.enabled = sourceRenderer.enabled;
+                    destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+                    destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
 
-                    foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)
+                    List<Material> materials = sourceRenderer.sharedMaterials.ToList();
+                    foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in sourceData.dirtyMaterials)
                     {
-                        destinationMaterialData.dirtyColorProperties.Add(pair.Key, destinationMaterial.GetColor(pair.Key));
-                        destinationMaterial.SetColor(pair.Key, materialPair.Key.GetColor(pair.Key));
-                    }
-                    foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
-                    {
-                        destinationMaterialData.dirtyTextureProperties.Add(pair.Key, new RendererData.MaterialData.TextureData()
+                        if (materialPair.Key == null)
+                            continue;
+                        int index = materials.IndexOf(materialPair.Key);
+                        Material destinationMaterial = destinationRenderer.materials[index];
+                        RendererData.MaterialData destinationMaterialData;
+                        this.SetMaterialDirty(destinationMaterial, out destinationMaterialData, destinationData);
+
+                        if (materialPair.Value.hasRenderQueue)
                         {
-                            currentTexturePath = pair.Value.currentTexturePath,
-                            originalTexture = destinationMaterial.GetTexture(pair.Key)
-                        });
-                        Texture t = null;
-                        if (string.IsNullOrEmpty(pair.Value.currentTexturePath) == false)
-                            t = this.GetTexture(pair.Value.currentTexturePath);
-                        destinationMaterial.SetTexture(pair.Key, t);
-                    }
-                    foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureOffsetProperties)
-                    {
-                        destinationMaterialData.dirtyTextureOffsetProperties.Add(pair.Key, destinationMaterial.GetTextureOffset(pair.Key));
-                        destinationMaterial.SetTextureOffset(pair.Key, materialPair.Key.GetTextureOffset(pair.Key));
-                    }
-                    foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureScaleProperties)
-                    {
-                        destinationMaterialData.dirtyTextureScaleProperties.Add(pair.Key, destinationMaterial.GetTextureScale(pair.Key));
-                        destinationMaterial.SetTextureScale(pair.Key, materialPair.Key.GetTextureScale(pair.Key));
-                    }
-                    foreach (KeyValuePair<string, float> pair in materialPair.Value.dirtyFloatProperties)
-                    {
-                        destinationMaterialData.dirtyFloatProperties.Add(pair.Key, destinationMaterial.GetFloat(pair.Key));
-                        destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
-                    }
+                            destinationMaterialData.originalRenderQueue = destinationMaterial.renderQueue;
+                            destinationMaterialData.hasRenderQueue = true;
+                            destinationMaterial.renderQueue = materialPair.Key.renderQueue;
+                        }
+                        if (materialPair.Value.hasRenderType)
+                        {
+                            destinationMaterialData.originalRenderType = destinationMaterial.GetTag("RenderType", false);
+                            destinationMaterialData.hasRenderType = true;
+                            destinationMaterial.SetOverrideTag("RenderType", materialPair.Key.GetTag("RenderType", false));
+                        }
 
-                    foreach (KeyValuePair<string, bool> pair in materialPair.Value.dirtyBooleanProperties)
-                    {
-                        destinationMaterialData.dirtyBooleanProperties.Add(pair.Key, Mathf.RoundToInt(destinationMaterial.GetFloat(pair.Key)) == 1);
-                        destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
-                    }
-                    foreach (KeyValuePair<string, int> pair in materialPair.Value.dirtyEnumProperties)
-                    {
-                        destinationMaterialData.dirtyEnumProperties.Add(pair.Key, Mathf.RoundToInt(destinationMaterial.GetFloat(pair.Key)));
-                        destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
-                    }
-                    foreach (KeyValuePair<string, Vector4> pair in materialPair.Value.dirtyVector4Properties)
-                    {
-                        destinationMaterialData.dirtyVector4Properties.Add(pair.Key, destinationMaterial.GetVector(pair.Key));
-                        destinationMaterial.SetVector(pair.Key, materialPair.Key.GetVector(pair.Key));
-                    }
-                    foreach (string keyword in materialPair.Value.enabledKeywords)
-                    {                        
-                        destinationMaterialData.enabledKeywords.Add(keyword);
-                        destinationMaterial.EnableKeyword(keyword);
-                    }
-                    foreach (string keyword in materialPair.Value.disabledKeywords)
-                    {
-                        destinationMaterialData.disabledKeywords.Add(keyword);
-                        destinationMaterial.DisableKeyword(keyword);
+                        foreach (KeyValuePair<string, Color> pair in materialPair.Value.dirtyColorProperties)
+                        {
+                            destinationMaterialData.dirtyColorProperties.Add(pair.Key, destinationMaterial.GetColor(pair.Key));
+                            destinationMaterial.SetColor(pair.Key, materialPair.Key.GetColor(pair.Key));
+                        }
+                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
+                        {
+                            destinationMaterialData.dirtyTextureProperties.Add(pair.Key, new RendererData.MaterialData.TextureData()
+                            {
+                                currentTexturePath = pair.Value.currentTexturePath,
+                                originalTexture = destinationMaterial.GetTexture(pair.Key)
+                            });
+                            Texture t = null;
+                            if (string.IsNullOrEmpty(pair.Value.currentTexturePath) == false)
+                                t = this.GetTexture(pair.Value.currentTexturePath)?.texture;
+                            destinationMaterial.SetTexture(pair.Key, t);
+                        }
+                        foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureOffsetProperties)
+                        {
+                            destinationMaterialData.dirtyTextureOffsetProperties.Add(pair.Key, destinationMaterial.GetTextureOffset(pair.Key));
+                            destinationMaterial.SetTextureOffset(pair.Key, materialPair.Key.GetTextureOffset(pair.Key));
+                        }
+                        foreach (KeyValuePair<string, Vector2> pair in materialPair.Value.dirtyTextureScaleProperties)
+                        {
+                            destinationMaterialData.dirtyTextureScaleProperties.Add(pair.Key, destinationMaterial.GetTextureScale(pair.Key));
+                            destinationMaterial.SetTextureScale(pair.Key, materialPair.Key.GetTextureScale(pair.Key));
+                        }
+                        foreach (KeyValuePair<string, float> pair in materialPair.Value.dirtyFloatProperties)
+                        {
+                            destinationMaterialData.dirtyFloatProperties.Add(pair.Key, destinationMaterial.GetFloat(pair.Key));
+                            destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
+                        }
+
+                        foreach (KeyValuePair<string, bool> pair in materialPair.Value.dirtyBooleanProperties)
+                        {
+                            destinationMaterialData.dirtyBooleanProperties.Add(pair.Key, Mathf.RoundToInt(destinationMaterial.GetFloat(pair.Key)) == 1);
+                            destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
+                        }
+                        foreach (KeyValuePair<string, int> pair in materialPair.Value.dirtyEnumProperties)
+                        {
+                            destinationMaterialData.dirtyEnumProperties.Add(pair.Key, Mathf.RoundToInt(destinationMaterial.GetFloat(pair.Key)));
+                            destinationMaterial.SetFloat(pair.Key, materialPair.Key.GetFloat(pair.Key));
+                        }
+                        foreach (KeyValuePair<string, Vector4> pair in materialPair.Value.dirtyVector4Properties)
+                        {
+                            destinationMaterialData.dirtyVector4Properties.Add(pair.Key, destinationMaterial.GetVector(pair.Key));
+                            destinationMaterial.SetVector(pair.Key, materialPair.Key.GetVector(pair.Key));
+                        }
+                        foreach (string keyword in materialPair.Value.enabledKeywords)
+                        {
+                            destinationMaterialData.enabledKeywords.Add(keyword);
+                            destinationMaterial.EnableKeyword(keyword);
+                        }
+                        foreach (string keyword in materialPair.Value.disabledKeywords)
+                        {
+                            destinationMaterialData.disabledKeywords.Add(keyword);
+                            destinationMaterial.DisableKeyword(keyword);
+                        }
                     }
                 }
+            }, 3);
+        }
+
+        private string PathReconstruction(string originalPath, long size)
+        {
+            string fileName = Path.GetFileName(originalPath);
+            foreach (string file in Directory.GetFiles(_texturesDir, "*.*", SearchOption.AllDirectories).Where(s => s.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)))
+            {
+                if (Path.GetFileName(file).Equals(fileName, StringComparison.OrdinalIgnoreCase) && (size == -1 || new FileInfo(file).Length == size))
+                    return file;
             }
+            return originalPath;
         }
         #endregion
 
@@ -1533,161 +1753,199 @@ namespace RendererEditor
             Vector2 offset = this._selectedMaterials.First().Key.GetTextureOffset(property.name);
             Vector2 scale = this._selectedMaterials.First().Key.GetTextureScale(property.name);
             GUILayout.BeginHorizontal();
-            GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
-            GUILayout.FlexibleSpace();
-
-            if (GUILayout.Button(texture == null ? "NULL" : "", GUILayout.Width(90f), GUILayout.Height(90f)))
             {
-                if (this._selectTextureCallback != null)
-                    this._selectTextureCallback = null;
-                else
-                    this._selectTextureCallback = (path, newTexture) =>
+                GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
+                GUILayout.FlexibleSpace();
+
+                if (GUILayout.Button(texture == null ? "NULL" : "", GUILayout.Width(90f), GUILayout.Height(90f)))
+                {
+                    if (this._selectTextureCallback != null)
+                        this.CloseTextureWindow();
+                    else
+                        this._selectTextureCallback = (path, newTexture) =>
+                        {
+                            foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                            {
+                                this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                                RendererData.MaterialData.TextureData textureData;
+                                if (materialData.dirtyTextureProperties.TryGetValue(property.name, out textureData) == false)
+                                {
+                                    textureData = new RendererData.MaterialData.TextureData();
+                                    textureData.originalTexture = selectedMaterial.Key.GetTexture(property.name);
+                                    materialData.dirtyTextureProperties.Add(property.name, textureData);
+                                }
+                                textureData.currentTexturePath = path;
+                                selectedMaterial.Key.SetTexture(property.name, newTexture);
+                            }
+                        };
+                }
+                Rect r = GUILayoutUtility.GetLastRect();
+                r.xMin += 2;
+                r.xMax -= 2;
+                r.yMin += 2;
+                r.yMax -= 2;
+                if (texture != null)
+                    GUI.DrawTexture(r, texture, ScaleMode.StretchToFill, true);
+                GUILayout.BeginVertical();
+                {
+                    if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)))
                     {
                         foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
-                        {
-                            this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
-                            RendererData.MaterialData.TextureData textureData;
-                            if (materialData.dirtyTextureProperties.TryGetValue(property.name, out textureData) == false)
+                            if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
+                                rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                                materialData.dirtyTextureProperties.ContainsKey(property.name))
                             {
-                                textureData = new RendererData.MaterialData.TextureData();
-                                textureData.originalTexture = selectedMaterial.Key.GetTexture(property.name);
-                                materialData.dirtyTextureProperties.Add(property.name, textureData);
+                                selectedMaterial.Key.SetTexture(property.name, materialData.dirtyTextureProperties[property.name].originalTexture);
+                                materialData.dirtyTextureProperties.Remove(property.name);
+                                this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
                             }
-                            textureData.currentTexturePath = path;
-                            selectedMaterial.Key.SetTexture(property.name, newTexture);
+                    }
+                    if (this._selectedMaterials.Count == 1 && GUILayout.Button("Dump", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)) && texture != null)
+                    {
+                        if (Directory.Exists(_dumpDir) == false)
+                            Directory.CreateDirectory(_dumpDir);
+                        RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 24, RenderTextureFormat.ARGB32);
+                        RenderTexture cachedActive = RenderTexture.active;
+                        RenderTexture.active = rt;
+                        Graphics.Blit(texture, rt);
+                        Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.ARGB32, true);
+                        tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+                        RenderTexture.active = cachedActive;
+
+                        byte[] bytes = tex.EncodeToPNG();
+                        KeyValuePair<Material, MaterialInfo> mat = this._selectedMaterials.First();
+                        string fileName = Path.Combine(_dumpDir, $"{mat.Value.renderer.name}_{mat.Key.name}_{mat.Value.index}_{texture.name}.png");
+                        File.WriteAllBytes(fileName, bytes);
+
+                        this.LoadSingleTexture(fileName);
+                    }
+                }
+                GUILayout.EndVertical();
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            {
+                Vector2 newOffset = offset;
+                GUILayout.Label("Offset", GUILayout.ExpandWidth(false));
+
+                GUILayout.BeginVertical();
+                {
+                    GUILayout.BeginHorizontal();
+                    {
+                        GUILayout.Label("X", GUILayout.ExpandWidth(false));
+                        newOffset.x = GUILayout.HorizontalSlider(newOffset.x, -1f, 1f);
+                        string stringValue = newOffset.x.ToString("0.000");
+                        string stringNewValue = GUILayout.TextField(stringValue, GUILayout.Width(40f));
+                        if (stringNewValue != stringValue)
+                        {
+                            float parsedValue;
+                            if (float.TryParse(stringNewValue, out parsedValue))
+                                newOffset.x = parsedValue;
                         }
-                    };
-            }
-            Rect r = GUILayoutUtility.GetLastRect();
-            r.xMin += 4;
-            r.xMax -= 4;
-            r.yMin += 4;
-            r.yMax -= 4;
-            if (texture != null)
-                GUI.DrawTexture(r, texture, ScaleMode.StretchToFill, true);
-            GUILayout.BeginVertical();
-            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)))
-            {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
-                        materialData.dirtyTextureProperties.ContainsKey(property.name))
-                    {
-                        selectedMaterial.Key.SetTexture(property.name, materialData.dirtyTextureProperties[property.name].originalTexture);
-                        materialData.dirtyTextureProperties.Remove(property.name);
-                        this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
                     }
-            }
-            if (this._selectedMaterials.Count == 1 && GUILayout.Button("Dump", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)) && texture != null)
-            {
-                if (Directory.Exists(_dumpDir) == false)
-                    Directory.CreateDirectory(_dumpDir);
-                RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 24, RenderTextureFormat.ARGB32);
-                RenderTexture cachedActive = RenderTexture.active;
-                RenderTexture.active = rt;
-                Graphics.Blit(texture, rt);
-                Texture2D tex = new Texture2D(rt.width, rt.height, TextureFormat.ARGB32, true);
-                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
-                RenderTexture.active = cachedActive;
+                    GUILayout.EndHorizontal();
 
-                byte[] bytes = tex.EncodeToPNG();
-                KeyValuePair<Material, MaterialInfo> mat = this._selectedMaterials.First();
-                string fileName = Path.Combine(_dumpDir, $"{mat.Value.renderer.name}_{mat.Key.name}_{mat.Value.index}_{texture.name}.png");
-                File.WriteAllBytes(fileName, bytes);
-
-                this.LoadSingleTexture(fileName);
-            }
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            Vector2 newOffset = offset;
-            GUILayout.FlexibleSpace();
-            GUILayout.Label("Offset", GUILayout.ExpandWidth(false));
-            GUILayout.Label("X", GUILayout.ExpandWidth(false));
-            string stringValue = offset.x.ToString("0.000");
-            string stringNewValue = GUILayout.TextField(stringValue);
-            if (stringNewValue != stringValue)
-            {
-                float parsedValue;
-                if (float.TryParse(stringNewValue, out parsedValue))
-                    newOffset.x = parsedValue;
-            }
-            GUILayout.Label("Y", GUILayout.ExpandWidth(false));
-            stringValue = offset.y.ToString("0.000");
-            stringNewValue = GUILayout.TextField(stringValue);
-            if (stringNewValue != stringValue)
-            {
-                float parsedValue;
-                if (float.TryParse(stringNewValue, out parsedValue))
-                    newOffset.y = parsedValue;
-            }
-            if (offset != newOffset)
-            {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
-                {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
-                    if (materialData.dirtyTextureOffsetProperties.ContainsKey(property.name) == false)
-                        materialData.dirtyTextureOffsetProperties.Add(property.name, selectedMaterial.Key.GetTextureOffset(property.name));
-                    selectedMaterial.Key.SetTextureOffset(property.name, newOffset);
+                    GUILayout.BeginHorizontal();
+                    {
+                        GUILayout.Label("Y", GUILayout.ExpandWidth(false));
+                        newOffset.y = GUILayout.HorizontalSlider(newOffset.y, -1f, 1f);
+                        string stringValue = newOffset.y.ToString("0.000");
+                        string stringNewValue = GUILayout.TextField(stringValue, GUILayout.Width(40f));
+                        if (stringNewValue != stringValue)
+                        {
+                            float parsedValue;
+                            if (float.TryParse(stringNewValue, out parsedValue))
+                                newOffset.y = parsedValue;
+                        }
+                
+                    }
+                    GUILayout.EndHorizontal();
                 }
-            }
-            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
-            {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
-                        materialData.dirtyTextureOffsetProperties.ContainsKey(property.name))
+                GUILayout.EndVertical();
+                if (offset != newOffset)
+                {
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
                     {
-                        selectedMaterial.Key.SetTextureOffset(property.name, materialData.dirtyTextureOffsetProperties[property.name]);
-                        materialData.dirtyTextureOffsetProperties.Remove(property.name);
-                        this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                        if (materialData.dirtyTextureOffsetProperties.ContainsKey(property.name) == false)
+                            materialData.dirtyTextureOffsetProperties.Add(property.name, selectedMaterial.Key.GetTextureOffset(property.name));
+                        selectedMaterial.Key.SetTextureOffset(property.name, newOffset);
                     }
+                }
+                if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                {
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                        if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
+                            rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                            materialData.dirtyTextureOffsetProperties.ContainsKey(property.name))
+                        {
+                            selectedMaterial.Key.SetTextureOffset(property.name, materialData.dirtyTextureOffsetProperties[property.name]);
+                            materialData.dirtyTextureOffsetProperties.Remove(property.name);
+                            this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        }
+                }
             }
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            Vector2 newScale = scale;
-            GUILayout.FlexibleSpace();
-            GUILayout.Label("Scale", GUILayout.ExpandWidth(false));
-            GUILayout.Label("X", GUILayout.ExpandWidth(false));
-            stringValue = scale.x.ToString("0.000");
-            stringNewValue = GUILayout.TextField(stringValue);
-            if (stringNewValue != stringValue)
             {
-                float parsedValue;
-                if (float.TryParse(stringNewValue, out parsedValue))
-                    newScale.x = parsedValue;
-            }
-            GUILayout.Label("Y", GUILayout.ExpandWidth(false));
-            stringValue = scale.y.ToString("0.000");
-            stringNewValue = GUILayout.TextField(stringValue);
-            if (stringNewValue != stringValue)
-            {
-                float parsedValue;
-                if (float.TryParse(stringNewValue, out parsedValue))
-                    newScale.y = parsedValue;
-            }
-            if (scale != newScale)
-            {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                Vector2 newScale = scale;
+                GUILayout.Label("Scale", GUILayout.ExpandWidth(false));
+                GUILayout.BeginVertical();
                 {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
-                    if (materialData.dirtyTextureScaleProperties.ContainsKey(property.name) == false)
-                        materialData.dirtyTextureScaleProperties.Add(property.name, selectedMaterial.Key.GetTextureScale(property.name));
-                    selectedMaterial.Key.SetTextureScale(property.name, newScale);
+                    GUILayout.BeginHorizontal();
+                    {
+                        GUILayout.Label("X", GUILayout.ExpandWidth(false));
+                        newScale.x = GUILayout.HorizontalSlider(newScale.x, 0f, 10f);
+                        string stringValue = newScale.x.ToString("0.00");
+                        string stringNewValue = GUILayout.TextField(stringValue, GUILayout.Width(40f));
+                        if (stringNewValue != stringValue)
+                        {
+                            float parsedValue;
+                            if (float.TryParse(stringNewValue, out parsedValue))
+                                newScale.x = parsedValue;
+                        }
+                    }
+                    GUILayout.EndHorizontal();
+
+                    GUILayout.BeginHorizontal();
+                    {
+                        GUILayout.Label("Y", GUILayout.ExpandWidth(false));
+                        newScale.y = GUILayout.HorizontalSlider(newScale.y, 0f, 10f);
+                        string stringValue = newScale.y.ToString("0.00");
+                        string stringNewValue = GUILayout.TextField(stringValue, GUILayout.Width(40f));
+                        if (stringNewValue != stringValue)
+                        {
+                            float parsedValue;
+                            if (float.TryParse(stringNewValue, out parsedValue))
+                                newScale.y = parsedValue;
+                        }
+                    }
+                    GUILayout.EndHorizontal();
                 }
-            }
-            if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
-            {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
-                    materialData.dirtyTextureScaleProperties.ContainsKey(property.name))
+                GUILayout.EndVertical();
+                if (scale != newScale)
                 {
-                    selectedMaterial.Key.SetTextureScale(property.name, materialData.dirtyTextureScaleProperties[property.name]);
-                    materialData.dirtyTextureScaleProperties.Remove(property.name);
-                    this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                    {
+                        this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                        if (materialData.dirtyTextureScaleProperties.ContainsKey(property.name) == false)
+                            materialData.dirtyTextureScaleProperties.Add(property.name, selectedMaterial.Key.GetTextureScale(property.name));
+                        selectedMaterial.Key.SetTextureScale(property.name, newScale);
+                    }
+                }
+                if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                {
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._selectedMaterials)
+                        if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
+                            rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                            materialData.dirtyTextureScaleProperties.ContainsKey(property.name))
+                        {
+                            selectedMaterial.Key.SetTextureScale(property.name, materialData.dirtyTextureScaleProperties[property.name]);
+                            materialData.dirtyTextureScaleProperties.Remove(property.name);
+                            this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        }
                 }
             }
             GUILayout.EndHorizontal();
@@ -2016,12 +2274,53 @@ namespace RendererEditor
 
         private void OnSceneLoad(string path, XmlNode node)
         {
+            this.OnSceneLoadGeneric(node);
+        }
+
+        private void OnSceneImport(string path, XmlNode node)
+        {
+            int max = -1;
+            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            {
+                if (pair.Key > max)
+                    max = pair.Key;
+            }
+            this.OnSceneLoadGeneric(node, max);
+        }
+
+        private void OnSceneLoadGeneric(XmlNode node, int maxIndex = -1)
+        {
             if (node == null)
                 return;
             node = node.CloneNode(true);
             this.ExecuteDelayed(() =>
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
+                foreach (XmlNode childNode in node.ChildNodes)
+                {
+                    try
+                    {
+                        switch (childNode.Name)
+                        {
+                            case "textureSettings":
+                                string texturePath = childNode.Attributes["path"].Value;
+                                if (!string.IsNullOrEmpty(texturePath))
+                                {
+                                    texturePath = Path.GetFullPath(texturePath);
+                                    if (File.Exists(texturePath) == false)
+                                        continue;
+                                    this.GetTexture(texturePath, TextureWrapper.TextureSettings.Load(childNode));
+                                }
+                                break;
+                        }
+
+                    }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("Exception happened while loading item " + childNode.OuterXml + "\n" + e);
+                    }
+                }
+
+                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > maxIndex).ToList();
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
                     try
@@ -2066,7 +2365,6 @@ namespace RendererEditor
                                                     materialData.originalRenderType = mat.GetTag("RenderType", false);
                                                     materialData.hasRenderType = true;
                                                     mat.SetOverrideTag("RenderType", grandChildNode.Attributes["renderType"].Value);
-
                                                 }
 
                                                 foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
@@ -2099,8 +2397,15 @@ namespace RendererEditor
                                                                         texturePath = texturePath.Substring(i);
                                                                     texturePath = Path.GetFullPath(texturePath);
                                                                     if (File.Exists(texturePath) == false)
-                                                                        continue;
-                                                                    texture = this.GetTexture(texturePath);
+                                                                    {
+                                                                        long size = -1;
+                                                                        if (property.Attributes["size"] != null)
+                                                                            size = XmlConvert.ToInt64(property.Attributes["size"].Value);
+                                                                        texturePath = this.PathReconstruction(texturePath, size);
+                                                                        if (File.Exists(texturePath) == false)
+                                                                            continue;
+                                                                    }
+                                                                    texture = this.GetTexture(texturePath, TextureWrapper.TextureSettings.Load(property))?.texture;
                                                                     if (texture == null)
                                                                         continue;
                                                                 }
@@ -2210,6 +2515,29 @@ namespace RendererEditor
 
         private void OnSceneSave(string path, XmlTextWriter writer)
         {
+            HashSet<string> usedTextures = new HashSet<string>();
+            foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+            {
+                foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                {
+                    foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                    {
+                        if (string.IsNullOrEmpty(pair3.Value.currentTexturePath) == false && usedTextures.Contains(pair3.Value.currentTexturePath) == false)
+                        {
+                            usedTextures.Add(pair3.Value.currentTexturePath);
+                            TextureWrapper textureWrapper;
+                            if (this._textures.TryGetValue(pair3.Value.currentTexturePath, out textureWrapper))
+                            {
+                                writer.WriteStartElement("textureSettings");
+                                writer.WriteAttributeString("path", string.IsNullOrEmpty(pair3.Value.currentTexturePath) ? pair3.Value.currentTexturePath : pair3.Value.currentTexturePath.Substring(this._currentDirectory.Length + 1));
+                                TextureWrapper.TextureSettings.Save(writer, textureWrapper.settings);
+                                writer.WriteEndElement();
+                            }
+                        }
+                    }
+                }
+            }
+
             List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
             foreach (KeyValuePair<Renderer, RendererData> rendererPair in this._dirtyRenderers)
             {
@@ -2260,7 +2588,10 @@ namespace RendererEditor
                         {
                             writer.WriteStartElement("texture");
                             writer.WriteAttributeString("key", pair.Key);
-                            writer.WriteAttributeString("path", string.IsNullOrEmpty(pair.Value.currentTexturePath) ? pair.Value.currentTexturePath : pair.Value.currentTexturePath.Substring(this._currentDirectory.Length + 1));
+                            string p = string.IsNullOrEmpty(pair.Value.currentTexturePath) ? pair.Value.currentTexturePath : pair.Value.currentTexturePath.Substring(this._currentDirectory.Length + 1);
+                            writer.WriteAttributeString("path", p);
+                            if (string.IsNullOrEmpty(p) == false)
+                                writer.WriteAttributeString("size", XmlConvert.ToString(new FileInfo(p).Length));
                             writer.WriteEndElement();
                         }
                         writer.WriteEndElement();

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
 using Studio;
 using ToolBox;
@@ -885,38 +886,10 @@ namespace HSPE.AMModules
                 GUILayout.EndHorizontal();
 
                 GUILayout.BeginVertical(GUI.skin.box);
+
                 GUILayout.BeginHorizontal();
-                this._shortcutsScroll = GUILayout.BeginScrollView(this._shortcutsScroll, false, true, GUILayout.MinWidth(200));
-                foreach (KeyValuePair<Transform, string> kvp in this._boneEditionShortcuts)
-                    if (GUILayout.Button(kvp.Value))
-                        this.GoToObject(kvp.Key.gameObject);
 
                 Dictionary<string, string> customShortcuts = this._target.type == GenericOCITarget.Type.Character ? (this._target.isFemale ? _femaleShortcuts : _maleShortcuts) : _itemShortcuts;
-                string toRemove = null;
-                foreach (KeyValuePair<string, string> kvp in customShortcuts)
-                {
-                    Transform shortcut = this._parent.transform.Find(kvp.Key);
-                    if (shortcut == null)
-                        continue;
-                    string sName = kvp.Value;
-                    string newName;
-                    if (_boneAliases.TryGetValue(sName, out newName))
-                        sName = newName;
-                    if (GUILayout.Button(sName))
-                    {
-                        if (this._removeShortcutMode)
-                        {
-                            toRemove = kvp.Key;
-                            this._removeShortcutMode = false;
-                        }
-                        else
-                            this.GoToObject(shortcut.gameObject);
-                    }
-                }
-                if (toRemove != null)
-                    customShortcuts.Remove(toRemove);
-                GUILayout.EndScrollView();
-                GUILayout.BeginVertical(GUILayout.ExpandWidth(false));
 
                 GUIStyle style = GUI.skin.GetStyle("Label");
                 TextAnchor bak = style.alignment;
@@ -942,8 +915,64 @@ namespace HSPE.AMModules
                     this._removeShortcutMode = !this._removeShortcutMode;
                 GUI.color = color;
 
+                GUILayout.EndHorizontal();
+
+                this._shortcutsScroll = GUILayout.BeginScrollView(this._shortcutsScroll);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.BeginVertical();
+
+                int i = 0;
+                int half = (this._boneEditionShortcuts.Count + customShortcuts.Count(e => this._parent.transform.Find(e.Key) != null)) / 2;
+                foreach (KeyValuePair<Transform, string> kvp in this._boneEditionShortcuts)
+                {
+                    if (i == half)
+                    {
+                        GUILayout.EndVertical();
+                        GUILayout.BeginVertical();
+                    }
+
+                    if (GUILayout.Button(kvp.Value))
+                        this.GoToObject(kvp.Key.gameObject);
+                    ++i;
+                }
+                string toRemove = null;
+                foreach (KeyValuePair<string, string> kvp in customShortcuts)
+                {
+                    Transform shortcut = this._parent.transform.Find(kvp.Key);
+                    if (shortcut == null)
+                        continue;
+
+                    if (i == half)
+                    {
+                        GUILayout.EndVertical();
+                        GUILayout.BeginVertical();
+                    }
+
+                    string sName = kvp.Value;
+                    string newName;
+                    if (_boneAliases.TryGetValue(sName, out newName))
+                        sName = newName;
+                    if (GUILayout.Button(sName))
+                    {
+                        if (this._removeShortcutMode)
+                        {
+                            toRemove = kvp.Key;
+                            this._removeShortcutMode = false;
+                        }
+                        else
+                            this.GoToObject(shortcut.gameObject);
+                    }
+                    ++i;
+
+                }
+                if (toRemove != null)
+                    customShortcuts.Remove(toRemove);
+
                 GUILayout.EndVertical();
                 GUILayout.EndHorizontal();
+
+                GUILayout.EndScrollView();
 
                 GUILayout.EndVertical();
             }

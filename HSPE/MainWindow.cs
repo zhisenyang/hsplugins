@@ -75,13 +75,7 @@ namespace HSPE
         private bool _blockCamera = false;
         private bool _isVisible = false;
         internal Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
-        private readonly Rect[] _advancedModeRects = {
-            new Rect(Screen.width - 650, Screen.height - 370, 650, 370),
-            new Rect(Screen.width - 800, Screen.height - 390, 800, 390),
-            new Rect(Screen.width - 950, Screen.height - 410, 950, 410)
-        };
         private float _mainWindowSize = 1f;
-        private int _advancedModeWindowSize = 0;
         private Canvas _ui;
         private GameObject _nothingText;
         private Transform _controls;
@@ -129,8 +123,6 @@ namespace HSPE
         #endregion
 
         #region Public Accessors
-        public float resolutionRatio { get; private set; } = ((Screen.width / 1920f) + (Screen.height / 1080f)) / 2f;
-        public float uiScale { get; private set; } = 1f;
         public Texture2D vectorEndCap { get; private set; }
         public Texture2D vectorMiddle { get; private set; }
         public bool crotchCorrectionByDefault { get { return this._crotchCorrectionByDefaultToggle.isOn; } }
@@ -170,8 +162,11 @@ namespace HSPE
                             this._mainWindowKeyCode = this._nameToKeyCode[node.Attributes["value"].Value];
                         break;
                     case "advancedModeWindowSize":
-                        if (node.Attributes["value"] != null)
-                            this._advancedModeWindowSize = Mathf.Clamp(XmlConvert.ToInt32(node.Attributes["value"].Value), 0, this._advancedModeRects.Length);
+                        if (node.Attributes["x"] != null && node.Attributes["y"] != null)
+                        {
+                            this._advancedModeRect.xMin = this._advancedModeRect.xMax - XmlConvert.ToInt32(node.Attributes["x"].Value);                            
+                            this._advancedModeRect.yMin = this._advancedModeRect.yMax - XmlConvert.ToInt32(node.Attributes["y"].Value);                            
+                        }
                         break;
                     case "femaleShortcuts":
                         foreach (XmlNode shortcut in node.ChildNodes)
@@ -224,13 +219,6 @@ namespace HSPE
 
         void Start()
         {
-#if HONEYSELECT
-            Type type = Type.GetType("HSUS.HSUS,HSUS");
-#elif KOIKATSU
-            Type type = Type.GetType("KKUS.KKUS,KKUS");
-#endif
-            if (type != null)
-                this.uiScale = (float)type.GetField("_neoUIScale", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(type.GetProperty("self").GetValue(null, null));
             this.SpawnGUI();
             this._crotchCorrectionByDefaultToggle.isOn = this._crotchCorrectionByDefault;
             this._anklesCorrectionByDefaultToggle.isOn = this._anklesCorrectionByDefault;
@@ -300,7 +288,6 @@ namespace HSPE
 
         protected virtual void OnGUI()
         {
-            GUIUtility.ScaleAroundPivot(Vector2.one * (this.uiScale * this.resolutionRatio), new Vector2(Screen.width, Screen.height));
             if (this._poseTarget != null)
             {
                 if (PoseController._drawAdvancedMode)
@@ -316,7 +303,6 @@ namespace HSPE
                 else
                     this._mouseInAdvMode = false;
             }
-            GUIUtility.ScaleAroundPivot(Vector2.one, new Vector2(Screen.width, Screen.height));
         }
         protected virtual void OnDestroy()
         {
@@ -344,7 +330,8 @@ namespace HSPE
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("advancedModeWindowSize");
-                    xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._advancedModeWindowSize));
+                    xmlWriter.WriteAttributeString("x", XmlConvert.ToString((int)this._advancedModeRect.width));
+                    xmlWriter.WriteAttributeString("y", XmlConvert.ToString((int)this._advancedModeRect.height));
                     xmlWriter.WriteEndElement();
 
                     xmlWriter.WriteStartElement("femaleShortcuts");
@@ -803,39 +790,19 @@ namespace HSPE
 #endif
             this._optionsWindow.anchoredPosition += new Vector2((sizeDelta.x * this._mainWindowSize) - sizeDelta.x, 0f);
 
-            normalButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Normal Button").GetComponent<Button>();
-            normalButton.onClick.AddListener(() =>
+            Slider xSlider = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Width Slider").GetComponent<Slider>();
+            xSlider.onValueChanged.AddListener((f) =>
             {
-                this._advancedModeWindowSize = 0;
-                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                this._advancedModeRect.width = r.width;
-                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                this._advancedModeRect.height = r.height;
+                this._advancedModeRect.xMin = this._advancedModeRect.xMax - xSlider.value;
             });
+            xSlider.maxValue = Screen.width * 0.8f;
 
-            largeButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Large Button").GetComponent<Button>();
-            largeButton.onClick.AddListener(() =>
+            Slider ySlider = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Height Slider").GetComponent<Slider>();
+            ySlider.onValueChanged.AddListener((f) =>
             {
-                this._advancedModeWindowSize = 1;
-                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                this._advancedModeRect.width = r.width;
-                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                this._advancedModeRect.height = r.height;
+                this._advancedModeRect.yMin = this._advancedModeRect.yMax - ySlider.value;
             });
-
-            veryLargeButton = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Very Large Button").GetComponent<Button>();
-            veryLargeButton.onClick.AddListener(() =>
-            {
-                this._advancedModeWindowSize = 2;
-                Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-                this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-                this._advancedModeRect.width = r.width;
-                this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-                this._advancedModeRect.height = r.height;
-            });
-            this._advancedModeRect = this._advancedModeRects[this._advancedModeWindowSize];
+            ySlider.maxValue = Screen.height * 0.8f;
 
             this._shortcutKeyButton = this._ui.transform.Find("Options Window/Options/Shortcut Key Container/Listener Button").GetComponent<Button>();
             Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
@@ -1014,17 +981,10 @@ namespace HSPE
 
         private void OnWindowResize()
         {
-            this._advancedModeRects[0] = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
-            this._advancedModeRects[1] = new Rect(Screen.width - 800, Screen.height - 390, 800, 390);
-            this._advancedModeRects[2] = new Rect(Screen.width - 950, Screen.height - 410, 950, 410);
-
-            Rect r = this._advancedModeRects[this._advancedModeWindowSize];
-            this._advancedModeRect.xMin = this._advancedModeRect.xMax - r.width;
-            this._advancedModeRect.width = r.width;
-            this._advancedModeRect.yMin = this._advancedModeRect.yMax - r.height;
-            this._advancedModeRect.height = r.height;
-
-            this.resolutionRatio = (Screen.width / 1920f + Screen.height / 1080f) / 2f;
+            if (this._advancedModeRect.xMax > Screen.width)
+                this._advancedModeRect.x -= this._advancedModeRect.xMax - Screen.width;
+            if (this._advancedModeRect.yMax > Screen.height)
+                this._advancedModeRect.y -= this._advancedModeRect.yMax - Screen.height;
         }
 
 
