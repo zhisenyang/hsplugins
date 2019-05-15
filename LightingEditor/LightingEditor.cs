@@ -482,7 +482,10 @@ namespace LightingEditor
 
         private void OnSceneLoad(string path, XmlNode node)
         {
-            this.LoadGeneric(node);
+            Studio.Studio.Instance.ExecuteDelayed(() =>
+            {
+                this.LoadGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
+            }, 3);
             if (node != null)
             {
                 foreach (XmlNode childNode in node.ChildNodes)
@@ -499,13 +502,11 @@ namespace LightingEditor
 
         private void OnSceneImport(string path, XmlNode node)
         {
-            int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            Studio.Studio.Instance.ExecuteDelayed(() =>
             {
-                if (pair.Key > max)
-                    max = pair.Key;
-            }
-            this.LoadGeneric(node, max);
+                this.LoadGeneric(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
+            }, 3);
         }
 
         private void OnSceneSave(string path, XmlTextWriter xmlWriter)
@@ -531,32 +532,28 @@ namespace LightingEditor
         }
 
 
-        private void LoadGeneric(XmlNode node, int startIndex = -1)
+        private void LoadGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
         {
             if (node == null)
                 return;
             string v = node.Attributes["version"].Value;
             node = node.CloneNode(true);
-            Studio.Studio.Instance.ExecuteDelayed(() =>
+            int i = 0;
+            foreach (XmlNode childNode in node.ChildNodes)
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > startIndex).ToList();
-                int i = 0;
-                foreach (XmlNode childNode in node.ChildNodes)
+                switch (childNode.Name)
                 {
-                    switch (childNode.Name)
-                    {
-                        case "lightInfo":
-                            OCILight ociLight = null;
-                            while (i < dic.Count && (ociLight = dic[i].Value as OCILight) == null)
-                                ++i;
-                            if (i == dic.Count)
-                                break;
-                            this.LoadLight(ociLight.light, childNode);
+                    case "lightInfo":
+                        OCILight ociLight = null;
+                        while (i < dic.Count && (ociLight = dic[i].Value as OCILight) == null)
                             ++i;
+                        if (i == dic.Count)
                             break;
-                    }
+                        this.LoadLight(ociLight.light, childNode);
+                        ++i;
+                        break;
                 }
-            });
+            }
         }
 
         private void SaveLight(Light light, XmlTextWriter xmlWriter)
@@ -858,54 +855,69 @@ namespace LightingEditor
         [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
         public class Studio_Duplicate_Patches
         {
-            internal static readonly List<OILightInfo> _sources = new List<OILightInfo>();
-            internal static readonly List<OILightInfo> _destinations = new List<OILightInfo>();
-            internal static bool _duplicateCalled = false;
-
-            public static void Prefix()
-            {
-                _duplicateCalled = true;
-            }
-
             public static void Postfix(Studio.Studio __instance)
             {
-                for (int i = 0; i < _sources.Count; i++)
+                __instance.ExecuteDelayed(() =>
                 {
-                    OCILight source = __instance.dicObjectCtrl[_sources[i].dicKey] as OCILight;
-                    OCILight destination = __instance.dicObjectCtrl[_destinations[i].dicKey] as OCILight;
-                    if (source != null && destination != null)
+                    foreach (KeyValuePair<int, int> pair in SceneInfo_Import_Patches._newToOldKeys)
                     {
+                        ObjectCtrlInfo src;
+                        if (__instance.dicObjectCtrl.TryGetValue(pair.Value, out src) == false)
+                            continue;
+                        OCILight source = src as OCILight;
+                        if (source == null)
+                            continue;
+                        ObjectCtrlInfo dest;
+                        if (__instance.dicObjectCtrl.TryGetValue(pair.Key, out dest) == false)
+                            continue;
+                        OCILight destination = dest as OCILight;
+                        if (destination == null)
+                            continue;
                         destination.light.shadowStrength = source.light.shadowStrength;
                         destination.light.shadowBias = source.light.shadowBias;
                         destination.light.shadowNormalBias = source.light.shadowNormalBias;
                         destination.light.shadowNearPlane = source.light.shadowNearPlane;
                         destination.light.cullingMask = source.light.cullingMask;
                     }
+                }, 5);
+            }
+        }
+
+        [HarmonyPatch(typeof(ObjectInfo), "Load", new[] { typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool) })]
+        internal static class ObjectInfo_Load_Patches
+        {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                bool set = false;
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                for (int i = 0; i < instructionsList.Count; i++)
+                {
+                    CodeInstruction inst = instructionsList[i];
+                    yield return inst;
+                    if (set == false && instructionsList[i + 1].opcode == OpCodes.Pop)
+                    {
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Call, typeof(ObjectInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                        set = true;
+                    }
                 }
-                _sources.Clear();
-                _destinations.Clear();
-                _duplicateCalled = false;
+            }
+
+            private static int Injected(int originalIndex, ObjectInfo __instance)
+            {
+                SceneInfo_Import_Patches._newToOldKeys.Add(__instance.dicKey, originalIndex);
+                return originalIndex; //Doing this so other transpilers can use this value if they want
             }
         }
 
-
-        [HarmonyPatch(typeof(OILightInfo), "Save", new[] { typeof(BinaryWriter), typeof(Version) })]
-        internal static class OILightInfo_Save_Patches
+        [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(BinaryReader), typeof(Version) })]
+        private static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
         {
-            private static void Postfix(OILightInfo __instance)
-            {
-                if (Studio_Duplicate_Patches._duplicateCalled)
-                    Studio_Duplicate_Patches._sources.Add(__instance);
-            }
-        }
+            internal static readonly Dictionary<int, int> _newToOldKeys = new Dictionary<int, int>();
 
-        [HarmonyPatch(typeof(OILightInfo), "Load", new[] { typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool) })]
-        internal static class OILightInfo_Load_Patches
-        {
-            private static void Postfix(OILightInfo __instance)
+            private static void Prefix()
             {
-                if (Studio_Duplicate_Patches._duplicateCalled)
-                    Studio_Duplicate_Patches._destinations.Add(__instance);
+                _newToOldKeys.Clear();
             }
         }
 

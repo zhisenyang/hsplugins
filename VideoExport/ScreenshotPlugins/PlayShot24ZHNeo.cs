@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using Harmony;
 using IllusionPlugin;
 using UnityEngine;
@@ -21,7 +18,7 @@ namespace VideoExport.ScreenshotPlugins
         private bool _transparent = false;
         private int _currentSize = 1;
 
-        public string name { get { return "PlayShot24ZHNeo"; } }
+        public string name { get { return "PlayShot"; } }
         public Vector2 currentSize { get{return new Vector2(Screen.width * this._currentSize, Screen.height * this._currentSize);} }
         public bool transparency { get { return this._transparent; } }
         public string extension { get { return "png"; } }
@@ -48,7 +45,7 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture()
+        public byte[] Capture(bool forcePng = false)
         {
             _recordingVideo = true;
             if (this._transparent)

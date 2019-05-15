@@ -403,74 +403,70 @@ namespace HSIBL
             GUILayout.BeginVertical();
             this._tabMenu = GUILayout.Toolbar(this._tabMenu, GUIStrings.titlebar, UIUtils.titlestyle);
             UIUtils.scrollPosition[this._tabMenu + 1] = GUILayout.BeginScrollView(UIUtils.scrollPosition[this._tabMenu + 1]);
-            using (var verticalScope = new GUILayout.VerticalScope("box", GUILayout.MaxHeight(Screen.height * 0.8f)))
+            using (GUILayout.VerticalScope verticalScope = new GUILayout.VerticalScope("box"/*, GUILayout.MaxHeight(Screen.height * 0.8f)*/))
             {
-
                 GUILayout.Space(UIUtils.space);
-                if (this._tabMenu == 0)
+                switch (this._tabMenu)
                 {
-                    ////////////////////Lighting tweak/////////////////////
+                    case 0:
+                        ////////////////////Lighting tweak/////////////////////
 
-                    if (this._selectedCubeMap == 0)
-                        this.ProceduralSkyboxModule();
-                    else
-                        this.SkyboxModule();
-                    UIUtils.HorizontalLine();
-                    this.ReflectionModule();
-                    UIUtils.HorizontalLine();
-                    this.DefaultLightModule();
-
-                }
-
-                else if (this._tabMenu == 1)
-                {
-                    if (this._colorCorrectionCurves != null)
-                    {
-                        this.LensPresetsModule();
-                        this.LensModule();
-                    }
-                }
-                else if (this._tabMenu == 2)
-                {
-                    GUILayout.Label("Effects are displayed in the same order they are applied.", UIUtils.labelstyle);
-                    UIUtils.HorizontalLine();
-                    if (this._ssao != null)
-                    {
-                        this.SSAOModule();
+                        if (this._selectedCubeMap == 0)
+                            this.ProceduralSkyboxModule();
+                        else
+                            this.SkyboxModule();
                         UIUtils.HorizontalLine();
-                    }
-                    if (this._ssr != null)
-                    {
-                        this.SSRModule();
+                        this.ReflectionModule();
                         UIUtils.HorizontalLine();
-                    }
-                    if (this._depthOfField != null)
-                    {
-                        this.DepthOfFieldModule();
+                        this.DefaultLightModule();
+                        break;
+                    case 1:
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            this.LensPresetsModule();
+                            this.LensModule();
+                        }
+                        break;
+                    case 2:
+                        GUILayout.Label("Effects are displayed in the same order they are applied.", UIUtils.labelstyle);
                         UIUtils.HorizontalLine();
-                    }
-                    if (this._sunShafts != null)
-                    {
-                        this.SunShaftsModule();
-                        UIUtils.HorizontalLine();
-                    }
-                    if (this._colorCorrectionCurves != null)
-                    {
-                        this.SMAAModule();
-                        UIUtils.HorizontalLine();
-                        this.BloomModule();
-                        UIUtils.HorizontalLine();
-                        this.EyeAdaptationModule();
-                        UIUtils.HorizontalLine();
-                        this.ToneMappingModule();
-                        UIUtils.HorizontalLine();
-                        this.ColorGradingModule();
-                    }
-                }
-                else if (this._tabMenu == 3)
-                {
-                    this.CharaRotateModule();
-                    this.UserCustomModule();
+                        if (this._ssao != null)
+                        {
+                            this.SSAOModule();
+                            UIUtils.HorizontalLine();
+                        }
+                        if (this._ssr != null)
+                        {
+                            this.SSRModule();
+                            UIUtils.HorizontalLine();
+                        }
+                        if (this._depthOfField != null)
+                        {
+                            this.DepthOfFieldModule();
+                            UIUtils.HorizontalLine();
+                        }
+                        if (this._sunShafts != null)
+                        {
+                            this.SunShaftsModule();
+                            UIUtils.HorizontalLine();
+                        }
+                        if (this._colorCorrectionCurves != null)
+                        {
+                            this.SMAAModule();
+                            UIUtils.HorizontalLine();
+                            this.BloomModule();
+                            UIUtils.HorizontalLine();
+                            this.EyeAdaptationModule();
+                            UIUtils.HorizontalLine();
+                            this.ToneMappingModule();
+                            UIUtils.HorizontalLine();
+                            this.ColorGradingModule();
+                        }
+                        break;
+                    case 3:
+                        this.CharaRotateModule();
+                        this.UserCustomModule();
+                        break;
                 }
             }
             GUILayout.EndScrollView();
@@ -1379,7 +1375,7 @@ namespace HSIBL
                                                          "N0");
             GUILayout.Label("Presets", UIUtils.titlestyle2);
             GUILayout.BeginVertical(GUI.skin.box);
-            this._presetsScroll = GUILayout.BeginScrollView(this._presetsScroll, false, true, GUILayout.MaxHeight(300));
+            this._presetsScroll = GUILayout.BeginScrollView(this._presetsScroll, false, true, GUILayout.MinHeight(160), GUILayout.MaxHeight(800)); 
             if (this._presets.Length != 0)
                 foreach (string preset in this._presets)
                 {

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using CustomMenu;
 using IllusionUtility.GetUtility;
@@ -9,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Vectrosity;
 using ToolBox;
+using UnityEngine.Events;
 
 namespace MoreAccessories
 {
@@ -21,12 +23,22 @@ namespace MoreAccessories
             public Text text;
         }
 
-        private class ObjectData
+        public class TypeData
+        {
+            public RectTransform parentObject;
+            public List<ObjectData> objects = new List<ObjectData>();
+            public readonly Dictionary<int, int> keyToOriginalIndex = new Dictionary<int, int>();
+            public bool lastSortByCreationDateReverse = false;
+            public bool lastSortByNameReverse = true;
+        }
+
+        public class ObjectData
         {
             public int key;
             public Toggle toggle;
             public Text text;
             public GameObject obj;
+            public DateTime creationDate;
         }
         #endregion
 
@@ -136,7 +148,7 @@ namespace MoreAccessories
         #endregion
 
         #region Private Variables
-        private readonly Dictionary<int, List<ObjectData>> _objects = new Dictionary<int, List<ObjectData>>();
+        public readonly Dictionary<int, TypeData> _types = new Dictionary<int, TypeData>();
         private int _lastType;
         private int _lastId;
         private RectTransform _container;
@@ -145,6 +157,8 @@ namespace MoreAccessories
         private readonly List<CopySlot> _srcCopy = new List<CopySlot>();
         private Toggle _debugParentToggle;
         private readonly List<VectorLine> _debugVectorLines = new List<VectorLine>();
+        private ScrollRect _scrollView;
+        private SmAccessory _original;
         #endregion
 
         #region Public Accessors
@@ -230,6 +244,7 @@ namespace MoreAccessories
         #region Public Methods
         public void PreInit(SmAccessory original)
         {
+            this._original = original;
             this.tglTab = this.transform.Find(original.tglTab.transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
             this.tab02 = this.transform.Find(original.tab02.transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
             this.tab03 = this.transform.Find(original.tab03.transform.GetPathFrom(original.transform)).GetComponent<Toggle>();
@@ -423,23 +438,11 @@ namespace MoreAccessories
                     PropertyInfo selfProperty = type.GetProperty("self");
                     if (selfProperty != null && (bool)propertyInfo.GetValue(selfProperty.GetValue(null, null), null))
                     {
-                        RectTransform rt = this.transform.FindChild("TabControl/TabItem01/ScrollView") as RectTransform;
-                        rt.offsetMax += new Vector2(0f, -24f);
-                        float newY = rt.offsetMax.y;
-                        rt = this.transform.FindChild("TabControl/TabItem01/Scrollbar") as RectTransform;
-                        rt.offsetMax += new Vector2(0f, -24f);
+                        this._searchBar = (InputField)Type.GetType("HSUS.CharaMakerSearch,HSUS").CallPrivate("SpawnSearchBar", this.transform.Find("TabControl/TabItem01"), new UnityAction<string>(this.SearchChanged), -24f);
+                        Type.GetType("HSUS.CharaMakerSort,HSUS").CallPrivate("SpawnSortButtons", this.transform.Find("TabControl/TabItem01"), new UnityAction(SortByName), new UnityAction(SortByCreationDate), new UnityAction(ResetSort));
+                        Type.GetType("HSUS.CharaMakerCycleButtons,HSUS").CallPrivate("SpawnCycleButtons", this.transform.Find("TabControl/TabItem01"), new UnityAction(CycleUp), new UnityAction(CycleDown));
+                        _scrollView = this.transform.Find("TabControl/TabItem01/ScrollView").GetComponent<ScrollRect>();
 
-                        this._searchBar = UIUtility.CreateInputField("Search Bar", this.transform.FindChild("TabControl/TabItem01"));
-                        this._searchBar.GetComponent<Image>().sprite = (Sprite)type.GetProperty("searchBarBackground").GetValue(type.GetProperty("self").GetValue(null, null), null);
-                        foreach (Text t in this._searchBar.GetComponentsInChildren<Text>())
-                            t.color = Color.white;
-
-                        rt = this._searchBar.transform as RectTransform;
-                        rt.localPosition = Vector3.zero;
-                        rt.localScale = Vector3.one;
-                        rt.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(0f, newY), new Vector2(0f, newY + 24f));
-                        this._searchBar.placeholder.GetComponent<Text>().text = "Search...";
-                        this._searchBar.onValueChanged.AddListener(this.SearchChanged);
                     }
                 }
             }
@@ -713,11 +716,16 @@ namespace MoreAccessories
             else
                 CharBody_ChangeAccessory_Patches.ChangeAccessoryAsync(this.chaInfo.chaBody, MoreAccessories._self._charaMakerAdditionalData, num - 10, dst.type, dst.id, dst.parentKey, true);
 
+            this._original.customControl.UpdateAcsName();
             MoreAccessories._self.CustomControl_UpdateAcsName();
             this.OnEnableSetListAccessoryName();
             this.UpdateCharaInfoSub();
-                
-            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+
+            if (num < 10)
+            {
+                CharFileInfoClothes info = this.coordinateInfo.GetInfo(this.statusInfo.coordinateType);
+                info.accessory[num].Copy(this.clothesInfo.accessory[num]);
+            }
         }
 
         public virtual void OnCopyCorrect()
@@ -742,7 +750,11 @@ namespace MoreAccessories
             dst.addRot = src.addRot;
             dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
-            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+            if (num < 10)
+            {
+                CharFileInfoClothes info = this.coordinateInfo.GetInfo(this.statusInfo.coordinateType);
+                info.accessory[num].Copy(this.clothesInfo.accessory[num]);
+            }
         }
 
         public virtual void OnCopyCorrectReversalLR()
@@ -770,7 +782,11 @@ namespace MoreAccessories
             dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
 
-            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+            if (num < 10)
+            {
+                CharFileInfoClothes info = this.coordinateInfo.GetInfo(this.statusInfo.coordinateType);
+                info.accessory[num].Copy(this.clothesInfo.accessory[num]);
+            }
         }
 
         public virtual void OnCopyCorrectReversalTB()
@@ -797,7 +813,11 @@ namespace MoreAccessories
                 dst.addRot.x -= 360f;
             dst.addScl = src.addScl;
             this.CharClothes_UpdateAccessoryMoveFromInfo(num);
-            //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][num].Copy(MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[num]);
+            if (num < 10)
+            {
+                CharFileInfoClothes info = this.coordinateInfo.GetInfo(this.statusInfo.coordinateType);
+                info.accessory[num].Copy(this.clothesInfo.accessory[num]);
+            }
         }
 
         public virtual int GetParentIndexFromParentKey(string key)
@@ -1708,126 +1728,15 @@ namespace MoreAccessories
         public virtual void ChangeAccessoryTypeList(int newType, int newId)
         {
             this.acsType = newType;
-            if (null == this.chaInfo)
-                return;
-            if (null == this.objListTop)
-                return;
-            if (null == this.objLineBase)
-                return;
-            if (null == this.rtfPanel)
+            if (this.chaInfo == null || this.objListTop == null || this.objLineBase == null || this.rtfPanel == null)
                 return;
             int slotNoFromSubMenuSelect = this.GetSlotNoFromSubMenuSelect();
             int count = 0;
             int selectedIndex = 0;
-            if (this._lastType != this.nowSubMenuTypeId && this._objects.ContainsKey(this._lastType))
-                foreach (ObjectData o in this._objects[this._lastType])
-                    o.obj.SetActive(false);
-            if (newType != -1)
-            {
-                if (this._objects.ContainsKey(newType))
-                {
-                    foreach (ObjectData o in this._objects[newType])
-                    {
-                        o.obj.SetActive(true);
-                        if (count == 0)
-                            this.firstIndex = o.key;
-                        if (newId == -1)
-                            o.toggle.isOn = count == 0;
-                        else if (o.key == newId)
-                            o.toggle.isOn = true;
-                        else
-                            o.toggle.isOn = false;
-                        if (o.toggle.isOn)
-                        {
-                            selectedIndex = count;
-                            o.toggle.onValueChanged.Invoke(true);
-                        }
-                        ++count;
-                    }
-                }
-                else
-                {
-                    this._objects.Add(newType, new List<ObjectData>());
-                    List<ObjectData> objects = this._objects[newType];
-                    Dictionary<int, ListTypeFbx> dictionary = null;
-                    CharaListInfo.TypeAccessoryFbx type = (CharaListInfo.TypeAccessoryFbx)(int)Enum.ToObject(typeof(CharaListInfo.TypeAccessoryFbx), newType);
-                    dictionary = this.chaInfo.ListInfo.GetAccessoryFbxList(type, true);
-
-                    foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
-                    {
-                        bool flag = false;
-                        if (this.chaInfo.customInfo.isConcierge)
-                        {
-                            flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
-                        }
-                        if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) != 0 || flag)
-                        {
-                            if (this.chaInfo.Sex == 0)
-                            {
-                                if ("0" == current.Value.PrefabM)
-                                    continue;
-                            }
-                            else if ("0" == current.Value.PrefabF)
-                                continue;
-                            if (count == 0)
-                                this.firstIndex = current.Key;
-                            GameObject gameObject = Instantiate(this.objLineBase);
-                            gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                            FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
-                            fbxTypeInfo.id = current.Key;
-                            fbxTypeInfo.typeName = current.Value.Name;
-                            fbxTypeInfo.info = current.Value;
-                            gameObject.transform.SetParent(this.objListTop.transform, false);
-                            RectTransform rectTransform = gameObject.transform as RectTransform;
-                            rectTransform.localScale = new Vector3(1f, 1f, 1f);
-                            rectTransform.sizeDelta = new Vector2(this._container.rect.width, 24f);
-                            Text component = rectTransform.FindChild("Label").GetComponent<Text>();
-                            component.text = fbxTypeInfo.typeName;
-                            this.SetButtonClickHandler(gameObject);
-                            Toggle component2 = gameObject.GetComponent<Toggle>();
-                            objects.Add(new ObjectData { obj = gameObject, key = current.Key, toggle = component2, text = component });
-                            component2.onValueChanged.AddListener(v =>
-                            {
-                                if (component2.isOn)
-                                    UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
-                            });
-                            if (newId == -1)
-                            {
-                                if (count == 0)
-                                    component2.isOn = true;
-                            }
-                            else if (current.Key == newId)
-                                component2.isOn = true;
-                            if (component2.isOn)
-                                selectedIndex = count;
-                            ToggleGroup component3 = this.objListTop.GetComponent<ToggleGroup>();
-                            component2.group = component3;
-                            gameObject.SetActive(true);
-                            if (!flag)
-                            {
-                                int num3 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
-                                Transform transform = rectTransform.FindChild("imgNew");
-                                if (transform && num3 == 1)
-                                    transform.gameObject.SetActive(true);
-                            }
-                            count++;
-                        }
-                    }
-                }
-                float b = 24f * count - 168f;
-                float y = Mathf.Min(24f * selectedIndex, b);
-                this.rtfPanel.anchoredPosition = new Vector2(0f, y);
-
-                if (this.tab02)
-                {
-                    this.tab02.gameObject.SetActive(true);
-                }
-                if (this.tab03)
-                {
-                    this.tab03.gameObject.SetActive(true);
-                }
-            }
-            else
+            TypeData td;
+            if (this._lastType != this.nowSubMenuTypeId && this._types.TryGetValue(this._lastType, out td))
+                td.parentObject.gameObject.SetActive(false);
+            if (newType == -1)
             {
                 this.rtfPanel.sizeDelta = new Vector2(this.rtfPanel.sizeDelta.x, 0f);
                 this.rtfPanel.anchoredPosition = new Vector2(0f, 0f);
@@ -1838,12 +1747,108 @@ namespace MoreAccessories
                 if (this.tab04)
                     this.tab04.gameObject.SetActive(false);
             }
+            else
+            {
+                if (this._types.TryGetValue(newType, out td) == false)
+                {
+                    td = new TypeData();
+                    td.parentObject = new GameObject("Type " + newType, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter), typeof(ToggleGroup)).GetComponent<RectTransform>();
+                    td.parentObject.SetParent(this.objListTop.transform, false);
+                    td.parentObject.localScale = Vector3.one;
+                    td.parentObject.localPosition = Vector3.zero;
+                    td.parentObject.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                    this._types.Add(newType, td);
+                    ToggleGroup group = td.parentObject.GetComponent<ToggleGroup>();
+                    td.parentObject.gameObject.SetActive(false);
+
+                    Dictionary<int, ListTypeFbx> dictionary = null;
+                    CharaListInfo.TypeAccessoryFbx type = (CharaListInfo.TypeAccessoryFbx)((int)Enum.ToObject(typeof(CharaListInfo.TypeAccessoryFbx), newType));
+                    dictionary = this.chaInfo.ListInfo.GetAccessoryFbxList(type, true);
+                    count = 0;
+                    foreach (KeyValuePair<int, ListTypeFbx> current in dictionary)
+                    {
+                        bool flag = false;
+                        if (this.chaInfo.customInfo.isConcierge)
+                            flag = CharaListInfo.CheckSitriClothesID(current.Value.Category, current.Value.Id);
+                        if (CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id) == 0 && !flag)
+                            continue;
+                        if (this.chaInfo.Sex == 0)
+                        {
+                            if ("0" == current.Value.PrefabM)
+                                continue;
+                        }
+                        else if ("0" == current.Value.PrefabF)
+                            continue;
+                        if (count == 0)
+                            this.SetPrivate("firstIndex", current.Key);
+                        GameObject gameObject = GameObject.Instantiate(this.objLineBase);
+                        gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
+                        FbxTypeInfo fbxTypeInfo = gameObject.AddComponent<FbxTypeInfo>();
+                        fbxTypeInfo.id = current.Key;
+                        fbxTypeInfo.typeName = current.Value.Name;
+                        fbxTypeInfo.info = current.Value;
+                        gameObject.transform.SetParent(td.parentObject, false);
+                        RectTransform rectTransform = gameObject.transform as RectTransform;
+                        rectTransform.localScale = Vector3.one;
+                        Text component = rectTransform.FindChild("Label").GetComponent<Text>();
+                        component.text = fbxTypeInfo.typeName;
+
+                        this.SetButtonClickHandler(gameObject);
+                        Toggle component2 = gameObject.GetComponent<Toggle>();
+                        td.keyToOriginalIndex.Add(current.Key, count);
+                        td.objects.Add(new ObjectData { obj = gameObject, key = current.Key, toggle = component2, text = component, creationDate = File.GetCreationTimeUtc("./abdata/" + fbxTypeInfo.info.ABPath) });
+                        component2.onValueChanged.AddListener(v =>
+                        {
+                            if (component2.isOn)
+                                UnityEngine.Debug.Log(fbxTypeInfo.info.Id + " " + fbxTypeInfo.info.ABPath);
+                        });
+                        component2.group = group;
+                        gameObject.SetActive(true);
+                        if (!flag)
+                        {
+                            int num3 = CharaListInfo.CheckCustomID(current.Value.Category, current.Value.Id);
+                            Transform transform = rectTransform.FindChild("imgNew");
+                            if (transform && num3 == 1)
+                                transform.gameObject.SetActive(true);
+                        }
+                        count++;
+                    }
+                }
+
+                td.parentObject.gameObject.SetActive(true);
+                foreach (ObjectData o in td.objects)
+                {
+                    if (count == 0)
+                        this.SetPrivate("firstIndex", o.key);
+                    if (newId == -1)
+                        o.toggle.isOn = count == 0;
+                    else if (o.key == newId)
+                        o.toggle.isOn = true;
+                    else
+                        o.toggle.isOn = false;
+                    if (o.toggle.isOn)
+                    {
+                        selectedIndex = count;
+                        o.toggle.onValueChanged.Invoke(true);
+                    }
+                    ++count;
+                }
+
+                float b = 24f * count - 168f;
+                float y = Mathf.Min(24f * selectedIndex, b);
+                this.rtfPanel.anchoredPosition = new Vector2(0f, y);
+
+                if (this.tab02)
+                    this.tab02.gameObject.SetActive(true);
+                if (this.tab03)
+                    this.tab03.gameObject.SetActive(true);
+            }
             this.nowChanging = true;
             if (this.clothesInfo != null)
             {
-                float specularIntensity = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
-                float specularSharpness = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
-                float specularSharpness2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
+                float specularIntensity = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
+                float specularSharpness = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularSharpness;
+                float specularSharpness2 = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color2.specularSharpness;
                 if (this.sldIntensity)
                     this.sldIntensity.value = specularIntensity;
                 if (this.inputIntensity)
@@ -1857,7 +1862,7 @@ namespace MoreAccessories
                 if (this.inputSharpness[1])
                     this.inputSharpness[1].text = this.ChangeTextFromFloat(specularSharpness2);
             }
-            this.nowChanging = false;
+            this.SetPrivate("nowChanging", false);
             this.OnClickColorSpecular(1);
             this.OnClickColorSpecular(0);
             this.OnClickColorDiffuse(1);
@@ -1948,12 +1953,12 @@ namespace MoreAccessories
             }
         }
 
-        private void SearchChanged(string arg0)
+        public void SearchChanged(string arg0)
         {
             string search = this._searchBar.text.Trim();
-            if (this._objects.ContainsKey(this._lastType) == false)
+            if (this._types.ContainsKey(this._lastType) == false)
                 return;
-            foreach (ObjectData objectData in this._objects[this._lastType])
+            foreach (ObjectData objectData in this._types[this._lastType].objects)
             {
                 bool active = objectData.obj.activeSelf;
                 ToggleGroup group = objectData.toggle.group;
@@ -1962,6 +1967,88 @@ namespace MoreAccessories
                     group.RegisterToggle(objectData.toggle);
             }
         }
+
+        private void ResetSort()
+        {
+            TypeData data;
+            if (this._types.TryGetValue(this._lastType, out data) == false)
+                return;
+            GenericIntSort(data.objects, objectData => data.keyToOriginalIndex[objectData.key], objectData => objectData.obj);
+        }
+
+        private void SortByName()
+        {
+            TypeData data;
+            if (this._types.TryGetValue(this._lastType, out data) == false)
+                return;
+            data.lastSortByNameReverse = !data.lastSortByNameReverse;
+            GenericStringSort(data.objects, objectData => objectData.text.text, objectData => objectData.obj, data.lastSortByNameReverse);
+        }
+
+        private void SortByCreationDate()
+        {
+            TypeData data;
+            if (this._types.TryGetValue(this._lastType, out data) == false)
+                return;
+            data.lastSortByCreationDateReverse = !data.lastSortByCreationDateReverse;
+            GenericDateSort(data.objects, objectData => objectData.creationDate, objectData => objectData.obj, data.lastSortByCreationDateReverse);
+        }
+
+        private void CycleUp()
+        {
+            TypeData data;
+            if (this._types.TryGetValue(this._lastType, out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (objectData.toggle.isOn && lastToggle != null)
+                {
+                    objectData.toggle.isOn = false;
+                    lastToggle.isOn = true;
+                    if (_scrollView.normalizedPosition.y > 0.0001f || _scrollView.transform.InverseTransformPoint(lastToggle.transform.position).y > 0f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(lastToggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
+
+        private void CycleDown()
+        {
+            TypeData data;
+            if (this._types.TryGetValue(this._lastType, out data) == false)
+                return;
+            Toggle lastToggle = null;
+            foreach (ObjectData objectData in data.objects)
+            {
+                if (objectData.obj.activeSelf == false && objectData.toggle.isOn == false)
+                    continue;
+                if (lastToggle != null && lastToggle.isOn)
+                {
+                    lastToggle.isOn = false;
+                    objectData.toggle.isOn = true;
+                    if (_scrollView.normalizedPosition.y > 0.0001f)
+                        _scrollView.content.anchoredPosition = (Vector2)_scrollView.transform.InverseTransformPoint(_scrollView.content.position) - (Vector2)_scrollView.transform.InverseTransformPoint(objectData.toggle.transform.position);
+                    break;
+                }
+                lastToggle = objectData.toggle;
+            }
+        }
+        public void ResetSearch()
+        {
+            InputField.OnChangeEvent searchEvent = this._searchBar.onValueChanged;
+            this._searchBar.onValueChanged = null;
+            this._searchBar.text = "";
+            this._searchBar.onValueChanged = searchEvent;
+            if (this._types.ContainsKey(this._lastType) == false)
+                return;
+            foreach (ObjectData objectData in this._types[this._lastType].objects)
+                objectData.obj.SetActive(true);
+        }
+
         private bool CharClothes_ResetAccessoryMove(int slotNo, int type = 7)
         {
             bool flag = true;
@@ -2064,6 +2151,27 @@ namespace MoreAccessories
             gameObject.transform.SetLocalRotation(accessory.addRot.x, accessory.addRot.y, accessory.addRot.z);
             gameObject.transform.SetLocalScale(accessory.addScl.x, accessory.addScl.y, accessory.addScl.z);
             return true;
+        }
+
+        internal static void GenericIntSort<T>(List<T> list, Func<T, int> getIntFunc, Func<T, GameObject> getGameObjectFunc, bool reverse = false)
+        {
+            list.Sort((x, y) => reverse ? getIntFunc(y).CompareTo(getIntFunc(x)) : getIntFunc(x).CompareTo(getIntFunc(y)));
+            foreach (T elem in list)
+                getGameObjectFunc(elem).transform.SetAsLastSibling();
+        }
+
+        internal static void GenericStringSort<T>(List<T> list, Func<T, string> getStringFunc, Func<T, GameObject> getGameObjectFunc, bool reverse = false)
+        {
+            list.Sort((x, y) => reverse ? string.Compare(getStringFunc(y), getStringFunc(x), StringComparison.CurrentCultureIgnoreCase) : string.Compare(getStringFunc(x), getStringFunc(y), StringComparison.CurrentCultureIgnoreCase));
+            foreach (T elem in list)
+                getGameObjectFunc(elem).transform.SetAsLastSibling();
+        }
+
+        internal static void GenericDateSort<T>(List<T> list, Func<T, DateTime> getDateFunc, Func<T, GameObject> getGameObjectFunc, bool reverse = false)
+        {
+            list.Sort((x, y) => reverse ? getDateFunc(y).CompareTo(getDateFunc(x)) : getDateFunc(x).CompareTo(getDateFunc(y)));
+            foreach (T elem in list)
+                getGameObjectFunc(elem).transform.SetAsLastSibling();
         }
         #endregion
     }

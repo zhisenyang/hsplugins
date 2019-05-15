@@ -139,6 +139,8 @@ namespace HSPE.AMModules
                     line.lineWidth = 2f;
                     line.active = false;
                 }
+
+                MainWindow._self._cameraEventsDispatcher.onPreRender += UpdateGizmosIf;
             }
 
             if (this._target.type == GenericOCITarget.Type.Character)
@@ -168,7 +170,7 @@ namespace HSPE.AMModules
                 this._boneEditionShortcuts.Add(this._parent.transform.FindDescendant("cf_J_FaceBase"), "Face");
 #endif
             }
-            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
+
             //this._parent.StartCoroutine(this.EndOfFrame());
         }
 
@@ -200,7 +202,6 @@ namespace HSPE.AMModules
             base.OnDestroy();
             this._parent.onLateUpdate -= this.LateUpdate;
             this._parent.onDisable -= this.OnDisable;
-            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
         }
 
         #endregion
@@ -1065,48 +1066,50 @@ namespace HSPE.AMModules
             this.ResetAll();
             bool changed = false;
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
+
             if (objects != null)
             {
                 foreach (XmlNode node in objects.ChildNodes)
                 {
-                    if (node.Name == "object")
+                    if (node.Name != "object")
+                        continue;
+                    string name = node.Attributes["name"].Value;
+
+                    GameObject obj = this._parent.transform.Find(name).gameObject;
+                    TransformData data = new TransformData();
+                    if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
                     {
-                        string name = node.Attributes["name"].Value;
-                        GameObject obj = this._parent.transform.Find(name).gameObject;
-                        TransformData data = new TransformData();
-                        if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
-                        {
-                            Vector3 pos;
-                            pos.x = XmlConvert.ToSingle(node.Attributes["posX"].Value);
-                            pos.y = XmlConvert.ToSingle(node.Attributes["posY"].Value);
-                            pos.z = XmlConvert.ToSingle(node.Attributes["posZ"].Value);
-                            data.position = pos;
-                            data.originalPosition = obj.transform.localPosition;
-                        }
-                        if (node.Attributes["rotW"] != null && node.Attributes["rotX"] != null && node.Attributes["rotY"] != null && node.Attributes["rotZ"] != null)
-                        {
-                            Quaternion rot;
-                            rot.w = XmlConvert.ToSingle(node.Attributes["rotW"].Value);
-                            rot.x = XmlConvert.ToSingle(node.Attributes["rotX"].Value);
-                            rot.y = XmlConvert.ToSingle(node.Attributes["rotY"].Value);
-                            rot.z = XmlConvert.ToSingle(node.Attributes["rotZ"].Value);
-                            data.rotation = rot;
-                            data.originalRotation = obj.transform.localRotation;
-                        }
-                        if (node.Attributes["scaleX"] != null && node.Attributes["scaleY"] != null && node.Attributes["scaleZ"] != null)
-                        {
-                            Vector3 scale;
-                            scale.x = XmlConvert.ToSingle(node.Attributes["scaleX"].Value);
-                            scale.y = XmlConvert.ToSingle(node.Attributes["scaleY"].Value);
-                            scale.z = XmlConvert.ToSingle(node.Attributes["scaleZ"].Value);
-                            data.scale = scale;
-                            data.originalScale = obj.transform.localScale;
-                        }
-                        if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
-                        {
-                            changed = true;
-                            this._dirtyBones.Add(obj, data);
-                        }
+                        Vector3 pos;
+                        pos.x = XmlConvert.ToSingle(node.Attributes["posX"].Value);
+                        pos.y = XmlConvert.ToSingle(node.Attributes["posY"].Value);
+                        pos.z = XmlConvert.ToSingle(node.Attributes["posZ"].Value);
+                        data.position = pos;
+                        data.originalPosition = obj.transform.localPosition;
+                    }
+                    if (node.Attributes["rotW"] != null && node.Attributes["rotX"] != null && node.Attributes["rotY"] != null && node.Attributes["rotZ"] != null)
+                    {
+                        Quaternion rot;
+                        rot.w = XmlConvert.ToSingle(node.Attributes["rotW"].Value);
+                        rot.x = XmlConvert.ToSingle(node.Attributes["rotX"].Value);
+                        rot.y = XmlConvert.ToSingle(node.Attributes["rotY"].Value);
+                        rot.z = XmlConvert.ToSingle(node.Attributes["rotZ"].Value);
+                        data.rotation = rot;
+                        data.originalRotation = obj.transform.localRotation;
+                    }
+                    if (node.Attributes["scaleX"] != null && node.Attributes["scaleY"] != null && node.Attributes["scaleZ"] != null)
+                    {
+                        Vector3 scale;
+                        scale.x = XmlConvert.ToSingle(node.Attributes["scaleX"].Value);
+                        scale.y = XmlConvert.ToSingle(node.Attributes["scaleY"].Value);
+                        scale.z = XmlConvert.ToSingle(node.Attributes["scaleZ"].Value);
+                        data.scale = scale;
+                        data.originalScale = obj.transform.localScale;
+                    }
+
+                    if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
+                    {
+                        changed = true;
+                        this._dirtyBones.Add(obj, data);
                     }
                 }
             }
@@ -1115,12 +1118,12 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
-        private void UpdateGizmosIf()
+        private static void UpdateGizmosIf()
         {
-            if (this._isEnabled && PoseController._drawAdvancedMode && this._boneTarget != null && MainWindow._self._poseTarget == this._parent)
+            if (PoseController._drawAdvancedMode && MainWindow._self._poseTarget != null && MainWindow._self._poseTarget._bonesEditor._isEnabled && MainWindow._self._poseTarget._bonesEditor._boneTarget != null)
             {
-                this.UpdateGizmos();
-                this.DrawGizmos();                
+                MainWindow._self._poseTarget._bonesEditor.UpdateGizmos();
+                MainWindow._self._poseTarget._bonesEditor.DrawGizmos();                
             }
         }
 

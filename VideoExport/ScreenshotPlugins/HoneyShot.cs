@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using IllusionPlugin;
 using ToolBox;
 using UnityEngine;
@@ -49,9 +47,20 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture()
+        public byte[] Capture(bool forcePng = false)
         {
-            return this._captureFunction();
+            bool jpg = false;
+            if (forcePng)
+            {
+                jpg = ModPrefs.GetBool("HoneyShot", "use_jpeg");
+                ModPrefs.SetBool("HoneyShot", "use_jpeg", false);
+            }
+            byte[] res = this._captureFunction();
+            if (forcePng)
+            {
+                ModPrefs.SetBool("HoneyShot", "use_jpeg", jpg);
+            }
+            return res;
         }
 
         public void DisplayParams()

@@ -251,6 +251,7 @@ namespace HSPE.AMModules
                 _debugLinesButt = new DebugLines();
                 _debugLinesButt.SetActive(false);
 #endif
+                MainWindow._self._cameraEventsDispatcher.onPreRender += UpdateGizmosIf;
             }
 #if HONEYSELECT
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
@@ -274,7 +275,6 @@ namespace HSPE.AMModules
                         bone.Colliders.Add(collider);
                 }
             this._incIndex = -3;
-            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
         }
 
         private void Update()
@@ -298,7 +298,6 @@ namespace HSPE.AMModules
 #if HONEYSELECT
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate -= this.ShouldExecuteDynamicBoneLateUpdate;
 #endif
-            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
         }
         #endregion
 
@@ -581,15 +580,23 @@ namespace HSPE.AMModules
         }
 #endif
 
-        private void UpdateGizmosIf()
+        private static void UpdateGizmosIf()
         {
-            if (this._isEnabled && PoseController._drawAdvancedMode && MainWindow._self._poseTarget == this._parent)
+            if (PoseController._drawAdvancedMode && MainWindow._self._poseTarget != null && MainWindow._self._poseTarget._target.type == GenericOCITarget.Type.Character)
+
             {
-                _debugLines.Draw(this._leftBoob, this._rightBoob, 2);
-#if KOIKATSU
-                _debugLinesButt.Draw(this._leftButtCheek, this._rightButtCheek, 1);
-#endif
+                CharaPoseController charaPoseController = (CharaPoseController)MainWindow._self._poseTarget;
+                if (charaPoseController._boobsEditor.isEnabled)
+                    charaPoseController._boobsEditor.UpdateGizmos();
             }
+        }
+
+        private void UpdateGizmos()
+        {
+            _debugLines.Draw(this._leftBoob, this._rightBoob, 2);
+#if KOIKATSU
+            _debugLinesButt.Draw(this._leftButtCheek, this._rightButtCheek, 1);
+#endif
         }
 
         private void DisplaySingle(DynamicBone_Ver02 elem)

@@ -264,8 +264,10 @@ namespace HSPE.AMModules
             this._parent.onUpdate += this.Update;
             this._parent.onLateUpdate += this.LateUpdate;
             if (_debugLines == null)
+            {
                 _debugLines = new DebugLines();
-
+                MainWindow._self._cameraEventsDispatcher.onPreRender += UpdateGizmosIf;
+            }
 #if HONEYSELECT
             if (this._target.type == GenericOCITarget.Type.Character && this._target.ociChar.charInfo.Sex == 1)
             {
@@ -310,7 +312,6 @@ namespace HSPE.AMModules
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 3);
             this._incIndex = -3;
-            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
         }
 
         private void Update()
@@ -400,15 +401,8 @@ namespace HSPE.AMModules
             base.OnDestroy();
             this._parent.onUpdate -= this.Update;
             this._parent.onLateUpdate -= this.LateUpdate;
-            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
         }
 
-        private void UpdateGizmosIf()
-        {
-            if (!this._isEnabled || !PoseController._drawAdvancedMode || MainWindow._self._poseTarget != this._parent)
-                return;
-            _debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget, this._dirtyDynamicBones);
-        }
         #endregion
 
         #region Public Methods
@@ -1061,6 +1055,17 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
+        private static void UpdateGizmosIf()
+        {
+            if (PoseController._drawAdvancedMode && MainWindow._self._poseTarget != null && MainWindow._self._poseTarget._dynamicBonesEditor._isEnabled)
+                MainWindow._self._poseTarget._dynamicBonesEditor.UpdateGizmos();
+        }
+
+        private void UpdateGizmos()
+        {
+            _debugLines.Draw(this._dynamicBones, this._dynamicBoneTarget, this._dirtyDynamicBones);
+        }
+
         private bool LoadSingleBone(DynamicBone db, XmlNode node)
         {
             bool loaded = false;

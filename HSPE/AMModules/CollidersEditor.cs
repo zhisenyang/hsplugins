@@ -310,9 +310,9 @@ namespace HSPE.AMModules
             {
                 _colliderDebugLines = new ColliderDebugLines();
                 _colliderDebugLines.SetActive(false);
+                MainWindow._self._cameraEventsDispatcher.onPreRender += UpdateGizmosIf;
             }
 
-            MainWindow._self._cameraEventsDispatcher.onPreRender += this.UpdateGizmosIf;
             this._incIndex = -2;
         }
 
@@ -320,7 +320,6 @@ namespace HSPE.AMModules
         public override void OnDestroy()
         {
             base.OnDestroy();
-            MainWindow._self._cameraEventsDispatcher.onPreRender -= this.UpdateGizmosIf;
             if (this._isLoneCollider)
             {
                 DynamicBoneCollider collider = this._parent.transform.GetChild(0).GetComponent<DynamicBoneCollider>();
@@ -341,10 +340,6 @@ namespace HSPE.AMModules
         #endregion
 
         #region Public Methods
-        #region Chara Only Methods
-
-        #endregion
-
         public override void DrawAdvancedModeChanged()
         {
             UpdateDebugLinesState(this);
@@ -560,7 +555,12 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in colliders.ChildNodes)
                 {
-                    DynamicBoneCollider collider = this._parent.transform.Find(node.Attributes["name"].Value).GetComponent<DynamicBoneCollider>();
+                    Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
+                    if (t == null)
+                        continue;
+                    DynamicBoneCollider collider = t.GetComponent<DynamicBoneCollider>();
+                    if (collider == null)
+                        continue;
                     ColliderData data = new ColliderData();
                     if (node.Attributes["centerX"] != null && node.Attributes["centerY"] != null && node.Attributes["centerZ"] != null)
                     {
@@ -607,12 +607,12 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Methods
-        private void UpdateGizmosIf()
+        private static void UpdateGizmosIf()
         {
-            if (this._isEnabled && PoseController._drawAdvancedMode && this._colliderTarget != null && MainWindow._self._poseTarget == this._parent)
+            if (PoseController._drawAdvancedMode && MainWindow._self._poseTarget != null && MainWindow._self._poseTarget._collidersEditor._isEnabled)
             {
-                this.UpdateGizmos();
-                this.DrawGizmos();
+                MainWindow._self._poseTarget._collidersEditor.UpdateGizmos();
+                MainWindow._self._poseTarget._collidersEditor.DrawGizmos();
             }
         }
 

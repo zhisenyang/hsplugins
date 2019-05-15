@@ -1,4 +1,6 @@
-﻿using IllusionPlugin;
+﻿using System;
+using System.Linq;
+using IllusionPlugin;
 using UnityEngine;
 
 namespace VideoExport.Extensions
@@ -11,22 +13,41 @@ namespace VideoExport.Extensions
             H265
         }
 
+        private enum Preset
+        {
+            VerySlow,
+            Slower,
+            Slow,
+            Medium,
+            Fast,
+            Faster,
+            VeryFast,
+            SuperFast,
+            UltraFast
+        }
+
         private readonly string[] _codecNames = {"H.264", "H.265"};
         private readonly string[] _codecCLIOptions = {"libx264", "libx265" };
+        private readonly string[] _presetNames = {"Very Slow", "Slower", "Slow", "Medium", "Fast", "Faster", "Very Fast", "Super Fast", "Ultra Fast"};
+        private readonly string[] _presetCLIOptions;
 
         private Codec _codec;
         private int _quality;
+        private Preset _preset;
 
-        public MP4Extension()
+        public MP4Extension() : base()
         {
             this._codec = (Codec)ModPrefs.GetInt("VideoExport", "mp4Codec", (int)Codec.H264, true);
             this._quality = ModPrefs.GetInt("VideoExport", "mp4Quality", 18, true);
+            this._preset = (Preset)ModPrefs.GetInt("VideoExport", "mp4Preset", (int)Preset.Slower, true);
+
+            this._presetCLIOptions = Enum.GetNames(typeof(Preset)).Select(n => n.ToLowerInvariant()).ToArray();
         }
 
         public override string GetArguments(string framesFolder, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
             this._progress = 1;
-            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/%d.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt yuv422p -crf {this._quality} -preset slower -progress pipe:1 \"{fileName}.mp4\"";
+            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/%d.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt yuv420p -crf {this._quality} -preset {this._presetCLIOptions[(int)this._preset]} -progress pipe:1 \"{fileName}.mp4\"";
         }
 
         public override void DisplayParams()
@@ -53,12 +74,19 @@ namespace VideoExport.Extensions
                 GUILayout.Label(this._quality.ToString("00"), GUILayout.ExpandWidth(false));
             }
             GUILayout.EndHorizontal();
+
+            GUILayout.Label("Encoding Preset (slower = better quality/filesize, \"Medium\" is a good compromise)", GUILayout.ExpandWidth(false));
+            this._preset = (Preset)GUILayout.SelectionGrid((int)this._preset, this._presetNames, 3);
+
+            base.DisplayParams();
         }
 
         public override void SaveParams()
         {
             ModPrefs.SetInt("VideoExport", "mp4Codec", (int)this._codec);
             ModPrefs.SetInt("VideoExport", "mp4Quality", this._quality);
+            ModPrefs.SetInt("VideoExport", "mp4Preset", (int)this._preset);
+            base.SaveParams();
         }
     }
 }

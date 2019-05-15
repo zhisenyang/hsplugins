@@ -113,6 +113,7 @@
     <Compile Include="ScreenshotPlugins\HoneyShot.cs" />
     <Compile Include="ScreenshotPlugins\IScreenshotPlugin.cs" />
     <Compile Include="ScreenshotPlugins\PlayShot24ZHNeo.cs" />
+    <Compile Include="ScreenshotPlugins\Screencap.cs" />
     <Compile Include="VideoExport.cs" />
   </ItemGroup>
   <ItemGroup>

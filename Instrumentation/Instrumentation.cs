@@ -11,10 +11,8 @@ using Harmony;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Text;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace Instrumentation
 {
@@ -34,8 +32,7 @@ namespace Instrumentation
             public Type[] arguments = new Type[0];
         }
 
-        public MethodData[] _methods = new[]
-        {
+        private readonly MethodData[] _methods = {
             new MethodData(){name = "Awake"},
             new MethodData(){name = "OnEnable"},
             new MethodData(){name = "OnLevelWasLoaded", arguments = new []{typeof(int)}},

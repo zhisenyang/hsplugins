@@ -1,59 +1,72 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using Harmony;
 using Studio;
-using ToolBox;
-using UnityEngine;
 
 namespace HSPE
 {
     [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
     public class Studio_Duplicate_Patches
     {
-        internal static readonly List<ObjectInfo> _sources = new List<ObjectInfo>();
-        internal static readonly List<ObjectInfo> _destinations = new List<ObjectInfo>();
-        internal static bool _duplicateCalled = false;
-
-        public static void Prefix()
-        {
-            _duplicateCalled = true;
-        }
-
         public static void Postfix(Studio.Studio __instance)
         {
-            for (int i = 0; i < _sources.Count; i++)
+            foreach (KeyValuePair<int, int> pair in SceneInfo_Import_Patches._newToOldKeys)
             {
-                ObjectCtrlInfo source = __instance.dicObjectCtrl[_sources[i].dicKey];
-                ObjectCtrlInfo destination = __instance.dicObjectCtrl[_destinations[i].dicKey];
-                MainWindow._self.OnDuplicate(source, destination);
+                ObjectCtrlInfo source;
+                if (__instance.dicObjectCtrl.TryGetValue(pair.Value, out source) == false)
+                    continue;
+                ObjectCtrlInfo destination;
+                if (__instance.dicObjectCtrl.TryGetValue(pair.Key, out destination) == false)
+                    continue;
+                if (source is OCIChar && destination is OCIChar || source is OCIItem && destination is OCIItem)
+                    MainWindow._self.OnDuplicate(source, destination);
             }
-            _sources.Clear();
-            _destinations.Clear();
-            _duplicateCalled = false;
-        }
-    }
-
-    [HarmonyPatch(typeof(ObjectInfo), "Save", new []{typeof(BinaryWriter), typeof(Version)})]
-    internal static class ObjectInfo_Save_Patches
-    {
-        private static void Postfix(ObjectInfo __instance)
-        {
-            if (Studio_Duplicate_Patches._duplicateCalled && (__instance is OICharInfo || __instance is OIItemInfo))
-                Studio_Duplicate_Patches._sources.Add(__instance);
         }
     }
 
     [HarmonyPatch(typeof(ObjectInfo), "Load", new []{typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool)})]
     internal static class ObjectInfo_Load_Patches
     {
-        private static void Postfix(ObjectInfo __instance)
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (Studio_Duplicate_Patches._duplicateCalled && (__instance is OICharInfo || __instance is OIItemInfo))
-                Studio_Duplicate_Patches._destinations.Add(__instance);
+            bool set = false;
+            List<CodeInstruction> instructionsList = instructions.ToList();
+            for (int i = 0; i < instructionsList.Count; i++)
+            {
+                CodeInstruction inst = instructionsList[i];
+                yield return inst;
+                if (set == false && instructionsList[i + 1].opcode == OpCodes.Pop)
+                {
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return new CodeInstruction(OpCodes.Call, typeof(ObjectInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                    set = true;
+                }
+            }
+        }
+
+        private static int Injected(int originalIndex, ObjectInfo __instance)
+        {
+            SceneInfo_Import_Patches._newToOldKeys.Add(__instance.dicKey, originalIndex);
+            return originalIndex; //Doing this so other transpilers can use this value if they want
         }
     }
 
+
+
+    [HarmonyPatch(typeof(SceneInfo), "Import", new []{ typeof(BinaryReader), typeof(Version) } )]
+    internal static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
+    {
+        internal static Dictionary<int, int> _newToOldKeys = new Dictionary<int, int>();
+
+        private static void Prefix()
+        {
+            _newToOldKeys.Clear();
+        }
+    }
 
     [HarmonyPatch(typeof(OCIChar), "LoadClothesFile", new[] { typeof(string) })]
     internal static class OCIChar_LoadClothesFile_Patches

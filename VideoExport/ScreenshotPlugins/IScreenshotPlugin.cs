@@ -14,7 +14,7 @@ namespace VideoExport.ScreenshotPlugins
         string extension { get; }
 
         bool Init();
-        byte[] Capture();
+        byte[] Capture(bool forcePng = false);
         void DisplayParams();
         void SaveParams();
     }

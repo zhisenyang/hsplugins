@@ -1,19 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Xml;
 using Harmony;
 using ToolBox;
 #if HONEYSELECT
-using System.Collections;
 using IllusionPlugin;
 #elif KOIKATSU
-using System.Reflection;
 using BepInEx;
 using KKAPI.Studio.SaveLoad;
 using ExtensibleSaveFormat;
 using UnityEngine.SceneManagement;
-using System.IO;
 using MessagePack;
 #endif
 using Studio;
@@ -37,14 +37,14 @@ namespace NodesConstraints
 #endif
     {
 #if HONEYSELECT
-        public const string versionNum = "1.0.0";
+        public const string versionNum = "1.0.1";
 #elif KOIKATSU
         public const string versionNum = "1.0.1";
+        private const string _extSaveKey = "nodesConstraints";
+        private const int _saveVersion = 0;
 #endif
 
         private static NodesConstraints _self;
-        private const string _extSaveKey = "nodesConstraints";
-        private const int _saveVersion = 0;
 
 #if HONEYSELECT
         public string Name { get { return "NodesConstraints"; } }
@@ -73,6 +73,7 @@ namespace NodesConstraints
             public Quaternion rotationOffset = Quaternion.identity;
             public Vector3 originalChildPosition;
             public Quaternion originalChildRotation;
+            public string alias = "";
             private VectorLine _debugLine;
 
             public Constraint()
@@ -80,6 +81,22 @@ namespace NodesConstraints
                 this._debugLine = VectorLine.SetLine(Color.white, Vector3.zero, Vector3.one);
                 this._debugLine.lineWidth = 3f;
                 this._debugLine.active = false;
+            }
+
+            public Constraint(Constraint other) : this()
+            {
+                this.enabled = other.enabled;
+                this.parent = other.parent;
+                this.parentTransform = other.parentTransform;
+                this.child = other.child;
+                this.childTransform = other.childTransform;
+                this.position = other.position;
+                this.rotation = other.rotation;
+                this.positionOffset = other.positionOffset;
+                this.rotationOffset = other.rotationOffset;
+                this.originalChildPosition = other.originalChildPosition;
+                this.originalChildRotation = other.originalChildRotation;
+                this.alias = other.alias;
             }
 
             public void SetActiveDebugLines(bool active)
@@ -151,9 +168,22 @@ namespace NodesConstraints
         private string _search = "";
         private GuideObject _selectedWorkspaceObject;
         private GuideObject _lastSelectedWorkspaceObject;
+#if KOIKATSU
         private bool _kkAnimationControllerInstalled = true;
+#endif
         private SimpleListShowNodeType _selectedShowNodeType = SimpleListShowNodeType.All;
         private string[] _simpleListShowNodeTypeNames;
+#if HONEYSELECT
+        private int _totalActiveExpressions = 0;
+        private int _currentExpressionIndex = 0;
+        private readonly HashSet<Expression> _allExpressions = new HashSet<Expression>();
+#endif
+        private string _positionXStr = "0.000";
+        private string _positionYStr = "0.000";
+        private string _positionZStr = "0.000";
+        private string _rotationXStr = "0.00";
+        private string _rotationYStr = "0.00";
+        private string _rotationZStr = "0.00";
         #endregion
 
         #region Unity Methods
@@ -213,7 +243,7 @@ namespace NodesConstraints
 #if HONEYSELECT
             this._dispatcher.onGUI += this.OnGUI;
             VectorLine.SetCamera3D(Camera.main);
-            this._dispatcher.gameObject.AddComponent<FKCtrl>();
+            this._dispatcher.gameObject.AddComponent<Expression>();
 #elif KOIKATSU
             this._dispatcher.onPreCull += this.ApplyConstraints;
             this._dispatcher.onPreRender += this.DrawDebugLines;
@@ -251,6 +281,9 @@ namespace NodesConstraints
             if (this._studioLoaded == false)
                 return;
 #if HONEYSELECT
+            this._totalActiveExpressions = this._allExpressions.Count(e => e.enabled && e.gameObject.activeInHierarchy);
+            this._currentExpressionIndex = 0;
+
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.N))
 #elif KOIKATSU
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.I))
@@ -276,6 +309,7 @@ namespace NodesConstraints
             if (this._selectedWorkspaceObject != this._lastSelectedWorkspaceObject && this._selectedWorkspaceObject != null)
                 this._selectedBone = this._selectedWorkspaceObject.transformTarget;
             this._lastSelectedWorkspaceObject = this._selectedWorkspaceObject;
+            this.ApplyNodesConstraints();
         }
 
 #if HONEYSELECT
@@ -296,7 +330,7 @@ namespace NodesConstraints
                 this._initUI = true;
             }
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
-            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Nodes Constraints");
+            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Nodes Constraints " + versionNum);
             Color c = GUI.backgroundColor;
             GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
             GUI.Box(this._windowRect, "", this._customBoxStyle);
@@ -306,11 +340,9 @@ namespace NodesConstraints
                 Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUI;
         }
 
-
         public void OnApplicationQuit()
         {
         }
-
 
         public void OnFixedUpdate()
         {
@@ -319,12 +351,32 @@ namespace NodesConstraints
 
         #region Private Methods
 #if HONEYSELECT
-        [HarmonyPatch(typeof(FKCtrl), "LateUpdate")]
-        private static class IKExecutionOrder_LateUpdate_Patches
+        [HarmonyPatch(typeof(Expression), "Start")]
+        private static class Expression_Start_Patches
         {
-            private static void Postfix(object ___listBones)
+            private static void Prefix(Expression __instance)
             {
-                if (((IList)___listBones).Count == 0)
+                _self._allExpressions.Add(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(Expression), "OnDestroy")]
+        private static class Expression_OnDestroy_Patches
+        {
+            private static void Prefix(Expression __instance)
+            {
+                _self._allExpressions.Remove(__instance);
+            }
+        }
+
+        [HarmonyPatch(typeof(Expression), "LateUpdate")]
+        private static class Expression_LateUpdate_Patches
+        {
+            private static void Postfix()
+            {
+                _self._currentExpressionIndex++;
+                //UnityEngine.Debug.LogError("framecount " + Time.frameCount + " total " + _self._totalFKControllers + " current " + _self._currentFkCtrlIndex);
+                if (_self._currentExpressionIndex == _self._totalActiveExpressions) //Dirty fucking hack that I hate to make sure this runs after *everything*
                 {
                     _self.ApplyConstraints();
                     _self.DrawDebugLines();
@@ -332,6 +384,123 @@ namespace NodesConstraints
             }
         }
 #endif
+
+        [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
+        private class Studio_Duplicate_Patches
+        {
+            private static void Prefix()
+            {
+                for (int i = 0; i < _self._constraints.Count; i++)
+                {
+                    Constraint constraint = _self._constraints[i];
+                    if (constraint.parentTransform == null || constraint.childTransform == null)
+                        continue;
+                    if (constraint.enabled == false)
+                        continue;
+                    if (constraint.position)
+                    {
+                        constraint.childTransform.localPosition = constraint.originalChildPosition;
+                        if (constraint.child != null)
+                            constraint.child.changeAmount.pos = constraint.originalChildPosition;
+                    }
+                    if (constraint.rotation)
+                    {
+                        constraint.childTransform.localRotation = constraint.originalChildRotation;
+                        if (constraint.child != null)
+                            constraint.child.changeAmount.rot = constraint.originalChildRotation.eulerAngles;
+                    }
+                }
+                _self._dispatcher.ExecuteDelayed(() =>
+                {
+                    for (int i = 0; i < _self._constraints.Count; i++)
+                    {
+                        Constraint constraint = _self._constraints[i];
+                        if (constraint.parentTransform == null || constraint.childTransform == null)
+                            continue;
+
+                        ObjectCtrlInfo parentObjectSource = null;
+                        ObjectCtrlInfo parentObjectDestination = null;
+                        ObjectCtrlInfo childObjectSource = null;
+                        ObjectCtrlInfo childObjectDestination = null;
+
+                        Transform parentT = constraint.parentTransform;
+                        while ((parentObjectSource = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == parentT).Value) == null)
+                            parentT = parentT.parent;
+                        foreach (KeyValuePair<int, int> pair in SceneInfo_Import_Patches._newToOldKeys)
+                        {
+                            if (pair.Value == parentObjectSource.objectInfo.dicKey)
+                            {
+                                parentObjectDestination = Studio.Studio.Instance.dicObjectCtrl[pair.Key];
+                                break;
+                            }
+                        }
+                        
+                        Transform childT = constraint.childTransform;
+                        while ((childObjectSource = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == childT).Value) == null)
+                            childT = childT.parent;
+                        foreach (KeyValuePair<int, int> pair in SceneInfo_Import_Patches._newToOldKeys)
+                        {
+                            if (pair.Value == childObjectSource.objectInfo.dicKey)
+                            {
+                                childObjectDestination = Studio.Studio.Instance.dicObjectCtrl[pair.Key];
+                                break;
+                            }
+                        }
+                        if (parentObjectDestination != null && childObjectDestination != null)
+                        {
+                            _self.AddConstraint(
+                                                constraint.enabled,
+                                                parentObjectDestination.guideObject.transformTarget.Find(constraint.parentTransform.GetPathFrom(parentObjectSource.guideObject.transformTarget)),
+                                                childObjectDestination.guideObject.transformTarget.Find(constraint.childTransform.GetPathFrom(childObjectSource.guideObject.transformTarget)),
+                                                constraint.position,
+                                                constraint.positionOffset,
+                                                constraint.rotation,
+                                                constraint.rotationOffset,
+                                                constraint.alias
+                                               );
+                        }
+                    }
+                }, 3);
+            }
+        }
+
+        [HarmonyPatch(typeof(ObjectInfo), "Load", new[] { typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool) })]
+        internal static class ObjectInfo_Load_Patches
+        {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                bool set = false;
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                for (int i = 0; i < instructionsList.Count; i++)
+                {
+                    CodeInstruction inst = instructionsList[i];
+                    yield return inst;
+                    if (set == false && instructionsList[i + 1].opcode == OpCodes.Pop)
+                    {
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Call, typeof(ObjectInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                        set = true;
+                    }
+                }
+            }
+
+            private static int Injected(int originalIndex, ObjectInfo __instance)
+            {
+                SceneInfo_Import_Patches._newToOldKeys.Add(__instance.dicKey, originalIndex);
+                return originalIndex; //Doing this so other transpilers can use this value if they want
+            }
+        }
+
+        [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(BinaryReader), typeof(Version) })]
+        private static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
+        {
+            internal static readonly Dictionary<int, int> _newToOldKeys = new Dictionary<int, int>();
+
+            private static void Prefix()
+            {
+                _newToOldKeys.Clear();
+            }
+        }
 
         [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", new[] { typeof(PointerEventData) })]
         private static class GuideSelect_OnPointerClick_Patches
@@ -347,6 +516,42 @@ namespace NodesConstraints
             }
         }
 
+        // Applies the constraints that have guideobjects linked (so that the underlying systems IK and FK can use those data after)
+        private void ApplyNodesConstraints()
+        {
+            List<int> toDelete = null;
+            for (int i = 0; i < this._constraints.Count; i++)
+            {
+                Constraint constraint = this._constraints[i];
+                if (constraint.parentTransform == null || constraint.childTransform == null)
+                {
+                    if (toDelete == null)
+                        toDelete = new List<int>();
+                    toDelete.Add(i);
+                    if (this._selectedConstraint == constraint)
+                        this._selectedConstraint = null;
+                    continue;
+                }
+                if (constraint.enabled && constraint.child != null)
+                {
+                    if (constraint.position && constraint.child.enablePos)
+                    {
+                        constraint.childTransform.position = constraint.parentTransform.TransformPoint(constraint.positionOffset);
+                        constraint.child.changeAmount.pos = constraint.child.transformTarget.localPosition;
+                    }
+                    if (constraint.rotation && constraint.child.enableRot)
+                    {
+                        constraint.childTransform.rotation = constraint.parentTransform.rotation * constraint.rotationOffset;
+                        constraint.child.changeAmount.rot = constraint.child.transformTarget.localEulerAngles;
+                    }
+                }
+            }
+            if (toDelete != null)
+                for (int i = toDelete.Count - 1; i >= 0; --i)
+                    this.RemoveConstraintAt(toDelete[i]);
+        }
+
+        // Applies all the constraints indiscriminately after everything overwriting everything
         private void ApplyConstraints()
         {
             List<int> toDelete = null;
@@ -442,85 +647,72 @@ namespace NodesConstraints
                         {
                             GUILayout.Label((this._displayedConstraint.parentTransform != null ? this._displayedConstraint.parentTransform.name : ""));
                             GUILayout.FlexibleSpace();
+                            GUILayout.Label("->");
+                            GUILayout.FlexibleSpace();
                             GUILayout.Label((this._displayedConstraint.childTransform != null ? this._displayedConstraint.childTransform.name : ""));
                         }
                         GUILayout.EndHorizontal();
 
+
                         GUILayout.BeginHorizontal();
                         {
-                            GUI.enabled = this._displayedConstraint.childTransform != null;
+                            GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
                             this._displayedConstraint.position = GUILayout.Toggle(this._displayedConstraint.position && this._displayedConstraint.childTransform != null, "Link position");
                             GUILayout.FlexibleSpace();
                             GUILayout.Label("X", GUILayout.ExpandWidth(false));
-                            string before = this._displayedConstraint.positionOffset.x.ToString("0.000");
-                            string after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.positionOffset.x = res;
-                            }
+                            this._positionXStr = GUILayout.TextField(this._positionXStr, GUILayout.Width(50));
                             GUILayout.Label("Y");
-                            before = this._displayedConstraint.positionOffset.y.ToString("0.000");
-                            after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.positionOffset.y = res;
-                            }
+                            this._positionYStr = GUILayout.TextField(this._positionYStr, GUILayout.Width(50));
                             GUILayout.Label("Z");
-                            before = this._displayedConstraint.positionOffset.z.ToString("0.000");
-                            after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.positionOffset.z = res;
-                            }
-                            GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
+                            this._positionZStr = GUILayout.TextField(this._positionZStr, GUILayout.Width(50));
                             if (GUILayout.Button("Set current", GUILayout.ExpandWidth(false)))
-                                this._onPreCullAction = () => { this._displayedConstraint.positionOffset = this._displayedConstraint.parentTransform.InverseTransformPoint(this._displayedConstraint.childTransform.position); };
+                                this._onPreCullAction = () =>
+                                {
+                                    this._displayedConstraint.positionOffset = this._displayedConstraint.parentTransform.InverseTransformPoint(this._displayedConstraint.childTransform.position);
+                                    this.UpdateDisplayedPositionOffset();
+                                };
                             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                            {
                                 this._displayedConstraint.positionOffset = Vector3.zero;
-
+                                this.UpdateDisplayedPositionOffset();
+                            }
                             GUI.enabled = true;
                         }
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
                         {
-                            GUI.enabled = this._displayedConstraint.childTransform != null;
+                            GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
                             this._displayedConstraint.rotation = GUILayout.Toggle(this._displayedConstraint.rotation && this._displayedConstraint.childTransform != null, "Link rotation");
                             GUILayout.FlexibleSpace();
                             GUILayout.Label("X", GUILayout.ExpandWidth(false));
-                            string before = this._displayedConstraint.rotationOffset.eulerAngles.x.ToString("0.00");
-                            string after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.rotationOffset = Quaternion.Euler(res, this._displayedConstraint.rotationOffset.eulerAngles.y, this._displayedConstraint.rotationOffset.eulerAngles.z);
-                            }
+                            this._rotationXStr = GUILayout.TextField(this._rotationXStr, GUILayout.Width(50));
                             GUILayout.Label("Y", GUILayout.ExpandWidth(false));
-                            before = this._displayedConstraint.rotationOffset.eulerAngles.y.ToString("0.00");
-                            after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.rotationOffset = Quaternion.Euler(this._displayedConstraint.rotationOffset.eulerAngles.x, res, this._displayedConstraint.rotationOffset.eulerAngles.z);
-                            }
+                            this._rotationYStr = GUILayout.TextField(this._rotationYStr, GUILayout.Width(50));
                             GUILayout.Label("Z", GUILayout.ExpandWidth(false));
-                            before = this._displayedConstraint.rotationOffset.eulerAngles.z.ToString("0.00");
-                            after = GUILayout.TextField(before, GUILayout.Width(50));
-                            if (before != after)
-                            {
-                                if (float.TryParse(after, out float res))
-                                    this._displayedConstraint.rotationOffset = Quaternion.Euler(this._displayedConstraint.rotationOffset.eulerAngles.x, this._displayedConstraint.rotationOffset.eulerAngles.y, res);
-                            }
-                            GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
+                            this._rotationZStr = GUILayout.TextField(this._rotationZStr, GUILayout.Width(50));
                             if (GUILayout.Button("Set current", GUILayout.ExpandWidth(false)))
                             {
-                                this._onPreCullAction = () => { this._displayedConstraint.rotationOffset = Quaternion.Inverse(this._displayedConstraint.parentTransform.rotation) * this._displayedConstraint.childTransform.rotation; };
+                                this._onPreCullAction = () =>
+                                {
+                                    this._displayedConstraint.rotationOffset = Quaternion.Inverse(this._displayedConstraint.parentTransform.rotation) * this._displayedConstraint.childTransform.rotation;
+                                    this.UpdateDisplayedRotationOffset();
+                                };
                             }
                             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                            {
                                 this._displayedConstraint.rotationOffset = Quaternion.identity;
+                                this.UpdateDisplayedRotationOffset();
+                            }
+                            GUI.enabled = true;
+                        }
+                        GUILayout.EndHorizontal();
+
+                        GUILayout.BeginHorizontal();
+                        {
+                            GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
+                            GUILayout.Label("Alias", GUILayout.ExpandWidth(false));
+                            this._displayedConstraint.alias = GUILayout.TextField(this._displayedConstraint.alias).Trim();
                             GUI.enabled = true;
                         }
                         GUILayout.EndHorizontal();
@@ -530,38 +722,16 @@ namespace NodesConstraints
                             GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null && (this._displayedConstraint.position || this._displayedConstraint.rotation) && this._displayedConstraint.parentTransform != this._displayedConstraint.childTransform;
                             if (GUILayout.Button("Add new"))
                             {
-                                bool shouldAdd = true;
-                                foreach (Constraint constraint in this._constraints)
-                                {
-                                    if (constraint.parentTransform == this._displayedConstraint.parentTransform && constraint.childTransform == this._displayedConstraint.childTransform ||
-                                        constraint.childTransform == this._displayedConstraint.parentTransform && constraint.parentTransform == this._displayedConstraint.childTransform)
-                                    {
-                                        shouldAdd = false;
-                                        break;
-                                    }
-                                }
-                                if (shouldAdd)
-                                {
-                                    Constraint newConstraint = new Constraint();
-                                    newConstraint.parentTransform = this._displayedConstraint.parentTransform;
-                                    if (this._allGuideObjects.TryGetValue(newConstraint.parentTransform, out newConstraint.parent) == false)
-                                        newConstraint.parent = null;
-                                    newConstraint.childTransform = this._displayedConstraint.childTransform;
-                                    if (this._allGuideObjects.TryGetValue(newConstraint.childTransform, out newConstraint.child) == false)
-                                        newConstraint.child = null;
-                                    newConstraint.position = this._displayedConstraint.position;
-                                    newConstraint.rotation = this._displayedConstraint.rotation;
-                                    newConstraint.positionOffset = this._displayedConstraint.positionOffset;
-                                    newConstraint.rotationOffset = this._displayedConstraint.rotationOffset;
-                                    newConstraint.originalChildPosition = newConstraint.childTransform.localPosition;
-                                    newConstraint.originalChildRotation = newConstraint.childTransform.localRotation;
+                                this.ValidateDisplayedPositionOffset();
+                                this.ValidateDisplayedRotationOffset();
 
-                                    this._constraints.Add(newConstraint);
-                                }
+                                this.AddConstraint(true, this._displayedConstraint.parentTransform, this._displayedConstraint.childTransform, this._displayedConstraint.position, this._displayedConstraint.positionOffset, this._displayedConstraint.rotation, this._displayedConstraint.rotationOffset, this._displayedConstraint.alias);
                             }
                             GUI.enabled = this._selectedConstraint != null && this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null && (this._displayedConstraint.position || this._displayedConstraint.rotation) && this._displayedConstraint.parentTransform != this._displayedConstraint.childTransform;
                             if (GUILayout.Button("Update selected"))
                             {
+                                this.ValidateDisplayedPositionOffset();
+                                this.ValidateDisplayedRotationOffset();
                                 if (this._selectedConstraint.position && this._displayedConstraint.position == false)
                                 {
                                     this._selectedConstraint.childTransform.localPosition = this._selectedConstraint.originalChildPosition;
@@ -587,6 +757,7 @@ namespace NodesConstraints
                                 this._selectedConstraint.rotationOffset = this._displayedConstraint.rotationOffset;
                                 this._selectedConstraint.originalChildPosition = this._selectedConstraint.childTransform.localPosition;
                                 this._selectedConstraint.originalChildRotation = this._selectedConstraint.childTransform.localRotation;
+                                this._selectedConstraint.alias = this._displayedConstraint.alias;
                             }
                             GUI.enabled = true;
                         }
@@ -631,7 +802,13 @@ namespace NodesConstraints
                             }
                             constraint.enabled = newEnabled;
 
-                            if (GUILayout.Button(constraint.parentTransform.name + " -> " + constraint.childTransform.name, this._wrapButton))
+                            string constraintName;
+                            if (string.IsNullOrEmpty(constraint.alias))
+                                constraintName = constraint.parentTransform.name + " -> " + constraint.childTransform.name;
+                            else
+                                constraintName = constraint.alias;
+
+                            if (GUILayout.Button(constraintName, this._wrapButton))
                             {
                                 if (this._selectedConstraint != null)
                                     this._selectedConstraint.SetActiveDebugLines(false);
@@ -643,6 +820,9 @@ namespace NodesConstraints
                                 this._displayedConstraint.rotation = this._selectedConstraint.rotation;
                                 this._displayedConstraint.positionOffset = this._selectedConstraint.positionOffset;
                                 this._displayedConstraint.rotationOffset = this._selectedConstraint.rotationOffset;
+                                this._displayedConstraint.alias = this._selectedConstraint.alias;
+                                this.UpdateDisplayedPositionOffset();
+                                this.UpdateDisplayedRotationOffset();
                             }
 
                             if (GUILayout.Button("↑", GUILayout.ExpandWidth(false)) && i != 0)
@@ -777,6 +957,86 @@ namespace NodesConstraints
             GUI.DragWindow();
         }
 
+        private void UpdateDisplayedPositionOffset()
+        {
+            this._positionXStr = this._displayedConstraint.positionOffset.x.ToString("0.000");
+            this._positionYStr = this._displayedConstraint.positionOffset.y.ToString("0.000");
+            this._positionZStr = this._displayedConstraint.positionOffset.z.ToString("0.000");
+        }
+
+        private void ValidateDisplayedPositionOffset()
+        {
+            float res;
+            if (float.TryParse(this._positionXStr, out res))
+                this._displayedConstraint.positionOffset.x = res;
+            if (float.TryParse(this._positionYStr, out res))
+                this._displayedConstraint.positionOffset.y = res;
+            if (float.TryParse(this._positionZStr, out res))
+                this._displayedConstraint.positionOffset.z = res;
+            this.UpdateDisplayedPositionOffset();
+        }
+
+        private void UpdateDisplayedRotationOffset()
+        {
+            Vector3 euler = this._displayedConstraint.rotationOffset.eulerAngles;
+            this._rotationXStr = euler.x.ToString("0.00");
+            this._rotationYStr = euler.y.ToString("0.00");
+            this._rotationZStr = euler.z.ToString("0.00");
+        }
+
+        private void ValidateDisplayedRotationOffset()
+        {
+            float resX;
+            float resY;
+            float resZ;
+            if (!float.TryParse(this._rotationXStr, out resX))
+                resX = this._displayedConstraint.rotationOffset.eulerAngles.x;
+            if (!float.TryParse(this._rotationYStr, out resY))
+                resY = this._displayedConstraint.rotationOffset.eulerAngles.y;
+            if (!float.TryParse(this._rotationZStr, out resZ))
+                resZ = this._displayedConstraint.rotationOffset.eulerAngles.z;
+
+            this._displayedConstraint.rotationOffset = Quaternion.Euler(resX, resY, resZ);
+            this.UpdateDisplayedRotationOffset();
+        }
+
+        private Constraint AddConstraint(bool enabled, Transform parentTransform, Transform childTransform, bool linkPosition, Vector3 positionOffset, bool linkRotation, Quaternion rotationOffset, string alias)
+        {
+            bool shouldAdd = true;
+            foreach (Constraint constraint in this._constraints)
+            {
+                if (constraint.parentTransform == parentTransform && constraint.childTransform == childTransform ||
+                    constraint.childTransform == parentTransform && constraint.parentTransform == childTransform)
+                {
+                    shouldAdd = false;
+                    break;
+                }
+            }
+            if (shouldAdd)
+            {
+                Constraint newConstraint = new Constraint();
+                newConstraint.enabled = enabled;
+                newConstraint.parentTransform = parentTransform;
+                newConstraint.childTransform = childTransform;
+                newConstraint.position = linkPosition;
+                newConstraint.rotation = linkRotation;
+                newConstraint.positionOffset = positionOffset;
+                newConstraint.rotationOffset = rotationOffset;
+                newConstraint.alias = alias;
+
+                if (this._allGuideObjects.TryGetValue(newConstraint.parentTransform, out newConstraint.parent) == false)
+                    newConstraint.parent = null;
+                if (this._allGuideObjects.TryGetValue(newConstraint.childTransform, out newConstraint.child) == false)
+                    newConstraint.child = null;
+                newConstraint.originalChildPosition = newConstraint.childTransform.localPosition;
+                newConstraint.originalChildRotation = newConstraint.childTransform.localRotation;
+
+                this._constraints.Add(newConstraint);
+                return newConstraint;
+            }
+            return null;
+        }
+
         private void RemoveConstraintAt(int index)
         {
             Constraint c = this._constraints[index];
@@ -867,14 +1127,7 @@ namespace NodesConstraints
         #endregion
 
         #region Saves
-#if HONEYSELECT
-        private void OnSceneLoad(string path, XmlNode node)
-        {
-            if (node == null)
-                return;
-            this.LoadSceneGeneric(node.FirstChild);
-        }
-#elif KOIKATSU
+#if KOIKATSU
         private void OnSceneLoad(string path)
         {
             if (this._kkAnimationControllerInstalled == false)
@@ -888,26 +1141,9 @@ namespace NodesConstraints
                 return;
             XmlDocument doc = new XmlDocument();
             doc.LoadXml((string)data.data["constraints"]);
-            XmlNode node = doc.FirstChild;
-            if (node == null)
-                return;
-            this.LoadSceneGeneric(node);
+            this.OnSceneLoad(path, doc);
         }
-#endif
-#if HONEYSELECT
-        private void OnSceneImport(string path, XmlNode node)
-        {
-            if (node == null)
-                return;
-            int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
-            {
-                if (pair.Key > max)
-                    max = pair.Key;
-            }
-            this.LoadSceneGeneric(node.FirstChild, max);
-        }
-#elif KOIKATSU
+
         private void OnSceneImport(string path)
         {
             if (this._kkAnimationControllerInstalled == false)
@@ -921,91 +1157,106 @@ namespace NodesConstraints
                 return;
             XmlDocument doc = new XmlDocument();
             doc.LoadXml((string)data.data["constraints"]);
-            XmlNode node = doc.FirstChild;
-            if (node == null)
-                return;
-            int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            this.OnSceneImport(path, doc);
+        }
+
+        private void OnSceneSave(string path)
+        {
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
             {
-                if (pair.Key > max)
-                    max = pair.Key;
+                this.OnSceneSave(path, xmlWriter);
+
+                PluginData data = new PluginData();
+                data.version = _saveVersion;
+                data.data.Add("constraints", stringWriter.ToString());
+                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
             }
-            this.LoadSceneGeneric(node, max);
+
         }
 #endif
 
-        private void LoadSceneGeneric(XmlNode node, int lastIndex = -1)
+        private void OnSceneLoad(string path, XmlNode node)
         {
+            if (node == null)
+                return;
             this._dispatcher.ExecuteDelayed(() =>
             {
-                string v = node.Attributes["version"].Value;
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
-
-                foreach (XmlNode childNode in node.ChildNodes)
-                {
-                    int parentObjectIndex = XmlConvert.ToInt32(childNode.Attributes["parentObjectIndex"].Value);
-                    if (parentObjectIndex >= dic.Count)
-                        continue;
-                    Transform parentTransform = dic[parentObjectIndex].Value.guideObject.transformTarget;
-                    parentTransform = parentTransform.Find(childNode.Attributes["parentPath"].Value);
-                    if (parentTransform == null)
-                        continue;
-
-                    int childObjectIndex = XmlConvert.ToInt32(childNode.Attributes["childObjectIndex"].Value);
-                    if (childObjectIndex >= dic.Count)
-                        continue;
-                    Transform childTransform;
-                    if (childNode.Attributes["childPath"] != null)
-                    {
-                        childTransform = dic[childObjectIndex].Value.guideObject.transformTarget;
-                        childTransform = childTransform.Find(childNode.Attributes["childPath"].Value);
-                        if (childTransform == null)
-                            continue;
-                    }
-                    else
-                    {
-                        childTransform = dic[childObjectIndex].Value.guideObject.transformTarget;
-                        childTransform = childTransform.FindDescendant(childNode.Attributes["childName"].Value);
-                        if (childTransform == null)
-                            continue;
-                    }
-
-
-                    foreach (Constraint c in this._constraints)
-                    {
-                        if (c.parentTransform == parentTransform && c.childTransform == childTransform ||
-                            c.childTransform == parentTransform && c.parentTransform == childTransform)
-                            return;
-                    }
-
-
-                    Constraint constraint = new Constraint();
-                    constraint.enabled = childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                    constraint.parentTransform = parentTransform;
-                    constraint.childTransform = childTransform;
-
-                    if (this._allGuideObjects.TryGetValue(constraint.parentTransform, out constraint.parent) == false)
-                        constraint.parent = null;
-                    if (this._allGuideObjects.TryGetValue(constraint.childTransform, out constraint.child) == false)
-                        constraint.child = null;
-
-                    constraint.position = XmlConvert.ToBoolean(childNode.Attributes["position"].Value);
-                    constraint.positionOffset = new Vector3(
-                        XmlConvert.ToSingle(childNode.Attributes["positionOffsetX"].Value),
-                        XmlConvert.ToSingle(childNode.Attributes["positionOffsetY"].Value),
-                        XmlConvert.ToSingle(childNode.Attributes["positionOffsetZ"].Value)
-                        );
-                    constraint.rotation = XmlConvert.ToBoolean(childNode.Attributes["rotation"].Value);
-                    constraint.rotationOffset = new Quaternion(
-                        XmlConvert.ToSingle(childNode.Attributes["rotationOffsetX"].Value),
-                        XmlConvert.ToSingle(childNode.Attributes["rotationOffsetY"].Value),
-                        XmlConvert.ToSingle(childNode.Attributes["rotationOffsetZ"].Value),
-                        XmlConvert.ToSingle(childNode.Attributes["rotationOffsetW"].Value)
-                        );
-
-                    this._constraints.Add(constraint);
-                }
+                this.LoadSceneGeneric(node.FirstChild, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
             }, 5);
+        }
+
+        private void OnSceneImport(string path, XmlNode node)
+        {
+            if (node == null)
+                return;
+            Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            this._dispatcher.ExecuteDelayed(() =>
+            {
+                this.LoadSceneGeneric(node.FirstChild, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
+            }, 3);
+        }
+
+        private void LoadSceneGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
+        {
+            string v = node.Attributes["version"].Value;
+
+            foreach (XmlNode childNode in node.ChildNodes)
+            {
+                int parentObjectIndex = XmlConvert.ToInt32(childNode.Attributes["parentObjectIndex"].Value);
+                if (parentObjectIndex >= dic.Count)
+                    continue;
+                Transform parentTransform = dic[parentObjectIndex].Value.guideObject.transformTarget;
+                parentTransform = parentTransform.Find(childNode.Attributes["parentPath"].Value);
+                if (parentTransform == null)
+                    continue;
+
+                int childObjectIndex = XmlConvert.ToInt32(childNode.Attributes["childObjectIndex"].Value);
+                if (childObjectIndex >= dic.Count)
+                    continue;
+                Transform childTransform;
+                if (childNode.Attributes["childPath"] != null)
+                {
+                    childTransform = dic[childObjectIndex].Value.guideObject.transformTarget;
+                    childTransform = childTransform.Find(childNode.Attributes["childPath"].Value);
+                    if (childTransform == null)
+                        continue;
+                }
+                else
+                {
+                    childTransform = dic[childObjectIndex].Value.guideObject.transformTarget;
+                    childTransform = childTransform.FindDescendant(childNode.Attributes["childName"].Value);
+                    if (childTransform == null)
+                        continue;
+                }
+
+                //foreach (Constraint c in this._constraints)
+                //{
+                //    if (c.parentTransform == parentTransform && c.childTransform == childTransform ||
+                //        c.childTransform == parentTransform && c.parentTransform == childTransform)
+                //        return;
+                //}
+
+                this.AddConstraint(
+                                   childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value),
+                                   parentTransform,
+                                   childTransform,
+                                   XmlConvert.ToBoolean(childNode.Attributes["position"].Value),
+                                   new Vector3(
+                                               XmlConvert.ToSingle(childNode.Attributes["positionOffsetX"].Value),
+                                               XmlConvert.ToSingle(childNode.Attributes["positionOffsetY"].Value),
+                                               XmlConvert.ToSingle(childNode.Attributes["positionOffsetZ"].Value)
+                                              ),
+                                   XmlConvert.ToBoolean(childNode.Attributes["rotation"].Value),
+                                   new Quaternion(
+                                                  XmlConvert.ToSingle(childNode.Attributes["rotationOffsetX"].Value),
+                                                  XmlConvert.ToSingle(childNode.Attributes["rotationOffsetY"].Value),
+                                                  XmlConvert.ToSingle(childNode.Attributes["rotationOffsetZ"].Value),
+                                                  XmlConvert.ToSingle(childNode.Attributes["rotationOffsetW"].Value)
+                                                 ),
+                                   childNode.Attributes["alias"] != null ? childNode.Attributes["alias"].Value : ""
+                                  );
+            }
         }
 
 #if KOIKATSU
@@ -1064,7 +1315,7 @@ namespace NodesConstraints
             }
         }
 
-        public void AddLink(OCIChar ociChar, string selectedGuideObject, ObjectCtrlInfo selectedObject)
+        private void AddLink(OCIChar ociChar, string selectedGuideObject, ObjectCtrlInfo selectedObject)
         {
             OCIChar.IKInfo ikInfo = ociChar.listIKTarget.First(x => x.boneObject.name == selectedGuideObject);
 
@@ -1080,25 +1331,10 @@ namespace NodesConstraints
                     return;
             }
 
-            Constraint constraint = new Constraint();
-            constraint.enabled = true;
-            constraint.parentTransform = parent;
-            constraint.childTransform = child;
-
-            if (this._allGuideObjects.TryGetValue(constraint.parentTransform, out constraint.parent) == false)
-                constraint.parent = null;
-            if (this._allGuideObjects.TryGetValue(constraint.childTransform, out constraint.child) == false)
-                constraint.child = null;
-
-            constraint.position = true;
-            constraint.positionOffset = Vector3.zero;
-            constraint.rotation = true;
-            constraint.rotationOffset = Quaternion.identity;
-
-            this._constraints.Add(constraint);
+            this.AddConstraint(true, parent, child, true, Vector3.zero, true, Quaternion.identity, "");
         }
 
-        public void AddEyeLink(OCIChar ociChar, ObjectCtrlInfo selectedObject)
+        private void AddEyeLink(OCIChar ociChar, ObjectCtrlInfo selectedObject)
         {
             Transform parent = selectedObject.guideObject.transformTarget;
             Transform child = ociChar.lookAtInfo.target;
@@ -1127,7 +1363,7 @@ namespace NodesConstraints
             constraint.rotation = true;
             constraint.rotationOffset = Quaternion.identity;
 
-            this._constraints.Add(constraint);
+            this.AddConstraint(true, parent, child, true, Vector3.zero, true, Quaternion.identity, "");
         }
 
         private Transform GetChildRootFromObjectCtrl(ObjectCtrlInfo objectCtrlInfo)
@@ -1147,29 +1383,7 @@ namespace NodesConstraints
         }
 #endif
 
-#if HONEYSELECT
-        private void OnSceneSave(string path, XmlTextWriter writer)
-        {
-            this.SaveSceneGeneric(writer);
-        }
-#elif KOIKATSU
-        private void OnSceneSave(string path)
-        {
-            using (StringWriter stringWriter = new StringWriter())
-            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
-            {
-                this.SaveSceneGeneric(xmlWriter);
-
-                PluginData data = new PluginData();
-                data.version = _saveVersion;
-                data.data.Add("constraints", stringWriter.ToString());
-                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
-            }
-
-        }
-#endif
-
-        private void SaveSceneGeneric(XmlTextWriter xmlWriter)
+        private void OnSceneSave(string path, XmlTextWriter xmlWriter)
         {
             List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
 
@@ -1207,6 +1421,8 @@ namespace NodesConstraints
                 xmlWriter.WriteAttributeString("rotationOffsetX", XmlConvert.ToString(constraint.rotationOffset.x));
                 xmlWriter.WriteAttributeString("rotationOffsetY", XmlConvert.ToString(constraint.rotationOffset.y));
                 xmlWriter.WriteAttributeString("rotationOffsetZ", XmlConvert.ToString(constraint.rotationOffset.z));
+
+                xmlWriter.WriteAttributeString("alias", constraint.alias);
 
                 xmlWriter.WriteEndElement();
             }

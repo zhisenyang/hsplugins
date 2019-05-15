@@ -93,11 +93,7 @@ namespace HSUS
         internal bool _alternativeCenterToObject = true;
         internal bool _fingersFkCopyButtons = true;
         internal bool _fourKManagerDithering = true;
-#if HONEYSELECT
-        internal bool _automaticMemoryClean = true;
-#elif KOIKATSU
         internal bool _automaticMemoryClean = false;
-#endif
         internal int _automaticMemoryCleanInterval = 30;
 
 #if HONEYSELECT

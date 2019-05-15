@@ -7,7 +7,7 @@ namespace VideoExport.Extensions
     {
         private int _quality;
 
-        public AVIExtension()
+        public AVIExtension() : base()
         {
             this._quality = ModPrefs.GetInt("VideoExport", "aviQuality", 3, true);
         }
@@ -33,11 +33,13 @@ namespace VideoExport.Extensions
                 GUILayout.Label(this._quality.ToString("00"), GUILayout.ExpandWidth(false));
             }
             GUILayout.EndHorizontal();
+            base.DisplayParams();
         }
 
         public override void SaveParams()
         {
             ModPrefs.SetInt("VideoExport", "aviQuality", this._quality);
+            base.SaveParams();
         }
     }
 }

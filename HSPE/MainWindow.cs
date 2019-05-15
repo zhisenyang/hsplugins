@@ -1426,7 +1426,12 @@ namespace HSPE
             {
                 entry = this._fkBoneEntries.Find(e => e.target == GuideObjectManager.Instance.selectObject.transformTarget.gameObject);
                 if (entry != null)
-                    entry.toggle.isOn = true;                
+                {
+                    Toggle.ToggleEvent cachedEvent = entry.toggle.onValueChanged;
+                    entry.toggle.onValueChanged = new Toggle.ToggleEvent();
+                    entry.toggle.isOn = true;
+                    entry.toggle.onValueChanged = cachedEvent;
+                }
             }
             return entry;
         }
@@ -1436,13 +1441,16 @@ namespace HSPE
         {
             private static void Postfix()
             {
-                _self._fkToggleGroup.SetAllTogglesOff();
-                FKBoneEntry entry = _self.SelectCurrentFKBoneEntry();
-                if (entry != null)
+                _self.ExecuteDelayed(() =>
                 {
-                    _self._fkScrollRect.content.anchoredPosition = new Vector2(_self._fkScrollRect.content.anchoredPosition.x, _self._fkScrollRect.transform.InverseTransformPoint(_self._fkScrollRect.content.position).y - _self._fkScrollRect.transform.InverseTransformPoint(entry.toggle.transform.position).y - 10);
-                    _self._fkScrollRect.normalizedPosition = new Vector2(_self._fkScrollRect.normalizedPosition.x, Mathf.Clamp01(_self._fkScrollRect.normalizedPosition.y));
-                }
+                    _self._fkToggleGroup.SetAllTogglesOff();
+                    FKBoneEntry entry = _self.SelectCurrentFKBoneEntry();
+                    if (entry != null)
+                    {
+                        _self._fkScrollRect.content.anchoredPosition = new Vector2(_self._fkScrollRect.content.anchoredPosition.x, _self._fkScrollRect.transform.InverseTransformPoint(_self._fkScrollRect.content.position).y - _self._fkScrollRect.transform.InverseTransformPoint(entry.toggle.transform.position).y - 10);
+                        _self._fkScrollRect.normalizedPosition = new Vector2(_self._fkScrollRect.normalizedPosition.x, Mathf.Clamp01(_self._fkScrollRect.normalizedPosition.y));
+                    }
+                });
             }
         }
 
@@ -1468,7 +1476,10 @@ namespace HSPE
             }
             if (node != null)
                 node = node.FirstChild;
-            this.LoadDefaultVersion(node);
+            this.ExecuteDelayed(() =>
+            {
+                this.LoadDefaultVersion(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
+            }, 3);
         }
 
         private void OnSceneImport(string scenePath, XmlNode node)
@@ -1484,13 +1495,11 @@ namespace HSPE
             }
             if (node != null)
                 node = node.FirstChild;
-            int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            this.ExecuteDelayed(() =>
             {
-                if (pair.Key > max)
-                    max = pair.Key;
-            }
-            this.LoadDefaultVersion(node, max);
+                this.LoadDefaultVersion(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
+            }, 3);
         }
 
         private void OnSceneSave(string scenePath, XmlTextWriter xmlWriter)
@@ -1524,48 +1533,39 @@ namespace HSPE
             xmlWriter.WriteEndElement();
         }
 
-        private void LoadDefaultVersion(XmlNode node, int lastIndex = -1)
+        private void LoadDefaultVersion(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
         {
-            this.ExecuteDelayed(() => {
-                UnityEngine.Debug.LogError("objects in scene " + Studio.Studio.Instance.dicObjectCtrl.Count);
-            }, 6);
-            UnityEngine.Debug.LogError("loading scene");
+            //this.ExecuteDelayed(() => {
+            //    UnityEngine.Debug.LogError("objects in scene " + Studio.Studio.Instance.dicObjectCtrl.Count);
+            //}, 6);
             if (node == null || node.Name != "root")
-            {
                 return;
-                
-            }
             string v = node.Attributes["version"].Value;
-            this.ExecuteDelayed(() =>
+            int i = 0;
+            foreach (XmlNode childNode in node.ChildNodes)
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
-                int i = 0;
-                foreach (XmlNode childNode in node.ChildNodes)
+                switch (childNode.Name)
                 {
-                    switch (childNode.Name)
-                    {
-                        case "characterInfo":
-
-                            OCIChar ociChar = null;
-                            while (i < dic.Count && (ociChar = dic[i].Value as OCIChar) == null)
-                                ++i;
-                            if (i == dic.Count)
-                                break;
-                            this.LoadElement(ociChar, childNode);
+                    case "characterInfo":
+                        OCIChar ociChar = null;
+                        while (i < dic.Count && (ociChar = dic[i].Value as OCIChar) == null)
                             ++i;
+                        if (i == dic.Count)
                             break;
-                        case "itemInfo":
-                            OCIItem ociItem = null;
-                            while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
-                                ++i;
-                            if (i == dic.Count)
-                                break;
-                            this.LoadElement(ociItem, childNode);
+                        this.LoadElement(ociChar, childNode);
+                        ++i;
+                        break;
+                    case "itemInfo":
+                        OCIItem ociItem = null;
+                        while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
                             ++i;
+                        if (i == dic.Count)
                             break;
-                    }
+                        this.LoadElement(ociItem, childNode);
+                        ++i;
+                        break;
                 }
-            });
+            }
         }
 #elif KOIKATSU
         private void OnCharaLoad(ChaFile file)
@@ -1628,7 +1628,10 @@ namespace HSPE
             XmlNode node = doc.FirstChild;
             if (node == null)
                 return;
-            this.LoadSceneGeneric(node);
+            this.ExecuteDelayed(() =>
+            {
+                this.LoadSceneGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
+            }, 3);
         }
 
         private void OnSceneImport(string path)
@@ -1641,40 +1644,34 @@ namespace HSPE
             XmlNode node = doc.FirstChild;
             if (node == null)
                 return;
-            int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
+            this.ExecuteDelayed(() =>
             {
-                if (pair.Key > max)
-                    max = pair.Key;
-            }
-            this.LoadSceneGeneric(node, max);
+                this.LoadSceneGeneric(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
+            }, 3);
         }
 
-        private void LoadSceneGeneric(XmlNode node, int lastIndex = -1)
+        private void LoadSceneGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
         {
             if (node == null || node.Name != "root")
                 return;
             string v = node.Attributes["version"].Value;
-            this.ExecuteDelayed(() =>
+            int i = 0;
+            foreach (XmlNode childNode in node.ChildNodes)
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > lastIndex).ToList();
-                int i = 0;
-                foreach (XmlNode childNode in node.ChildNodes)
+                switch (childNode.Name)
                 {
-                    switch (childNode.Name)
-                    {
-                        case "itemInfo":
-                            OCIItem ociItem = null;
-                            while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
-                                ++i;
-                            if (i == dic.Count)
-                                break;
-                            this.LoadElement(ociItem, childNode);
+                    case "itemInfo":
+                        OCIItem ociItem = null;
+                        while (i < dic.Count && (ociItem = dic[i].Value as OCIItem) == null)
                             ++i;
+                        if (i == dic.Count)
                             break;
-                    }
+                        this.LoadElement(ociItem, childNode);
+                        ++i;
+                        break;
                 }
-            });
+            }
         }
 
         private void OnSceneSave(string path)

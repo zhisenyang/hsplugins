@@ -30,13 +30,13 @@ namespace HSPE
         #endregion
 
         #region Protected Variables
-        protected BonesEditor _bonesEditor;
+        internal BonesEditor _bonesEditor;
         internal DynamicBonesEditor _dynamicBonesEditor;
         internal BlendShapesEditor _blendShapesEditor;
         internal CollidersEditor _collidersEditor;
         protected readonly List<AdvancedModeModule> _modules = new List<AdvancedModeModule>();
         protected AdvancedModeModule _currentModule;
-        protected GenericOCITarget _target;
+        internal GenericOCITarget _target;
         protected readonly Dictionary<int, Vector3> _oldRotValues = new Dictionary<int, Vector3>();
         protected readonly Dictionary<int, Vector3> _oldPosValues = new Dictionary<int, Vector3>();
         protected List<GuideCommand.EqualsInfo> _additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
@@ -326,6 +326,7 @@ namespace HSPE
         protected virtual bool LoadDefaultVersion(XmlNode xmlNode)
         {
             bool changed = false;
+
             foreach (AdvancedModeModule module in this._modules)
                 changed = module.LoadXml(xmlNode) || changed;
             return changed;

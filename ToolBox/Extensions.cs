@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 using System.Xml;
+using Studio;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -82,6 +83,11 @@ namespace ToolBox
         public static object CallPrivate(this object self, string name, params object[] p)
         {
             return self.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(self, p);
+        }
+
+        public static object CallPrivate(this Type self, string name, params object[] p)
+        {
+            return self.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(null, p);
         }
 
         public static void LoadWith<T>(this T to, T from)
@@ -359,6 +365,13 @@ namespace ToolBox
                     return i;
             }
             return -1;
+        }
+
+        public static bool IsVisible(this TreeNodeObject self)
+        {
+            if (self.parent != null)
+                return self.visible && self.parent.IsVisible();
+            return self.visible;
         }
     }
 }

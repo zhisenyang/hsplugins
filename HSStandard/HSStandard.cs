@@ -7,6 +7,7 @@ using Harmony;
 using IllusionPlugin;
 using Studio;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Resources = HSStandard.Properties.Resources;
 
 namespace HSStandard
@@ -366,8 +367,8 @@ namespace HSStandard
                         }
                         break;
 
-                    case "Shader Forge/PBRsp_3mask_alpha": //Cutout
-                    case "Shader Forge/PBRsp_3mask": //Cutout
+                    case "Shader Forge/PBRsp_3mask_alpha":
+                    case "Shader Forge/PBRsp_3mask":
                         if (_replaceTwoColorsClothes == false)
                         {
                             replaced = false;
@@ -413,8 +414,8 @@ namespace HSStandard
                         }
                         break;
 
-                    case "Shader Forge/PBRsp_3mask_alpha": //Cutout
-                    case "Shader Forge/PBRsp_3mask": //Cutout
+                    case "Shader Forge/PBRsp_3mask_alpha":
+                    case "Shader Forge/PBRsp_3mask":
                         if (_replaceTwoColorsOther == false)
                         {
                             replaced = false;
