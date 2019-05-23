@@ -13,10 +13,10 @@ using IllusionPlugin;
 using ExtensibleSaveFormat;
 #endif
 using Harmony;
+using RendererEditor.Targets;
 using Studio;
 using UnityEngine;
 using ToolBox;
-using UnityEngine.Rendering;
 using Vectrosity;
 
 namespace RendererEditor
@@ -24,47 +24,23 @@ namespace RendererEditor
     public class MainWindow : MonoBehaviour
     {
         #region Private Types
-        private class RendererData
-        {
-            public class MaterialData
-            {
-                public class TextureData
-                {
-                    public Texture originalTexture;
-                    public string currentTexturePath;
-                }
-
-                public int originalRenderQueue;
-                public bool hasRenderQueue = false;
-                public string originalRenderType;
-                public bool hasRenderType = false;
-                public readonly Dictionary<string, Color> dirtyColorProperties = new Dictionary<string, Color>();
-                public readonly Dictionary<string, float> dirtyFloatProperties = new Dictionary<string, float>();
-                public readonly Dictionary<string, bool> dirtyBooleanProperties = new Dictionary<string, bool>();
-                public readonly Dictionary<string, int> dirtyEnumProperties = new Dictionary<string, int>();
-                public readonly Dictionary<string, Vector4> dirtyVector4Properties = new Dictionary<string, Vector4>();
-                public readonly Dictionary<string, TextureData> dirtyTextureProperties = new Dictionary<string, TextureData>();
-                public readonly Dictionary<string, Vector2> dirtyTextureOffsetProperties = new Dictionary<string, Vector2>();
-                public readonly Dictionary<string, Vector2> dirtyTextureScaleProperties = new Dictionary<string, Vector2>();
-                public readonly HashSet<string> disabledKeywords = new HashSet<string>();
-                public readonly HashSet<string> enabledKeywords = new HashSet<string>();
-            }
-
-            public bool currentEnabled;
-            public bool originalEnabled;
-            public ShadowCastingMode originalShadowCastingMode;
-            public bool originalReceiveShadow;
-            public ReflectionProbeUsage originalReflectionProbeUsage;
-            public readonly Dictionary<Material, MaterialData> dirtyMaterials = new Dictionary<Material, MaterialData>();
-        }
-
         private class TextureWrapper
         {
             public class TextureSettings
             {
+                public enum TransparentBorderColor
+                {
+                    Black,
+                    White
+                }
+
                 public bool bypassSRGBSampling = true;
                 public FilterMode filterMode = FilterMode.Bilinear;
                 public int anisoLevel = 1;
+                public TextureWrapMode wrapMode = TextureWrapMode.Repeat;
+                public bool transparentBorder = false;
+                public TransparentBorderColor transparentBorderColor = TransparentBorderColor.Black;
+                public bool compressed = true;
                 //public int maxWidth = 2048;
                 //public int maxHeight = 2048;
 
@@ -75,6 +51,10 @@ namespace RendererEditor
                     this.bypassSRGBSampling = other.bypassSRGBSampling;
                     this.filterMode = other.filterMode;
                     this.anisoLevel = other.anisoLevel;
+                    this.wrapMode = other.wrapMode;
+                    this.transparentBorder = other.transparentBorder;
+                    this.transparentBorderColor = other.transparentBorderColor;
+                    this.compressed = other.compressed;
                     //this.maxWidth = other.maxWidth;
                     //this.maxHeight = other.maxHeight;
                 }
@@ -96,6 +76,14 @@ namespace RendererEditor
                         settings.filterMode = (FilterMode)XmlConvert.ToInt32(node.Attributes["filterMode"].Value);
                     if (node.Attributes["anisoLevel"] != null)
                         settings.anisoLevel = XmlConvert.ToInt32(node.Attributes["anisoLevel"].Value);
+                    if (node.Attributes["wrapMode"] != null)
+                        settings.wrapMode = (TextureWrapMode)XmlConvert.ToInt32(node.Attributes["wrapMode"].Value);
+                    if (node.Attributes["transparentBorder"] != null)
+                        settings.transparentBorder = XmlConvert.ToBoolean(node.Attributes["transparentBorder"].Value);
+                    if (node.Attributes["transparentBorderColor"] != null)
+                        settings.transparentBorderColor = (TransparentBorderColor)XmlConvert.ToInt32(node.Attributes["transparentBorderColor"].Value);
+                    if (node.Attributes["compressed"] != null)
+                        settings.compressed = XmlConvert.ToBoolean(node.Attributes["compressed"].Value);
                     //if (node.Attributes["maxWidth"] != null)
                     //    settings.maxWidth = XmlConvert.ToInt32(node.Attributes["maxWidth"].Value);
                     //if (node.Attributes["maxHeight"] != null)
@@ -124,6 +112,10 @@ namespace RendererEditor
                     xmlWriter.WriteAttributeString("bypassSRGBSampling", XmlConvert.ToString(settings.bypassSRGBSampling));
                     xmlWriter.WriteAttributeString("filterMode", XmlConvert.ToString((int)settings.filterMode));
                     xmlWriter.WriteAttributeString("anisoLevel", XmlConvert.ToString(settings.anisoLevel));
+                    xmlWriter.WriteAttributeString("wrapMode", XmlConvert.ToString((int)settings.wrapMode));
+                    xmlWriter.WriteAttributeString("transparentBorder", XmlConvert.ToString(settings.transparentBorder));
+                    xmlWriter.WriteAttributeString("transparentBorderColor", XmlConvert.ToString((int)settings.transparentBorderColor));
+                    xmlWriter.WriteAttributeString("compressed", XmlConvert.ToString(settings.compressed));
                     //xmlWriter.WriteAttributeString("maxWidth", XmlConvert.ToString(settings.maxWidth));
                     //xmlWriter.WriteAttributeString("maxHeight", XmlConvert.ToString(settings.maxHeight));
                 }
@@ -157,17 +149,20 @@ namespace RendererEditor
 
         private class MaterialInfo
         {
-            public Renderer renderer;
+            public ITarget target;
             public int index;
         }
 
-        private class SelectionTarget
+        private class TreeNodeData
         {
-            public HashSet<Renderer> selectedRenderers = new HashSet<Renderer>();
+            public HashSet<ITarget> selectedTargets = new HashSet<ITarget>();
             public Dictionary<Material, MaterialInfo> selectedMaterials = new Dictionary<Material, MaterialInfo>();
-            public Vector2 rendererScroll;
+            public Vector2 targetsScroll;
             public Vector2 materialsScroll;
             public Vector2 propertiesScroll;
+            public bool onlyActive = false;
+            public bool onlyDirty = false;
+
         }
         #endregion
 
@@ -239,6 +234,8 @@ namespace RendererEditor
             new ShaderProperty() {name = "_DecalTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_NoiseTex", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_FuzzTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_ShadowTex", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_FalloffTex", type = ShaderProperty.Type.Texture},
             //Float
             new ShaderProperty() {name = "_Metallic", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Smoothness", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -379,13 +376,12 @@ namespace RendererEditor
         private int _randomId;
         private bool _enabled;
         private bool _mouseInWindow;
-        private string[] _shadowCastingModesNames;
-        private string[] _reflectionProbeUsageNames;
-        private Dictionary<TreeNodeObject, SelectionTarget> _selectionTargets = new Dictionary<TreeNodeObject, SelectionTarget>();
-        private SelectionTarget _currentTarget;
+        private Dictionary<TreeNodeObject, TreeNodeData> _treeNodeDatas = new Dictionary<TreeNodeObject, TreeNodeData>();
+        private TreeNodeData _currentTreeNode;
         private TreeNodeObject _lastSelectedNode;
-        private Dictionary<Renderer, RendererData> _dirtyRenderers = new Dictionary<Renderer, RendererData>();
-        private string _rendererFilter = "";
+        private Dictionary<ITarget, ITargetData> _dirtyTargets = new Dictionary<ITarget, ITargetData>();
+        private List<ITarget> _currentTreeNodeTargets = null;
+        private string _targetFilter = "";
         private readonly Dictionary<Shader, List<ShaderProperty>> _cachedProperties = new Dictionary<Shader, List<ShaderProperty>>();
         private readonly Texture2D _simpleTexture = new Texture2D(1, 1, TextureFormat.ARGB32, false);
         private Action<string, Texture> _selectTextureCallback;
@@ -405,13 +401,15 @@ namespace RendererEditor
         private string _tagInput = "";
         private Bounds _selectedBounds = new Bounds();
         private string _materialsFilter = "";
-        private bool _rendererFilterIncludeMaterials = true;
+        private bool _targetFilterIncludeMaterials = true;
         private GUIStyle _alignLeftButton;
         private readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
         private Action<bool> _changeTextureSettingsCallback;
         private TextureWrapper _selectedTextureForUpdateSettings;
         private TextureWrapper.TextureSettings _displayedSettings;
         private string[] _filterModeNames;
+        private string[] _wrapModeNames;
+        private string[] _transparentBorderColorNames;
         private readonly DateTime _v140Release = new DateTime(2019, 05, 04);
         #endregion
 
@@ -430,9 +428,9 @@ namespace RendererEditor
             ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += this.OnSceneSave;
 #endif
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
-            this._shadowCastingModesNames = Enum.GetNames(typeof(ShadowCastingMode));
-            this._reflectionProbeUsageNames = Enum.GetNames(typeof(ReflectionProbeUsage));
             this._filterModeNames = Enum.GetNames(typeof(FilterMode));
+            this._wrapModeNames = Enum.GetNames(typeof(TextureWrapMode));
+            this._transparentBorderColorNames = Enum.GetNames(typeof(TextureWrapper.TextureSettings.TransparentBorderColor));
 
             float size = 0.012f;
             Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
@@ -497,51 +495,56 @@ namespace RendererEditor
 
             this._lastSelectedNode = Studio.Studio.Instance.treeNodeCtrl.selectNode;
 
-            Dictionary<Renderer, RendererData> newDic = null;
-            foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+            Dictionary<ITarget, ITargetData> newDic = null;
+            foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
             {
-                if (pair.Key == null)
+                if (pair.Key.target == null)
                 {
-                    newDic = new Dictionary<Renderer, RendererData>();
+                    newDic = new Dictionary<ITarget, ITargetData>();
                     break;
                 }
             }
             if (newDic != null)
             {
-                foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+                foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
                 {
-                    if (pair.Key != null)
+                    if (pair.Key.target != null)
                         newDic.Add(pair.Key, pair.Value);
                 }
-                this._dirtyRenderers = newDic;
+                this._dirtyTargets = newDic;
                 this.CheckGizmosEnabled();
             }
 
             if (this._lastSelectedNode != null)
             {
-                if (this._selectionTargets.TryGetValue(this._lastSelectedNode, out this._currentTarget) == false)
+                if (this._treeNodeDatas.TryGetValue(this._lastSelectedNode, out this._currentTreeNode) == false)
                 {
-                    this._currentTarget = new SelectionTarget();
-                    this._selectionTargets.Add(this._lastSelectedNode, this._currentTarget);
+                    this._currentTreeNode = new TreeNodeData();
+                    this._treeNodeDatas.Add(this._lastSelectedNode, this._currentTreeNode);
                 }
+                ObjectCtrlInfo objectCtrlInfo;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(this._lastSelectedNode, out objectCtrlInfo))
+                    this._currentTreeNodeTargets = this.GetAllTargets(objectCtrlInfo);
+                else if (this._currentTreeNodeTargets.Count != 0)
+                    this._currentTreeNodeTargets.Clear();
             }
             else
-                this._currentTarget = null;
+                this._currentTreeNode = null;
 
 
-            Dictionary<TreeNodeObject, SelectionTarget> newSelectionTargets = null;
-            foreach (KeyValuePair<TreeNodeObject, SelectionTarget> pair in this._selectionTargets)
+            Dictionary<TreeNodeObject, TreeNodeData> newDatas = null;
+            foreach (KeyValuePair<TreeNodeObject, TreeNodeData> pair in this._treeNodeDatas)
             {
                 if (pair.Key == null)
                 {
-                    if (newSelectionTargets == null)
-                        newSelectionTargets = new Dictionary<TreeNodeObject, SelectionTarget>();
+                    if (newDatas == null)
+                        newDatas = new Dictionary<TreeNodeObject, TreeNodeData>();
                     continue;
                 }
                 Dictionary<Material, MaterialInfo> newMaterialDic = null;
                 foreach (KeyValuePair<Material, MaterialInfo> material in pair.Value.selectedMaterials)
                 {
-                    if (material.Key == null || material.Value.renderer == null)
+                    if (material.Key == null || material.Value.target.target == null)
                     {
                         newMaterialDic = new Dictionary<Material, MaterialInfo>();
                         break;
@@ -551,51 +554,50 @@ namespace RendererEditor
                 {
                     foreach (KeyValuePair<Material, MaterialInfo> material in pair.Value.selectedMaterials)
                     {
-                        if (material.Value.renderer != null)
+                        if (material.Value.target.target == null)
+                            continue;
+                        if (material.Key != null)
+                            newMaterialDic.Add(material.Key, material.Value);
+                        else
                         {
-                            if (material.Key != null)
-                                newMaterialDic.Add(material.Key, material.Value);
-                            else
-                            {
-                                Material newMat = material.Value.renderer.materials[material.Value.index];
-                                if (newMat != null)
-                                    newMaterialDic.Add(newMat, material.Value);
-                            }
+                            Material newMat = material.Value.target.materials[material.Value.index];
+                            if (newMat != null)
+                                newMaterialDic.Add(newMat, material.Value);
                         }
                     }
                     pair.Value.selectedMaterials = newMaterialDic;
                     if (pair.Key == this._lastSelectedNode)
                     this.CloseTextureWindow();
                 }
-                HashSet<Renderer> newRendererHashSet = null;
-                foreach (Renderer renderer in pair.Value.selectedRenderers)
+                HashSet<ITarget> newTargetsHashset = null;
+                foreach (ITarget target in pair.Value.selectedTargets)
                 {
-                    if (renderer == null)
+                    if (target == null)
                     {
-                        newRendererHashSet = new HashSet<Renderer>();
+                        newTargetsHashset = new HashSet<ITarget>();
                         break;
                     }
                 }
-                if (newRendererHashSet != null)
+                if (newTargetsHashset != null)
                 {
-                    foreach (Renderer renderer in pair.Value.selectedRenderers)
+                    foreach (ITarget target in pair.Value.selectedTargets)
                     {
-                        if (renderer != null)
-                            newRendererHashSet.Add(renderer);
+                        if (target != null)
+                            newTargetsHashset.Add(target);
                     }
-                    pair.Value.selectedRenderers = newRendererHashSet;
+                    pair.Value.selectedTargets = newTargetsHashset;
                     if (pair.Key == this._lastSelectedNode)
                         this.CloseTextureWindow();
                 }
             }
-            if (newSelectionTargets != null)
+            if (newDatas != null)
             {
-                foreach (KeyValuePair<TreeNodeObject, SelectionTarget> pair in this._selectionTargets)
+                foreach (KeyValuePair<TreeNodeObject, TreeNodeData> pair in this._treeNodeDatas)
                 {
                     if (pair.Key != null)
-                        newSelectionTargets.Add(pair.Key, pair.Value);
+                        newDatas.Add(pair.Key, pair.Value);
                 }
-                this._selectionTargets = newSelectionTargets;
+                this._treeNodeDatas = newDatas;
             }
         }
 
@@ -633,7 +635,7 @@ namespace RendererEditor
                     this._mouseInWindow = this._mouseInWindow || selectTextureRect.Contains(Event.current.mousePosition);
                     if (this._changeTextureSettingsCallback != null)
                     {
-                        Rect settingsRect = new Rect(selectTextureRect.max.x + 4, selectTextureRect.max.y - 240, 230, 240);
+                        Rect settingsRect = new Rect(selectTextureRect.max.x + 4, selectTextureRect.max.y - 335, 250, 335);
                         GUI.backgroundColor = new Color(1f, 1f, 1f, 0.5f);
                         GUI.Box(settingsRect, "", this._customBoxStyle);
                         GUI.backgroundColor = c;
@@ -660,271 +662,239 @@ namespace RendererEditor
 
             GUILayout.BeginVertical();
 
-            GUI.enabled = this._currentTarget.selectedRenderers.Count != 0;
-
-            Renderer firstRenderer = null;
-            RendererData firstData = null;
-            if (this._currentTarget.selectedRenderers.Count != 0)
+            if (this._currentTreeNode.selectedTargets.Count != 0)
             {
-                firstRenderer = this._currentTarget.selectedRenderers.First();
-                this._dirtyRenderers.TryGetValue(firstRenderer, out firstData);
-            }
+                ITarget firstTarget = this._currentTreeNode.selectedTargets.First();
+                ITargetData firstData = null;
+                this._dirtyTargets.TryGetValue(firstTarget, out firstData);
 
-            {
-                bool oldEnabled = firstData == null || firstData.currentEnabled;
-                bool newEnabled = GUILayout.Toggle(oldEnabled, "Enabled");
-                if (firstRenderer != null && newEnabled != oldEnabled)
                 {
-                    foreach (Renderer renderer in this._currentTarget.selectedRenderers)
+                    bool oldEnabled = firstData == null || firstData.currentEnabled;
+                    bool newEnabled = GUILayout.Toggle(oldEnabled, "Enabled");
+                    if (newEnabled != oldEnabled)
                     {
-                        RendererData data;
-                        this.SetRendererDirty(renderer, out data);
-                        data.currentEnabled = newEnabled;
-
-                        Transform t = renderer.transform;
-                        ObjectCtrlInfo info;
-                        while ((info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
-                            t = t.parent;
-                        renderer.enabled = info.treeNodeObject.IsVisible() && newEnabled;
-                    }
-                }
-            }
-
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Cast Shadows");
-                GUILayout.FlexibleSpace();
-                {
-                    bool newReceiveShadows = GUILayout.Toggle(firstRenderer != null && firstRenderer.receiveShadows, "Receive Shadows");
-                    if (firstRenderer != null && newReceiveShadows != firstRenderer.receiveShadows)
-                    {
-                        foreach (Renderer renderer in this._currentTarget.selectedRenderers)
+                        foreach (ITarget target in this._currentTreeNode.selectedTargets)
                         {
-                            RendererData data;
-                            this.SetRendererDirty(renderer, out data);
-                            renderer.receiveShadows = newReceiveShadows;
+                            ITargetData container;
+                            this.SetTargetDirty(target, out container);
+                            container.currentEnabled = newEnabled;
+
+                            Transform t = target.transform;
+                            ObjectCtrlInfo info;
+                            while ((info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
+                                t = t.parent;
+                            target.enabled = info.treeNodeObject.IsVisible() && newEnabled;
                         }
                     }
                 }
 
-                GUILayout.EndHorizontal();
-                ShadowCastingMode newMode = (ShadowCastingMode)GUILayout.SelectionGrid(firstRenderer != null ? (int)firstRenderer.shadowCastingMode : 0, this._shadowCastingModesNames, 4);
-                if (firstRenderer != null && newMode != firstRenderer.shadowCastingMode)
-                {
-                    foreach (Renderer renderer in this._currentTarget.selectedRenderers)
-                    {
-                        RendererData data;
-                        this.SetRendererDirty(renderer, out data);
-                        renderer.shadowCastingMode = newMode;
-                    }
-                }
-            }
-
-            {
-                GUILayout.Label("Reflection Probe Usage");
-                ReflectionProbeUsage newUsage = (ReflectionProbeUsage)GUILayout.SelectionGrid(firstRenderer != null ? (int)firstRenderer.reflectionProbeUsage : 0, this._reflectionProbeUsageNames, 2);
-                if (firstRenderer != null && newUsage != firstRenderer.reflectionProbeUsage)
-                {
-                    foreach (Renderer renderer in this._currentTarget.selectedRenderers)
-                    {
-                        RendererData data;
-                        this.SetRendererDirty(renderer, out data);
-                        renderer.reflectionProbeUsage = newUsage;
-                    }
-                }
-            }
-
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Reset renderer") && this._currentTarget.selectedRenderers.Count != 0)
-                {
-                    foreach (Renderer renderer in this._currentTarget.selectedRenderers)
-                    {
-                        this.ResetRenderer(renderer);
-                    }
-                }
-                if (GUILayout.Button("Reset w/ materials") && this._currentTarget.selectedRenderers.Count != 0)
-                {
-                    foreach (Renderer renderer in this._currentTarget.selectedRenderers)
-                    {
-                        this.ResetRenderer(renderer, true);
-                    }
-                }
-                GUILayout.EndHorizontal();
-            }
-
-            GUILayout.BeginVertical("Materials", GUI.skin.window);
-            GUILayout.BeginHorizontal();
-            this._materialsFilter = GUILayout.TextField(this._materialsFilter);
-            if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
-                this._materialsFilter = "";
-            if (GUILayout.Button("Select all", GUILayout.ExpandWidth(false)))
-            {
-                while (this._currentTarget.selectedMaterials.Count != 0)
-                {
-                    this.UnselectMaterial(this._currentTarget.selectedMaterials.First().Key);
-                }
-                foreach (Renderer selectedRenderer in this._currentTarget.selectedRenderers)
-                {
-                    for (int i = 0; i < selectedRenderer.sharedMaterials.Length; i++)
-                    {
-                        Material material = selectedRenderer.materials[i];
-                        if (material == null || material.name.IndexOf(this._materialsFilter, StringComparison.OrdinalIgnoreCase) == -1)
-                            continue;
-                        if (!this._currentTarget.selectedMaterials.ContainsKey(material))
-                            this.SelectMaterial(material, selectedRenderer, i);
-                    }
-                }
-#if HONEYSELECT
-                Studio.Studio.Instance.colorPaletteCtrl.visible = false;
-#elif KOIKATSU
-                Studio.Studio.Instance.colorPalette.visible = false;
-#endif
-                this.CloseTextureWindow();
-            }            
-            GUILayout.EndHorizontal();
-
-            this._currentTarget.materialsScroll = GUILayout.BeginScrollView(this._currentTarget.materialsScroll, GUILayout.Height(120));
-            if (this._currentTarget.selectedRenderers.Count != 0)
-            {
-                foreach (Renderer selectedRenderer in this._currentTarget.selectedRenderers)
-                {
-                    for (int i = 0; i < selectedRenderer.sharedMaterials.Length; i++)
-                    {
-                        Material material = selectedRenderer.sharedMaterials[i];
-                        if (material == null || material.name.IndexOf(this._materialsFilter, StringComparison.OrdinalIgnoreCase) == -1)
-                            continue;
-                        Color c = GUI.color;
-                        bool isMaterialDirty = this._dirtyRenderers.TryGetValue(selectedRenderer, out RendererData rendererData) && rendererData.dirtyMaterials.ContainsKey(material);
-                        if (this._currentTarget.selectedMaterials.ContainsKey(material))
-                            GUI.color = Color.cyan;
-                        else if (isMaterialDirty)
-                            GUI.color = Color.magenta;
-                        if (GUILayout.Button(material.name + (isMaterialDirty ? "*" : "") + (this._currentTarget.selectedRenderers.Count > 1 ? "(" + selectedRenderer.name + ")" : ""), this._alignLeftButton))
-                        {
-                            material = selectedRenderer.materials[i];
-                            if (Input.GetKey(KeyCode.LeftControl) == false)
-                            {
-                                this.ClearSelectedMaterials();
-                                this.SelectMaterial(material, selectedRenderer, i);
-                            }
-                            else
-                            {
-                                if (this._currentTarget.selectedMaterials.ContainsKey(material))
-                                    this.UnselectMaterial(material);
-                                else
-                                    this.SelectMaterial(material, selectedRenderer, i);
-                            }
-#if HONEYSELECT
-                            Studio.Studio.Instance.colorPaletteCtrl.visible = false;
-#elif KOIKATSU
-                            Studio.Studio.Instance.colorPalette.visible = false;
-#endif
-                            this.CloseTextureWindow();
-                        }
-                        GUI.color = c;
-                    }
-                }
-            }
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-
-            GUI.enabled = true;
-
-            if (this._currentTarget.selectedMaterials.Count != 0)
-            {
-                KeyValuePair<Material, MaterialInfo> firstPair = this._currentTarget.selectedMaterials.First();
-
-                RendererData linkedRendererData = null;
-                RendererData.MaterialData firstMaterialData = null;
-                if (this._dirtyRenderers.TryGetValue(firstPair.Value.renderer, out linkedRendererData))
-                    linkedRendererData.dirtyMaterials.TryGetValue(firstPair.Key, out firstMaterialData);
-                
-                Material displayedMaterial = firstPair.Key;
-                this._currentTarget.propertiesScroll = GUILayout.BeginScrollView(this._currentTarget.propertiesScroll);
-
-                GUILayout.Label("Shader: " + displayedMaterial.shader.name, GUI.skin.box);
-
-                GUILayout.BeginVertical(GUI.skin.box);
-                this.RenderQueueDrawer(displayedMaterial, firstMaterialData);
-                GUILayout.EndVertical();
-
-                GUILayout.BeginVertical(GUI.skin.box);
-                this.RenderTypeDrawer(displayedMaterial, firstMaterialData);
-                GUILayout.EndVertical();
-
-                if (this._cachedProperties.TryGetValue(displayedMaterial.shader, out List<ShaderProperty> cachedProperties) == false)
-                {
-                    cachedProperties = new List<ShaderProperty>();
-                    foreach (ShaderProperty property in this._shaderProperties)
-                        if (displayedMaterial.HasProperty(property.name))
-                            cachedProperties.Add(property);
-                    this._cachedProperties.Add(displayedMaterial.shader, cachedProperties);
-                }
-
-                foreach (ShaderProperty property in cachedProperties)
-                {
-                    GUILayout.BeginVertical(GUI.skin.box);
-                    this.ShaderPropertyDrawer(displayedMaterial, firstMaterialData, property);
-                    GUILayout.EndVertical();
-                }
-
-                GUILayout.BeginVertical(GUI.skin.box);
-                this.KeywordsDrawer(displayedMaterial, firstMaterialData);
-                GUILayout.EndVertical();
-
-                GUILayout.EndScrollView();
+                firstTarget.DisplayParams(this._currentTreeNode.selectedTargets, this.SetTargetDirty);
 
                 {
                     GUILayout.BeginHorizontal();
                     GUILayout.FlexibleSpace();
-                    if (GUILayout.Button("Reset"))
-                        foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                    if (GUILayout.Button("Reset target"))
+                    {
+                        foreach (ITarget target in this._currentTreeNode.selectedTargets)
                         {
-                            if (this._dirtyRenderers.TryGetValue(material.Value.renderer, out RendererData rendererData) &&
-                                rendererData.dirtyMaterials.TryGetValue(material.Key, out RendererData.MaterialData data))
-                                this.ResetMaterial(material.Key, data, rendererData);
+                            this.ResetTarget(target);
                         }
+                    }
+                    if (GUILayout.Button("Reset w/ materials"))
+                    {
+                        foreach (ITarget target in this._currentTreeNode.selectedTargets)
+                        {
+                            this.ResetTarget(target, true);
+                        }
+                    }
                     GUILayout.EndHorizontal();
+                }
+
+                GUILayout.BeginVertical("Materials", GUI.skin.window);
+                GUILayout.BeginHorizontal();
+                this._materialsFilter = GUILayout.TextField(this._materialsFilter);
+                if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
+                    this._materialsFilter = "";
+                if (GUILayout.Button("Select all", GUILayout.ExpandWidth(false)))
+                {
+                    while (this._currentTreeNode.selectedMaterials.Count != 0)
+                    {
+                        this.UnselectMaterial(this._currentTreeNode.selectedMaterials.First().Key);
+                    }
+                    foreach (ITarget selectedTarget in this._currentTreeNode.selectedTargets)
+                    {
+                        for (int i = 0; i < selectedTarget.sharedMaterials.Length; i++)
+                        {
+                            Material material = selectedTarget.materials[i];
+                            if (material == null || material.name.IndexOf(this._materialsFilter, StringComparison.OrdinalIgnoreCase) == -1)
+                                continue;
+                            if (!this._currentTreeNode.selectedMaterials.ContainsKey(material))
+                                this.SelectMaterial(material, selectedTarget, i);
+                        }
+                    }
+#if HONEYSELECT
+                    Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
+                    this.CloseTextureWindow();
+                }
+                GUILayout.EndHorizontal();
+
+                this._currentTreeNode.materialsScroll = GUILayout.BeginScrollView(this._currentTreeNode.materialsScroll, GUILayout.Height(120));
+                if (this._currentTreeNode.selectedTargets.Count != 0)
+                {
+                    foreach (ITarget selectedTarget in this._currentTreeNode.selectedTargets)
+                    {
+                        for (int i = 0; i < selectedTarget.sharedMaterials.Length; i++)
+                        {
+                            Material material = selectedTarget.sharedMaterials[i];
+                            if (material == null || material.name.IndexOf(this._materialsFilter, StringComparison.OrdinalIgnoreCase) == -1)
+                                continue;
+                            Color c = GUI.color;
+                            bool isMaterialDirty = this._dirtyTargets.TryGetValue(selectedTarget, out ITargetData targetData) && targetData.dirtyMaterials.ContainsKey(material);
+                            if (this._currentTreeNode.selectedMaterials.ContainsKey(material))
+                                GUI.color = Color.cyan;
+                            else if (isMaterialDirty)
+                                GUI.color = Color.magenta;
+                            if (GUILayout.Button(material.name + (isMaterialDirty ? "*" : "") + (this._currentTreeNode.selectedTargets.Count > 1 ? "(" + selectedTarget.name + ")" : ""), this._alignLeftButton))
+                            {
+                                material = selectedTarget.materials[i];
+                                if (Input.GetKey(KeyCode.LeftControl) == false)
+                                {
+                                    this.ClearSelectedMaterials();
+                                    this.SelectMaterial(material, selectedTarget, i);
+                                }
+                                else
+                                {
+                                    if (this._currentTreeNode.selectedMaterials.ContainsKey(material))
+                                        this.UnselectMaterial(material);
+                                    else
+                                        this.SelectMaterial(material, selectedTarget, i);
+                                }
+#if HONEYSELECT
+                                Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
+                                this.CloseTextureWindow();
+                            }
+                            GUI.color = c;
+                        }
+                    }
+                }
+                GUILayout.EndScrollView();
+                GUILayout.EndVertical();
+
+                if (this._currentTreeNode.selectedMaterials.Count != 0)
+                {
+                    KeyValuePair<Material, MaterialInfo> firstPair = this._currentTreeNode.selectedMaterials.First();
+
+                    ITargetData linkedTargetData = null;
+                    MaterialData firstMaterialData = null;
+                    if (this._dirtyTargets.TryGetValue(firstPair.Value.target, out linkedTargetData))
+                        linkedTargetData.dirtyMaterials.TryGetValue(firstPair.Key, out firstMaterialData);
+
+                    Material displayedMaterial = firstPair.Key;
+                    this._currentTreeNode.propertiesScroll = GUILayout.BeginScrollView(this._currentTreeNode.propertiesScroll);
+
+                    GUILayout.Label("Shader: " + displayedMaterial.shader.name, GUI.skin.box);
+
+                    GUILayout.BeginVertical(GUI.skin.box);
+                    this.RenderQueueDrawer(displayedMaterial, firstMaterialData);
+                    GUILayout.EndVertical();
+
+                    GUILayout.BeginVertical(GUI.skin.box);
+                    this.RenderTypeDrawer(displayedMaterial, firstMaterialData);
+                    GUILayout.EndVertical();
+
+                    if (this._cachedProperties.TryGetValue(displayedMaterial.shader, out List<ShaderProperty> cachedProperties) == false)
+                    {
+                        cachedProperties = new List<ShaderProperty>();
+                        foreach (ShaderProperty property in this._shaderProperties)
+                            if (displayedMaterial.HasProperty(property.name))
+                                cachedProperties.Add(property);
+                        this._cachedProperties.Add(displayedMaterial.shader, cachedProperties);
+                    }
+
+                    foreach (ShaderProperty property in cachedProperties)
+                    {
+                        GUILayout.BeginVertical(GUI.skin.box);
+                        this.ShaderPropertyDrawer(displayedMaterial, firstMaterialData, property);
+                        GUILayout.EndVertical();
+                    }
+
+                    GUILayout.BeginVertical(GUI.skin.box);
+                    this.KeywordsDrawer(displayedMaterial, firstMaterialData);
+                    GUILayout.EndVertical();
+
+                    GUILayout.EndScrollView();
+
+                    {
+                        GUILayout.BeginHorizontal();
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button("Reset"))
+                            foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
+                            {
+                                if (this._dirtyTargets.TryGetValue(material.Value.target, out ITargetData targetData) &&
+                                    targetData.dirtyMaterials.TryGetValue(material.Key, out MaterialData data))
+                                    this.ResetMaterial(material.Key, data, targetData);
+                            }
+                        GUILayout.EndHorizontal();
+                    }
                 }
             }
 
             GUILayout.EndVertical();
 
-            GUILayout.BeginVertical("Renderers", GUI.skin.window, GUILayout.Width(180f));
+            GUILayout.BeginVertical("Targets", GUI.skin.window, GUILayout.Width(180f));
             GUILayout.BeginHorizontal();
-            this._rendererFilter = GUILayout.TextField(this._rendererFilter);
+            this._targetFilter = GUILayout.TextField(this._targetFilter);
             if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
-                this._rendererFilter = "";
+                this._targetFilter = "";
             GUILayout.EndHorizontal();
-            this._rendererFilterIncludeMaterials = GUILayout.Toggle(this._rendererFilterIncludeMaterials, "Include materials");
-            this._currentTarget.rendererScroll = GUILayout.BeginScrollView(this._currentTarget.rendererScroll);
-            Renderer[] renderers = Studio.Studio.Instance.dicInfo[Studio.Studio.Instance.treeNodeCtrl.selectNode].guideObject.transformTarget.GetComponentsInChildren<Renderer>(true);
-            foreach (Renderer renderer in renderers)
+            this._targetFilterIncludeMaterials = GUILayout.Toggle(this._targetFilterIncludeMaterials, "Include materials");
+            this._currentTreeNode.targetsScroll = GUILayout.BeginScrollView(this._currentTreeNode.targetsScroll);
+            
+            foreach (ITarget target in this._currentTreeNodeTargets)
             {
-                if (renderer.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._rendererFilterIncludeMaterials == false || renderer.sharedMaterials.All(m => m != null && m.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
                     continue;
                 Color c = GUI.color;
-                bool isRendererDirty = this._dirtyRenderers.ContainsKey(renderer);
-                if (this._currentTarget.selectedRenderers.Contains(renderer))
+                ITargetData targetData = null;
+                this._dirtyTargets.TryGetValue(target, out targetData);
+
+                if (this._currentTreeNode.onlyDirty && targetData == null)
+                    continue;
+
+                if (this._currentTreeNode.selectedTargets.Contains(target))
                     GUI.color = Color.cyan;
-                else if (isRendererDirty)
+                else if (targetData != null)
                     GUI.color = Color.magenta;
 
-                if (GUILayout.Button(renderer.name + (isRendererDirty ? "*" : ""), this._alignLeftButton))
+                if (targetData != null && targetData.currentEnabled == false)
+                {
+                    if (this._currentTreeNode.onlyActive)
+                    {
+                        GUI.color = c;
+                        continue;                        
+                    }
+                    GUI.color = new Color(GUI.color.r / 2, GUI.color.g / 2, GUI.color.b / 2);
+                }
+
+                if (GUILayout.Button(target.name + (targetData != null ? "*" : ""), this._alignLeftButton))
                 {
                     if (Input.GetKey(KeyCode.LeftControl))
                     {
-                        if (this._currentTarget.selectedRenderers.Contains(renderer))
-                            this.UnselectRenderer(renderer);
+                        if (this._currentTreeNode.selectedTargets.Contains(target))
+                            this.UnselectTarget(target);
                         else
-                            this.SelectRenderer(renderer);
+                            this.SelectTarget(target);
                     }
-                    else if (Input.GetKey(KeyCode.LeftShift) && this._currentTarget.selectedRenderers.Count > 0)
+                    else if (Input.GetKey(KeyCode.LeftShift) && this._currentTreeNode.selectedTargets.Count > 0)
                     {
-                        int firstIndex = renderers.IndexOf(this._currentTarget.selectedRenderers.First());
-                        int lastIndex = renderers.IndexOf(renderer);
+                        int firstIndex = this._currentTreeNodeTargets.IndexOf(this._currentTreeNode.selectedTargets.First());
+                        int lastIndex = this._currentTreeNodeTargets.IndexOf(target);
                         if (firstIndex != lastIndex)
                         {
                             int inc;
@@ -934,20 +904,20 @@ namespace RendererEditor
                                 inc = -1;
                             for (int i = firstIndex; i != lastIndex; i += inc)
                             {
-                                Renderer r = renderers[i];
-                                if (r.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1 && r.sharedMaterials.All(m => m != null && m.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1))
+                                ITarget r = this._currentTreeNodeTargets[i];
+                                if (r.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && r.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1))
                                     continue;
-                                if (this._currentTarget.selectedRenderers.Contains(r) == false)
-                                    this.SelectRenderer(r);
+                                if (this._currentTreeNode.selectedTargets.Contains(r) == false)
+                                    this.SelectTarget(r);
                             }
-                            if (this._currentTarget.selectedRenderers.Contains(renderer) == false)
-                                this.SelectRenderer(renderer);
+                            if (this._currentTreeNode.selectedTargets.Contains(target) == false)
+                                this.SelectTarget(target);
                         }
                     }
                     else
                     {
-                        this.ClearSelectedRenderers();
-                        this.SelectRenderer(renderer);
+                        this.ClearSelectedTargets();
+                        this.SelectTarget(target);
                     }
 #if HONEYSELECT
                     Studio.Studio.Instance.colorPaletteCtrl.visible = false;
@@ -961,17 +931,76 @@ namespace RendererEditor
             }
             GUILayout.EndScrollView();
 
+            this._currentTreeNode.onlyActive = GUILayout.Toggle(this._currentTreeNode.onlyActive, "Show only active");
+            this._currentTreeNode.onlyDirty = GUILayout.Toggle(this._currentTreeNode.onlyDirty, "Show only dirty");
+
             if (GUILayout.Button("Select all"))
             {
-                while (this._currentTarget.selectedRenderers.Count != 0)
+                while (this._currentTreeNode.selectedTargets.Count != 0)
                 {
-                    this.UnselectRenderer(this._currentTarget.selectedRenderers.First());
+                    this.UnselectTarget(this._currentTreeNode.selectedTargets.First());
                 }
-                foreach (Renderer renderer in renderers)
+                foreach (ITarget target in this._currentTreeNodeTargets)
                 {
-                    if (renderer.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._rendererFilterIncludeMaterials == false || renderer.sharedMaterials.All(m => m != null && m.name.IndexOf(this._rendererFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                    if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
                         continue;
-                    this.SelectRenderer(renderer);
+
+                    Color c = GUI.color;
+                    ITargetData targetData = null;
+                    this._dirtyTargets.TryGetValue(target, out targetData);
+
+                    if (targetData == null)
+                    {
+                        if (this._currentTreeNode.onlyDirty)
+                            continue;
+                    }
+                    else
+                    {
+                        if (this._currentTreeNode.onlyActive && targetData.currentEnabled == false)
+                            continue;
+                    }
+
+                    this.SelectTarget(target);
+                }
+#if HONEYSELECT
+                Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
+            }
+            if (GUILayout.Button("Select renderers"))
+            {
+                while (this._currentTreeNode.selectedTargets.Count != 0)
+                {
+                    this.UnselectTarget(this._currentTreeNode.selectedTargets.First());
+                }
+                foreach (ITarget target in this._currentTreeNodeTargets)
+                {
+                    if (target.targetType != TargetType.Renderer)
+                        continue;
+                    if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                        continue;
+                    this.SelectTarget(target);
+                }
+#if HONEYSELECT
+                Studio.Studio.Instance.colorPaletteCtrl.visible = false;
+#elif KOIKATSU
+                Studio.Studio.Instance.colorPalette.visible = false;
+#endif
+            }
+            if (GUILayout.Button("Select projectors"))
+            {
+                while (this._currentTreeNode.selectedTargets.Count != 0)
+                {
+                    this.UnselectTarget(this._currentTreeNode.selectedTargets.First());
+                }
+                foreach (ITarget t in this._currentTreeNodeTargets)
+                {
+                    if (t.targetType != TargetType.Projector)
+                        continue;
+                    if (t.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || t.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                        continue;
+                    this.SelectTarget(t);
                 }
 #if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = false;
@@ -1140,11 +1169,11 @@ namespace RendererEditor
             if (GUILayout.Button("Unload unused"))
             {
                 HashSet<string> usedTextures = new HashSet<string>();
-                foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+                foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
                 {
-                    foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                    foreach (KeyValuePair<Material, MaterialData> pair2 in pair.Value.dirtyMaterials)
                     {
-                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                        foreach (KeyValuePair<string, MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
                         {
                             if (usedTextures.Contains(pair3.Value.currentTexturePath) == false)
                             {
@@ -1187,6 +1216,13 @@ namespace RendererEditor
                     this._displayedSettings.anisoLevel = res;                    
                 }
                 GUILayout.EndHorizontal();
+                GUILayout.Label("Wrap Mode");
+                this._displayedSettings.wrapMode = (TextureWrapMode)GUILayout.SelectionGrid((int)this._displayedSettings.wrapMode, this._wrapModeNames, 2);
+                GUILayout.BeginHorizontal();
+                this._displayedSettings.transparentBorder = GUILayout.Toggle(this._displayedSettings.transparentBorder, "Transparent border", GUILayout.ExpandWidth(false));
+                this._displayedSettings.transparentBorderColor = (TextureWrapper.TextureSettings.TransparentBorderColor)GUILayout.SelectionGrid((int)this._displayedSettings.transparentBorderColor, this._transparentBorderColorNames, 2);
+                GUILayout.EndHorizontal();
+                this._displayedSettings.compressed = GUILayout.Toggle(this._displayedSettings.compressed, "Compressed");
                 GUILayout.FlexibleSpace();
                 GUILayout.BeginHorizontal();
                 if (GUILayout.Button("Save"))
@@ -1271,9 +1307,44 @@ namespace RendererEditor
 
             texture.filterMode = settings.filterMode;
             texture.anisoLevel = settings.anisoLevel;
+            texture.wrapMode = settings.wrapMode;
             texture.Apply(true);
-
-            texture.Compress(true);
+            if (settings.transparentBorder)
+            {
+                int width = texture.width;
+                int height = texture.height;
+                Color32 c = new Color32(0, 0, 0, 0);
+                switch (settings.transparentBorderColor)
+                {
+                    case TextureWrapper.TextureSettings.TransparentBorderColor.Black:
+                        c = new Color32(0, 0, 0, 0);
+                        break;
+                    case TextureWrapper.TextureSettings.TransparentBorderColor.White:
+                        c = new Color32(255, 255, 255, 0);
+                        break;
+                }
+                for (int i = 0; i < texture.mipmapCount; i++)
+                {
+                    Color32[] pixels = texture.GetPixels32(i);
+                    int lastLine = width * (height - 1);
+                    for (int j = 0; j < width; j++)
+                    {
+                        pixels[j] = c;
+                        pixels[lastLine + j] = c;
+                    }
+                    for (int j = 0; j < height; j++)
+                    {
+                        pixels[j * width] = c;
+                        pixels[j * width + width - 1] = c;
+                    }
+                    width /= 2;
+                    height /= 2;
+                    texture.SetPixels32(pixels, i);
+                }
+                texture.Apply(false);
+            }
+            if (settings.compressed)
+                texture.Compress(true);
 
             TextureWrapper textureWrapper = new TextureWrapper
             {
@@ -1289,11 +1360,11 @@ namespace RendererEditor
                 Destroy(this._textures[path].texture);
                 this._textures[path] = textureWrapper;
             }
-            foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+            foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
             {
-                foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                foreach (KeyValuePair<Material, MaterialData> pair2 in pair.Value.dirtyMaterials)
                 {
-                    foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                    foreach (KeyValuePair<string, MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
                     {
                         if (pair3.Value.currentTexturePath.Equals(path, StringComparison.OrdinalIgnoreCase))
                         {
@@ -1330,44 +1401,44 @@ namespace RendererEditor
             this._changeTextureSettingsCallback = null;
         }
 
-        private void SelectMaterial(Material material, Renderer renderer, int index)
+        private void SelectMaterial(Material material, ITarget target, int index)
         {
-            this._currentTarget.selectedMaterials.Add(material, new MaterialInfo{index = index, renderer = renderer});
+            this._currentTreeNode.selectedMaterials.Add(material, new MaterialInfo{index = index, target = target});
             this.CloseTextureWindow();
         }
 
         private void UnselectMaterial(Material material)
         {
-            this._currentTarget.selectedMaterials.Remove(material);
+            this._currentTreeNode.selectedMaterials.Remove(material);
             this.CloseTextureWindow();
         }
 
         private void ClearSelectedMaterials()
         {
-            this._currentTarget.selectedMaterials.Clear();
+            this._currentTreeNode.selectedMaterials.Clear();
             this.CloseTextureWindow();
         }
 
-        private void SelectRenderer(Renderer renderer)
+        private void SelectTarget(ITarget target)
         {
-            this._currentTarget.selectedRenderers.Add(renderer);
+            this._currentTreeNode.selectedTargets.Add(target);
             this.CloseTextureWindow();
         }
 
-        private void UnselectRenderer(Renderer renderer)
+        private void UnselectTarget(ITarget target)
         {
-            this._currentTarget.selectedRenderers.Remove(renderer);
-            foreach (KeyValuePair<Material, MaterialInfo> pair in new Dictionary<Material, MaterialInfo>(this._currentTarget.selectedMaterials))
+            this._currentTreeNode.selectedTargets.Remove(target);
+            foreach (KeyValuePair<Material, MaterialInfo> pair in new Dictionary<Material, MaterialInfo>(this._currentTreeNode.selectedMaterials))
             {
-                if (pair.Value.renderer == renderer)
+                if (pair.Value.target == target)
                     this.UnselectMaterial(pair.Key);
             }
             this.CloseTextureWindow();
         }
 
-        private void ClearSelectedRenderers()
+        private void ClearSelectedTargets()
         {
-            this._currentTarget.selectedRenderers.Clear();
+            this._currentTreeNode.selectedTargets.Clear();
             this.ClearSelectedMaterials();
         }
 
@@ -1375,9 +1446,11 @@ namespace RendererEditor
         {
             Vector3 finalMin = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
             Vector3 finalMax = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
-            foreach (Renderer selectedRenderer in this._currentTarget.selectedRenderers)
+            foreach (ITarget selectedTarget in this._currentTreeNode.selectedTargets)
             {
-                Bounds bounds = selectedRenderer.bounds;
+                if (selectedTarget.hasBounds == false)
+                    continue;
+                Bounds bounds = selectedTarget.bounds;
                 if (bounds.min.x < finalMin.x)
                     finalMin.x = bounds.min.x;
                 if (bounds.min.y < finalMin.y)
@@ -1395,30 +1468,30 @@ namespace RendererEditor
             this._selectedBounds.SetMinMax(finalMin, finalMax);
         }
 
-        private bool SetMaterialDirty(Material mat, out RendererData.MaterialData data, RendererData rendererData = null)
+        private bool SetMaterialDirty(Material mat, out MaterialData data, ITargetData targetData = null)
         {
-            if (rendererData == null)
-                this.SetRendererDirty(this._currentTarget.selectedMaterials[mat].renderer, out rendererData);
-            if (rendererData.dirtyMaterials.TryGetValue(mat, out data) == false)
+            if (targetData == null)
+                this.SetTargetDirty(this._currentTreeNode.selectedMaterials[mat].target, out targetData);
+            if (targetData.dirtyMaterials.TryGetValue(mat, out data) == false)
             {
-                data = new RendererData.MaterialData();
-                rendererData.dirtyMaterials.Add(mat, data);
+                data = new MaterialData();
+                targetData.dirtyMaterials.Add(mat, data);
                 return true;
             }
             return false;
         }
 
-        private void TryResetMaterial(Material mat, RendererData.MaterialData materialData, RendererData rendererData)
+        private void TryResetMaterial(Material mat, MaterialData materialData, ITargetData targetData)
         {
             if (mat == null)
                 return;
             if (materialData.hasRenderQueue == false && materialData.hasRenderType == false && materialData.dirtyColorProperties.Count == 0 && materialData.dirtyBooleanProperties.Count == 0 && materialData.dirtyEnumProperties.Count == 0 && materialData.dirtyFloatProperties.Count == 0 && materialData.dirtyVector4Properties.Count == 0 && materialData.dirtyTextureOffsetProperties.Count == 0 && materialData.dirtyTextureScaleProperties.Count == 0 && materialData.dirtyTextureProperties.Count == 0 && materialData.enabledKeywords.Count == 0 && materialData.disabledKeywords.Count == 0)
             {
-                this.ResetMaterial(mat, materialData, rendererData);
+                this.ResetMaterial(mat, materialData, targetData);
             }
         }
 
-        private void ResetMaterial(Material mat, RendererData.MaterialData materialData, RendererData rendererData)
+        private void ResetMaterial(Material mat, MaterialData materialData, ITargetData targetData)
         {
             if (mat == null)
                 return;
@@ -1446,7 +1519,7 @@ namespace RendererEditor
                 mat.SetTextureOffset(pair.Key, pair.Value);
             foreach (KeyValuePair<string, Vector2> pair in materialData.dirtyTextureScaleProperties)
                 mat.SetTextureScale(pair.Key, pair.Value);
-            foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialData.dirtyTextureProperties)
+            foreach (KeyValuePair<string, MaterialData.TextureData> pair in materialData.dirtyTextureProperties)
                 mat.SetTexture(pair.Key, pair.Value.originalTexture);
             foreach (string enabledKeyword in materialData.enabledKeywords)
                 mat.DisableKeyword(enabledKeyword);
@@ -1455,52 +1528,43 @@ namespace RendererEditor
                 mat.EnableKeyword(disabledKeyword);
             materialData.disabledKeywords.Clear();
 
-            rendererData.dirtyMaterials.Remove(mat);
+            targetData.dirtyMaterials.Remove(mat);
         }
 
-        private bool SetRendererDirty(Renderer renderer, out RendererData data)
+        private bool SetTargetDirty(ITarget target, out ITargetData data)
         {
-            if (this._dirtyRenderers.TryGetValue(renderer, out data) == false)
+            if (this._dirtyTargets.TryGetValue(target, out data) == false)
             {
-                data = new RendererData
-                {
-                    currentEnabled = true,
-                    originalEnabled = true,
-                    originalShadowCastingMode = renderer.shadowCastingMode,
-                    originalReceiveShadow = renderer.receiveShadows,
-                    originalReflectionProbeUsage = renderer.reflectionProbeUsage
-                };
-                this._dirtyRenderers.Add(renderer, data);
+                data = target.GetNewData();
+                this._dirtyTargets.Add(target, data);
                 return true;
             }
             return false;
         }
 
-        private void ResetRenderer(Renderer renderer, bool withMaterials = false)
+        private void ResetTarget(ITarget target, bool withMaterials = false)
         {
-            RendererData data;
-            if (this._dirtyRenderers.TryGetValue(renderer, out data))
+            ITargetData container;
+            if (this._dirtyTargets.TryGetValue(target, out container))
             {
-                Transform t = renderer.transform;
+                Transform t = target.transform;
                 ObjectCtrlInfo info;
                 while ((info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
                     t = t.parent;
 
-                renderer.enabled = info.treeNodeObject.IsVisible() && data.originalEnabled;
-                renderer.shadowCastingMode = data.originalShadowCastingMode;
-                renderer.receiveShadows = data.originalReceiveShadow;
-                renderer.reflectionProbeUsage = data.originalReflectionProbeUsage;
+                target.enabled = info.treeNodeObject.IsVisible();
+                target.ResetData(container);
                 if (withMaterials)
-                    foreach (KeyValuePair<Material, RendererData.MaterialData> pair in new Dictionary<Material, RendererData.MaterialData>(data.dirtyMaterials))
-                        this.ResetMaterial(pair.Key, pair.Value, data);
-                if (data.dirtyMaterials.Count == 0)
-                    this._dirtyRenderers.Remove(renderer);
+                    foreach (KeyValuePair<Material, MaterialData> pair in new Dictionary<Material, MaterialData>(container.dirtyMaterials))
+                        this.ResetMaterial(pair.Key, pair.Value, container);
+                if (container.dirtyMaterials.Count == 0)
+                    this._dirtyTargets.Remove(target);
             }
         }
 
         private void DrawGizmos()
         {
-            if (!this._enabled || Studio.Studio.Instance.treeNodeCtrl.selectNode == null || this._currentTarget == null || this._currentTarget.selectedRenderers.Count == 0)
+            if (!this._enabled || Studio.Studio.Instance.treeNodeCtrl.selectNode == null || this._currentTreeNode == null || this._currentTreeNode.selectedTargets.Count == 0)
                 return;
             this.UpdateSelectedBounds();
             Vector3 topLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.max.z),
@@ -1532,7 +1596,7 @@ namespace RendererEditor
 
         private void CheckGizmosEnabled()
         {
-            bool a = this._enabled && Studio.Studio.Instance.treeNodeCtrl.selectNode != null && this._currentTarget != null && this._currentTarget.selectedRenderers.Count != 0;
+            bool a = this._enabled && Studio.Studio.Instance.treeNodeCtrl.selectNode != null && this._currentTreeNode != null && this._currentTreeNode.selectedTargets.Count != 0;
             foreach (VectorLine line in this._boundsDebugLines)
                 line.active = a;
         }
@@ -1541,36 +1605,35 @@ namespace RendererEditor
         {
             this.ExecuteDelayed(() =>
             {
-                List<Renderer> sourceRenderers = source.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).ToList();
-                sourceRenderers.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
-                List<Renderer> destinationRenderers = destination.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).ToList();
-                destinationRenderers.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
-                for (int i = 0; i < sourceRenderers.Count && i < destinationRenderers.Count; i++)
+                
+                List<ITarget> sourceTargets = this.GetAllTargets(source);
+                sourceTargets.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
+                List<ITarget> destinationTargets = this.GetAllTargets(destination);
+                destinationTargets.Sort((x, y) => string.Compare(x.name, y.name, StringComparison.Ordinal));
+                for (int i = 0; i < sourceTargets.Count && i < destinationTargets.Count; i++)
                 {
-                    Renderer sourceRenderer = sourceRenderers[i];
-                    Renderer destinationRenderer = destinationRenderers[i];
-                    RendererData sourceData;
-                    RendererData destinationData;
-                    if (this._dirtyRenderers.TryGetValue(sourceRenderer, out sourceData) == false)
+                    ITarget sourceTarget = sourceTargets[i];
+                    ITarget destinationTarget = destinationTargets[i];
+                    ITargetData sourceData;
+                    ITargetData destinationData;
+                    if (this._dirtyTargets.TryGetValue(sourceTarget, out sourceData) == false)
                         continue;
-                    if (this._dirtyRenderers.ContainsKey(destinationRenderer))
+                    if (this._dirtyTargets.ContainsKey(destinationTarget))
                         continue;
-                    this.SetRendererDirty(destinationRenderer, out destinationData);
+                    this.SetTargetDirty(destinationTarget, out destinationData);
 
                     destinationData.currentEnabled = sourceData.currentEnabled;
-                    destinationRenderer.enabled = sourceRenderer.enabled;
-                    destinationRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-                    destinationRenderer.receiveShadows = sourceRenderer.receiveShadows;
-                    destinationRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+                    destinationTarget.enabled = sourceTarget.enabled;
+                    destinationTarget.CopyFrom(sourceTarget);
 
-                    List<Material> materials = sourceRenderer.sharedMaterials.ToList();
-                    foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in sourceData.dirtyMaterials)
+                    List<Material> materials = sourceTarget.sharedMaterials.ToList();
+                    foreach (KeyValuePair<Material, MaterialData> materialPair in sourceData.dirtyMaterials)
                     {
                         if (materialPair.Key == null)
                             continue;
                         int index = materials.IndexOf(materialPair.Key);
-                        Material destinationMaterial = destinationRenderer.materials[index];
-                        RendererData.MaterialData destinationMaterialData;
+                        Material destinationMaterial = destinationTarget.materials[index];
+                        MaterialData destinationMaterialData;
                         this.SetMaterialDirty(destinationMaterial, out destinationMaterialData, destinationData);
 
                         if (materialPair.Value.hasRenderQueue)
@@ -1591,9 +1654,9 @@ namespace RendererEditor
                             destinationMaterialData.dirtyColorProperties.Add(pair.Key, destinationMaterial.GetColor(pair.Key));
                             destinationMaterial.SetColor(pair.Key, materialPair.Key.GetColor(pair.Key));
                         }
-                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
+                        foreach (KeyValuePair<string, MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
                         {
-                            destinationMaterialData.dirtyTextureProperties.Add(pair.Key, new RendererData.MaterialData.TextureData()
+                            destinationMaterialData.dirtyTextureProperties.Add(pair.Key, new MaterialData.TextureData()
                             {
                                 currentTexturePath = pair.Value.currentTexturePath,
                                 originalTexture = destinationMaterial.GetTexture(pair.Key)
@@ -1659,10 +1722,15 @@ namespace RendererEditor
             }
             return originalPath;
         }
+
+        private List<ITarget> GetAllTargets(ObjectCtrlInfo objectCtrlInfo)
+        {
+            return objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).Select(r => (ITarget)(RendererTarget)r).Concat(objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Projector>(true).Select(p => (ITarget)(ProjectorTarget)p)).ToList();
+        }
         #endregion
 
         #region Drawers
-        private void RenderQueueDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData)
+        private void RenderQueueDrawer(Material displayedMaterial, MaterialData displayedMaterialData)
         {
             GUILayout.BeginHorizontal();
             Color c = GUI.color;
@@ -1674,9 +1742,9 @@ namespace RendererEditor
             int newRenderQueue = (int)GUILayout.HorizontalSlider(displayedMaterial.renderQueue, -1, 5000);
             if (newRenderQueue != displayedMaterial.renderQueue)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    RendererData.MaterialData data;
+                    MaterialData data;
                     this.SetMaterialDirty(material.Key, out data);
                     if (data.hasRenderQueue == false)
                     {
@@ -1691,9 +1759,9 @@ namespace RendererEditor
                 newRenderQueue = displayedMaterial.renderQueue;
             if (newRenderQueue != displayedMaterial.renderQueue)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    RendererData.MaterialData data;
+                    MaterialData data;
                     this.SetMaterialDirty(material.Key, out data);
                     if (data.hasRenderQueue == false)
                     {
@@ -1705,9 +1773,9 @@ namespace RendererEditor
             }
             if (GUILayout.Button("-1000", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    RendererData.MaterialData data;
+                    MaterialData data;
                     this.SetMaterialDirty(material.Key, out data);
                     if (data.hasRenderQueue == false)
                     {
@@ -1722,22 +1790,22 @@ namespace RendererEditor
             }
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    if (this._dirtyRenderers.TryGetValue(material.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(material.Key, out RendererData.MaterialData data) &&
+                    if (this._dirtyTargets.TryGetValue(material.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(material.Key, out MaterialData data) &&
                         data.hasRenderQueue)
                     {
                         material.Key.renderQueue = data.originalRenderQueue;
                         data.hasRenderQueue = false;
-                        this.TryResetMaterial(material.Key, data, rendererData);
+                        this.TryResetMaterial(material.Key, data, targetData);
                     }
                 }
             }
             GUILayout.EndHorizontal();
         }
 
-        private void RenderTypeDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData)
+        private void RenderTypeDrawer(Material displayedMaterial, MaterialData displayedMaterialData)
         {
             GUILayout.BeginHorizontal();
             Color c = GUI.color;
@@ -1747,15 +1815,15 @@ namespace RendererEditor
             GUI.color = c;
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    if (this._dirtyRenderers.TryGetValue(material.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(material.Key, out RendererData.MaterialData data) &&
+                    if (this._dirtyTargets.TryGetValue(material.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(material.Key, out MaterialData data) &&
                         data.hasRenderType)
                     {
                         material.Key.SetOverrideTag("RenderType", data.originalRenderType);
                         data.hasRenderType = false;
-                        this.TryResetMaterial(material.Key, data, rendererData);
+                        this.TryResetMaterial(material.Key, data, targetData);
                     }
                 }
             }
@@ -1764,9 +1832,9 @@ namespace RendererEditor
             this._tagInput = GUILayout.TextField(this._tagInput);
             if (GUILayout.Button("Set RenderType", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    RendererData.MaterialData data;
+                    MaterialData data;
                     this.SetMaterialDirty(material.Key, out data);
                     if (data.hasRenderType == false)
                     {
@@ -1781,7 +1849,7 @@ namespace RendererEditor
             GUILayout.EndHorizontal();
         }
 
-        private void ShaderPropertyDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void ShaderPropertyDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             switch (property.type)
             {
@@ -1806,7 +1874,7 @@ namespace RendererEditor
             }
         }
 
-        private void ColorDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void ColorDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             Color c = displayedMaterial.GetColor(property.name);
             GUILayout.BeginHorizontal();
@@ -1824,9 +1892,9 @@ namespace RendererEditor
                 {
                     Studio.Studio.Instance.colorMenu.updateColorFunc = col =>
                     {
-                        foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                        foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                         {
-                            this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                            this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                             if (materialData.dirtyColorProperties.ContainsKey(property.name) == false)
                                 materialData.dirtyColorProperties.Add(property.name, selectedMaterial.Key.GetColor(property.name));
                             selectedMaterial.Key.SetColor(property.name, col);
@@ -1853,7 +1921,7 @@ namespace RendererEditor
                         {
                             foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
                             {
-                                this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                                this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                                 if (materialData.dirtyColorProperties.ContainsKey(property.name) == false)
                                     materialData.dirtyColorProperties.Add(property.name, selectedMaterial.Key.GetColor(property.name));
                                 selectedMaterial.Key.SetColor(property.name, col);
@@ -1879,22 +1947,22 @@ namespace RendererEditor
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                         materialData.dirtyColorProperties.ContainsKey(property.name))
                     {
                         selectedMaterial.Key.SetColor(property.name, materialData.dirtyColorProperties[property.name]);
                         materialData.dirtyColorProperties.Remove(property.name);
-                        this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                     }
                 }
             }
             GUILayout.EndHorizontal();
         }
 
-        private void TextureDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void TextureDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             Texture texture = displayedMaterial.GetTexture(property.name);
             Vector2 offset = displayedMaterial.GetTextureOffset(property.name);
@@ -1915,13 +1983,13 @@ namespace RendererEditor
                     else
                         this._selectTextureCallback = (path, newTexture) =>
                         {
-                            foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                            foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                             {
-                                this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
-                                RendererData.MaterialData.TextureData textureData;
+                                this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
+                                MaterialData.TextureData textureData;
                                 if (materialData.dirtyTextureProperties.TryGetValue(property.name, out textureData) == false)
                                 {
-                                    textureData = new RendererData.MaterialData.TextureData();
+                                    textureData = new MaterialData.TextureData();
                                     textureData.originalTexture = selectedMaterial.Key.GetTexture(property.name);
                                     materialData.dirtyTextureProperties.Add(property.name, textureData);
                                 }
@@ -1941,17 +2009,17 @@ namespace RendererEditor
                 {
                     if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)))
                     {
-                        foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                            if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                                rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                        foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                            if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                                targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                                 materialData.dirtyTextureProperties.ContainsKey(property.name))
                             {
                                 selectedMaterial.Key.SetTexture(property.name, materialData.dirtyTextureProperties[property.name].originalTexture);
                                 materialData.dirtyTextureProperties.Remove(property.name);
-                                this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                                this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                             }
                     }
-                    if (this._currentTarget.selectedMaterials.Count == 1 && GUILayout.Button("Dump", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)) && texture != null)
+                    if (this._currentTreeNode.selectedMaterials.Count == 1 && GUILayout.Button("Dump", GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(false)) && texture != null)
                     {
                         if (Directory.Exists(_dumpDir) == false)
                             Directory.CreateDirectory(_dumpDir);
@@ -1964,8 +2032,8 @@ namespace RendererEditor
                         RenderTexture.active = cachedActive;
 
                         byte[] bytes = tex.EncodeToPNG();
-                        KeyValuePair<Material, MaterialInfo> mat = this._currentTarget.selectedMaterials.First();
-                        string fileName = Path.Combine(_dumpDir, $"{mat.Value.renderer.name}_{mat.Key.name}_{mat.Value.index}_{texture.name}.png");
+                        KeyValuePair<Material, MaterialInfo> mat = this._currentTreeNode.selectedMaterials.First();
+                        string fileName = Path.Combine(_dumpDir, $"{mat.Value.target.name}_{mat.Key.name}_{mat.Value.index}_{texture.name}.png");
                         File.WriteAllBytes(fileName, bytes);
 
                         this.LoadSingleTexture(fileName);
@@ -2020,9 +2088,9 @@ namespace RendererEditor
                 GUILayout.EndVertical();
                 if (offset != newOffset)
                 {
-                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     {
-                        this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                         if (materialData.dirtyTextureOffsetProperties.ContainsKey(property.name) == false)
                             materialData.dirtyTextureOffsetProperties.Add(property.name, selectedMaterial.Key.GetTextureOffset(property.name));
                         selectedMaterial.Key.SetTextureOffset(property.name, newOffset);
@@ -2030,14 +2098,14 @@ namespace RendererEditor
                 }
                 if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 {
-                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                        if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                            rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                        if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                            targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                             materialData.dirtyTextureOffsetProperties.ContainsKey(property.name))
                         {
                             selectedMaterial.Key.SetTextureOffset(property.name, materialData.dirtyTextureOffsetProperties[property.name]);
                             materialData.dirtyTextureOffsetProperties.Remove(property.name);
-                            this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                            this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                         }
                 }
             }
@@ -2086,9 +2154,9 @@ namespace RendererEditor
                 GUILayout.EndVertical();
                 if (scale != newScale)
                 {
-                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     {
-                        this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                         if (materialData.dirtyTextureScaleProperties.ContainsKey(property.name) == false)
                             materialData.dirtyTextureScaleProperties.Add(property.name, selectedMaterial.Key.GetTextureScale(property.name));
                         selectedMaterial.Key.SetTextureScale(property.name, newScale);
@@ -2096,21 +2164,21 @@ namespace RendererEditor
                 }
                 if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 {
-                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                        if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                            rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                        if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                            targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                             materialData.dirtyTextureScaleProperties.ContainsKey(property.name))
                         {
                             selectedMaterial.Key.SetTextureScale(property.name, materialData.dirtyTextureScaleProperties[property.name]);
                             materialData.dirtyTextureScaleProperties.Remove(property.name);
-                            this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                            this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                         }
                 }
             }
             GUILayout.EndHorizontal();
         }
 
-        private void FloatDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void FloatDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             float value = displayedMaterial.GetFloat(property.name);
             GUILayout.BeginHorizontal();
@@ -2138,9 +2206,9 @@ namespace RendererEditor
             }
             if (Mathf.Approximately(value, newValue) == false)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                     if (materialData.dirtyFloatProperties.ContainsKey(property.name) == false)
                         materialData.dirtyFloatProperties.Add(property.name, selectedMaterial.Key.GetFloat(property.name));
                     selectedMaterial.Key.SetFloat(property.name, newValue);
@@ -2149,21 +2217,21 @@ namespace RendererEditor
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                     materialData.dirtyFloatProperties.ContainsKey(property.name))
                 {
                     selectedMaterial.Key.SetFloat(property.name, materialData.dirtyFloatProperties[property.name]);
                     materialData.dirtyFloatProperties.Remove(property.name);
-                    this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                    this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                 }
             }
 
             GUILayout.EndHorizontal();
         }
 
-        private void BooleanDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void BooleanDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             bool value = Mathf.Approximately(displayedMaterial.GetFloat(property.name), 1f);
             
@@ -2177,9 +2245,9 @@ namespace RendererEditor
 
             if (value != newValue)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                     if (materialData.dirtyBooleanProperties.ContainsKey(property.name) == false)
                         materialData.dirtyBooleanProperties.Add(property.name, Mathf.Approximately(selectedMaterial.Key.GetFloat(property.name), 1f));
                     selectedMaterial.Key.SetFloat(property.name, newValue ? 1f : 0f);
@@ -2189,21 +2257,21 @@ namespace RendererEditor
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                     materialData.dirtyBooleanProperties.ContainsKey(property.name))
                 {
                     selectedMaterial.Key.SetFloat(property.name, materialData.dirtyBooleanProperties[property.name] ? 1f : 0f);
                     materialData.dirtyBooleanProperties.Remove(property.name);
-                    this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                    this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                 }
             }
 
             GUILayout.EndHorizontal();
         }
 
-        private void EnumDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void EnumDrawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             int key = (displayedMaterial.GetInt(property.name));
 
@@ -2228,9 +2296,9 @@ namespace RendererEditor
             }
             if (newKey != key)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                     if (materialData.dirtyEnumProperties.ContainsKey(property.name) == false)
                         materialData.dirtyEnumProperties.Add(property.name, Mathf.RoundToInt(selectedMaterial.Key.GetFloat(property.name)));
                     selectedMaterial.Key.SetInt(property.name, newKey);
@@ -2239,20 +2307,20 @@ namespace RendererEditor
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                     materialData.dirtyEnumProperties.ContainsKey(property.name))
                 {
                     selectedMaterial.Key.SetInt(property.name, materialData.dirtyEnumProperties[property.name]);
                     materialData.dirtyEnumProperties.Remove(property.name);
-                    this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                    this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                 }
             }
             GUILayout.EndHorizontal();
         }
 
-        private void Vector4Drawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData, ShaderProperty property)
+        private void Vector4Drawer(Material displayedMaterial, MaterialData displayedMaterialData, ShaderProperty property)
         {
             Vector4 value = displayedMaterial.GetVector(property.name);
 
@@ -2322,9 +2390,9 @@ namespace RendererEditor
 
             if (value != newValue)
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
-                    this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                     if (materialData.dirtyVector4Properties.ContainsKey(property.name) == false)
                         materialData.dirtyVector4Properties.Add(property.name, selectedMaterial.Key.GetVector(property.name));
                     selectedMaterial.Key.SetVector(property.name, newValue);
@@ -2333,20 +2401,20 @@ namespace RendererEditor
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData) &&
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
                         materialData.dirtyVector4Properties.ContainsKey(property.name))
                     {
                         selectedMaterial.Key.SetVector(property.name, materialData.dirtyVector4Properties[property.name]);
                         materialData.dirtyVector4Properties.Remove(property.name);
-                        this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                     }
             }
             GUILayout.EndHorizontal();
         }
 
-        private void KeywordsDrawer(Material displayedMaterial, RendererData.MaterialData displayedMaterialData)
+        private void KeywordsDrawer(Material displayedMaterial, MaterialData displayedMaterialData)
         {
             Color guiColor = GUI.color;
             if (displayedMaterialData != null && (displayedMaterialData.enabledKeywords.Count != 0 || displayedMaterialData.disabledKeywords.Count != 0))
@@ -2361,11 +2429,11 @@ namespace RendererEditor
                 GUILayout.Label(keyword);
                 if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
                 {
-                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                    foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     {
                         if (selectedMaterial.Key.IsKeywordEnabled(keyword))
                         {
-                            this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                            this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                             bool inEnabled = materialData.enabledKeywords.Contains(keyword);
                             if (inEnabled) //Keyword was added artificially
                                 materialData.enabledKeywords.Remove(keyword);
@@ -2380,9 +2448,9 @@ namespace RendererEditor
             GUILayout.EndScrollView();
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
-                    if (this._dirtyRenderers.TryGetValue(selectedMaterial.Value.renderer, out RendererData rendererData) &&
-                        rendererData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out RendererData.MaterialData materialData))
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
+                    if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
+                        targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData))
                     {
                         foreach (string enabledKeyword in materialData.enabledKeywords)
                             selectedMaterial.Key.DisableKeyword(enabledKeyword);
@@ -2390,7 +2458,7 @@ namespace RendererEditor
                         foreach (string disabledKeyword in materialData.disabledKeywords)
                             selectedMaterial.Key.EnableKeyword(disabledKeyword);
                         materialData.disabledKeywords.Clear();
-                        this.TryResetMaterial(selectedMaterial.Key, materialData, rendererData);
+                        this.TryResetMaterial(selectedMaterial.Key, materialData, targetData);
                     }
             }
             GUILayout.EndHorizontal();
@@ -2398,11 +2466,11 @@ namespace RendererEditor
             this._keywordInput = GUILayout.TextField(this._keywordInput);
             if (GUILayout.Button("Add Keyword", GUILayout.ExpandWidth(false)))
             {
-                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTarget.selectedMaterials)
+                foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                 {
                     if (selectedMaterial.Key.IsKeywordEnabled(this._keywordInput) == false)
                     {
-                        this.SetMaterialDirty(selectedMaterial.Key, out RendererData.MaterialData materialData);
+                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
                         if (materialData.disabledKeywords.Contains(this._keywordInput)) //Keyword was here in the first place
                             materialData.disabledKeywords.Remove(this._keywordInput);
                         else //Keyword is added artificially
@@ -2497,203 +2565,231 @@ namespace RendererEditor
 
             foreach (XmlNode childNode in node.ChildNodes)
             {
+                TargetType type;
+                switch (childNode.Name)
+                {
+                    case "renderer":
+                        type = TargetType.Renderer;
+                        break;
+                    case "projector":
+                        type = TargetType.Projector;
+                        break;
+                    default:
+                        continue;
+                }
                 try
                 {
-                    switch (childNode.Name)
+                    int objectIndex = XmlConvert.ToInt32(childNode.Attributes["objectIndex"].Value);
+                    if (objectIndex >= dic.Count)
+                        continue;
+                    ObjectCtrlInfo info = dic[objectIndex].Value;
+                    Transform t = info.guideObject.transformTarget;
+                    string targetPath = "";
+                    ITarget target = null;
+                    switch (type)
                     {
-                        case "renderer":
-                            int objectIndex = XmlConvert.ToInt32(childNode.Attributes["objectIndex"].Value);
-                            if (objectIndex >= dic.Count)
-                                continue;
-                            ObjectCtrlInfo info = dic[objectIndex].Value;
-                            Transform t = info.guideObject.transformTarget;
-                            string rendererPath = childNode.Attributes["rendererPath"].Value;
+                        case TargetType.Renderer:
+                            targetPath = childNode.Attributes["rendererPath"].Value;
                             Transform child;
-                            child = string.IsNullOrEmpty(rendererPath) ? t : t.Find(rendererPath);
+                            child = string.IsNullOrEmpty(targetPath) ? t : t.Find(targetPath);
                             if (child == null)
                                 continue;
-                            Renderer renderer = child.GetComponent<Renderer>();
-                            if (renderer != null && this.SetRendererDirty(renderer, out RendererData rendererData))
-                            {
+                            target = (RendererTarget)child.GetComponent<Renderer>();
+                            break;
+                        case TargetType.Projector:
+                            targetPath = childNode.Attributes["projectorPath"].Value;
+                            child = string.IsNullOrEmpty(targetPath) ? t : t.Find(targetPath);
+                            if (child == null)
+                                continue;
+                            target = (ProjectorTarget)child.GetComponent<Projector>();
+                            break;
+                    }
+                    if (target.target != null && this.SetTargetDirty(target, out ITargetData targetData))
+                    {
+                        switch (type)
+                        {
+                            case TargetType.Renderer:
                                 if (childNode.Attributes["rendererEnabled"] != null)
                                 {
-                                    rendererData.currentEnabled = XmlConvert.ToBoolean(childNode.Attributes["rendererEnabled"].Value);
-                                    renderer.enabled = info.treeNodeObject.IsVisible() && rendererData.currentEnabled;
+                                    targetData.currentEnabled = XmlConvert.ToBoolean(childNode.Attributes["rendererEnabled"].Value);
+                                    target.enabled = info.treeNodeObject.IsVisible() && targetData.currentEnabled;
                                 }
                                 else if (childNode.Attributes["enabled"] != null)
                                 {
-                                    rendererData.currentEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
-                                    renderer.enabled = info.treeNodeObject.IsVisible() && rendererData.currentEnabled;
+                                    targetData.currentEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                                    target.enabled = info.treeNodeObject.IsVisible() && targetData.currentEnabled;
                                 }
                                 else
                                 {
-                                    rendererData.currentEnabled = true;
-                                    renderer.enabled = info.treeNodeObject.IsVisible();
+                                    targetData.currentEnabled = true;
+                                    target.enabled = info.treeNodeObject.IsVisible();
                                 }
-                                renderer.shadowCastingMode = (ShadowCastingMode)XmlConvert.ToInt32(childNode.Attributes["shadowCastingMode"].Value);
-                                renderer.receiveShadows = XmlConvert.ToBoolean(childNode.Attributes["receiveShadows"].Value);
-                                if (childNode.Attributes["reflectionProbeUsage"] != null)
-                                    renderer.reflectionProbeUsage = (ReflectionProbeUsage)XmlConvert.ToInt32(childNode.Attributes["reflectionProbeUsage"].Value);
+                                break;
+                            case TargetType.Projector:
+                                targetData.currentEnabled = XmlConvert.ToBoolean(childNode.Attributes["projectorEnabled"].Value);
+                                target.enabled = info.treeNodeObject.IsVisible() && targetData.currentEnabled;
+                                break;
+                        }
 
-                                foreach (XmlNode grandChildNode in childNode.ChildNodes)
-                                {
-                                    switch (grandChildNode.Name)
+                        target.LoadXml(childNode);
+
+                        foreach (XmlNode grandChildNode in childNode.ChildNodes)
+                        {
+                            switch (grandChildNode.Name)
+                            {
+                                case "material":
+                                    int index = XmlConvert.ToInt32(grandChildNode.Attributes["index"].Value);
+                                    Material mat = target.materials[index];
+                                    this.SetMaterialDirty(mat, out MaterialData materialData, targetData);
+                                    if (grandChildNode.Attributes["renderQueue"] != null)
                                     {
-                                        case "material":
-                                            int index = XmlConvert.ToInt32(grandChildNode.Attributes["index"].Value);
-                                            Material mat = renderer.materials[index];
-                                            this.SetMaterialDirty(mat, out RendererData.MaterialData materialData, rendererData);
-                                            if (grandChildNode.Attributes["renderQueue"] != null)
-                                            {
-                                                materialData.originalRenderQueue = mat.renderQueue;
-                                                materialData.hasRenderQueue = true;
-                                                mat.renderQueue = XmlConvert.ToInt32(grandChildNode.Attributes["renderQueue"].Value);
-                                            }
-
-                                            if (grandChildNode.Attributes["renderType"] != null)
-                                            {
-                                                materialData.originalRenderType = mat.GetTag("RenderType", false);
-                                                materialData.hasRenderType = true;
-                                                mat.SetOverrideTag("RenderType", grandChildNode.Attributes["renderType"].Value);
-                                            }
-
-                                            foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
-                                            {
-                                                switch (propertyGroupNode.Name)
-                                                {
-                                                    case "colors":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Color c = Color.black;
-                                                            c.r = XmlConvert.ToSingle(property.Attributes["r"].Value);
-                                                            c.g = XmlConvert.ToSingle(property.Attributes["g"].Value);
-                                                            c.b = XmlConvert.ToSingle(property.Attributes["b"].Value);
-                                                            c.a = XmlConvert.ToSingle(property.Attributes["a"].Value);
-                                                            materialData.dirtyColorProperties.Add(key, mat.GetColor(key));
-                                                            mat.SetColor(key, c);
-                                                        }
-                                                        break;
-                                                    case "textures":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            string texturePath = property.Attributes["path"].Value;
-                                                            Texture2D texture = null;
-                                                            if (!string.IsNullOrEmpty(texturePath))
-                                                            {
-                                                                int i = texturePath.IndexOf(_texturesDir, StringComparison.OrdinalIgnoreCase);
-                                                                if (i > 0) //Doing this because I fucked up an older version
-                                                                    texturePath = texturePath.Substring(i);
-                                                                texturePath = Path.GetFullPath(texturePath);
-                                                                if (File.Exists(texturePath) == false)
-                                                                {
-                                                                    long size = -1;
-                                                                    if (property.Attributes["size"] != null)
-                                                                        size = XmlConvert.ToInt64(property.Attributes["size"].Value);
-                                                                    texturePath = this.PathReconstruction(texturePath, size);
-                                                                    if (File.Exists(texturePath) == false)
-                                                                        continue;
-                                                                }
-                                                                texture = this.GetTexture(texturePath, TextureWrapper.TextureSettings.Load(property))?.texture;
-                                                                if (texture == null)
-                                                                    continue;
-                                                                Resources.UnloadUnusedAssets();
-                                                                GC.Collect();
-                                                            }
-                                                            materialData.dirtyTextureProperties.Add(key, new RendererData.MaterialData.TextureData()
-                                                            {
-                                                                currentTexturePath = texturePath,
-                                                                originalTexture = mat.GetTexture(key)
-                                                            });
-                                                            mat.SetTexture(key, texture);
-                                                        }
-                                                        break;
-                                                    case "textureOffsets":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector2 offset;
-                                                            offset.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            offset.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            materialData.dirtyTextureOffsetProperties.Add(key, mat.GetTextureOffset(key));
-                                                            mat.SetTextureOffset(key, offset);
-                                                        }
-                                                        break;
-                                                    case "textureScales":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector2 scale;
-                                                            scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            materialData.dirtyTextureScaleProperties.Add(key, mat.GetTextureScale(key));
-                                                            mat.SetTextureScale(key, scale);
-                                                        }
-                                                        break;
-                                                    case "floats":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            float value = XmlConvert.ToSingle(property.Attributes["value"].Value);
-                                                            materialData.dirtyFloatProperties.Add(key, mat.GetFloat(key));
-                                                            mat.SetFloat(key, value);
-                                                        }
-                                                        break;
-                                                    case "booleans":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            bool value = XmlConvert.ToBoolean(property.Attributes["value"].Value);
-                                                            materialData.dirtyBooleanProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)) == 1);
-                                                            mat.SetFloat(key, value ? 1 : 0);
-                                                        }
-                                                        break;
-                                                    case "enums":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            int value = XmlConvert.ToInt32(property.Attributes["value"].Value);
-                                                            materialData.dirtyEnumProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)));
-                                                            mat.SetFloat(key, value);
-                                                        }
-                                                        break;
-                                                    case "vector4s":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string key = property.Attributes["key"].Value;
-                                                            Vector4 scale;
-                                                            scale.w = XmlConvert.ToSingle(property.Attributes["w"].Value);
-                                                            scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
-                                                            scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
-                                                            scale.z = XmlConvert.ToSingle(property.Attributes["z"].Value);
-                                                            materialData.dirtyVector4Properties.Add(key, mat.GetVector(key));
-                                                            mat.SetVector(key, scale);
-                                                        }
-                                                        break;
-                                                    case "enabledKeywords":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string keyword = property.Attributes["value"].Value;
-                                                            materialData.enabledKeywords.Add(keyword);
-                                                            mat.EnableKeyword(keyword);
-                                                        }
-                                                        break;
-                                                    case "disabledKeywords":
-                                                        foreach (XmlNode property in propertyGroupNode.ChildNodes)
-                                                        {
-                                                            string keyword = property.Attributes["value"].Value;
-                                                            materialData.disabledKeywords.Add(keyword);
-                                                            mat.DisableKeyword(keyword);
-                                                        }
-                                                        break;
-                                                }
-                                            }
-                                            break;
+                                        materialData.originalRenderQueue = mat.renderQueue;
+                                        materialData.hasRenderQueue = true;
+                                        mat.renderQueue = XmlConvert.ToInt32(grandChildNode.Attributes["renderQueue"].Value);
                                     }
-                                }
+
+                                    if (grandChildNode.Attributes["renderType"] != null)
+                                    {
+                                        materialData.originalRenderType = mat.GetTag("RenderType", false);
+                                        materialData.hasRenderType = true;
+                                        mat.SetOverrideTag("RenderType", grandChildNode.Attributes["renderType"].Value);
+                                    }
+
+                                    foreach (XmlNode propertyGroupNode in grandChildNode.ChildNodes)
+                                    {
+                                        switch (propertyGroupNode.Name)
+                                        {
+                                            case "colors":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    Color c = Color.black;
+                                                    c.r = XmlConvert.ToSingle(property.Attributes["r"].Value);
+                                                    c.g = XmlConvert.ToSingle(property.Attributes["g"].Value);
+                                                    c.b = XmlConvert.ToSingle(property.Attributes["b"].Value);
+                                                    c.a = XmlConvert.ToSingle(property.Attributes["a"].Value);
+                                                    materialData.dirtyColorProperties.Add(key, mat.GetColor(key));
+                                                    mat.SetColor(key, c);
+                                                }
+                                                break;
+                                            case "textures":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    string texturePath = property.Attributes["path"].Value;
+                                                    Texture2D texture = null;
+                                                    if (!string.IsNullOrEmpty(texturePath))
+                                                    {
+                                                        int i = texturePath.IndexOf(_texturesDir, StringComparison.OrdinalIgnoreCase);
+                                                        if (i > 0) //Doing this because I fucked up an older version
+                                                            texturePath = texturePath.Substring(i);
+                                                        texturePath = Path.GetFullPath(texturePath);
+                                                        if (File.Exists(texturePath) == false)
+                                                        {
+                                                            long size = -1;
+                                                            if (property.Attributes["size"] != null)
+                                                                size = XmlConvert.ToInt64(property.Attributes["size"].Value);
+                                                            texturePath = this.PathReconstruction(texturePath, size);
+                                                            if (File.Exists(texturePath) == false)
+                                                                continue;
+                                                        }
+                                                        texture = this.GetTexture(texturePath, TextureWrapper.TextureSettings.Load(property))?.texture;
+                                                        if (texture == null)
+                                                            continue;
+                                                        Resources.UnloadUnusedAssets();
+                                                        GC.Collect();
+                                                    }
+                                                    materialData.dirtyTextureProperties.Add(key, new MaterialData.TextureData()
+                                                    {
+                                                        currentTexturePath = texturePath,
+                                                        originalTexture = mat.GetTexture(key)
+                                                    });
+                                                    mat.SetTexture(key, texture);
+                                                }
+                                                break;
+                                            case "textureOffsets":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    Vector2 offset;
+                                                    offset.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                    offset.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                    materialData.dirtyTextureOffsetProperties.Add(key, mat.GetTextureOffset(key));
+                                                    mat.SetTextureOffset(key, offset);
+                                                }
+                                                break;
+                                            case "textureScales":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    Vector2 scale;
+                                                    scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                    scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                    materialData.dirtyTextureScaleProperties.Add(key, mat.GetTextureScale(key));
+                                                    mat.SetTextureScale(key, scale);
+                                                }
+                                                break;
+                                            case "floats":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    float value = XmlConvert.ToSingle(property.Attributes["value"].Value);
+                                                    materialData.dirtyFloatProperties.Add(key, mat.GetFloat(key));
+                                                    mat.SetFloat(key, value);
+                                                }
+                                                break;
+                                            case "booleans":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    bool value = XmlConvert.ToBoolean(property.Attributes["value"].Value);
+                                                    materialData.dirtyBooleanProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)) == 1);
+                                                    mat.SetFloat(key, value ? 1 : 0);
+                                                }
+                                                break;
+                                            case "enums":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    int value = XmlConvert.ToInt32(property.Attributes["value"].Value);
+                                                    materialData.dirtyEnumProperties.Add(key, Mathf.RoundToInt(mat.GetFloat(key)));
+                                                    mat.SetFloat(key, value);
+                                                }
+                                                break;
+                                            case "vector4s":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string key = property.Attributes["key"].Value;
+                                                    Vector4 scale;
+                                                    scale.w = XmlConvert.ToSingle(property.Attributes["w"].Value);
+                                                    scale.x = XmlConvert.ToSingle(property.Attributes["x"].Value);
+                                                    scale.y = XmlConvert.ToSingle(property.Attributes["y"].Value);
+                                                    scale.z = XmlConvert.ToSingle(property.Attributes["z"].Value);
+                                                    materialData.dirtyVector4Properties.Add(key, mat.GetVector(key));
+                                                    mat.SetVector(key, scale);
+                                                }
+                                                break;
+                                            case "enabledKeywords":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string keyword = property.Attributes["value"].Value;
+                                                    materialData.enabledKeywords.Add(keyword);
+                                                    mat.EnableKeyword(keyword);
+                                                }
+                                                break;
+                                            case "disabledKeywords":
+                                                foreach (XmlNode property in propertyGroupNode.ChildNodes)
+                                                {
+                                                    string keyword = property.Attributes["value"].Value;
+                                                    materialData.disabledKeywords.Add(keyword);
+                                                    mat.DisableKeyword(keyword);
+                                                }
+                                                break;
+                                        }
+                                    }
+                                    break;
                             }
-                            break;
+                        }
                     }
                 }
                 catch (Exception e)
@@ -2706,11 +2802,11 @@ namespace RendererEditor
         private void OnSceneSave(string path, XmlTextWriter writer)
         {
             HashSet<string> usedTextures = new HashSet<string>();
-            foreach (KeyValuePair<Renderer, RendererData> pair in this._dirtyRenderers)
+            foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
             {
-                foreach (KeyValuePair<Material, RendererData.MaterialData> pair2 in pair.Value.dirtyMaterials)
+                foreach (KeyValuePair<Material, MaterialData> pair2 in pair.Value.dirtyMaterials)
                 {
-                    foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
+                    foreach (KeyValuePair<string, MaterialData.TextureData> pair3 in pair2.Value.dirtyTextureProperties)
                     {
                         if (string.IsNullOrEmpty(pair3.Value.currentTexturePath) == false && usedTextures.Contains(pair3.Value.currentTexturePath) == false)
                         {
@@ -2729,27 +2825,37 @@ namespace RendererEditor
             }
 
             List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
-            foreach (KeyValuePair<Renderer, RendererData> rendererPair in this._dirtyRenderers)
+            foreach (KeyValuePair<ITarget, ITargetData> targetPair in this._dirtyTargets)
             {
                 int objectIndex = -1;
                 try
                 {
-                    Transform t = rendererPair.Key.transform;
+                    Transform t = targetPair.Key.transform;
                     while ((objectIndex = dic.FindIndex(e => e.Value.guideObject.transformTarget == t)) == -1)
                         t = t.parent;
 
-                    writer.WriteStartElement("renderer");
+                    switch (targetPair.Key.targetType)
+                    {
+                        case TargetType.Renderer:
+                            writer.WriteStartElement("renderer");
+                            writer.WriteAttributeString("rendererPath", targetPair.Key.transform.GetPathFrom(t));
+                            //writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
+                            writer.WriteAttributeString("rendererEnabled", XmlConvert.ToString(targetPair.Value.currentEnabled));
+                            break;
+                        case TargetType.Projector:
+                            writer.WriteStartElement("projector");
+                            writer.WriteAttributeString("projectorPath", targetPair.Key.transform.GetPathFrom(t));
+                            writer.WriteAttributeString("projectorEnabled", XmlConvert.ToString(targetPair.Value.currentEnabled));
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
                     writer.WriteAttributeString("objectIndex", XmlConvert.ToString(objectIndex));
-                    writer.WriteAttributeString("rendererPath", rendererPair.Key.transform.GetPathFrom(t));
 
-                    //writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
-                    writer.WriteAttributeString("rendererEnabled", XmlConvert.ToString(rendererPair.Value.currentEnabled));
-                    writer.WriteAttributeString("shadowCastingMode", XmlConvert.ToString((int)rendererPair.Key.shadowCastingMode));
-                    writer.WriteAttributeString("receiveShadows", XmlConvert.ToString(rendererPair.Key.receiveShadows));
-                    writer.WriteAttributeString("reflectionProbeUsage", XmlConvert.ToString((int)rendererPair.Key.reflectionProbeUsage));
+                    targetPair.Key.SaveXml(writer);
 
-                    List<Material> materials = rendererPair.Key.sharedMaterials.ToList();
-                    foreach (KeyValuePair<Material, RendererData.MaterialData> materialPair in rendererPair.Value.dirtyMaterials)
+                    List<Material> materials = targetPair.Key.sharedMaterials.ToList();
+                    foreach (KeyValuePair<Material, MaterialData> materialPair in targetPair.Value.dirtyMaterials)
                     {
                         if (materialPair.Key == null)
                             continue;
@@ -2776,7 +2882,7 @@ namespace RendererEditor
                         writer.WriteEndElement();
 
                         writer.WriteStartElement("textures");
-                        foreach (KeyValuePair<string, RendererData.MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
+                        foreach (KeyValuePair<string, MaterialData.TextureData> pair in materialPair.Value.dirtyTextureProperties)
                         {
                             writer.WriteStartElement("texture");
                             writer.WriteAttributeString("key", pair.Key);
@@ -2882,7 +2988,7 @@ namespace RendererEditor
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError("Exception happened during save with item " + rendererPair.Key.transform + " index " + objectIndex + "\n" + e);
+                    UnityEngine.Debug.LogError("Exception happened during save with item " + targetPair.Key.transform + " index " + objectIndex + "\n" + e);
                 }
             }
         }
@@ -2951,19 +3057,17 @@ namespace RendererEditor
             private static void Postfix(TreeNodeObject __instance)
             {
                 ObjectCtrlInfo info;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(__instance, out info))
+                if (!Studio.Studio.Instance.dicInfo.TryGetValue(__instance, out info))
+                    return;
+                foreach (ITarget target in _self.GetAllTargets(info))
                 {
-                    foreach (Renderer renderer in info.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true))
-                    {
-                        if (_self._dirtyRenderers.TryGetValue(renderer, out RendererData data))
-                        {
-                            Transform t = renderer.transform;
-                            ObjectCtrlInfo info2;
-                            while ((info2 = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
-                                t = t.parent;
-                            renderer.enabled = info2.treeNodeObject.IsVisible() && data.currentEnabled;
-                        }
-                    }
+                    if (!_self._dirtyTargets.TryGetValue(target, out ITargetData data))
+                        continue;
+                    Transform t = target.transform;
+                    ObjectCtrlInfo info2;
+                    while ((info2 = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
+                        t = t.parent;
+                    target.enabled = info2.treeNodeObject.IsVisible() && data.currentEnabled;
                 }
             }
         }

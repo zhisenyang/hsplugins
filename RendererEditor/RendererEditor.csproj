@@ -131,6 +131,11 @@
   <ItemGroup>
     <Compile Include="Extensions.cs" />
     <Compile Include="MainWindow.cs" />
+    <Compile Include="Targets\ITarget.cs" />
+    <Compile Include="Targets\ITargetData.cs" />
+    <Compile Include="Targets\MaterialData.cs" />
+    <Compile Include="Targets\Projector.cs" />
+    <Compile Include="Targets\Renderer.cs" />
     <Compile Include="RendererEditor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
