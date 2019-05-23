@@ -373,5 +373,24 @@ namespace ToolBox
                 return self.visible && self.parent.IsVisible();
             return self.visible;
         }
+
+        public static int LastIndexOf(this byte[] self, byte[] neddle)
+        {
+            int limit = neddle.Length - 1;
+            for (int i = self.Length - 1; i > limit; i--)
+            {
+                int j;
+                int i2 = i;
+                for (j = neddle.Length - 1; j >= 0; --j)
+                {
+                    if (self[i2] != neddle[j])
+                        break;
+                    --i2;
+                }
+                if (j == -1)
+                    return i2 + 1;
+            }
+            return -1;
+        }
     }
 }

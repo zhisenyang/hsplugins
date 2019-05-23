@@ -1,7 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Text;
+using System.Xml;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
@@ -651,32 +655,147 @@ namespace MoreAccessories
         }
     }
 
+    [HarmonyPatch(typeof(SmCharaLoad), "OnChangeBtn02")]
+    internal static class SmCharaLoad_OnChangeBtn02_Patches
+    {
+        private static void Prefix(int ___nowSubMenuTypeId, SmCharaLoad.FileInfoComponent ___selFileInfoCmp, CharInfo ___chaInfo)
+        {
+            if (___nowSubMenuTypeId != 81 || null == ___selFileInfoCmp)
+                return;
+            XmlNode node = MoreAccessories.GetExtDataFromFile(___selFileInfoCmp.info.FullPath, "<charExtData>");
+            if (node != null)
+                MoreAccessories._self.OnCharaLoad(___chaInfo.chaFile, node);
+        }
+    }
 
-    //internal class HSStudioNEOAddon_Patches
-    //{
-    //    internal static void ManualPatch(HarmonyInstance harmony)
-    //    {
-    //        Type t = Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon");
-    //        if (t != null)
-    //        {
-    //            harmony.Patch(t.GetMethod("LoadAndChangeCloth", BindingFlags.Instance | BindingFlags.Public), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(LoadAndChangeCloth_Prefix), new[] {typeof(bool), typeof(bool)}), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(GenericPostfix)));
-    //            harmony.Patch(t.GetMethod("ReplaceBodyOnly", BindingFlags.Instance | BindingFlags.Public), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(ReplaceBodyOnly_Prefix)), new HarmonyMethod(typeof(HSStudioNEOAddon_Patches), nameof(GenericPostfix)));
-    //        }
-    //    }
+    [HarmonyPatch(typeof(SmClothesLoad), "OnChangeBtn01")]
+    internal static class SmClothesLoad_OnChangeBtn02_Patches
+    {
+        private static void Prefix(int ___nowSubMenuTypeId)
+        {
+            if (___nowSubMenuTypeId == 52)
+                MoreAccessories._self._loadAdditionalAccessories = false;
+        }
 
-    //    private static void LoadAndChangeCloth_Prefix(bool clothOnly, bool accessoryOnly)
-    //    {
-    //        MoreAccessories._self._loadAdditionalAccessories = accessoryOnly;
-    //    }
+        private static void Postfix()
+        {
+            MoreAccessories._self._loadAdditionalAccessories = true;
+        }
+    }
 
-    //    private static void ReplaceBodyOnly_Prefix()
-    //    {
-    //        MoreAccessories._self._loadAdditionalAccessories = false;
-    //    }
+    [HarmonyPatch]
+    internal class HSStudioNEOAddon_StudioCharaListSortUtil_LoadAndChangeCloth_Patches
+    {
+        internal static bool Prepare()
+        {
+            return Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
+        }
+        internal static MethodInfo TargetMethod()
+        {
+            return Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon").GetMethod("LoadAndChangeCloth", BindingFlags.Instance | BindingFlags.Public);
+        }
 
-    //    private static void GenericPostfix()
-    //    {
-    //        MoreAccessories._self._loadAdditionalAccessories = true;
-    //    }
-    //}
+        private static void Prefix(object __instance, bool clothOnly, bool accessoryOnly, MPCharCtrl ___mpCharCtrl, CharaFileSort ___charaFileSort, bool ___replaceCharaSameCharaAll)
+        {
+            if (accessoryOnly)
+            {
+                OCIChar ocichar = (OCIChar)___mpCharCtrl.GetPrivate("m_OCIChar");
+                if (ocichar == null)
+                    return;
+                string selectPath = ___charaFileSort.selectPath;
+                if (!File.Exists(selectPath))
+                    return;
+
+                XmlNode node = MoreAccessories.GetExtDataFromFile(selectPath, "<clothesExtData>");
+                if (node != null)
+                {
+                    List<ObjectCtrlInfo> characters = (List<ObjectCtrlInfo>)__instance.CallPrivate("GetTargetChara", ocichar.charInfo.Sex == 0, ___replaceCharaSameCharaAll);
+                    foreach (ObjectCtrlInfo info in characters)
+                        MoreAccessories._self.OnCoordLoad(((OCIChar)info).charInfo.clothesInfo, node);
+                }
+            }
+            else if (clothOnly)
+            {
+                MoreAccessories._self._loadAdditionalAccessories = false;
+            }
+        }
+
+        private static void Postfix()
+        {
+            MoreAccessories._self._loadAdditionalAccessories = true;
+        }
+    }
+
+    [HarmonyPatch]
+    internal class HSStudioNEOAddon_StudioCharaListSortUtil_ReplaceClothesOnlys_Patches
+    {
+        internal static bool Prepare()
+        {
+            return Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
+        }
+        internal static MethodInfo TargetMethod()
+        {
+            return AccessTools.Method(Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon"), "ReplaceClothesOnly");
+        }
+
+        private static void Prefix(object __instance, bool ___isMale, CharaFileSort ___charaFileSort, bool ___replaceCharaSameCharaAll)
+        {
+            string selectPath = ___charaFileSort.selectPath;
+            if (!File.Exists(selectPath))
+                return;
+            Studio.Studio.Instance.ExecuteDelayed(() =>
+            {
+                XmlNode node = MoreAccessories.GetExtDataFromFile(selectPath, "<charExtData>");
+                if (node != null)
+                {
+                    List<XmlNode> toRemove = new List<XmlNode>();
+                    foreach (XmlNode childNode in node.ChildNodes)
+                    {
+                        if (XmlConvert.ToInt32(childNode.Attributes["type"].Value) != 0)
+                            toRemove.Add(childNode);
+                    }
+                    foreach (XmlNode xmlNode in toRemove)
+                        node.RemoveChild(xmlNode);
+                    List<ObjectCtrlInfo> characters = (List<ObjectCtrlInfo>)__instance.CallPrivate("GetTargetChara", ___isMale, ___replaceCharaSameCharaAll);
+                    foreach (ObjectCtrlInfo info in characters)
+                    {
+                        OCIChar ociChar = ((OCIChar)info);
+                        MoreAccessories._self.OnCoordLoad(ociChar.charInfo.clothesInfo, node);
+                        CharBody_ChangeAccessory_Patches.Postfix(ociChar.charBody, true);
+                    }
+                }
+            }, 2);
+        }
+    }
+
+    [HarmonyPatch]
+    internal class HSStudioNEOAddon_StudioCharaListSortUtil_ReplaceClothesOnly3Sets_Patches
+    {
+        internal static bool Prepare()
+        {
+            return Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
+        }
+        internal static MethodInfo TargetMethod()
+        {
+            return AccessTools.Method(Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon"), "ReplaceClothesOnly3Sets");
+        }
+
+        private static void Postfix(object __instance, bool ___isMale, CharaFileSort ___charaFileSort, bool ___replaceCharaSameCharaAll)
+        {
+            string selectPath = ___charaFileSort.selectPath;
+            if (!File.Exists(selectPath))
+                return;
+            Studio.Studio.Instance.ExecuteDelayed(() =>
+            {
+                XmlNode node = MoreAccessories.GetExtDataFromFile(selectPath, "<charExtData>");
+                if (node != null)
+                {
+                    List<ObjectCtrlInfo> characters = (List<ObjectCtrlInfo>)__instance.CallPrivate("GetTargetChara", ___isMale, ___replaceCharaSameCharaAll);
+                    foreach (ObjectCtrlInfo info in characters)
+                        MoreAccessories._self.OnCharaLoad(((OCIChar)info).charInfo.chaFile, node);
+                }
+            }, 2);
+        }
+    }
+
 }

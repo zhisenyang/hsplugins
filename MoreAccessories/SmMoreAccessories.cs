@@ -159,6 +159,7 @@ namespace MoreAccessories
         private readonly List<VectorLine> _debugVectorLines = new List<VectorLine>();
         private ScrollRect _scrollView;
         private SmAccessory _original;
+        internal int _guideObjectMode = 0;
         #endregion
 
         #region Public Accessors
@@ -238,6 +239,7 @@ namespace MoreAccessories
             {
                 line.active = false;
             }
+            MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(null);
         }
         #endregion
 
@@ -378,18 +380,21 @@ namespace MoreAccessories
             t.alignment = TextAnchor.MiddleLeft;
             t.color = Color.white;
 
+            Sprite toggle_b = null, toggle_c = null;
             foreach (Sprite s in Resources.FindObjectsOfTypeAll<Sprite>())
             {
                 switch (s.name)
                 {
                     case "toggle_b":
-                        this._debugParentToggle.transform.Find("Background").GetComponent<Image>().sprite = s;
+                        toggle_b = s;
                         break;
                     case "toggle_c":
-                        (this._debugParentToggle.graphic as Image).sprite = s;
+                        toggle_c = s;
                         break;
                 }
             }
+            this._debugParentToggle.transform.Find("Background").GetComponent<Image>().sprite = toggle_b;
+            ((Image)this._debugParentToggle.graphic).sprite = toggle_c;
 
             {
                 float size = 0.012f;
@@ -424,6 +429,72 @@ namespace MoreAccessories
                     line.active = false;
                 }
             }
+
+
+            MoreAccessories._self._charaMakerGuideObject.onPositionDelta = this.OnGuideObjectPositionDelta;
+            MoreAccessories._self._charaMakerGuideObject.onRotationDelta = this.OnGuideObjectRotationDelta;
+            MoreAccessories._self._charaMakerGuideObject.onScaleDelta = this.OnGuideObjectScaleDelta;
+
+            this.tab03.onValueChanged.AddListener((b) =>
+            {
+                MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(this.tab03.isOn ? MoreAccessories._self._charaMakerAdditionalData.objAcsMove[this.GetSlotNoFromSubMenuSelect()]?.transform : null);
+            });
+
+            ((RectTransform)this.transform.FindChild("TabControl/TabItem03/Correct/Position")).anchoredPosition += new Vector2(0f, 10f);
+            ((RectTransform)this.transform.FindChild("TabControl/TabItem03/Correct/Rotation")).anchoredPosition += new Vector2(0f, 14f);
+            RectTransform scalingmenu = ((RectTransform)this.transform.FindChild("TabControl/TabItem03/Correct/Scaling"));
+            scalingmenu.anchoredPosition += new Vector2(0f, 18f);
+
+            RectTransform modes = UIUtility.CreateNewUIObject(this.transform.FindChild("TabControl/TabItem03/Correct"), "GuideObject Modes");
+            modes.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(scalingmenu.offsetMin.x, scalingmenu.offsetMin.y - 22f), new Vector2(scalingmenu.offsetMax.x, scalingmenu.offsetMin.y));
+            ToggleGroup toggleGroup = modes.gameObject.AddComponent<ToggleGroup>();
+
+            Text label = UIUtility.CreateText("Label", modes, "Guide Object");
+            label.rectTransform.SetRect(Vector2.zero, new Vector2(0.25f, 1f));
+            Toggle moveToggle = UIUtility.CreateToggle("Move Toggle", modes, "Move");
+            moveToggle.transform.SetRect(new Vector2(0.25f, 0f), new Vector2(0.5f, 1f));
+            moveToggle.group = toggleGroup;
+            moveToggle.onValueChanged.AddListener((b) =>
+            {
+                if (moveToggle.isOn)
+                    MoreAccessories._self._charaMakerGuideObject.SetMode(0);
+            });
+            t = moveToggle.GetComponentInChildren<Text>();
+            t.alignment = TextAnchor.MiddleLeft;
+            t.color = Color.white;
+            moveToggle.transform.Find("Background").GetComponent<Image>().sprite = toggle_b;
+            ((Image)moveToggle.graphic).sprite = toggle_c;
+            moveToggle.isOn = true;
+
+            Toggle rotateToggle = UIUtility.CreateToggle("Rotate Toggle", modes, "Rotate");
+            rotateToggle.transform.SetRect(new Vector2(0.5f, 0f), new Vector2(0.75f, 1f));
+            rotateToggle.group = toggleGroup;
+            rotateToggle.onValueChanged.AddListener((b) =>
+            {
+                if (rotateToggle.isOn)
+                    MoreAccessories._self._charaMakerGuideObject.SetMode(1);
+            });
+            t = rotateToggle.GetComponentInChildren<Text>();
+            t.alignment = TextAnchor.MiddleLeft;
+            t.color = Color.white;
+            rotateToggle.transform.Find("Background").GetComponent<Image>().sprite = toggle_b;
+            ((Image)rotateToggle.graphic).sprite = toggle_c;
+            rotateToggle.isOn = false;
+
+            Toggle scaleToggle = UIUtility.CreateToggle("Scale Toggle", modes, "Scale");
+            scaleToggle.transform.SetRect(new Vector2(0.75f, 0f), Vector2.one);
+            scaleToggle.group = toggleGroup;
+            scaleToggle.onValueChanged.AddListener((b) =>
+            {
+                if (scaleToggle.isOn)
+                    MoreAccessories._self._charaMakerGuideObject.SetMode(2);
+            });
+            t = scaleToggle.GetComponentInChildren<Text>();
+            t.alignment = TextAnchor.MiddleLeft;
+            t.color = Color.white;
+            scaleToggle.transform.Find("Background").GetComponent<Image>().sprite = toggle_b;
+            ((Image)scaleToggle.graphic).sprite = toggle_c;
+            scaleToggle.isOn = false;
 
         }
 
@@ -849,6 +920,7 @@ namespace MoreAccessories
             this.UpdateShowTab();
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
             MoreAccessories._self.CustomControl_UpdateAcsName();
+
             this.UpdateDebugParentLines();
         }
 
@@ -870,6 +942,7 @@ namespace MoreAccessories
             else
                 this.additionalTglParent[parentIndexFromParentKey - 29].isOn = true;
             this.updateVisualOnly = false;
+
             this.UpdateDebugParentLines();
         }
 
@@ -888,6 +961,7 @@ namespace MoreAccessories
             string accessoryDefaultParentStr = this.chaClothes.GetAccessoryDefaultParentStr(this.acsType, id);
             int parentIndexFromParentKey = this.GetParentIndexFromParentKey(accessoryDefaultParentStr);
             this.tglParent[parentIndexFromParentKey].isOn = true;
+
             this.UpdateDebugParentLines();
         }
 
@@ -914,6 +988,7 @@ namespace MoreAccessories
             CharBody_ChangeAccessory_Patches.CharClothes_ChangeAccessoryParent(this.chaBody, MoreAccessories._self._charaMakerAdditionalData, slotNoFromSubMenuSelect, newParentKey);
             //MoreAccessories.self.charaMakerAdditionalData.rawAccessoriesInfos[this.statusInfo.coordinateType][slotNoFromSubMenuSelect].parentKey = MoreAccessories.self.charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].parentKey;
             this.CharClothes_ResetAccessoryMove(slotNoFromSubMenuSelect);
+
             this.UpdateDebugParentLines();
         }
 
@@ -1667,6 +1742,7 @@ namespace MoreAccessories
             if (this.inputSclZ)
                 this.inputSclZ.text = this.GetTextFormValue(num, 2);
             this.nowChanging = false;
+            MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(this.tab03.gameObject.activeInHierarchy && this.tab03.isOn ? MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNoFromSubMenuSelect]?.transform : null);
         }
 
         public virtual void UpdateShowTab()
@@ -1700,6 +1776,7 @@ namespace MoreAccessories
             bool active = ColorChange.CheckChangeSubColor(this.lstTagColor);
             if (this.objSubColor)
                 this.objSubColor.SetActive(active);
+            MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(this.tab03.gameObject.activeInHierarchy && this.tab03.isOn ? MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNoFromSubMenuSelect]?.transform : null);
         }
 
         public override void SetCharaInfoSub()
@@ -1721,6 +1798,8 @@ namespace MoreAccessories
             this.ChangeAccessoryTypeList(MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].type, MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].id);
             this.UpdateShowTab();
             this.MoveInfoAllSet();
+
+            MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(this.tab03.gameObject.activeInHierarchy && this.tab03.isOn ? MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNoFromSubMenuSelect]?.transform : null);
             this.UpdateDebugParentLines();
             this.initFlags = false;
         }
@@ -1889,6 +1968,7 @@ namespace MoreAccessories
             this.UpdateShowTab();
             this.MoveInfoAllSet();
             this.initFlags = false;
+            MoreAccessories._self._charaMakerGuideObject.SetTransformTarget(this.tab03.gameObject.activeInHierarchy && this.tab03.isOn ? MoreAccessories._self._charaMakerAdditionalData.objAcsMove[slotNoFromSubMenuSelect]?.transform : null);
         }
 
         public virtual void SetButtonClickHandler(GameObject clickObj)
@@ -1951,6 +2031,64 @@ namespace MoreAccessories
                 line.active = this._debugParentToggle.isOn;
                 line.Draw();
             }
+        }
+
+        private void OnGuideObjectPositionDelta(Vector3 deltaPos)
+        {
+            int index = this.GetSlotNoFromSubMenuSelect();
+            GameObject target = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[index];
+            CharFileInfoClothes.Accessory targetAccessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[index];
+            target.transform.localPosition += deltaPos;
+            targetAccessory.addPos = target.transform.localPosition;
+
+
+            float num = (float)(targetAccessory.addPos.x * 100f);
+            if (this.inputPosX)
+                this.inputPosX.text = this.GetTextFormValue(num, 1);
+            num = (float)(targetAccessory.addPos.y * 100f);
+            if (this.inputPosY)
+                this.inputPosY.text = this.GetTextFormValue(num, 1);
+            num = (float)(targetAccessory.addPos.z * 100f);
+            if (this.inputPosZ)
+                this.inputPosZ.text = this.GetTextFormValue(num, 1);
+        }
+
+        private void OnGuideObjectRotationDelta(Vector3 deltaRot)
+        {
+            int index = this.GetSlotNoFromSubMenuSelect();
+            GameObject target = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[index];
+            CharFileInfoClothes.Accessory targetAccessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[index];
+            target.transform.localRotation *= Quaternion.Euler(deltaRot);
+            targetAccessory.addRot = target.transform.localEulerAngles;
+
+            float num = targetAccessory.addRot.x;
+            if (this.inputRotX)
+                this.inputRotX.text = this.GetTextFormValue(num);
+            num = targetAccessory.addRot.y;
+            if (this.inputRotY)
+                this.inputRotY.text = this.GetTextFormValue(num);
+            num = targetAccessory.addRot.z;
+            if (this.inputRotZ)
+                this.inputRotZ.text = this.GetTextFormValue(num);
+        }
+
+        private void OnGuideObjectScaleDelta(Vector3 deltaScale)
+        {
+            int index = this.GetSlotNoFromSubMenuSelect();
+            GameObject target = MoreAccessories._self._charaMakerAdditionalData.objAcsMove[index];
+            CharFileInfoClothes.Accessory targetAccessory = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[index];
+            target.transform.localScale += deltaScale;
+            targetAccessory.addScl = target.transform.localScale;
+
+            float num = targetAccessory.addScl.x;
+            if (this.inputSclX)
+                this.inputSclX.text = this.GetTextFormValue(num, 2);
+            num = targetAccessory.addScl.y;
+            if (this.inputSclY)
+                this.inputSclY.text = this.GetTextFormValue(num, 2);
+            num = targetAccessory.addScl.z;
+            if (this.inputSclZ)
+                this.inputSclZ.text = this.GetTextFormValue(num, 2);
         }
 
         public void SearchChanged(string arg0)

@@ -2,18 +2,21 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Xml;
 using CustomMenu;
 using Harmony;
 using IllusionPlugin;
 using IllusionUtility.GetUtility;
 using Manager;
-using Studio;
+//using Studio;
 using ToolBox;
 using UILib;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace MoreAccessories
@@ -328,7 +331,7 @@ namespace MoreAccessories
         private RectTransform _prefab;
         private Binary _binary;
         private SubMenuControl _smControl;
-        private SmMoreAccessories _smMoreAccessories;
+        internal SmMoreAccessories _smMoreAccessories;
         private CharInfo _charaMakerCharInfo;
         private MainMenuSelect _mainMenuSelect;
         private bool _ready = false;
@@ -343,12 +346,14 @@ namespace MoreAccessories
         private GameObject _charaMakerCopySlotTemplate;
         private LayoutElement _charaMakerBulkColorContainer;
         private GameObject _charaMakerBulkColorSlotTemplate;
+        internal GuideObject _charaMakerGuideObject;
+        private Camera _guideObjectCamera;
         #endregion
 
         #region Public Accessors
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         public string Name { get { return "MoreAccessories"; } }
-        public string Version { get { return "1.2.0"; } }
+        public string Version { get { return "1.3.0b"; } }
         public CharInfo charaMakerCharInfo
         {
             get { return this._charaMakerCharInfo; }
@@ -455,6 +460,7 @@ namespace MoreAccessories
 
         public void OnLateUpdate()
         {
+            this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
         }
 
         public void OnFixedUpdate()
@@ -470,6 +476,24 @@ namespace MoreAccessories
                 this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
             else
                 this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
+
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.MoreAccessoriesResources);
+            this._charaMakerGuideObject = GameObject.Instantiate(bundle.LoadAsset<GameObject>("M Root")).AddComponent<GuideObject>();
+            bundle.Unload(false);
+
+            this._guideObjectCamera = new GameObject("GuideObjectCamera").AddComponent<Camera>();
+            this._guideObjectCamera.transform.SetParent(Camera.main.transform);
+            this._guideObjectCamera.transform.localPosition = Vector3.zero;
+            this._guideObjectCamera.transform.localRotation = Quaternion.identity;
+            this._guideObjectCamera.cullingMask = LayerMask.GetMask("Studio_ColSelect", "Studio_Col");
+            this._guideObjectCamera.clearFlags = CameraClearFlags.Depth;
+            this._guideObjectCamera.backgroundColor = Color.clear;
+            this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
+            this._guideObjectCamera.depth = Camera.main.depth + 1;
+            
+            this._guideObjectCamera.renderingPath = RenderingPath.Forward;
+            PhysicsRaycaster raycaster = this._guideObjectCamera.gameObject.AddComponent<PhysicsRaycaster>();
+            raycaster.eventMask = LayerMask.GetMask("Studio_ColSelect");
 
             Dictionary<CharFile, CharAdditionalData> newDic = new Dictionary<CharFile, CharAdditionalData>();
             foreach (KeyValuePair<CharFile, CharAdditionalData> pair in this._accessoriesByChar)
@@ -588,7 +612,6 @@ namespace MoreAccessories
             container.Find("all_off").SetParent(buttonsContainer);
             container.Find("clothes_on").SetParent(buttonsContainer);
             container.Find("accessory_on").SetParent(buttonsContainer);
-
         }
 
         [HarmonyPatch(typeof(SmClothesCopy), "Init")]
@@ -689,7 +712,7 @@ namespace MoreAccessories
             Transform accList = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/01_State/Viewport/Content/Slot");
             this._prefab = accList.Find("Slot10") as RectTransform;
 
-            MPCharCtrl ctrl = ((MPCharCtrl)Studio.Studio.Instance.rootButtonCtrl.GetPrivate("manipulate").GetPrivate("m_ManipulatePanelCtrl").GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
+            Studio.MPCharCtrl ctrl = ((Studio.MPCharCtrl)Studio.Studio.Instance.rootButtonCtrl.GetPrivate("manipulate").GetPrivate("m_ManipulatePanelCtrl").GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
 
             this._toggleAll = new StudioSlotData();
             this._toggleAll.slot = (RectTransform)GameObject.Instantiate(this._prefab.gameObject).transform;
@@ -1076,7 +1099,7 @@ namespace MoreAccessories
             }
         }
 
-        private void OnCharaLoad(CharFile charFile, XmlNode node)
+        internal void OnCharaLoad(CharFile charFile, XmlNode node)
         {
             this.OnCharaLoadGeneric(charFile, node);
         }
@@ -1232,7 +1255,7 @@ namespace MoreAccessories
             XmlNode node = n.CloneNode(true);
             this._routines.ExecuteDelayed(() =>
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
+                List<KeyValuePair<int, Studio.ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
                 int i = 0;
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
@@ -1254,14 +1277,14 @@ namespace MoreAccessories
                 return;
             XmlNode node = n.CloneNode(true);
             int max = -1;
-            foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
+            foreach (KeyValuePair<int, Studio.ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
             {
                 if (pair.Key > max)
                     max = pair.Key;
             }
             this._routines.ExecuteDelayed(() =>
             {
-                List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > max).ToList();
+                List<KeyValuePair<int, Studio.ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > max).ToList();
 
                 int i = 0;
                 foreach (XmlNode childNode in node.ChildNodes)
@@ -1278,7 +1301,7 @@ namespace MoreAccessories
             }, 3);
         }
 
-        private void OnCoordLoad(CharFileInfoClothes clothesinfo, XmlNode node)
+        internal void OnCoordLoad(CharFileInfoClothes clothesinfo, XmlNode node)
         {
             CharAdditionalData additionalData = null;
             switch (this._binary)
@@ -1288,8 +1311,7 @@ namespace MoreAccessories
                     switch (this._level)
                     {
                         case 21:
-                            if (clothesinfo == this.charaMakerCharInfo.clothesInfo)
-                                additionalData = this._charaMakerAdditionalData;
+                            additionalData = this._charaMakerAdditionalData;
                             break;
                         case 15:
                             if (HSceneClothChange_InitCharaList_Patches._isInitializing == false)
@@ -1316,6 +1338,7 @@ namespace MoreAccessories
                 return;
             List<CharFileInfoClothes.Accessory> accessories2 = additionalData.clothesInfoAccessory;
             accessories2.Clear();
+
             if (node != null && this._loadAdditionalAccessories)
             {
                 node = node.FirstChild;
@@ -1446,6 +1469,32 @@ namespace MoreAccessories
                 writer.WriteEndElement();
             }
             writer.WriteEndElement();
+        }
+
+        internal static XmlNode GetExtDataFromFile(string path, string extMarker)
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+
+            int index = bytes.LastIndexOf(Encoding.ASCII.GetBytes(extMarker));
+            if (index == -1)
+                return null;
+            byte[] newBytes = new byte[bytes.Length - index];
+            Array.Copy(bytes, index, newBytes, 0, newBytes.Length);
+            using (MemoryStream stream = new MemoryStream(newBytes))
+            {
+                try
+                {
+                    XmlDocument doc = new XmlDocument();
+                    doc.Load(stream);
+                    XmlNode node = doc.FirstChild.FindChildNode("moreAccessories");
+                    return node;
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError("MoreAccessories: Couldn't parse xml\n" + e);
+                    return null;
+                }
+            }
         }
         #endregion
     }
