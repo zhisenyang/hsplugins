@@ -1063,56 +1063,64 @@ namespace HSPE.AMModules
 
         public override bool LoadXml(XmlNode xmlNode)
         {
-            this.ResetAll();
             bool changed = false;
+            this.ResetAll();
             XmlNode objects = xmlNode.FindChildNode("advancedObjects");
 
             if (objects != null)
             {
                 foreach (XmlNode node in objects.ChildNodes)
                 {
-                    if (node.Name != "object")
-                        continue;
-                    string name = node.Attributes["name"].Value;
+                    try
+                    {
+                        if (node.Name != "object")
+                            continue;
+                        string name = node.Attributes["name"].Value;
 
-                    GameObject obj = this._parent.transform.Find(name).gameObject;
-                    TransformData data = new TransformData();
-                    if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
-                    {
-                        Vector3 pos;
-                        pos.x = XmlConvert.ToSingle(node.Attributes["posX"].Value);
-                        pos.y = XmlConvert.ToSingle(node.Attributes["posY"].Value);
-                        pos.z = XmlConvert.ToSingle(node.Attributes["posZ"].Value);
-                        data.position = pos;
-                        data.originalPosition = obj.transform.localPosition;
-                    }
-                    if (node.Attributes["rotW"] != null && node.Attributes["rotX"] != null && node.Attributes["rotY"] != null && node.Attributes["rotZ"] != null)
-                    {
-                        Quaternion rot;
-                        rot.w = XmlConvert.ToSingle(node.Attributes["rotW"].Value);
-                        rot.x = XmlConvert.ToSingle(node.Attributes["rotX"].Value);
-                        rot.y = XmlConvert.ToSingle(node.Attributes["rotY"].Value);
-                        rot.z = XmlConvert.ToSingle(node.Attributes["rotZ"].Value);
-                        data.rotation = rot;
-                        data.originalRotation = obj.transform.localRotation;
-                    }
-                    if (node.Attributes["scaleX"] != null && node.Attributes["scaleY"] != null && node.Attributes["scaleZ"] != null)
-                    {
-                        Vector3 scale;
-                        scale.x = XmlConvert.ToSingle(node.Attributes["scaleX"].Value);
-                        scale.y = XmlConvert.ToSingle(node.Attributes["scaleY"].Value);
-                        scale.z = XmlConvert.ToSingle(node.Attributes["scaleZ"].Value);
-                        data.scale = scale;
-                        data.originalScale = obj.transform.localScale;
-                    }
+                        GameObject obj = this._parent.transform.Find(name).gameObject;
+                        TransformData data = new TransformData();
+                        if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
+                        {
+                            Vector3 pos;
+                            pos.x = XmlConvert.ToSingle(node.Attributes["posX"].Value);
+                            pos.y = XmlConvert.ToSingle(node.Attributes["posY"].Value);
+                            pos.z = XmlConvert.ToSingle(node.Attributes["posZ"].Value);
+                            data.position = pos;
+                            data.originalPosition = obj.transform.localPosition;
+                        }
+                        if (node.Attributes["rotW"] != null && node.Attributes["rotX"] != null && node.Attributes["rotY"] != null && node.Attributes["rotZ"] != null)
+                        {
+                            Quaternion rot;
+                            rot.w = XmlConvert.ToSingle(node.Attributes["rotW"].Value);
+                            rot.x = XmlConvert.ToSingle(node.Attributes["rotX"].Value);
+                            rot.y = XmlConvert.ToSingle(node.Attributes["rotY"].Value);
+                            rot.z = XmlConvert.ToSingle(node.Attributes["rotZ"].Value);
+                            data.rotation = rot;
+                            data.originalRotation = obj.transform.localRotation;
+                        }
+                        if (node.Attributes["scaleX"] != null && node.Attributes["scaleY"] != null && node.Attributes["scaleZ"] != null)
+                        {
+                            Vector3 scale;
+                            scale.x = XmlConvert.ToSingle(node.Attributes["scaleX"].Value);
+                            scale.y = XmlConvert.ToSingle(node.Attributes["scaleY"].Value);
+                            scale.z = XmlConvert.ToSingle(node.Attributes["scaleZ"].Value);
+                            data.scale = scale;
+                            data.originalScale = obj.transform.localScale;
+                        }
 
-                    if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
+                        if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
+                        {
+                            changed = true;
+                            this._dirtyBones.Add(obj, data);
+                        }
+                    }
+                    catch (Exception e)
                     {
-                        changed = true;
-                        this._dirtyBones.Add(obj, data);
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load bones for object " + this._parent.name + " " + node.OuterXml + "\n" + e);
                     }
                 }
             }
+
             return changed;
         }
         #endregion

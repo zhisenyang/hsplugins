@@ -130,7 +130,18 @@ namespace HSPE.AMModules
             Color c = GUI.color;
             GUI.color = _redColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("X:\t" + value.x.ToString("0.00000"));
+            GUILayout.Label("X:\t", GUILayout.ExpandWidth(false));
+
+            string oldValue = value.x.ToString("0.00000");
+            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.x = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.right;
@@ -142,7 +153,18 @@ namespace HSPE.AMModules
 
             GUI.color = _greenColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Y:\t" + value.y.ToString("0.00000"));
+            GUILayout.Label("Y:\t", GUILayout.ExpandWidth(false));
+
+            oldValue = value.y.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.y = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.up;
@@ -154,7 +176,18 @@ namespace HSPE.AMModules
 
             GUI.color = _blueColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Z:\t" + value.z.ToString("0.00000"));
+            GUILayout.Label("Z:\t", GUILayout.ExpandWidth(false));
+
+            oldValue = value.z.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.z = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.forward;
@@ -173,7 +206,18 @@ namespace HSPE.AMModules
             Color c = GUI.color;
             GUI.color = color;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("X:\t" + value.x.ToString("0.00000"));
+            GUILayout.Label("X:\t", GUILayout.ExpandWidth(false));
+
+            string oldValue = value.x.ToString("0.00000");
+            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.x = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.right;
@@ -183,7 +227,18 @@ namespace HSPE.AMModules
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Y:\t" + value.y.ToString("0.00000"));
+            GUILayout.Label("Y:\t", GUILayout.ExpandWidth(false));
+
+            oldValue = value.y.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.y = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.up;
@@ -193,7 +248,18 @@ namespace HSPE.AMModules
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Z:\t" + value.z.ToString("0.00000"));
+            GUILayout.Label("Z:\t", GUILayout.ExpandWidth(false));
+
+            oldValue = value.z.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value.z = res;
+            }
+            GUILayout.FlexibleSpace();
+
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
             if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
                 value -= _inc * Vector3.forward;

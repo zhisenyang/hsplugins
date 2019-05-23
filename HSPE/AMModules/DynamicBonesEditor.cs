@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
@@ -167,37 +168,45 @@ namespace HSPE.AMModules
 
                 this.gravity.points3[0] = origin;
                 this.gravity.points3[1] = final;
-                this.gravity.Draw();
 
                 origin = final;
                 final += db.m_Force * scale;
 
                 this.force.points3[0] = origin;
                 this.force.points3[1] = final;
-                this.force.Draw();
 
                 origin = end.position;
 
+                Color c;
                 if (isTarget)
-                {
-                    this.both.color = Color.cyan;
-                    this.circle.color = Color.cyan;
-                }
+                    c = Color.cyan;
                 else if (isDirty)
-                {
-                    this.both.color = Color.magenta;
-                    this.circle.color = Color.magenta;
-                }
+                    c = Color.magenta;
                 else
-                {
-                    this.both.color = _greenColor;
-                    this.circle.color = _greenColor;
-                }
+                    c = _greenColor;
+
                 this.both.points3[0] = origin;
                 this.both.points3[1] = final;
-                this.both.Draw();
 
                 this.circle.MakeCircle(end.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dynamicBonesDragRadius);
+
+                float distance = 1 - (Mathf.Clamp((end.position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude, 5, 20) - 5) / 15;
+                if (distance < 0.3f)
+                    distance = 0.3f;
+                c.a = distance;
+
+                this.both.color = c;
+                this.circle.color = c;
+                Color gravityColor = this.gravity.color;
+                gravityColor.a = distance;
+                this.gravity.color = gravityColor;
+                Color forceColor = this.force.color;
+                forceColor.a = distance;
+                this.force.color = forceColor;
+
+                this.gravity.Draw();
+                this.force.Draw();
+                this.both.Draw();
                 this.circle.Draw();
             }
 
@@ -332,8 +341,10 @@ namespace HSPE.AMModules
             if (this._headlessReconstructionTimeout >= 0)
             {
                 this._headlessReconstructionTimeout--;
-                foreach (KeyValuePair<Transform, DynamicBoneData> pair in new Dictionary<Transform, DynamicBoneData>(this._headlessDirtyDynamicBones))
+                foreach (KeyValuePair<Transform, DynamicBoneData> pair in this._headlessDirtyDynamicBones.ToList())
                 {
+                    if (pair.Key == null)
+                        continue;
                     foreach (DynamicBone db in this._dynamicBones)
                     {
                         if (db != null && this._dirtyDynamicBones.ContainsKey(db) == false && (db.m_Root == pair.Key || db.transform == pair.Key))
@@ -969,34 +980,41 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in dynamicBonesNode.ChildNodes)
                 {
-                    string root = node.Attributes["root"].Value;
-                    DynamicBone db = null;
-                    foreach (DynamicBone bone in this._dynamicBones)
+                    try
                     {
-                        if (bone.m_Root)
+                        string root = node.Attributes["root"].Value;
+                        DynamicBone db = null;
+                        foreach (DynamicBone bone in this._dynamicBones)
                         {
-                            if ((bone.m_Root.GetPathFrom(this._parent.transform).Equals(root) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if (bone.m_Root)
                             {
-                                db = bone;
-                                break;
+                                if ((bone.m_Root.GetPathFrom(this._parent.transform).Equals(root) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                                {
+                                    db = bone;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                if ((bone.transform.GetPathFrom(this._parent.transform).Equals(root) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                                {
+                                    db = bone;
+                                    break;
+                                }
                             }
                         }
-                        else
+                        if (db == null)
                         {
-                            if ((bone.transform.GetPathFrom(this._parent.transform).Equals(root) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
-                            {
-                                db = bone;
-                                break;
-                            }
+                            potentialChildrenNodes.Add(node);
+                            continue;
                         }
+                        if (this.LoadSingleBone(db, node))
+                            changed = true;
                     }
-                    if (db == null)
+                    catch (Exception e)
                     {
-                        potentialChildrenNodes.Add(node);
-                        continue;
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load dynamic bone for object " + this._parent.name + " " + node.OuterXml + "\n" + e);
                     }
-                    if (this.LoadSingleBone(db, node))
-                        changed = true;
                 }
             }
             if (potentialChildrenNodes.Count > 0)
@@ -1023,30 +1041,37 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in this._secondPassLoadingNodes)
                 {
-                    string root = node.Attributes["root"].Value;
-                    DynamicBone db = null;
-                    foreach (DynamicBone bone in this._dynamicBones)
+                    try
                     {
-                        if (bone.m_Root)
+                        string root = node.Attributes["root"].Value;
+                        DynamicBone db = null;
+                        foreach (DynamicBone bone in this._dynamicBones)
                         {
-                            if ((root.EndsWith(bone.m_Root.GetPathFrom(this._parent.transform.parent)) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                            if (bone.m_Root)
                             {
-                                db = bone;
-                                break;
+                                if ((root.EndsWith(bone.m_Root.GetPathFrom(this._parent.transform.parent)) || bone.m_Root.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                                {
+                                    db = bone;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                if ((root.EndsWith(bone.transform.GetPathFrom(this._parent.transform.parent)) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
+                                {
+                                    db = bone;
+                                    break;
+                                }
                             }
                         }
-                        else
-                        {
-                            if ((root.EndsWith(bone.transform.GetPathFrom(this._parent.transform.parent)) || bone.name.Equals(root)) && this._dirtyDynamicBones.ContainsKey(bone) == false)
-                            {
-                                db = bone;
-                                break;
-                            }
-                        }
+                        if (db == null)
+                            continue;
+                        this.LoadSingleBone(db, node);
                     }
-                    if (db == null)
-                        continue;
-                    this.LoadSingleBone(db, node);
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load dynamic bone for object " + this._parent.name + " " + node.OuterXml + "\n" + e);
+                    }
                 }
                 this._secondPassLoadingNodes.Clear();
             }, 2);

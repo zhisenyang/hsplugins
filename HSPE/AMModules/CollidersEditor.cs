@@ -555,50 +555,57 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in colliders.ChildNodes)
                 {
-                    Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
-                    if (t == null)
-                        continue;
-                    DynamicBoneCollider collider = t.GetComponent<DynamicBoneCollider>();
-                    if (collider == null)
-                        continue;
-                    ColliderData data = new ColliderData();
-                    if (node.Attributes["centerX"] != null && node.Attributes["centerY"] != null && node.Attributes["centerZ"] != null)
+                    try
                     {
-                        Vector3 center;
-                        center.x = XmlConvert.ToSingle(node.Attributes["centerX"].Value);
-                        center.y = XmlConvert.ToSingle(node.Attributes["centerY"].Value);
-                        center.z = XmlConvert.ToSingle(node.Attributes["centerZ"].Value);
-                        data.originalCenter = collider.m_Center;
-                        collider.m_Center = center;
+                        Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
+                        if (t == null)
+                            continue;
+                        DynamicBoneCollider collider = t.GetComponent<DynamicBoneCollider>();
+                        if (collider == null)
+                            continue;
+                        ColliderData data = new ColliderData();
+                        if (node.Attributes["centerX"] != null && node.Attributes["centerY"] != null && node.Attributes["centerZ"] != null)
+                        {
+                            Vector3 center;
+                            center.x = XmlConvert.ToSingle(node.Attributes["centerX"].Value);
+                            center.y = XmlConvert.ToSingle(node.Attributes["centerY"].Value);
+                            center.z = XmlConvert.ToSingle(node.Attributes["centerZ"].Value);
+                            data.originalCenter = collider.m_Center;
+                            collider.m_Center = center;
+                        }
+                        if (node.Attributes["radius"] != null)
+                        {
+                            float radius = XmlConvert.ToSingle(node.Attributes["radius"].Value);
+                            data.originalRadius = collider.m_Radius;
+                            collider.m_Radius = radius;
+                        }
+                        if (node.Attributes["height"] != null)
+                        {
+                            float height = XmlConvert.ToSingle(node.Attributes["height"].Value);
+                            data.originalHeight = collider.m_Height;
+                            collider.m_Height = height;
+                        }
+                        if (node.Attributes["direction"] != null)
+                        {
+                            int direction = XmlConvert.ToInt32(node.Attributes["direction"].Value);
+                            data.originalDirection = collider.m_Direction;
+                            collider.m_Direction = (DynamicBoneCollider.Direction)direction;
+                        }
+                        if (node.Attributes["bound"] != null)
+                        {
+                            int bound = XmlConvert.ToInt32(node.Attributes["bound"].Value);
+                            data.originalBound = collider.m_Bound;
+                            collider.m_Bound = (DynamicBoneCollider.Bound)bound;
+                        }
+                        if (data.originalCenter.hasValue || data.originalRadius.hasValue || data.originalHeight.hasValue || data.originalDirection.hasValue || data.originalBound.hasValue)
+                        {
+                            changed = true;
+                            this._dirtyColliders.Add(collider, data);
+                        }
                     }
-                    if (node.Attributes["radius"] != null)
+                    catch (Exception e)
                     {
-                        float radius = XmlConvert.ToSingle(node.Attributes["radius"].Value);
-                        data.originalRadius = collider.m_Radius;
-                        collider.m_Radius = radius;
-                    }
-                    if (node.Attributes["height"] != null)
-                    {
-                        float height = XmlConvert.ToSingle(node.Attributes["height"].Value);
-                        data.originalHeight = collider.m_Height;
-                        collider.m_Height = height;
-                    }
-                    if (node.Attributes["direction"] != null)
-                    {
-                        int direction = XmlConvert.ToInt32(node.Attributes["direction"].Value);
-                        data.originalDirection = collider.m_Direction;
-                        collider.m_Direction = (DynamicBoneCollider.Direction)direction;
-                    }
-                    if (node.Attributes["bound"] != null)
-                    {
-                        int bound = XmlConvert.ToInt32(node.Attributes["bound"].Value);
-                        data.originalBound = collider.m_Bound;
-                        collider.m_Bound = (DynamicBoneCollider.Bound)bound;
-                    }
-                    if (data.originalCenter.hasValue || data.originalRadius.hasValue || data.originalHeight.hasValue || data.originalDirection.hasValue || data.originalBound.hasValue)
-                    {
-                        changed = true;
-                        this._dirtyColliders.Add(collider, data);
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load collider for object " + this._parent.name + " " + node.OuterXml + "\n" + e);
                     }
                 }
             }

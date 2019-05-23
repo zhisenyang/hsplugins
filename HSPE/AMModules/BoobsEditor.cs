@@ -520,15 +520,17 @@ namespace HSPE.AMModules
 #endif
                 foreach (XmlNode node in boobs.ChildNodes)
                 {
-                    DynamicBone_Ver02 boob = null;
-                    switch (node.Name)
+                    try
                     {
-                        case "left":
-                            boob = this._leftBoob;
-                            break;
-                        case "right":
-                            boob = this._rightBoob;
-                            break;
+                        DynamicBone_Ver02 boob = null;
+                        switch (node.Name)
+                        {
+                            case "left":
+                                boob = this._leftBoob;
+                                break;
+                            case "right":
+                                boob = this._rightBoob;
+                                break;
 #if KOIKATSU
                         case "leftButt":
                             boob = this._leftButtCheek;
@@ -537,33 +539,38 @@ namespace HSPE.AMModules
                             boob = this._rightButtCheek;
                             break;
 #endif
+                        }
+                        if (boob != null)
+                        {
+                            BoobData data = new BoobData();
+                            if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
+                            {
+                                Vector3 gravity;
+                                gravity.x = XmlConvert.ToSingle(node.Attributes["gravityX"].Value);
+                                gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
+                                gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
+                                data.originalGravity = boob.Gravity;
+                                data.gravity = gravity;
+                            }
+                            if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
+                            {
+                                Vector3 force;
+                                force.x = XmlConvert.ToSingle(node.Attributes["forceX"].Value);
+                                force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
+                                force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
+                                data.originalForce = boob.Force;
+                                data.force = force;
+                            }
+                            if (data.originalGravity.hasValue || data.originalForce.hasValue)
+                            {
+                                changed = true;
+                                this._dirtyDynamicBones.Add(boob, data);
+                            }
+                        }
                     }
-                    if (boob != null)
+                    catch (Exception e)
                     {
-                        BoobData data = new BoobData();
-                        if (node.Attributes["gravityX"] != null && node.Attributes["gravityY"] != null && node.Attributes["gravityZ"] != null)
-                        {
-                            Vector3 gravity;
-                            gravity.x = XmlConvert.ToSingle(node.Attributes["gravityX"].Value);
-                            gravity.y = XmlConvert.ToSingle(node.Attributes["gravityY"].Value);
-                            gravity.z = XmlConvert.ToSingle(node.Attributes["gravityZ"].Value);
-                            data.originalGravity = boob.Gravity;
-                            data.gravity = gravity;
-                        }
-                        if (node.Attributes["forceX"] != null && node.Attributes["forceY"] != null && node.Attributes["forceZ"] != null)
-                        {
-                            Vector3 force;
-                            force.x = XmlConvert.ToSingle(node.Attributes["forceX"].Value);
-                            force.y = XmlConvert.ToSingle(node.Attributes["forceY"].Value);
-                            force.z = XmlConvert.ToSingle(node.Attributes["forceZ"].Value);
-                            data.originalForce = boob.Force;
-                            data.force = force;
-                        }
-                        if (data.originalGravity.hasValue || data.originalForce.hasValue)
-                        {
-                            changed = true;
-                            this._dirtyDynamicBones.Add(boob, data);
-                        }
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load boob for character " + this._parent.name + " " + node.OuterXml + "\n" + e);
                     }
                 }
             }

@@ -536,19 +536,26 @@ namespace HSPE.AMModules
             {
                 foreach (XmlNode node in skinnedMeshesNode.ChildNodes)
                 {
-                    Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
-                    if (t == null)
-                        continue;
-                    SkinnedMeshRenderer renderer = t.GetComponent<SkinnedMeshRenderer>();
-                    if (renderer == null)
-                        continue;
-                    if (this._skinnedMeshRenderers.Contains(renderer) == false)
+                    try
                     {
-                        potentialChildrenNodes.Add(node, renderer);
-                        continue;
+                        Transform t = this._parent.transform.Find(node.Attributes["name"].Value);
+                        if (t == null)
+                            continue;
+                        SkinnedMeshRenderer renderer = t.GetComponent<SkinnedMeshRenderer>();
+                        if (renderer == null)
+                            continue;
+                        if (this._skinnedMeshRenderers.Contains(renderer) == false)
+                        {
+                            potentialChildrenNodes.Add(node, renderer);
+                            continue;
+                        }
+                        if (this.LoadSingleSkinnedMeshRenderer(node, renderer))
+                            changed = true;
                     }
-                    if (this.LoadSingleSkinnedMeshRenderer(node, renderer))
-                        changed = true;
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load blendshape for object " + this._parent.name + " " + node.OuterXml + "\n" + e);
+                    }
                 }
             }
             if (potentialChildrenNodes.Count > 0)
@@ -569,9 +576,17 @@ namespace HSPE.AMModules
             {
                 foreach (KeyValuePair<XmlNode, SkinnedMeshRenderer> pair in this._secondPassLoadingNodes)
                 {
-                    if (this._skinnedMeshRenderers.Contains(pair.Value) == false)
-                        continue;
-                    this.LoadSingleSkinnedMeshRenderer(pair.Key, pair.Value);
+                    try
+                    {
+                        if (this._skinnedMeshRenderers.Contains(pair.Value) == false)
+                            continue;
+                        this.LoadSingleSkinnedMeshRenderer(pair.Key, pair.Value);
+
+                    }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("HSPE: Couldn't load blendshape for object " + this._parent.name + " " + pair.Key.OuterXml + "\n" + e);
+                    }
                 }
                 this._secondPassLoadingNodes.Clear();
             }, 2);
