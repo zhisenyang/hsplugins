@@ -281,25 +281,23 @@ namespace HSIBL
             }
             if (this._selectedCubeMap == 0)
             {
-                if (Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) && (this._tempproceduralskyboxparams).Equals(this._proceduralSkybox.skyboxparams))
+                if (!Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) || !(this._tempproceduralskyboxparams).Equals(this._proceduralSkybox.skyboxparams))
                 {
-                    return;
+                    this._proceduralSkybox.ApplySkyboxParams();
+                    this._environmentUpdateFlag = true;
+                    this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
+                    this._previousambientintensity = RenderSettings.ambientIntensity;
                 }
-                this._proceduralSkybox.ApplySkyboxParams();
-                this._environmentUpdateFlag = true;
-                this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
-                this._previousambientintensity = RenderSettings.ambientIntensity;
             }
             else if (this._selectedCubeMap > 0)
             {
-                if (Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) && (this._tempskyboxparams).Equals(this._skybox.skyboxparams))
+                if (!Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) || !(this._tempskyboxparams).Equals(this._skybox.skyboxparams))
                 {
-                    return;
+                    this._skybox.ApplySkyboxParams();
+                    this._environmentUpdateFlag = true;
+                    this._tempskyboxparams = this._skybox.skyboxparams;
+                    this._previousambientintensity = RenderSettings.ambientIntensity;
                 }
-                this._skybox.ApplySkyboxParams();
-                this._environmentUpdateFlag = true;
-                this._tempskyboxparams = this._skybox.skyboxparams;
-                this._previousambientintensity = RenderSettings.ambientIntensity;
             }
         }
 
@@ -652,6 +650,7 @@ namespace HSIBL
                     GUILayout.EndHorizontal();
                 }
                 GUILayout.Space(UIUtils.space);
+                this._probeComponent.boxProjection = UIUtils.ToggleGUI(this._probeComponent.boxProjection, new GUIContent("Box Projection", "Box Projection is useful for reflections in enclosed spaces  where some parrallax and movement in the reflection is wanted. If not endbled then cubemap reflection will be treated as coming infinite far away. And within this zone objects with the Standard shader will receive this probe's cubemap."), GUIStrings.disableVsEnable);
 
                 this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity, "N3");
 
@@ -1620,7 +1619,7 @@ namespace HSIBL
                             this._proceduralSkybox.ApplySkyboxParams();
                             this._environmentUpdateFlag = true;
                             this._cubemaploaded = true;
-                            this._previousSelectedCubeMap = -1;
+                            this._previousSelectedCubeMap = 0;
                         }
                         else
                         {
@@ -1699,6 +1698,7 @@ namespace HSIBL
                             this._probeComponent.shadowDistance = XmlConvert.ToSingle(moduleNode.Attributes["shadowDistance"].Value);
                         this._probeComponent.nearClipPlane = moduleNode.Attributes["nearClipPlane"] != null ? XmlConvert.ToSingle(moduleNode.Attributes["nearClipPlane"].Value) : 1.1f;
                         RenderSettings.reflectionBounces = moduleNode.Attributes["bounces"] != null ? XmlConvert.ToInt32(moduleNode["bounces"].Value) : 1;
+                        this._probeComponent.boxProjection = moduleNode.Attributes["boxProjection"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["boxProjection"].Value);
                         break;
                     case "defaultLight":
                         bool frontAnchor = XmlConvert.ToBoolean(moduleNode.Attributes["frontAnchoredToCamera"].Value);
@@ -2091,6 +2091,7 @@ namespace HSIBL
                 writer.WriteAttributeString("positionY", XmlConvert.ToString(this.probeGameObject.transform.position.y));
                 writer.WriteAttributeString("positionZ", XmlConvert.ToString(this.probeGameObject.transform.position.z));
                 writer.WriteAttributeString("bounce", XmlConvert.ToString(RenderSettings.reflectionBounces));
+                writer.WriteAttributeString("boxProjection", XmlConvert.ToString(this._probeComponent.boxProjection));
                 writer.WriteEndElement();
             }
 
