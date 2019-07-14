@@ -28,7 +28,7 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.extendedsave")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.4";
+        public const string versionNum = "1.0.5";
 
         #region Events
         /// <summary>
@@ -1292,6 +1292,7 @@ namespace MoreAccessoriesKOI
                                         };
                                     }
                                     part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
+                                    part.noShake = accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value);
                                 }
                                 parts.Add(part);
                             }
@@ -1388,6 +1389,7 @@ namespace MoreAccessoriesKOI
                             }
 
                             xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
+                            xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString(part.noShake));
                         }
                         xmlWriter.WriteEndElement();
                     }
@@ -1503,6 +1505,7 @@ namespace MoreAccessoriesKOI
                             };
                         }
                         part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
+                        part.noShake = accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value);
                     }
                     data.nowAccessories.Add(part);
                 }
@@ -1570,6 +1573,7 @@ namespace MoreAccessoriesKOI
                             xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
                         }
                         xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
+                        xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString(part.noShake));
                     }
                     xmlWriter.WriteEndElement();
                 }

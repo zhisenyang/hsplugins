@@ -189,7 +189,7 @@ namespace HSIBL
         public static string exposureValueTooltips ="Adjusts the overall exposure of the scene in EV units. This is applied after HDR effect and right before tonemapping so it won't affect previous effects in the chain.";
         public static GUIContent eyeAdaptation = new GUIContent(_eyeAdaptation, _eyeAdaptationTooltips);
 
-        public static string bloom ="Bloom";
+        public static string bloom ="Cinematic Bloom";
         public static string bloomTooltip ="Bloom is an effect used to reproduce an imaging artifact of real-world cameras. In HDR rendering a Bloom effect should only affects areas of brightness above LDR range (above 1) by setting the Threshold parameter just above this value.";
         public static string windowHeight ="Window height";
         public static string windowWidth ="Window width";

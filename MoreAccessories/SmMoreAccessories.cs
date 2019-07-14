@@ -446,18 +446,21 @@ namespace MoreAccessories
             scalingmenu.anchoredPosition += new Vector2(0f, 18f);
 
             RectTransform modes = UIUtility.CreateNewUIObject(this.transform.FindChild("TabControl/TabItem03/Correct"), "GuideObject Modes");
-            modes.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(scalingmenu.offsetMin.x, scalingmenu.offsetMin.y - 22f), new Vector2(scalingmenu.offsetMax.x, scalingmenu.offsetMin.y));
+            modes.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(scalingmenu.offsetMin.x, scalingmenu.offsetMin.y - 24f), new Vector2(scalingmenu.offsetMax.x, scalingmenu.offsetMin.y - 2));
             ToggleGroup toggleGroup = modes.gameObject.AddComponent<ToggleGroup>();
 
             Text label = UIUtility.CreateText("Label", modes, "Guide Object");
             label.rectTransform.SetRect(Vector2.zero, new Vector2(0.25f, 1f));
-            Toggle moveToggle = UIUtility.CreateToggle("Move Toggle", modes, "Move");
+            Toggle moveToggle = UIUtility.CreateToggle("Move Toggle", modes, "移動量");
             moveToggle.transform.SetRect(new Vector2(0.25f, 0f), new Vector2(0.5f, 1f));
             moveToggle.group = toggleGroup;
             moveToggle.onValueChanged.AddListener((b) =>
             {
                 if (moveToggle.isOn)
+                {
+                    this._guideObjectMode = 0;
                     MoreAccessories._self._charaMakerGuideObject.SetMode(0);
+                }
             });
             t = moveToggle.GetComponentInChildren<Text>();
             t.alignment = TextAnchor.MiddleLeft;
@@ -466,13 +469,16 @@ namespace MoreAccessories
             ((Image)moveToggle.graphic).sprite = toggle_c;
             moveToggle.isOn = true;
 
-            Toggle rotateToggle = UIUtility.CreateToggle("Rotate Toggle", modes, "Rotate");
+            Toggle rotateToggle = UIUtility.CreateToggle("Rotate Toggle", modes, "回転量");
             rotateToggle.transform.SetRect(new Vector2(0.5f, 0f), new Vector2(0.75f, 1f));
             rotateToggle.group = toggleGroup;
             rotateToggle.onValueChanged.AddListener((b) =>
             {
                 if (rotateToggle.isOn)
-                    MoreAccessories._self._charaMakerGuideObject.SetMode(1);
+                {
+                    this._guideObjectMode = 1;
+                    MoreAccessories._self._charaMakerGuideObject.SetMode(1);                    
+                }
             });
             t = rotateToggle.GetComponentInChildren<Text>();
             t.alignment = TextAnchor.MiddleLeft;
@@ -481,13 +487,16 @@ namespace MoreAccessories
             ((Image)rotateToggle.graphic).sprite = toggle_c;
             rotateToggle.isOn = false;
 
-            Toggle scaleToggle = UIUtility.CreateToggle("Scale Toggle", modes, "Scale");
+            Toggle scaleToggle = UIUtility.CreateToggle("Scale Toggle", modes, "拡縮量");
             scaleToggle.transform.SetRect(new Vector2(0.75f, 0f), Vector2.one);
             scaleToggle.group = toggleGroup;
             scaleToggle.onValueChanged.AddListener((b) =>
             {
                 if (scaleToggle.isOn)
+                {
+                    this._guideObjectMode = 2;
                     MoreAccessories._self._charaMakerGuideObject.SetMode(2);
+                }
             });
             t = scaleToggle.GetComponentInChildren<Text>();
             t.alignment = TextAnchor.MiddleLeft;
@@ -1875,7 +1884,7 @@ namespace MoreAccessories
                         this.SetButtonClickHandler(gameObject);
                         Toggle component2 = gameObject.GetComponent<Toggle>();
                         td.keyToOriginalIndex.Add(current.Key, count);
-                        td.objects.Add(new ObjectData { obj = gameObject, key = current.Key, toggle = component2, text = component, creationDate = File.GetCreationTimeUtc("./abdata/" + fbxTypeInfo.info.ABPath) });
+                        td.objects.Add(new ObjectData {obj = gameObject, key = current.Key, toggle = component2, text = component, creationDate = File.GetCreationTimeUtc("./abdata/" + fbxTypeInfo.info.ABPath)});
                         component2.onValueChanged.AddListener(v =>
                         {
                             if (component2.isOn)
@@ -1925,9 +1934,9 @@ namespace MoreAccessories
             this.nowChanging = true;
             if (this.clothesInfo != null)
             {
-                float specularIntensity = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularIntensity;
-                float specularSharpness = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color.specularSharpness;
-                float specularSharpness2 = this.clothesInfo.accessory[slotNoFromSubMenuSelect].color2.specularSharpness;
+                float specularIntensity = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularIntensity;
+                float specularSharpness = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color.specularSharpness;
+                float specularSharpness2 = MoreAccessories._self._charaMakerAdditionalData.clothesInfoAccessory[slotNoFromSubMenuSelect].color2.specularSharpness;
                 if (this.sldIntensity)
                     this.sldIntensity.value = specularIntensity;
                 if (this.inputIntensity)

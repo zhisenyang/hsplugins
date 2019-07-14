@@ -26,7 +26,7 @@ namespace RendererEditor
 #endif
     {
 #if HONEYSELECT
-        public const string versionNum = "1.4.0b3";
+        public const string versionNum = "1.4.0";
 #elif KOIKATSU
         public const string versionNum = "1.0.0";
         public const int saveVersion = 1;

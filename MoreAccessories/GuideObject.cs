@@ -153,6 +153,7 @@ namespace MoreAccessories
 
         public void OnPointerDown(PointerEventData eventData)
         {
+            Camera.main.GetComponent<CameraControl>().NoCtrlCondition = () => this.isDrag;
         }
 
         public void OnInitializePotentialDrag(PointerEventData eventData)
@@ -218,6 +219,7 @@ namespace MoreAccessories
 
         public void OnPointerDown(PointerEventData eventData)
         {
+            Camera.main.GetComponent<CameraControl>().NoCtrlCondition = () => this.isDrag;
         }
 
 
@@ -302,6 +304,7 @@ namespace MoreAccessories
 
         public void OnPointerDown(PointerEventData eventData)
         {
+            Camera.main.GetComponent<CameraControl>().NoCtrlCondition = () => this.isDrag;
         }
 
 

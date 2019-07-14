@@ -9,6 +9,7 @@ using System.Text;
 using Config;
 using Harmony;
 using ILSetUtility.TimeUtility;
+using Studio;
 using ToolBox;
 using UnityEngine;
 using UnityEngine.Events;
@@ -87,6 +88,7 @@ namespace HSUS
 
 #if HONEYSELECT
         private static readonly string _has630Patch;
+        private Mesh _cubeMesh;
 #endif
 
         static ObjectTreeDebug()
@@ -117,12 +119,37 @@ namespace HSUS
         void Awake()
         {
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
+
+            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            this._cubeMesh = cube.GetComponentInChildren<MeshFilter>().sharedMesh;
+            UnityEngine.Object.Destroy(cube);
+
         }
 
         void Update()
         {
             if (HSUS._self._debugEnabled && Input.GetKeyDown(HSUS._self.debugShortcut))
                 _debug = !_debug;
+
+            if (Input.GetKey(KeyCode.LeftShift) && Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.C) && Studio.Studio.Instance != null)
+            {
+                ObjectCtrlInfo objectCtrlInfo;
+                if (Studio.Studio.Instance.dicInfo.TryGetValue(Studio.Studio.Instance.treeNodeCtrl.selectNode, out objectCtrlInfo))
+                foreach (Renderer target in objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Renderer>())
+                {
+                    {
+                        SkinnedMeshRenderer smr = target as SkinnedMeshRenderer;
+                        if (smr != null)
+                        {
+                            smr.sharedMesh = this._cubeMesh;
+                        }
+                        else if (target is MeshRenderer)
+                        {
+                            target.GetComponent<MeshFilter>().sharedMesh = this._cubeMesh;
+                        }
+                    }
+                }
+            }
         }
 
         void OnDestroy()
@@ -438,167 +465,165 @@ namespace HSUS
 
         private void RecurseObjects(ObjectPair obj, int indent)
         {
-            if (this._openedObjects.Contains(obj))
+            if (!this._openedObjects.Contains(obj))
+                return;
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = indent % 2 != 0 ? new Color(0f, 0f, 0f, 0.7f) : new Color(0.35f, 0.35f, 0.35f, 0.7f);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(10);
+            GUILayout.BeginVertical(_customBoxStyle);
+            GUI.backgroundColor = c;
+            Type t = obj.child.GetType();
+            if (obj.child is IEnumerable array && array is Transform == false)
             {
-                Color c = GUI.backgroundColor;
-                GUI.backgroundColor = indent % 2 != 0 ? new Color(0f, 0f, 0f, 0.7f) : new Color(0.35f, 0.35f, 0.35f, 0.7f);
-                GUILayout.BeginHorizontal();
-                GUILayout.Space(10);
-                GUILayout.BeginVertical(_customBoxStyle);
-                GUI.backgroundColor = c;
-                Type t = obj.child.GetType();
-                if (obj.child is IEnumerable && obj.child is Transform == false)
+                int i = 0;
+                if (array != null)
                 {
-                    IEnumerable array = (IEnumerable)obj.child;
-                    int i = 0;
-                    if (array != null)
+                    foreach (object o in array)
                     {
-                        foreach (object o in array)
-                        {
-                            if (o != null && obj.child == o)
-                                continue;
-                            GUILayout.BeginHorizontal();
-                            GUILayout.Space(10);
-                            GUILayout.Label(i + ": " + (o == null ? "null" : o), GUILayout.ExpandWidth(false));
+                        if (o != null && obj.child == o)
+                            continue;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Space(10);
+                        GUILayout.Label(i + ": " + (o == null ? "null" : o), GUILayout.ExpandWidth(false));
 
-                            ObjectPair pair = new ObjectPair(obj.child, o);
-                            if (o != null)
+                        ObjectPair pair = new ObjectPair(array, o);
+                        if (o != null)
+                        {
+                            Type oType = o.GetType();
+                            if (oType.IsPrimitive == false && (oType.BaseType == null || oType.BaseType.IsPrimitive == false))
                             {
-                                Type oType = o.GetType();
-                                if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
+                                if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
                                 {
-                                    if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
-                                    {
-                                        if (this._openedObjects.Contains(pair) == false)
-                                            this._openedObjects.Add(pair);
-                                    }
-                                    else
-                                    {
-                                        if (this._openedObjects.Contains(pair))
-                                            this._openedObjects.Remove(pair);
-                                    }
+                                    if (this._openedObjects.Contains(pair) == false)
+                                        this._openedObjects.Add(pair);
+                                }
+                                else
+                                {
+                                    if (this._openedObjects.Contains(pair))
+                                        this._openedObjects.Remove(pair);
                                 }
                             }
+                        }
 
-                            GUILayout.EndHorizontal();
-                            this.RecurseObjects(pair, indent + 1);
-                            ++i;
-                        }
-                        if (i == 0)
-                        {
-                            GUILayout.BeginHorizontal();
-                            GUILayout.Space(10);
-                            GUILayout.Label("empty", GUILayout.ExpandWidth(false));
-                            GUILayout.EndHorizontal();
-                        }
+                        GUILayout.EndHorizontal();
+                        this.RecurseObjects(pair, indent + 1);
+                        ++i;
                     }
-                    else
+                    if (i == 0)
                     {
                         GUILayout.BeginHorizontal();
                         GUILayout.Space(10);
-                        GUILayout.Label("null", GUILayout.ExpandWidth(false));
+                        GUILayout.Label("empty", GUILayout.ExpandWidth(false));
                         GUILayout.EndHorizontal();
                     }
                 }
                 else
                 {
-                    FieldInfo[] fields = t.GetFields(AccessTools.all);
-                    foreach (FieldInfo field in fields)
-                    {
-                        object o = null;
-                        bool exception = false;
-                        try
-                        {
-                            o = field.GetValue(obj.child);
-                        }
-                        catch (Exception)
-                        {
-                            exception = true;
-                        }
-                        if (o != null && obj.child == o)
-                            continue;
-
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Space(10);
-                        if (o != null)
-                            GUILayout.Label(field.Name + ": " + o, GUILayout.ExpandWidth(false));
-                        else
-                            GUILayout.Label(field.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
-
-                        ObjectPair pair = new ObjectPair(obj.child, o);
-                        if (o != null)
-                        {
-                            Type oType = o.GetType();
-                            if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
-                            {
-                                if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
-                                {
-                                    if (this._openedObjects.Contains(pair) == false)
-                                        this._openedObjects.Add(pair);
-                                }
-                                else
-                                {
-                                    if (this._openedObjects.Contains(pair))
-                                        this._openedObjects.Remove(pair);
-                                }
-                            }
-                        }
-
-                        GUILayout.EndHorizontal();
-                        this.RecurseObjects(pair, indent + 1);
-                    }
-                    PropertyInfo[] properties = t.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-                    Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
-                    foreach (PropertyInfo property in properties)
-                    {
-                        if ((property.GetGetMethod(true) ?? property.GetSetMethod(true)).IsDefined(compilerGeneratedAttribute, false))
-                            continue;
-                        object o = null;
-                        bool exception = false;
-                        try
-                        {
-                            o = property.GetValue(obj.child, null);
-                        }
-                        catch (Exception)
-                        {
-                            exception = true;
-                        }
-                        if (o != null && obj.child == o)
-                            continue;
-
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Space(10);
-                        if (o != null)
-                            GUILayout.Label(property.Name + ": " + o, GUILayout.ExpandWidth(false));
-                        else
-                            GUILayout.Label(property.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
-
-                        ObjectPair pair = new ObjectPair(obj.child, o);
-                        if (o != null)
-                        {
-                            Type oType = o.GetType();
-                            if (oType.IsValueType == false && (oType.BaseType == null || oType.BaseType.IsValueType == false))
-                            {
-                                if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
-                                {
-                                    if (this._openedObjects.Contains(pair) == false)
-                                        this._openedObjects.Add(pair);
-                                }
-                                else
-                                {
-                                    if (this._openedObjects.Contains(pair))
-                                        this._openedObjects.Remove(pair);
-                                }
-                            }
-                        }
-                        GUILayout.EndHorizontal();
-
-                        this.RecurseObjects(pair, indent + 1);
-                    }
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Space(10);
+                    GUILayout.Label("null", GUILayout.ExpandWidth(false));
+                    GUILayout.EndHorizontal();
                 }
-                GUILayout.EndVertical();
-                GUILayout.EndHorizontal();
             }
+            else
+            {
+                FieldInfo[] fields = t.GetFields(AccessTools.all);
+                foreach (FieldInfo field in fields)
+                {
+                    object o = null;
+                    bool exception = false;
+                    try
+                    {
+                        o = field.GetValue(obj.child);
+                    }
+                    catch (Exception)
+                    {
+                        exception = true;
+                    }
+                    if (o != null && obj.child == o)
+                        continue;
+
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Space(10);
+                    if (o != null)
+                        GUILayout.Label(field.Name + ": " + o, GUILayout.ExpandWidth(false));
+                    else
+                        GUILayout.Label(field.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+
+                    ObjectPair pair = new ObjectPair(obj.child, o);
+                    if (o != null)
+                    {
+                        Type oType = o.GetType();
+                        if (oType.IsPrimitive == false && (oType.BaseType == null || oType.BaseType.IsPrimitive == false))
+                        {
+                            if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
+                            {
+                                if (this._openedObjects.Contains(pair) == false)
+                                    this._openedObjects.Add(pair);
+                            }
+                            else
+                            {
+                                if (this._openedObjects.Contains(pair))
+                                    this._openedObjects.Remove(pair);
+                            }
+                        }
+                    }
+
+                    GUILayout.EndHorizontal();
+                    this.RecurseObjects(pair, indent + 1);
+                }
+                PropertyInfo[] properties = t.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
+                foreach (PropertyInfo property in properties)
+                {
+                    if ((property.GetGetMethod(true) ?? property.GetSetMethod(true)).IsDefined(compilerGeneratedAttribute, false))
+                        continue;
+                    object o = null;
+                    bool exception = false;
+                    try
+                    {
+                        o = property.GetValue(obj.child, null);
+                    }
+                    catch (Exception)
+                    {
+                        exception = true;
+                    }
+                    if (o != null && obj.child == o)
+                        continue;
+
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Space(10);
+                    if (o != null)
+                        GUILayout.Label(property.Name + ": " + o, GUILayout.ExpandWidth(false));
+                    else
+                        GUILayout.Label(property.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+
+                    ObjectPair pair = new ObjectPair(obj.child, o);
+                    if (o != null)
+                    {
+                        Type oType = o.GetType();
+                        if (oType.IsPrimitive == false && (oType.BaseType == null || oType.BaseType.IsPrimitive == false))
+                        {
+                            if (GUILayout.Toggle(this._openedObjects.Contains(pair), ""))
+                            {
+                                if (this._openedObjects.Contains(pair) == false)
+                                    this._openedObjects.Add(pair);
+                            }
+                            else
+                            {
+                                if (this._openedObjects.Contains(pair))
+                                    this._openedObjects.Remove(pair);
+                            }
+                        }
+                    }
+                    GUILayout.EndHorizontal();
+
+                    this.RecurseObjects(pair, indent + 1);
+                }
+            }
+            GUILayout.EndVertical();
+            GUILayout.EndHorizontal();
         }
     }
 

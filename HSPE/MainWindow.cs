@@ -202,7 +202,7 @@ namespace HSPE
             OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
-            this._cameraEventsDispatcher = Camera.main.gameObject.AddComponent<CameraEventsDispatcher>();
+            this._cameraEventsDispatcher = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraEventsDispatcher>();
             this._dicGuideObject = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
 #if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);

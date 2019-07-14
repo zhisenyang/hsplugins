@@ -28,6 +28,7 @@ namespace MoreAccessoriesKOI
                 ((Toggle)__instance.GetPrivate("tglTakeOverParent")).isOn = Singleton<CustomBase>.Instance.customSettingSave.acsTakeOverParent;
                 ((Toggle)__instance.GetPrivate("tglTakeOverColor")).isOn = Singleton<CustomBase>.Instance.customSettingSave.acsTakeOverColor;
                 ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetPart((int)__instance.slotNo);
+                ((Toggle)__instance.GetPrivate("tglNoShake")).isOn = part.noShake;
                 ((Image)__instance.GetPrivate("imgAcsColor01")).color = part.color[0];
                 ((Image)__instance.GetPrivate("imgAcsColor02")).color = part.color[1];
                 ((Image)__instance.GetPrivate("imgAcsColor03")).color = part.color[2];
@@ -156,7 +157,7 @@ namespace MoreAccessoriesKOI
                     __instance.UpdateAccessoryMoveInfo();
                     if (!Singleton<CustomBase>.Instance.customSettingSave.acsTakeOverColor)
                         __instance.SetDefaultColor();
-                    Singleton<CustomHistory>.Instance.Add3(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAccessory, false, true);
+                    //Singleton<CustomHistory>.Instance.Add3(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAccessory, false, true);
                     __instance.UpdateSlotName();
                 }
                 return false;
@@ -200,7 +201,7 @@ namespace MoreAccessoriesKOI
                     if ((int)__instance.slotNo < 20)
                         setPart.parentKey = part.parentKey;
                     __instance.UpdateAccessoryParentInfo();
-                    Singleton<CustomHistory>.Instance.Add3(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAccessory, false, true);
+                    //Singleton<CustomHistory>.Instance.Add3(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAccessory, false, true);
                 }
 
                 __instance.ChangeUseColorVisible();
@@ -238,7 +239,7 @@ namespace MoreAccessoriesKOI
                         CustomBase.Instance.chaCtrl.chaFile.coordinate[CustomBase.Instance.chaCtrl.chaFile.status.coordinateType].accessory.parts[(int)__instance.slotNo].parentKey = text;
 
                     __instance.FuncUpdateAcsParent(false);
-                    Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
+                    //Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
                 }
                 return false;
             }
@@ -493,16 +494,16 @@ namespace MoreAccessoriesKOI
 
         }
 
-        [HarmonyPatch(typeof(CvsAccessory), "UpdateAcsColorHistory")]
-        private static class CvsAccessory_UpdateAcsColorHistory_Patches
-        {
-            private static bool Prefix(CvsAccessory __instance)
-            {
-                Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsColor, true);
-                return false;
-            }
+        //[HarmonyPatch(typeof(CvsAccessory), "UpdateAcsColorHistory")]
+        //private static class CvsAccessory_UpdateAcsColorHistory_Patches
+        //{
+        //    private static bool Prefix(CvsAccessory __instance)
+        //    {
+        //        Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsColor, true);
+        //        return false;
+        //    }
 
-        }
+        //}
 
         [HarmonyPatch(typeof(CvsAccessory), "FuncUpdateAcsPosAdd", new[] {typeof(int), typeof(int), typeof(bool), typeof(float)})]
         private static class CvsAccessory_FuncUpdateAcsPosAdd_Patches
@@ -609,16 +610,16 @@ namespace MoreAccessoriesKOI
 
         }
 
-        [HarmonyPatch(typeof(CvsAccessory), "UpdateAcsMoveHistory")]
-        private static class CvsAccessory_UpdateAcsMoveHistory_Patches
-        {
-            private static bool Prefix(CvsAccessory __instance)
-            {
-                Singleton<CustomHistory>.Instance.Add1(CustomBase.Instance.chaCtrl, CustomBase.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
-                return false;
-            }
+        //[HarmonyPatch(typeof(CvsAccessory), "UpdateAcsMoveHistory")]
+        //private static class CvsAccessory_UpdateAcsMoveHistory_Patches
+        //{
+        //    private static bool Prefix(CvsAccessory __instance)
+        //    {
+        //        Singleton<CustomHistory>.Instance.Add1(CustomBase.Instance.chaCtrl, CustomBase.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
+        //        return false;
+        //    }
 
-        }
+        //}
 
         [HarmonyPatch(typeof(CvsAccessory), "ChangeSettingVisible", new[] {typeof(bool)})]
         private static class CvsAccessory_ChangeSettingVisible_Patches
@@ -728,7 +729,7 @@ namespace MoreAccessoriesKOI
         {
             private static bool Prefix(CvsAccessory __instance, int no)
             {
-                ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{no + 1:00} カラー①", (CvsColor.ConnectColorKind)(no * 4 + 124), MoreAccessories._self.GetPart(no).color[0], __instance.UpdateAcsColor01, __instance.UpdateAcsColorHistory, false);
+                ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{no + 1:00} カラー①", (CvsColor.ConnectColorKind)(no * 4 + 124), MoreAccessories._self.GetPart(no).color[0], __instance.UpdateAcsColor01, false);
                 return false;
             }
 
@@ -961,7 +962,7 @@ namespace MoreAccessoriesKOI
                         CustomBase.Instance.chaCtrl.chaFile.coordinate[CustomBase.Instance.chaCtrl.chaFile.status.coordinateType].accessory.parts[(int)__instance.slotNo].parentKey = accessoryDefaultParentStr;
 
                     __instance.FuncUpdateAcsParent(false);
-                    Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
+                    //Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
                     __instance.UpdateCustomUI();
                 });
                 ((Button)__instance.GetPrivate("btnReverseParent")).onClick.AsObservable().Subscribe(delegate
@@ -975,7 +976,7 @@ namespace MoreAccessoriesKOI
                             CustomBase.Instance.chaCtrl.chaFile.coordinate[CustomBase.Instance.chaCtrl.chaFile.status.coordinateType].accessory.parts[(int)__instance.slotNo].parentKey = reverseParent;
 
                         __instance.FuncUpdateAcsParent(false);
-                        Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
+                        //Singleton<CustomHistory>.Instance.Add2(CustomBase.Instance.chaCtrl, __instance.FuncUpdateAcsParent, true);
                         __instance.UpdateCustomUI();
                     }
                 });
@@ -987,7 +988,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー①", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124), MoreAccessories._self.GetPart((int)__instance.slotNo).color[0], __instance.UpdateAcsColor01, __instance.UpdateAcsColorHistory, false);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー①", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124), MoreAccessories._self.GetPart((int)__instance.slotNo).color[0], __instance.UpdateAcsColor01, false);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnAcsColor02")).OnClickAsObservable().Subscribe(delegate
@@ -998,7 +999,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー②", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 1), MoreAccessories._self.GetPart((int)__instance.slotNo).color[1], __instance.UpdateAcsColor02, __instance.UpdateAcsColorHistory, false);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー②", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 1), MoreAccessories._self.GetPart((int)__instance.slotNo).color[1], __instance.UpdateAcsColor02, false);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnAcsColor03")).OnClickAsObservable().Subscribe(delegate
@@ -1009,7 +1010,7 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー③", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 2), MoreAccessories._self.GetPart((int)__instance.slotNo).color[2], __instance.UpdateAcsColor03, __instance.UpdateAcsColorHistory, false);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー③", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 2), MoreAccessories._self.GetPart((int)__instance.slotNo).color[2], __instance.UpdateAcsColor03, false);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnAcsColor04")).OnClickAsObservable().Subscribe(delegate
@@ -1020,13 +1021,13 @@ namespace MoreAccessoriesKOI
                     }
                     else
                     {
-                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー④", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 3), MoreAccessories._self.GetPart((int)__instance.slotNo).color[3], __instance.UpdateAcsColor04, __instance.UpdateAcsColorHistory, true);
+                        ((CvsColor)__instance.GetPrivate("cvsColor")).Setup($"スロット{(int)__instance.slotNo + 1:00} カラー④", (CvsColor.ConnectColorKind)((int)__instance.slotNo * 4 + 124 + 3), MoreAccessories._self.GetPart((int)__instance.slotNo).color[3], __instance.UpdateAcsColor04, true);
                     }
                 });
                 ((Button)__instance.GetPrivate("btnInitColor")).onClick.AsObservable().Subscribe(delegate
                 {
                     __instance.SetDefaultColor();
-                    __instance.UpdateAcsColorHistory();
+                    //__instance.UpdateAcsColorHistory();
                     __instance.UpdateCustomUI();
                 });
                 ((Toggle)__instance.GetPrivate("tglAcsMove01")).OnValueChangedAsObservable().Subscribe(delegate(bool isOn)
@@ -1083,7 +1084,7 @@ namespace MoreAccessoriesKOI
                                 CustomBase.Instance.chaCtrl.chaFile.coordinate[CustomBase.Instance.chaCtrl.chaFile.status.coordinateType].accessory.parts[(int)__instance.slotNo].hideCategory = item.idx;
 
                             ((CvsDrawCtrl)__instance.GetPrivate("cmpDrawCtrl")).UpdateAccessoryDraw();
-                            Singleton<CustomHistory>.Instance.Add1(CustomBase.Instance.chaCtrl, null);
+                            //Singleton<CustomHistory>.Instance.Add1(CustomBase.Instance.chaCtrl, null);
                         }
                     });
                 });
@@ -1193,6 +1194,17 @@ namespace MoreAccessoriesKOI
                         ((Slider)__instance.GetPrivate("sldControllerScale02")).value = Mathf.Clamp(((Slider)__instance.GetPrivate("sldControllerScale02")).value + scl.scrollDelta.y * Singleton<CustomBase>.Instance.sliderWheelSensitive, 0.3f, 3f);
                     });
                 }
+                ((Toggle)__instance.GetPrivate("tglNoShake")).OnValueChangedAsObservable().Subscribe(delegate (bool isOn)
+                {
+                    ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetPart((int)__instance.slotNo);
+                    if (!Singleton<CustomBase>.Instance.updateCustomUI && part.noShake != isOn)
+                    {
+                        part.noShake = isOn;
+                        if ((int)__instance.slotNo < 20)
+                            CustomBase.Instance.chaCtrl.chaFile.coordinate[CustomBase.Instance.chaCtrl.chaFile.status.coordinateType].accessory.parts[(int)__instance.slotNo].noShake = isOn;
+                        CustomBase.Instance.chaCtrl.ChangeShakeAccessory((int)__instance.slotNo);
+                    }
+                });
                 return false;
             }
 
@@ -1299,12 +1311,14 @@ namespace MoreAccessoriesKOI
                 Singleton<CustomBase>.Instance.chaCtrl.AssignCoordinate((ChaFileDefine.CoordinateType)Singleton<CustomBase>.Instance.chaCtrl.fileStatus.coordinateType);
                 Singleton<CustomBase>.Instance.chaCtrl.Reload(false, true, true, true);
                 __instance.CalculateUI();
+
                 ((CustomAcsChangeSlot)__instance.GetPrivate("cmpAcsChangeSlot")).UpdateSlotNames();
                 CvsAccessory accessory = MoreAccessories._self.GetCvsAccessory(selDst);
                 if (selDst == CustomBase.Instance.selectSlot)
                     accessory.UpdateCustomUI();
                 accessory.UpdateSlotName();
-                Singleton<CustomHistory>.Instance.Add5(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.Reload, false, true, true, true);
+                //Singleton<CustomBase>.Instance.SetUpdateCvsAccessory(selDst, true); //TODO CHECK
+//                Singleton<CustomHistory>.Instance.Add5(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.Reload, false, true, true, true);
                 return false;
             }
         }
@@ -1329,7 +1343,7 @@ namespace MoreAccessoriesKOI
                     dstPart.addMove[correctNo, i] = value;
                 }
                 Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveFromInfo(selDst);
-                Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
+                //Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
                 return false;
             }
 
@@ -1364,7 +1378,7 @@ namespace MoreAccessoriesKOI
                     dstPart.addMove[correctNo, i] = vector;
                 }
                 Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveFromInfo(selDst);
-                Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
+                //Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
                 return false;
             }
         }
@@ -1398,7 +1412,7 @@ namespace MoreAccessoriesKOI
                     dstPart.addMove[correctNo, i] = vector;
                 }
                 Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveFromInfo(selDst);
-                Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
+                //Singleton<CustomHistory>.Instance.Add1(Singleton<CustomBase>.Instance.chaCtrl, Singleton<CustomBase>.Instance.chaCtrl.UpdateAccessoryMoveAllFromInfo);
                 return false;
             }
         }

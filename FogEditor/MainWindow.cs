@@ -75,7 +75,7 @@ namespace FogEditor
         {
             HSExtSave.HSExtSave.RegisterHandler("fogEditor", null, null, this.OnSceneLoad, null, this.OnSceneSave, null, null);
 
-            this._fog = Camera.main.GetComponent<GlobalFog>();
+            this._fog = Studio.Studio.Instance.cameraCtrl.mainCmaera.GetComponent<GlobalFog>();
             this._defaultColor = RenderSettings.fogColor;
             this._defaultExcludeFarPixels = this._fog.excludeFarPixels;
             this._defaultDistanceFog = this._fog.distanceFog;

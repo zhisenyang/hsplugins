@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -12,7 +11,6 @@ using Harmony;
 using IllusionPlugin;
 using IllusionUtility.GetUtility;
 using Manager;
-//using Studio;
 using ToolBox;
 using UILib;
 using UnityEngine;
@@ -353,7 +351,7 @@ namespace MoreAccessories
         #region Public Accessors
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
         public string Name { get { return "MoreAccessories"; } }
-        public string Version { get { return "1.3.0b"; } }
+        public string Version { get { return "1.3.1"; } }
         public CharInfo charaMakerCharInfo
         {
             get { return this._charaMakerCharInfo; }
@@ -460,7 +458,8 @@ namespace MoreAccessories
 
         public void OnLateUpdate()
         {
-            this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
+            if (this._binary == Binary.Game && this._level == 21)
+                this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
         }
 
         public void OnFixedUpdate()
@@ -490,7 +489,7 @@ namespace MoreAccessories
             this._guideObjectCamera.backgroundColor = Color.clear;
             this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
             this._guideObjectCamera.depth = Camera.main.depth + 1;
-            
+            this._guideObjectCamera.nearClipPlane = Camera.main.nearClipPlane / 2f;            
             this._guideObjectCamera.renderingPath = RenderingPath.Forward;
             PhysicsRaycaster raycaster = this._guideObjectCamera.gameObject.AddComponent<PhysicsRaycaster>();
             raycaster.eventMask = LayerMask.GetMask("Studio_ColSelect");
@@ -755,6 +754,7 @@ namespace MoreAccessories
                     sd = this._displayedMakerSlots[i];
                     sd.treeView.SetUnused(false);
                     sd.copyToggle.gameObject.SetActive(true);
+                    sd.bulkColorToggle.gameObject.SetActive(true);
                 }
                 else
                 {
@@ -1330,7 +1330,7 @@ namespace MoreAccessories
                     }
                     break;
                 case Binary.Neo:
-                    if (clothesinfo == this._selectedStudioCharacter.charInfo.clothesInfo)
+                    if (this._selectedStudioCharacter != null && clothesinfo == this._selectedStudioCharacter.charInfo.clothesInfo)
                         additionalData = this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
                     break;
             }

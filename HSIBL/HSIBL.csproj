@@ -32,10 +32,6 @@
     <PlatformTarget>AnyCPU</PlatformTarget>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="4KManager">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\4KManager.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
     </Reference>
@@ -80,6 +76,11 @@
     <ProjectReference Include="..\HSExtSave\HSExtSave.csproj">
       <Project>{27695e5f-8d1e-41dc-a81c-1f0c1814627c}</Project>
       <Name>HSExtSave</Name>
+      <Private>False</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\HSLRE\HSLRE.csproj">
+      <Project>{38517ca0-3427-413d-8855-98d4a6a44b15}</Project>
+      <Name>HSLRE</Name>
       <Private>False</Private>
     </ProjectReference>
   </ItemGroup>

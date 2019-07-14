@@ -14,13 +14,13 @@ namespace ToolBox
 {
     public static class Extensions
     {
-        private struct FieldKey
+        private struct MemberKey
         {
             public readonly Type type;
             public readonly string name;
             private readonly int _hashCode;
 
-            public FieldKey(Type inType, string inName)
+            public MemberKey(Type inType, string inName)
             {
                 this.type = inType;
                 this.name = inName;
@@ -33,11 +33,12 @@ namespace ToolBox
             }
         }
 
-        private static readonly Dictionary<FieldKey, FieldInfo> _fieldCache = new Dictionary<FieldKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, FieldInfo> _fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> _propertyCache = new Dictionary<MemberKey, PropertyInfo>();
 
         public static void SetPrivateExplicit<T>(this T self, string name, object value)
         {
-            FieldKey key = new FieldKey(typeof(T), name);
+            MemberKey key = new MemberKey(typeof(T), name);
             FieldInfo info;
             if (_fieldCache.TryGetValue(key, out info) == false)
             {
@@ -48,7 +49,7 @@ namespace ToolBox
         }
         public static void SetPrivate(this object self, string name, object value)
         {
-            FieldKey key = new FieldKey(self.GetType(), name);
+            MemberKey key = new MemberKey(self.GetType(), name);
             FieldInfo info;
             if (_fieldCache.TryGetValue(key, out info) == false)
             {
@@ -59,7 +60,7 @@ namespace ToolBox
         }
         public static object GetPrivateExplicit<T>(this T self, string name)
         {
-            FieldKey key = new FieldKey(typeof(T), name);
+            MemberKey key = new MemberKey(typeof(T), name);
             FieldInfo info;
             if (_fieldCache.TryGetValue(key, out info) == false)
             {
@@ -70,7 +71,7 @@ namespace ToolBox
         }
         public static object GetPrivate(this object self, string name)
         {
-            FieldKey key = new FieldKey(self.GetType(), name);
+            MemberKey key = new MemberKey(self.GetType(), name);
             FieldInfo info;
             if (_fieldCache.TryGetValue(key, out info) == false)
             {
@@ -78,6 +79,30 @@ namespace ToolBox
                 _fieldCache.Add(key, info);
             }
             return info.GetValue(self);
+        }
+
+        public static void SetPrivateProperty(this object self, string name, object value)
+        {
+            MemberKey key = new MemberKey(self.GetType(), name);
+            PropertyInfo info;
+            if (_propertyCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetProperty(key.name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _propertyCache.Add(key, info);
+            }
+            info.SetValue(self, value, null);
+        }
+
+        public static object GetPrivateProperty(this object self, string name)
+        {
+            MemberKey key = new MemberKey(self.GetType(), name);
+            PropertyInfo info;
+            if (_propertyCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetProperty(key.name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _propertyCache.Add(key, info);
+            }
+            return info.GetValue(self, null);
         }
 
         public static object CallPrivate(this object self, string name, params object[] p)

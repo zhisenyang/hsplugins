@@ -8,7 +8,7 @@ namespace HSIBL
     {
         public string Name { get { return GetType().Name; } }
         public string Version { get { return Assembly.GetExecutingAssembly().GetName().Version.ToString(); } }
-        public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64", "HoneySelect_32", "HoneySelect_64"}; } }
+        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
 
         public void OnLevelWasLoaded(int level)
         {

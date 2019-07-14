@@ -66,8 +66,8 @@ namespace VideoExport
         #endregion
 
         #region Private Variables
-        private const string _outputFolder = _pluginFolder + "Output/";
-        private const string _globalFramesFolder = _pluginFolder + "Frames/";
+        private static string _outputFolder = _pluginFolder + "Output/";
+        private static string _globalFramesFolder = _pluginFolder + "Frames/";
         private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
 
         private string[] _limitDurationTypeNames;
@@ -123,6 +123,7 @@ namespace VideoExport
         #region Unity Methods
         void Awake()
         {
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.videoexport");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 
@@ -139,6 +140,8 @@ namespace VideoExport
             this._resizeY = ModPrefs.GetInt("VideoExport", "resizeY", Screen.height, true);
             this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)ModPrefs.GetInt("VideoExport", "selectedUpdateDynamicBonesMode", (int)UpdateDynamicBonesType.Default, true);
             this._prewarmLoopCount = ModPrefs.GetInt("VideoExport", "prewarmLoopCount", 3, true);
+            _outputFolder = ModPrefs.GetString("VideoExport", "outputFolder", _outputFolder, true);
+            _globalFramesFolder = ModPrefs.GetString("VideoExport", "framesFolder", _globalFramesFolder, true);
 #if HONEYSELECT
             DontDestroyOnLoad(this.gameObject);
 #elif KOIKATSU
@@ -494,7 +497,7 @@ namespace VideoExport
             IScreenshotPlugin screenshotPlugin = this._screenshotPlugins[this._selectedPlugin];
 
             string tempName = DateTime.Now.ToString("yyyy-MM-ddTHH-mm-ss");
-            string framesFolder = _globalFramesFolder + tempName;
+            string framesFolder = Path.Combine(_globalFramesFolder, tempName);
             if (Directory.Exists(framesFolder) == false)
                 Directory.CreateDirectory(framesFolder);
 
@@ -623,7 +626,7 @@ namespace VideoExport
                 yield return null;
                 IExtension extension = this._extensions[(int)this._selectedExtension];
                 string executable = extension.GetExecutable();
-                string arguments = extension.GetArguments(framesFolder, actualExtension, this._fps, screenshotPlugin.transparency, this._resize, this._resizeX, this._resizeY, _outputFolder + tempName);
+                string arguments = extension.GetArguments(framesFolder, actualExtension, this._fps, screenshotPlugin.transparency, this._resize, this._resizeX, this._resizeY, Path.Combine(_outputFolder, tempName));
                 startTime = DateTime.Now;
                 Process proc = this.StartExternalProcess(executable, arguments, extension.canProcessStandardOutput, extension.canProcessStandardError);
                 while (proc.HasExited == false)

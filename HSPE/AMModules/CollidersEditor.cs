@@ -359,6 +359,8 @@ namespace HSPE.AMModules
             Color c;
             foreach (KeyValuePair<Transform, DynamicBoneCollider> pair in this._colliders)
             {
+                if (pair.Key == null)
+                    continue;
                 c = GUI.color;
                 if (this.IsColliderDirty(pair.Value))
                     GUI.color = Color.magenta;

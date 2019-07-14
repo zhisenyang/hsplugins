@@ -297,6 +297,30 @@ namespace MoreAccessoriesKOI
         }
     }
 
+    [HarmonyPatch(typeof(ChaControl), "ChangeShakeAccessory", new []{typeof(int)})]
+    internal static class ChaControl_ChangeShakeAccessory_Patches
+    {
+        private static bool Prefix(ChaControl __instance, int slotNo)
+        {
+            if (slotNo < 20)
+                return true;
+            MoreAccessories.CharAdditionalData data;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance.chaFile, out data) == false)
+                return false;
+            GameObject obj = data.objAccessory[slotNo - 20];
+            if (obj != null)
+            {
+                DynamicBone[] componentsInChildren = obj.GetComponentsInChildren<DynamicBone>(true);
+                bool noShake = data.nowAccessories[slotNo - 20].noShake;
+                foreach (DynamicBone dynamicBone in componentsInChildren)
+                {
+                    dynamicBone.enabled = !noShake;
+                }
+            }
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(ChaFile), "CopyAll")]
     internal static class ChaFile_CopyAll_Patches
     {
@@ -551,7 +575,7 @@ namespace MoreAccessoriesKOI
                         }
                         float val = num2 * ((float[])__instance.GetPrivate("movePosValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo]];
                         MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, num, true, val);
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                        //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                         ((TMP_InputField[])__instance.GetPrivate("inpPos"))[num].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0][num].ToString();
                         MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                     }
@@ -561,13 +585,7 @@ namespace MoreAccessoriesKOI
                     downTimeCnt = 0f;
                     loopTimeCnt = 0f;
                     change = false;
-                })).TakeUntil(p.btn.OnPointerUpAsObservable().Do(delegate
-                {
-                    if (change)
-                    {
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
-                    }
-                })).RepeatUntilDestroy(__instance).Subscribe(delegate
+                })).TakeUntil(p.btn.OnPointerUpAsObservable()).RepeatUntilDestroy(__instance).Subscribe(delegate
                 {
                     int num = p.index / 2;
                     int num2 = (p.index % 2 != 0) ? 1 : -1;
@@ -606,7 +624,7 @@ namespace MoreAccessoriesKOI
                     float val = CustomBase.ConvertValueFromTextLimit(-100f, 100f, 1, value);
                     p.inp.text = val.ToString();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, xyz, false, val);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                 });
             });
@@ -620,7 +638,7 @@ namespace MoreAccessoriesKOI
                 {
                     ((TMP_InputField[])__instance.GetPrivate("inpPos"))[p.index].text = "0";
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, p.index, false, 0f);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                 });
             });
@@ -638,7 +656,7 @@ namespace MoreAccessoriesKOI
                         int num2 = (p.index % 2 != 0) ? 1 : -1;
                         float val = num2 * ((float[])__instance.GetPrivate("moveRotValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo]];
                         MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, num, true, val);
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                        //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                         ((TMP_InputField[])__instance.GetPrivate("inpRot"))[num].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 1][num].ToString();
                         MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                     }
@@ -648,13 +666,7 @@ namespace MoreAccessoriesKOI
                     downTimeCnt = 0f;
                     loopTimeCnt = 0f;
                     change = false;
-                })).TakeUntil(p.btn.OnPointerUpAsObservable().Do(delegate
-                {
-                    if (change)
-                    {
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
-                    }
-                })).RepeatUntilDestroy(__instance).Subscribe(delegate
+                })).TakeUntil(p.btn.OnPointerUpAsObservable()).RepeatUntilDestroy(__instance).Subscribe(delegate
                 {
                     int num = p.index / 2;
                     int num2 = (p.index % 2 != 0) ? 1 : -1;
@@ -689,7 +701,7 @@ namespace MoreAccessoriesKOI
                     float val = CustomBase.ConvertValueFromTextLimit(0f, 360f, 0, value);
                     p.inp.text = val.ToString();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, xyz, false, val);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                 });
             });
@@ -703,7 +715,7 @@ namespace MoreAccessoriesKOI
                 {
                     ((TMP_InputField[])__instance.GetPrivate("inpRot"))[p.index].text = "0";
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, p.index, false, 0f);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
                 });
             });
@@ -721,7 +733,7 @@ namespace MoreAccessoriesKOI
                         int num2 = (p.index % 2 != 0) ? 1 : -1;
                         float val = num2 * ((float[])__instance.GetPrivate("moveSclValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo]];
                         MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, num, true, val);
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                        //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                         ((TMP_InputField[])__instance.GetPrivate("inpScl"))[num].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 2][num].ToString();
                     }
                 });
@@ -730,13 +742,7 @@ namespace MoreAccessoriesKOI
                     downTimeCnt = 0f;
                     loopTimeCnt = 0f;
                     change = false;
-                })).TakeUntil(p.btn.OnPointerUpAsObservable().Do(delegate
-                {
-                    if (change)
-                    {
-                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
-                    }
-                })).RepeatUntilDestroy(__instance).Subscribe(delegate
+                })).TakeUntil(p.btn.OnPointerUpAsObservable()).RepeatUntilDestroy(__instance).Subscribe(delegate
                 {
                     int num = p.index / 2;
                     int num2 = (p.index % 2 != 0) ? 1 : -1;
@@ -770,7 +776,7 @@ namespace MoreAccessoriesKOI
                     float val = CustomBase.ConvertValueFromTextLimit(0.01f, 100f, 2, value);
                     p.inp.text = val.ToString();
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, xyz, false, val);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                 });
             });
             ((Button[])__instance.GetPrivate("btnSclReset")).Select((p, idx) => new
@@ -783,7 +789,7 @@ namespace MoreAccessoriesKOI
                 {
                     ((TMP_InputField[])__instance.GetPrivate("inpScl"))[p.index].text = "1";
                     MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, p.index, false, 1f);
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                    //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                 });
             });
             ((Button)__instance.GetPrivate("btnCopy")).OnClickAsObservable().Subscribe(delegate
@@ -795,7 +801,7 @@ namespace MoreAccessoriesKOI
             ((Button)__instance.GetPrivate("btnPaste")).OnClickAsObservable().Subscribe(delegate
             {
                 MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsMovePaste(__instance.correctNo, Singleton<CustomBase>.Instance.vecAcsClipBord);
-                MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                 ((TMP_InputField[])__instance.GetPrivate("inpPos"))[0].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0].x.ToString();
                 ((TMP_InputField[])__instance.GetPrivate("inpPos"))[1].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0].y.ToString();
                 ((TMP_InputField[])__instance.GetPrivate("inpPos"))[2].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0].z.ToString();
@@ -816,7 +822,7 @@ namespace MoreAccessoriesKOI
                     ((TMP_InputField[])__instance.GetPrivate("inpScl"))[j].text = "1";
                 }
                 MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsAllReset(__instance.correctNo);
-                MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+                //MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
                 MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
             });
 
@@ -898,15 +904,15 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateHistory")]
-    internal static class CustomAcsMoveWindow_UpdateHistory_Patches
-    {
-        private static bool Prefix(CustomAcsMoveWindow __instance)
-        {
-            MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
-            return false;
-        }
-    }
+    //[HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateHistory")]
+    //internal static class CustomAcsMoveWindow_UpdateHistory_Patches
+    //{
+    //    private static bool Prefix(CustomAcsMoveWindow __instance)
+    //    {
+    //        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).UpdateAcsMoveHistory();
+    //        return false;
+    //    }
+    //}
 
     [HarmonyPatch(typeof(CustomAcsSelectKind), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
     internal static class CustomAcsSelectKind_ChangeSlot_Patches
@@ -1545,6 +1551,7 @@ namespace MoreAccessoriesKOI
                         dynamicBone.enabled = false;
                     }
                 }
+                instance.ChangeShakeAccessory(slotNo + 20);
             }
             instance.SetHideHairAccessory();
         }
@@ -1566,6 +1573,7 @@ namespace MoreAccessoriesKOI
                 {
                     data.objAcsMove[slotNo][i] = null;
                 }
+                instance.ChangeShakeAccessory(slotNo);
             }
             instance.SetHideHairAccessory();
         }

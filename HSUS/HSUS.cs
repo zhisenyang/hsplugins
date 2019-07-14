@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using System.Xml;
 #if HONEYSELECT
@@ -92,7 +93,6 @@ namespace HSUS
         internal bool _cameraSpeedShortcuts = true;
         internal bool _alternativeCenterToObject = true;
         internal bool _fingersFkCopyButtons = true;
-        internal bool _fourKManagerDithering = true;
         internal bool _automaticMemoryClean = false;
         internal int _automaticMemoryCleanInterval = 30;
 
@@ -192,6 +192,8 @@ namespace HSUS
                 if (info != null)
                     this._translationMethod = (TranslationDelegate)Delegate.CreateDelegate(typeof(TranslationDelegate), info);
             }
+
+            UnityEngine.Debug.Log("ColorSpace " + QualitySettings.activeColorSpace);
 
             string path = _pluginDir + _config;
             if (File.Exists(path))
@@ -305,10 +307,6 @@ namespace HSUS
                         case "vsync":
                             if (node.Attributes["enabled"] != null && XmlConvert.ToBoolean(node.Attributes["enabled"].Value) == false)
                                 QualitySettings.vSyncCount = 0;
-                            break;
-                        case "fourKManagerDithering":
-                            if (node.Attributes["enabled"] != null)
-                                this._fourKManagerDithering = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
                             break;
                         case "automaticMemoryClean":
                             if (node.Attributes["enabled"] != null)
@@ -588,14 +586,6 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
-#if HONEYSELECT
-                    {
-                        xmlWriter.WriteStartElement("fourKManagerDithering");
-                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._fourKManagerDithering));
-                        xmlWriter.WriteEndElement();
-                    }
-#endif
-
                     {
                         xmlWriter.WriteStartElement("automaticMemoryClean");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._automaticMemoryClean));
@@ -739,6 +729,11 @@ namespace HSUS
                         this.InitFasterCharaMakerLoading();
                     if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
                         this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+                    if (level == 21)
+                    {
+                        GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/Infomation/TabControl/TabItem01/Name/InputField").GetComponent<InputField>().characterLimit = 0;
+                        GameObject.Find("CustomScene/CustomControl/CustomUI/CustomCheck/checkPng/checkInputName/InputField").GetComponent<InputField>().characterLimit = 0;
+                    }
                     this._currentCharaPathGame = "";
                     this._currentClothesPathGame = "";
 #elif KOIKATSU
@@ -1337,7 +1332,7 @@ namespace HSUS
             chaCtrl.ChangeCoordinateType(true);
             chaCtrl.Reload(false, false, false, false);
             CustomBase.Instance.updateCustomUI = true;
-            CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
+            //CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
         }
 #endif
 
@@ -1367,6 +1362,8 @@ namespace HSUS
     }
 
 #if HONEYSELECT
+    // Various fixes and safeguards
+
     [HarmonyPatch(typeof(SetRenderQueue), "Awake")]
     public class SetRenderQueue_Awake_Patches
     {
@@ -1448,6 +1445,32 @@ namespace HSUS
         {
             __instance.rtMove.position = UI_DragWindow_OnBeginDrag_Patches._cachedDragPosition + ((Vector2)Input.mousePosition - UI_DragWindow_OnBeginDrag_Patches._cachedMousePosition);
             return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
+    internal static class Studio_Duplicate_Patches
+    {
+        private static void Prefix(Studio.Studio __instance)
+        {
+            foreach (TreeNodeObject treeNodeObject in __instance.treeNodeCtrl.selectNodes)
+            {
+                Recurse(treeNodeObject, (n) =>
+                {
+                    ObjectCtrlInfo objectCtrlInfo;
+                    if (__instance.dicInfo.TryGetValue(n, out objectCtrlInfo))
+                        objectCtrlInfo.OnSavePreprocessing();
+                });
+            }
+        }
+
+        private static void Recurse(TreeNodeObject node, Action<TreeNodeObject> onItem)
+        {
+            onItem(node);
+            foreach (TreeNodeObject treeNodeObject in node.child)
+            {
+                Recurse(treeNodeObject, onItem);
+            }
         }
     }
 #endif

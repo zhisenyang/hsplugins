@@ -40,7 +40,7 @@ namespace RendererEditor
                 public TextureWrapMode wrapMode = TextureWrapMode.Repeat;
                 public bool transparentBorder = false;
                 public TransparentBorderColor transparentBorderColor = TransparentBorderColor.Black;
-                public bool compressed = true;
+                public bool compressed = _compressTexturesByDefault;
                 //public int maxWidth = 2048;
                 //public int maxHeight = 2048;
 
@@ -162,7 +162,6 @@ namespace RendererEditor
             public Vector2 propertiesScroll;
             public bool onlyActive = false;
             public bool onlyDirty = false;
-
         }
         #endregion
 
@@ -215,6 +214,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_DetailNormalMap_3", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailNormalMap_4", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_DetailMask", type = ShaderProperty.Type.Texture},
+            new ShaderProperty() {name = "_Thickness", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_Colormask", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_EffectMap", type = ShaderProperty.Type.Texture},
             new ShaderProperty() {name = "_OverTex", type = ShaderProperty.Type.Texture},
@@ -275,6 +275,11 @@ namespace RendererEditor
             new ShaderProperty() {name = "_NormalIntensity", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_NormalStrength", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_NormalStrength2", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_ThicknessAttenuation", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TranslucencyDistortion", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TranslucencyPower", floatRange = new Vector2(1, 20), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TranslucencyScale", floatRange = new Vector2(0, 20), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_TranslucencyAmbient", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_TransmissionScale", floatRange = new Vector2(0f, 0.08f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_AmbientOcclusionScale", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_Transparency", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
@@ -283,6 +288,7 @@ namespace RendererEditor
             new ShaderProperty() {name = "_BlurReflection", floatRange = new Vector2(0, 1), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_HeatTime", floatRange = new Vector2(0, 1.5f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             new ShaderProperty() {name = "_HeatForce", floatRange = new Vector2(0, 0.1f), hasFloatRange = true, type = ShaderProperty.Type.Float},
+            new ShaderProperty() {name = "_BlockerValue", floatRange = new Vector2(0, 20f), hasFloatRange = true, type = ShaderProperty.Type.Float},
             //Bools
             new ShaderProperty() {name = "_HairEffect", type = ShaderProperty.Type.Boolean},
             new ShaderProperty() {name = "_GlossUseAlpha", type = ShaderProperty.Type.Boolean},
@@ -372,6 +378,7 @@ namespace RendererEditor
         private string _workingDirectoryParent;
         private float _width = 604;
         private float _height = 670;
+        private static bool _compressTexturesByDefault;
         private Rect _windowRect;
         private int _randomId;
         private bool _enabled;
@@ -402,6 +409,7 @@ namespace RendererEditor
         private Bounds _selectedBounds = new Bounds();
         private string _materialsFilter = "";
         private bool _targetFilterIncludeMaterials = true;
+        private bool _targetFilterIncludeShaders = false;
         private GUIStyle _alignLeftButton;
         private readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
         private Action<bool> _changeTextureSettingsCallback;
@@ -410,7 +418,7 @@ namespace RendererEditor
         private string[] _filterModeNames;
         private string[] _wrapModeNames;
         private string[] _transparentBorderColorNames;
-        private readonly DateTime _v140Release = new DateTime(2019, 05, 04);
+        private readonly DateTime _v140Release = new DateTime(2019, 05, 27);
         #endregion
 
         #region Unity Methods
@@ -422,6 +430,7 @@ namespace RendererEditor
             this._width = Mathf.Clamp(ModPrefs.GetFloat("RendererEditor", "windowWidth", this._width, true), this._width, float.MaxValue);
             this._height = Mathf.Clamp(ModPrefs.GetFloat("RendererEditor", "windowHeight", this._height, true), this._height, float.MaxValue);
             this._windowRect = new Rect((Screen.width - this._width) / 2f, (Screen.height - this._height) / 2f, this._width, this._height);
+            _compressTexturesByDefault = ModPrefs.GetBool("RendererEditor", "compressTexturesByDefault", true, true);
 #elif KOIKATSU
             ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
             //ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
@@ -531,7 +540,6 @@ namespace RendererEditor
             else
                 this._currentTreeNode = null;
 
-
             Dictionary<TreeNodeObject, TreeNodeData> newDatas = null;
             foreach (KeyValuePair<TreeNodeObject, TreeNodeData> pair in this._treeNodeDatas)
             {
@@ -572,7 +580,7 @@ namespace RendererEditor
                 HashSet<ITarget> newTargetsHashset = null;
                 foreach (ITarget target in pair.Value.selectedTargets)
                 {
-                    if (target == null)
+                    if (target.target == null)
                     {
                         newTargetsHashset = new HashSet<ITarget>();
                         break;
@@ -582,7 +590,7 @@ namespace RendererEditor
                 {
                     foreach (ITarget target in pair.Value.selectedTargets)
                     {
-                        if (target != null)
+                        if (target.target != null)
                             newTargetsHashset.Add(target);
                     }
                     pair.Value.selectedTargets = newTargetsHashset;
@@ -676,6 +684,7 @@ namespace RendererEditor
                         foreach (ITarget target in this._currentTreeNode.selectedTargets)
                         {
                             ITargetData container;
+                            
                             this.SetTargetDirty(target, out container);
                             container.currentEnabled = newEnabled;
 
@@ -687,6 +696,16 @@ namespace RendererEditor
                         }
                     }
                 }
+
+                //bool newStatic = GUILayout.Toggle(firstTarget.target.gameObject.isStatic, "Static");
+                //if (newStatic != firstTarget.target.gameObject.isStatic)
+                //{
+                //    foreach (ITarget target in this._currentTreeNode.selectedTargets)
+                //    {
+                //        target.target.gameObject.isStatic = newStatic;
+                //        StaticBatchingUtility.Combine(null, );
+                //    }
+                //}
 
                 firstTarget.DisplayParams(this._currentTreeNode.selectedTargets, this.SetTargetDirty);
 
@@ -854,11 +873,12 @@ namespace RendererEditor
                 this._targetFilter = "";
             GUILayout.EndHorizontal();
             this._targetFilterIncludeMaterials = GUILayout.Toggle(this._targetFilterIncludeMaterials, "Include materials");
+            this._targetFilterIncludeShaders = GUILayout.Toggle(this._targetFilterIncludeShaders, "Include shaders");
             this._currentTreeNode.targetsScroll = GUILayout.BeginScrollView(this._currentTreeNode.targetsScroll);
             
             foreach (ITarget target in this._currentTreeNodeTargets)
             {
-                if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)) && (this._targetFilterIncludeShaders == false || target.sharedMaterials.All(m => m != null && m.shader.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
                     continue;
                 Color c = GUI.color;
                 ITargetData targetData = null;
@@ -942,7 +962,7 @@ namespace RendererEditor
                 }
                 foreach (ITarget target in this._currentTreeNodeTargets)
                 {
-                    if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
+                    if (target.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1 && (this._targetFilterIncludeMaterials == false || target.sharedMaterials.All(m => m != null && m.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)) && (this._targetFilterIncludeShaders == false || target.sharedMaterials.All(m => m != null && m.shader.name.IndexOf(this._targetFilter, StringComparison.OrdinalIgnoreCase) == -1)))
                         continue;
 
                     Color c = GUI.color;
@@ -1294,15 +1314,18 @@ namespace RendererEditor
             if (!texture.LoadImage(File.ReadAllBytes(path)))
                 return null;
 
-            switch (settings.filterMode)
+            if (Mathf.IsPowerOfTwo(texture.width) == false || Mathf.IsPowerOfTwo(texture.height) == false)
             {
-                case FilterMode.Point:
-                    TextureScale.Point(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
-                    break;
-                case FilterMode.Bilinear:
-                case FilterMode.Trilinear:
-                    TextureScale.Bilinear(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
-                    break;
+                switch (settings.filterMode)
+                {
+                    case FilterMode.Point:
+                        TextureScale.Point(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
+                        break;
+                    case FilterMode.Bilinear:
+                    case FilterMode.Trilinear:
+                        TextureScale.Bilinear(texture, Mathf.Clamp(Mathf.NextPowerOfTwo(texture.width), 32, 8192), Mathf.Clamp(Mathf.NextPowerOfTwo(texture.height), 32, 8192));
+                        break;
+                }
             }
 
             texture.filterMode = settings.filterMode;
@@ -1339,6 +1362,10 @@ namespace RendererEditor
                     }
                     width /= 2;
                     height /= 2;
+                    if (width < 1)
+                        width = 1;
+                    if (height < 1)
+                        height = 1;
                     texture.SetPixels32(pixels, i);
                 }
                 texture.Apply(false);
@@ -1718,7 +1745,7 @@ namespace RendererEditor
             foreach (string file in Directory.GetFiles(_texturesDir, "*.*", SearchOption.AllDirectories).Where(s => s.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || s.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)))
             {
                 if (Path.GetFileName(file).Equals(fileName, StringComparison.OrdinalIgnoreCase) && (size == -1 || new FileInfo(file).Length == size))
-                    return file;
+                    return Path.GetFullPath(file);
             }
             return originalPath;
         }
@@ -2024,6 +2051,7 @@ namespace RendererEditor
                         if (Directory.Exists(_dumpDir) == false)
                             Directory.CreateDirectory(_dumpDir);
                         RenderTexture rt = RenderTexture.GetTemporary(texture.width, texture.height, 24, RenderTextureFormat.ARGB32);
+
                         RenderTexture cachedActive = RenderTexture.active;
                         RenderTexture.active = rt;
                         Graphics.Blit(texture, rt);
@@ -2035,6 +2063,8 @@ namespace RendererEditor
                         KeyValuePair<Material, MaterialInfo> mat = this._currentTreeNode.selectedMaterials.First();
                         string fileName = Path.Combine(_dumpDir, $"{mat.Value.target.name}_{mat.Key.name}_{mat.Value.index}_{texture.name}.png");
                         File.WriteAllBytes(fileName, bytes);
+
+                        RenderTexture.ReleaseTemporary(rt);
 
                         this.LoadSingleTexture(fileName);
                     }
@@ -2195,7 +2225,7 @@ namespace RendererEditor
 
             float newValue = GUILayout.HorizontalSlider(value, range.x, range.y);
 
-            string valueString = value.ToString("0.000");
+            string valueString = newValue.ToString("0.000");
             string newValueString = GUILayout.TextField(valueString, 5, GUILayout.Width(50f));
 
             if (newValueString != valueString)

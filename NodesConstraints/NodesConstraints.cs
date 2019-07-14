@@ -410,7 +410,8 @@ namespace NodesConstraints
                             constraint.child.changeAmount.rot = constraint.originalChildRotation.eulerAngles;
                     }
                 }
-                _self._dispatcher.ExecuteDelayed(() =>
+
+                Studio.Studio.Instance.ExecuteDelayed(() =>
                 {
                     for (int i = 0; i < _self._constraints.Count; i++)
                     {
@@ -712,7 +713,7 @@ namespace NodesConstraints
                         {
                             GUI.enabled = this._displayedConstraint.parentTransform != null && this._displayedConstraint.childTransform != null;
                             GUILayout.Label("Alias", GUILayout.ExpandWidth(false));
-                            this._displayedConstraint.alias = GUILayout.TextField(this._displayedConstraint.alias).Trim();
+                            this._displayedConstraint.alias = GUILayout.TextField(this._displayedConstraint.alias);
                             GUI.enabled = true;
                         }
                         GUILayout.EndHorizontal();
@@ -933,7 +934,8 @@ namespace NodesConstraints
                 {
                     this._advancedModeScroll = GUILayout.BeginScrollView(this._advancedModeScroll, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box);
                     if (this._selectedWorkspaceObject != null)
-                        this.DisplayObjectTree(this._selectedWorkspaceObject.transformTarget.GetChild(0).gameObject, 0);
+                        foreach (Transform t in this._selectedWorkspaceObject.transformTarget)
+                            this.DisplayObjectTree(t.gameObject, 0);
                     GUILayout.EndScrollView();
                 }
 
@@ -1131,7 +1133,7 @@ namespace NodesConstraints
         private void OnSceneLoad(string path)
         {
             if (this._kkAnimationControllerInstalled == false)
-                this._dispatcher.ExecuteDelayed(() =>
+                this.ExecuteDelayed(() =>
                 {
                     this.LoadDataFromKKAnimationController(Studio.Studio.Instance.dicObjectCtrl);
                 }, 2);
@@ -1147,7 +1149,7 @@ namespace NodesConstraints
         private void OnSceneImport(string path)
         {
             if (this._kkAnimationControllerInstalled == false)
-                this._dispatcher.ExecuteDelayed(() =>
+                this.ExecuteDelayed(() =>
                 {
                     this.LoadDataFromKKAnimationController((Dictionary<int, ObjectCtrlInfo>)typeof(StudioSaveLoadApi).GetMethod("GetLoadedObjects", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] {SceneOperationKind.Import}));
                 }, 2);
@@ -1180,10 +1182,10 @@ namespace NodesConstraints
         {
             if (node == null)
                 return;
-            this._dispatcher.ExecuteDelayed(() =>
+            Studio.Studio.Instance.ExecuteDelayed(() =>
             {
                 this.LoadSceneGeneric(node.FirstChild, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
-            }, 5);
+            }, 8);
         }
 
         private void OnSceneImport(string path, XmlNode node)
@@ -1191,10 +1193,10 @@ namespace NodesConstraints
             if (node == null)
                 return;
             Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
-            this._dispatcher.ExecuteDelayed(() =>
+            Studio.Studio.Instance.ExecuteDelayed(() =>
             {
                 this.LoadSceneGeneric(node.FirstChild, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
-            }, 3);
+            }, 8);
         }
 
         private void LoadSceneGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
@@ -1229,13 +1231,6 @@ namespace NodesConstraints
                     if (childTransform == null)
                         continue;
                 }
-
-                //foreach (Constraint c in this._constraints)
-                //{
-                //    if (c.parentTransform == parentTransform && c.childTransform == childTransform ||
-                //        c.childTransform == parentTransform && c.parentTransform == childTransform)
-                //        return;
-                //}
 
                 this.AddConstraint(
                                    childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value),

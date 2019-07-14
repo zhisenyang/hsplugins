@@ -76,6 +76,24 @@ namespace BonesFramework
                     BonesFramework._currentTransformParent = obj.transform.parent;
             }
         }
+
+        private static void Postfix()
+        {
+            List<GameObject> additionalObjects;
+            if (BonesFramework._currentLoadingCloth != null && BonesFramework._currentAdditionalObjects.TryGetValue(BonesFramework._currentLoadingCloth, out additionalObjects))
+            {
+                IEnumerable<DynamicBoneCollider> colliders = additionalObjects.SelectMany(go => go.GetComponentsInChildren<DynamicBoneCollider>(true));
+                foreach (DynamicBone bone in BonesFramework._currentLoadingCloth.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                {
+                    if (bone.m_Colliders != null)
+                    {
+                        foreach (DynamicBoneCollider collider in colliders)
+                            bone.m_Colliders.Add(collider);
+                    }
+                }
+            }
+            BonesFramework._currentLoadingCloth = null;
+        }
     }
     [HarmonyPatch(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] {typeof(Transform), typeof(Transform)})]
     static class AssignedAnotherWeights_AssignedWeightsLoop_Patches
@@ -186,10 +204,24 @@ namespace BonesFramework
             OnDestroyTrigger onDestroyTrigger = BonesFramework._currentLoadingCloth.AddComponent<OnDestroyTrigger>();
             onDestroyTrigger.onDestroy = (go) =>
             {
+                DynamicBone[] dbs = go.transform.parent.GetComponentsInChildren<DynamicBone>();
                 foreach (GameObject o in BonesFramework._currentAdditionalObjects[go])
-                    GameObject.Destroy(o);
+                {
+                    DynamicBoneCollider[] colliders = go.GetComponentsInChildren<DynamicBoneCollider>(true);
+                    foreach (DynamicBoneCollider collider in colliders)
+                    {
+                        foreach (DynamicBone dynamicBone in dbs)
+                        {
+                            int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
+                            if (index != -1)
+                                dynamicBone.m_Colliders.RemoveAt(index);
+                        }
+                    }
+                    GameObject.Destroy(o);                    
+                }
                 BonesFramework._currentAdditionalObjects.Remove(go);
             };
+
             string[] lines = ta.text.Split(new [] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string line in lines)
             {
@@ -200,14 +232,17 @@ namespace BonesFramework
                 for (int i = 1; i < cells.Length; i++)
                     BonesFramework._currentAdditionalRootBones.Add(cells[i]);
 
-                BonesFramework._routines.ExecuteDelayed(() =>
+                onDestroyTrigger.onStart = (self2) =>
                 {
-                    foreach (DynamicBone dynamicBone in onDestroyTrigger.GetComponentsInChildren<DynamicBone>(true))
+                    self2.ExecuteDelayed(() =>
                     {
-                        dynamicBone.InitTransforms();
-                        dynamicBone.SetupParticles();
-                    }
-                });
+                        foreach (DynamicBone dynamicBone in self2.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                        {
+                            dynamicBone.InitTransforms();
+                            dynamicBone.SetupParticles();
+                        }
+                    });
+                };
                 break;
             }
         }

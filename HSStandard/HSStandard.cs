@@ -7,14 +7,13 @@ using Harmony;
 using IllusionPlugin;
 using Studio;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Resources = HSStandard.Properties.Resources;
 
 namespace HSStandard
 {
     public class HSStandard : IEnhancedPlugin
     {
-        public const string versionNum = "1.0.1";
+        public const string versionNum = "1.0.2";
 
         #region Private Types
         private class SwapDetails
@@ -25,7 +24,10 @@ namespace HSStandard
 
         #region Private Variables
         private static Material _depthTextureOnly;
+        private static Material _addAlpha;
+        private static Material _standardIgnoreProjector;
         private static Material _hsStandard;
+        private static Material _hsStandardSSS;
         private static Material _hsStandardFade;
         private static Material _hsStandardCutout;
         private static Material _hsStandardTwoSided;
@@ -36,6 +38,7 @@ namespace HSStandard
         private static Material _hsStandardAnisotropicTransparent;
         private static Material _hsStandardAnisotropicTransparentBlend;
         private static Material _hsStandardAnisotropicTransparentTwoSided;
+        private static Material _hsStandardTwoColorsAnimated;
         private static Material _hsStandardTwoColorsCutout;
         private static Material _hsStandardTwoColorsFade;
         private static Material _hsStandardTwoLayers;
@@ -63,6 +66,8 @@ namespace HSStandard
         private static bool _replaceSingleColorOther = true;
         private static bool _replaceTwoColorsOther = true;
         private static bool _fixHairDOF = false;
+        private static bool _dedicatedSkinShader = true;
+        private static bool _dedicatedHairShader = true;
 
         private static FieldInfo _moreAccCharAdditionalDataObjAccessory;
         #endregion
@@ -78,7 +83,10 @@ namespace HSStandard
         {
             AssetBundle bundle = AssetBundle.LoadFromMemory(Resources.HSStandardResources);
             _depthTextureOnly = bundle.LoadAsset<Material>("DepthTextureOnly");
+            _addAlpha = bundle.LoadAsset<Material>("AddAlpha");
+            _standardIgnoreProjector = bundle.LoadAsset<Material>("StandardIgnoreProjector");
             _hsStandard = bundle.LoadAsset<Material>("HSStandard");
+            _hsStandardSSS = bundle.LoadAsset<Material>("HSStandardSSS");
             _hsStandardTwoSided = bundle.LoadAsset<Material>("HSStandardTwoSided");
             _hsStandardFade = bundle.LoadAsset<Material>("HSStandardFade");
             _hsStandardCutout = bundle.LoadAsset<Material>("HSStandardCutout");
@@ -89,6 +97,7 @@ namespace HSStandard
             _hsStandardAnisotropicTransparent = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparent");
             _hsStandardAnisotropicTransparentBlend = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparentBlend");
             _hsStandardAnisotropicTransparentTwoSided = bundle.LoadAsset<Material>("HSStandardAnisotropicTransparentTwoSided");
+            _hsStandardTwoColorsAnimated = bundle.LoadAsset<Material>("HSStandardTwoColorsAnimated");
             _hsStandardTwoColorsCutout = bundle.LoadAsset<Material>("HSStandardTwoColorsCutout");
             _hsStandardTwoColorsFade = bundle.LoadAsset<Material>("HSStandardTwoColorsFade");
             _hsStandardTwoLayers = bundle.LoadAsset<Material>("HSStandardTwoLayers");
@@ -104,13 +113,23 @@ namespace HSStandard
             _replaceClothes = ModPrefs.GetBool("HSStandard", "replaceClothes", true, true);
             _replaceSingleColorClothes = ModPrefs.GetBool("HSStandard", "replaceSingleColorClothes", true, true);
             _replaceTwoColorsClothes = ModPrefs.GetBool("HSStandard", "replaceTwoColorsClothes", true, true);
-            _replaceVanillaMaps = ModPrefs.GetBool("HSStandard", "replaceVanillaMaps", false, true);
+            _replaceVanillaMaps = ModPrefs.GetBool("HSStandard", "replaceVanillaMaps", true, true);
             _replaceOther = ModPrefs.GetBool("HSStandard", "replaceOther", true, true);
             _replaceSingleColorOther = ModPrefs.GetBool("HSStandard", "replaceSingleColorOther", true, true);
             _replaceTwoColorsOther = ModPrefs.GetBool("HSStandard", "replaceTwoColorsOther", true, true);
             _fixHairDOF = ModPrefs.GetBool("HSStandard", "fixHairDOF", false, true);
+            _dedicatedSkinShader = ModPrefs.GetBool("HSStandard", "dedicatedSkinShader", false, true);
+            _dedicatedHairShader = ModPrefs.GetBool("HSStandard", "dedicatedHairShader", true, true);
+
 
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.hsstandard");
+
+            if (_replaceSkin && _dedicatedSkinShader)
+            {
+                harmony.Patch(AccessTools.Method(typeof(CustomTextureControl), "RebuildTextureAndSetMaterial"), new HarmonyMethod(typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches), nameof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches.Prefix)), null, new HarmonyMethod(typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches), nameof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches.Transpiler)));
+            }
+
+            harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "UpdateSiru", new []{ typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(UpdateSiruPrefix)));
 
             harmony.Patch(AccessTools.Method(typeof(AssetBundleManager), "LoadAsset", new []{typeof(string), typeof(string), typeof(Type), typeof(string)}), null, new HarmonyMethod(typeof(HSStandard), nameof(LoadAssetPostfix)));
             harmony.Patch(typeof(CharCustom).GetMethod("ChangeMaterial", BindingFlags.Public | BindingFlags.Instance), null, null, new HarmonyMethod(typeof(HSStandard), nameof(ChangeMaterialTranspiler)));
@@ -314,7 +333,7 @@ namespace HSStandard
 
         private static Material SwapShader(Material mat, out bool replaced, bool destroy = true)
         {
-            if (/*_forceHair ||*/ _isHair && mat.GetInt("_HairEffect") == 1)
+            if ( /*_forceHair ||*/ _isHair && mat.GetInt("_HairEffect") == 1)
             {
                 if (_replaceHair == false)
                 {
@@ -351,7 +370,7 @@ namespace HSStandard
                     case "Shader Forge/PBRsp_alpha":
                     case "Shader Forge/PBRsp_alpha_blend":
                     case "Shader Forge/PBRsp_texture_alpha":
-                    case "Shader Forge/Standard_culloff":
+                    case "Standard_culloff":
                     case "Shader Forge/PBRsp_culloff":
                     case "Shader Forge/PBRsp_alpha_culloff":
                     case "Shader Forge/PBRsp_texture_alpha_culloff":
@@ -369,6 +388,7 @@ namespace HSStandard
 
                     case "Shader Forge/PBRsp_3mask_alpha":
                     case "Shader Forge/PBRsp_3mask":
+                    case "Shader Forge/PBRsp_3mask_uv":
                         if (_replaceTwoColorsClothes == false)
                         {
                             replaced = false;
@@ -398,7 +418,7 @@ namespace HSStandard
                     case "Shader Forge/PBRsp_alpha":
                     case "Shader Forge/PBRsp_alpha_blend":
                     case "Shader Forge/PBRsp_texture_alpha":
-                    case "Shader Forge/Standard_culloff":
+                    case "Standard_culloff":
                     case "Shader Forge/PBRsp_culloff":
                     case "Shader Forge/PBRsp_alpha_culloff":
                     case "Shader Forge/PBRsp_texture_alpha_culloff":
@@ -416,6 +436,7 @@ namespace HSStandard
 
                     case "Shader Forge/PBRsp_3mask_alpha":
                     case "Shader Forge/PBRsp_3mask":
+                    case "Shader Forge/PBRsp_3mask_uv":
                         if (_replaceTwoColorsOther == false)
                         {
                             replaced = false;
@@ -432,28 +453,28 @@ namespace HSStandard
                 case "Shader Forge/PBRsp": //Opaque
                     if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
                     {
-                        newMaterial = new Material(_hsStandard);
+                        newMaterial = _isSkin && _dedicatedSkinShader ? new Material(_hsStandardSSS) : new Material(_hsStandard);
                         SwapPropertiesClassic(mat, newMaterial);
                         SetMaterialKeywords(newMaterial);
                     }
                     else
                     {
-                        newMaterial = new Material(_hsStandardAnisotropic);
-                        SwapPropertiesAnisotropic(mat, newMaterial);
+                        if (_dedicatedHairShader)
+                        {
+                            newMaterial = new Material(_hsStandardAnisotropic);
+                            SwapPropertiesAnisotropic(mat, newMaterial);
+                            SetMaterialKeywordsAnisotropic(newMaterial);
+                        }
+                        else
+                        {
+                            newMaterial = new Material(_hsStandard);
+                            SwapPropertiesClassic(mat, newMaterial);
+                            SetMaterialKeywords(newMaterial);
+                        }
                     }
                     break;
                 case "Shader Forge/PBRsp_alpha": //Fade (but with alphatest as well)
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
-                    {
-                        newMaterial = new Material(_hsStandardFade);
-                        SwapPropertiesClassic(mat, newMaterial);
-
-                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
-                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-
-                        SetMaterialKeywords(newMaterial);
-                    }
-                    else
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparent);
 
@@ -461,11 +482,32 @@ namespace HSStandard
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                         SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
+                    }
+                    else
+                    {
+                        newMaterial = new Material(_hsStandardFade);
+                        SwapPropertiesClassic(mat, newMaterial);
+
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                        SetMaterialKeywords(newMaterial);
                     }
                     break;
 
                 case "Shader Forge/PBRsp_alpha_blend": //custom edit of PBRsp_alpha
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                    {
+                        newMaterial = new Material(_hsStandardAnisotropicTransparentBlend);
+
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        //newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
+
+                        SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
+                    }
+                    else
                     {
                         newMaterial = new Material(_hsStandardFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -475,19 +517,20 @@ namespace HSStandard
 
                         SetMaterialKeywords(newMaterial);
                     }
-                    else
-                    {
-                        newMaterial = new Material(_hsStandardAnisotropicTransparentBlend);
-
-                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
-                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
-
-                        SwapPropertiesAnisotropic(mat, newMaterial);
-                    }
                     break;
 
                 case "Shader Forge/PBRsp_texture_alpha": //Fade
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                    {
+                        newMaterial = new Material(_hsStandardAnisotropicTransparent);
+
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                        SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
+                    }
+                    else
                     {
                         newMaterial = new Material(_hsStandardFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -503,35 +546,27 @@ namespace HSStandard
 
                         SetMaterialKeywords(newMaterial);
                     }
-                    else
-                    {
-                        newMaterial = new Material(_hsStandardAnisotropicTransparent);
-
-                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
-                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-
-                        SwapPropertiesAnisotropic(mat, newMaterial);
-                    }
                     break;
 
-                case "Shader Forge/Standard_culloff": //Just a test, might remove in the future
+                case "Standard_culloff": //Just a test, might remove in the future
                     switch (mat.GetTag("RenderType", false))
                     {
                         default: //Opaque
-                            if (mat.GetInt("_HairEffect") == 0 || _isHair == false)
+                            if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                            {
+                                newMaterial = new Material(_hsStandardAnisotropicTwoSided);
+                                SwapPropertiesAnisotropic(mat, newMaterial);
+                                SetMaterialKeywordsAnisotropic(newMaterial);
+                            }
+                            else
                             {
                                 newMaterial = new Material(_hsStandardTwoSided);
                                 SwapPropertiesClassic(mat, newMaterial);
                                 SetMaterialKeywords(newMaterial);
                             }
-                            else
-                            {
-                                newMaterial = new Material(_hsStandardAnisotropicTwoSided);
-                                SwapPropertiesAnisotropic(mat, newMaterial);
-                            }
                             break;
                         case "TransparentCutout":
-                            if (mat.GetInt("_HairEffect") == 1 && _isHair)
+                            if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                                 break;
                             newMaterial = new Material(_hsStandardTwoSidedCutout);
                             SwapPropertiesClassic(mat, newMaterial);
@@ -540,7 +575,7 @@ namespace HSStandard
                             SetMaterialKeywords(newMaterial);
                             break;
                         case "Transparent":
-                            if (mat.GetInt("_HairEffect") == 1 && _isHair)
+                            if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                                 break;
                             newMaterial = new Material(_hsStandardTwoSidedFade);
                             SwapPropertiesClassic(mat, newMaterial);
@@ -552,21 +587,30 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_culloff": //Opaque
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                    {
+                        newMaterial = new Material(_hsStandardAnisotropicTwoSided);
+                        SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
+                    }
+                    else
                     {
                         newMaterial = new Material(_hsStandardTwoSided);
                         SwapPropertiesClassic(mat, newMaterial);
                         SetMaterialKeywords(newMaterial);
                     }
-                    else
-                    {
-                        newMaterial = new Material(_hsStandardAnisotropicTwoSided);
-                        SwapPropertiesAnisotropic(mat, newMaterial);
-                    }
                     break;
 
                 case "Shader Forge/PBRsp_alpha_culloff": //Fade or Cutout it seems
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                    {
+                        newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
+                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+                        SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
+                    }
+                    else
                     {
                         newMaterial = new Material(_hsStandardTwoSidedFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -574,16 +618,17 @@ namespace HSStandard
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
                         SetMaterialKeywords(newMaterial);
                     }
-                    else
+                    break;
+                case "Shader Forge/PBRsp_texture_alpha_culloff": //Fade
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                     {
                         newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
                         newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
                         newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
                         SwapPropertiesAnisotropic(mat, newMaterial);
+                        SetMaterialKeywordsAnisotropic(newMaterial);
                     }
-                    break;
-                case "Shader Forge/PBRsp_texture_alpha_culloff": //Fade
-                    if ((mat.GetInt("_HairEffect") == 0 || _isHair == false) /* && _forceHair == false*/)
+                    else
                     {
                         newMaterial = new Material(_hsStandardTwoSidedFade);
                         SwapPropertiesClassic(mat, newMaterial);
@@ -591,13 +636,14 @@ namespace HSStandard
                         newMaterial.SetInt("_ZWrite", 0); //Important for eyelashes
                         SetMaterialKeywords(newMaterial);
                     }
-                    else
-                    {
-                        newMaterial = new Material(_hsStandardAnisotropicTransparentTwoSided);
-                        newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
-                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
-                        SwapPropertiesAnisotropic(mat, newMaterial);
-                    }
+                    break;
+
+                case "Shader Forge/PBRsp_3mask_uv": //Opaque
+                    newMaterial = new Material(_hsStandardTwoColorsAnimated);
+                    SwapPropertiesTwoColorsAnimated(mat, newMaterial);
+                    newMaterial.SetFloat("_Cutoff", 0f);
+                    newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
+                    SetMaterialKeywords(newMaterial);
                     break;
 
                 case "Shader Forge/PBRsp_3mask_alpha": //Cutout
@@ -618,7 +664,7 @@ namespace HSStandard
 
                 case "Shader Forge/PBRsp_2layer": //Opaque
                 case "Shader Forge/PBRsp_2layer_cutout": //Cutout
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                         break;
                     switch (mat.GetTag("RenderType", false))
                     {
@@ -638,7 +684,7 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_2layer_culloff": //Opaque
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                         break;
                     newMaterial = new Material(_hsStandardTwoLayersTwoSided);
                     SwapPropertiesTwoLayers(mat, newMaterial);
@@ -646,7 +692,7 @@ namespace HSStandard
                     break;
 
                 case "Shader Forge/PBRsp_2layer_alpha_culloff": //Transparent
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                         break;
                     switch (mat.GetTag("RenderType", false))
                     {
@@ -674,13 +720,14 @@ namespace HSStandard
                     }
                     break;
                 case "Shader Forge/PBRsp_2layer_cutout_culloff": //Opaque
-                    if (mat.GetInt("_HairEffect") == 1 && _isHair /* || _forceHair*/)
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
                         break;
 
                     switch (mat.GetTag("RenderType", false))
                     {
                         default: //Opaque
-                            newMaterial = new Material(_hsStandardTwoLayersTwoSided);
+                            //newMaterial = new Material(_hsStandardTwoLayersTwoSided); //Was problematic apparently, fuck you illusion
+                            newMaterial = new Material(_hsStandardTwoLayersTwoSidedCutout);
                             SwapPropertiesTwoLayers(mat, newMaterial);
 
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
@@ -733,6 +780,11 @@ namespace HSStandard
                             break;
                     }
                     break;
+                case "HSStandard/PBRsp SSS":
+                    newMaterial = new Material(_hsStandardSSS);
+                    SwapPropertiesSSS(mat, newMaterial);
+                    SetMaterialKeywords(newMaterial);
+                    break;
 
                 case "HSStandard/PBRsp Anisotropic":
                 case "HSStandard/PBRsp Anisotropic Hair":
@@ -742,6 +794,7 @@ namespace HSStandard
                         default: //Opaque
                             newMaterial = new Material(_hsStandardAnisotropic);
                             SwapPropertiesAnisotropic(mat, newMaterial);
+                            SetMaterialKeywordsAnisotropic(newMaterial);
                             break;
                         case "TransparentCutout":
                         case "Transparent":
@@ -751,9 +804,21 @@ namespace HSStandard
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                             SwapPropertiesAnisotropic(mat, newMaterial);
+                            SetMaterialKeywordsAnisotropic(newMaterial);
                             break;
                     }
                     break;
+
+                case "HSStandard/PBRsp Anisotropic Hair Blend":
+                    newMaterial = new Material(_hsStandardAnisotropicTransparentBlend);
+
+                    newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.01f, 0f, 0.95f));
+                    //newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
+
+                    SwapPropertiesAnisotropic(mat, newMaterial);
+                    SetMaterialKeywordsAnisotropic(newMaterial);
+                    break;
+
                 //
                 case "HSStandard/PBRsp (Two Sided)":
                     switch (mat.GetTag("RenderType", false))
@@ -786,6 +851,7 @@ namespace HSStandard
                         default: //Opaque
                             newMaterial = new Material(_hsStandardAnisotropicTwoSided);
                             SwapPropertiesAnisotropic(mat, newMaterial);
+                            SetMaterialKeywordsAnisotropic(newMaterial);
                             break;
                         case "Transparent":
                         case "TransparentCutout":
@@ -795,6 +861,7 @@ namespace HSStandard
                             newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
 
                             SwapPropertiesAnisotropic(mat, newMaterial);
+                            SetMaterialKeywordsAnisotropic(newMaterial);
                             break;
                     }
                     break;
@@ -816,6 +883,14 @@ namespace HSStandard
                             SetMaterialKeywords(newMaterial);
                             break;
                     }
+                    break;
+                //
+                case "HSStandard/PBRsp Two Colors Animated":
+                            newMaterial = new Material(_hsStandardTwoColorsAnimated);
+                            SwapPropertiesTwoColorsAnimated(mat, newMaterial);
+                            newMaterial.SetFloat("_Cutoff", 0f);
+                            newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 0);
+                            SetMaterialKeywords(newMaterial);
                     break;
                 //
                 case "HSStandard/PBRsp Two Layers":
@@ -911,7 +986,6 @@ namespace HSStandard
             
             SwapCommonProperties(mat, newMaterial);
 
-
             newMaterial.SetTexture("_BlendNormalMap", mat.GetTexture("_BlendNormalMap"));
             newMaterial.SetTextureOffset("_BlendNormalMap", mat.GetTextureOffset("_BlendNormalMap"));
             newMaterial.SetTextureScale("_BlendNormalMap", mat.GetTextureScale("_BlendNormalMap"));
@@ -931,15 +1005,46 @@ namespace HSStandard
             newMaterial.SetColor("_EmissionColor", Color.black);
         }
 
+        private static void SwapPropertiesSSS(Material mat, Material newMaterial)
+        {
+            SwapPropertiesClassic(mat, newMaterial);
+            newMaterial.SetFloat("_ThicknessAttenuation", mat.GetFloat("_ThicknessAttenuation"));
+            newMaterial.SetFloat("_TranslucencyDistortion", mat.GetFloat("_TranslucencyDistortion"));
+            newMaterial.SetFloat("_TranslucencyPower", mat.GetFloat("_TranslucencyPower"));
+            newMaterial.SetFloat("_TranslucencyScale", mat.GetFloat("_TranslucencyScale"));
+            newMaterial.SetFloat("_TranslucencyAmbient", mat.GetFloat("_TranslucencyAmbient"));
+        }
+
         private static void SwapPropertiesAnisotropic(Material mat, Material newMaterial)
         {
             //newMaterial.CopyPropertiesFromMaterial(mat);
 
             SwapCommonProperties(mat, newMaterial);
 
-            newMaterial.SetTexture("_Tangent", mat.GetTexture("_BumpMap"));
-            newMaterial.SetTextureOffset("_Tangent", mat.GetTextureOffset("_BumpMap"));
-            newMaterial.SetTextureScale("_Tangent", mat.GetTextureScale("_BumpMap"));
+            Texture normalMap = mat.GetTexture("_BumpMap");
+            Texture detailNormal = mat.GetTexture("_DetailNormal");
+            if (normalMap == null && detailNormal != null)
+            {
+                newMaterial.SetTexture("_BumpMap", detailNormal);
+                newMaterial.SetTextureOffset("_BumpMap", mat.GetTextureOffset("_DetailNormal"));
+                newMaterial.SetTextureScale("_BumpMap", mat.GetTextureScale("_DetailNormal"));
+                newMaterial.SetFloat("_NormalStrength", mat.HasProperty("_DetailNormalMapScale") ? mat.GetFloat("_DetailNormalMapScale") : 1);
+
+                newMaterial.SetTexture("_Tangent", detailNormal);
+                newMaterial.SetTextureOffset("_Tangent", mat.GetTextureOffset("_DetailNormal"));
+                newMaterial.SetTextureScale("_Tangent", mat.GetTextureScale("_DetailNormal"));
+            }
+            else
+            {
+                newMaterial.SetTexture("_Tangent", normalMap);
+                newMaterial.SetTextureOffset("_Tangent", mat.GetTextureOffset("_BumpMap"));
+                newMaterial.SetTextureScale("_Tangent", mat.GetTextureScale("_BumpMap"));
+
+                newMaterial.SetTexture("_DetailNormalMap", detailNormal);
+                newMaterial.SetTextureOffset("_DetailNormalMap", mat.GetTextureOffset("_DetailNormal"));
+                newMaterial.SetTextureScale("_DetailNormalMap", mat.GetTextureScale("_DetailNormal"));
+                newMaterial.SetFloat("_DetailNormalMapScale", mat.HasProperty("_DetailNormalMapScale") ? mat.GetFloat("_DetailNormalMapScale") : 1);
+            }
 
             newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.HasProperty("_Cutoff") ? mat.GetFloat("_Cutoff") : 0.5f, 0f, 0.95f));
 
@@ -994,6 +1099,51 @@ namespace HSStandard
 
             newMaterial.SetTexture("_Emission", null);
             newMaterial.SetColor("_EmissionColor", Color.black);
+        }
+
+        private static void SwapPropertiesTwoColorsAnimated(Material mat, Material newMaterial)
+        {
+            SwapCommonProperties(mat, newMaterial);
+
+            newMaterial.SetColor("_Color_3", mat.GetColor("_Color_3"));
+            newMaterial.SetColor("_Color_4", mat.GetColor("_Color_4"));
+
+            newMaterial.SetColor("_SpecColor_3", mat.GetColor("_SpecColor_3"));
+            newMaterial.SetColor("_SpecColor_4", mat.GetColor("_SpecColor_4"));
+
+            newMaterial.SetTexture("_DetailNormalMap", mat.GetTexture("_DetailNormalMap"));
+            newMaterial.SetTextureOffset("_DetailNormalMap", mat.GetTextureOffset("_DetailNormalMap"));
+            newMaterial.SetTextureScale("_DetailNormalMap", mat.GetTextureScale("_DetailNormalMap"));
+
+            newMaterial.SetTexture("_DetailNormalMap_3", mat.GetTexture("_DetailNormalMap_3"));
+            newMaterial.SetTextureOffset("_DetailNormalMap_3", mat.GetTextureOffset("_DetailNormalMap_3"));
+            newMaterial.SetTextureScale("_DetailNormalMap_3", mat.GetTextureScale("_DetailNormalMap_3"));
+
+            newMaterial.SetTexture("_DetailMask", mat.GetTexture("_DetailMask"));
+            newMaterial.SetTextureOffset("_DetailMask", mat.GetTextureOffset("_DetailMask"));
+            newMaterial.SetTextureScale("_DetailMask", mat.GetTextureScale("_DetailMask"));
+
+            newMaterial.SetTexture("_Colormask", mat.GetTexture("_Colormask"));
+            newMaterial.SetTextureOffset("_Colormask", mat.GetTextureOffset("_Colormask"));
+            newMaterial.SetTextureScale("_Colormask", mat.GetTextureScale("_Colormask"));
+
+            newMaterial.SetTexture("_EffectMap", mat.GetTexture("_EffectMap"));
+            newMaterial.SetTextureOffset("_EffectMap", mat.GetTextureOffset("_EffectMap"));
+            newMaterial.SetTextureScale("_EffectMap", mat.GetTextureScale("_EffectMap"));
+
+            newMaterial.SetFloat("_DetailNormalMapScale", mat.GetFloat("_DetailNormalMapScale"));
+            newMaterial.SetFloat("_DetailNormalMapScale_3", mat.GetFloat("_DetailNormalMapScale_3"));
+
+            newMaterial.SetFloat("_Cutoff", Mathf.Clamp(mat.GetFloat("_Cutoff"), 0.01f, 0.95f));
+
+            newMaterial.SetFloat("_RimPower", mat.GetFloat("_RimPower"));
+            newMaterial.SetFloat("_Refraction", mat.GetFloat("_Refraction"));
+            newMaterial.SetFloat("_EffectContrast", mat.GetFloat("_EffectContrast"));
+            newMaterial.SetFloat("_Effect2Power", mat.GetFloat("_Effect2Power"));
+            newMaterial.SetVector("_UVScroll", mat.GetVector("_UVScroll"));
+
+            newMaterial.SetTexture("_Emission", null);
+            newMaterial.SetColor("_EmissionColor", Color.white);
         }
 
         private static void SwapPropertiesTwoLayers(Material mat, Material newMaterial)
@@ -1051,14 +1201,6 @@ namespace HSStandard
             bool shouldEmissionBeEnabled = ShouldEmissionBeEnabled(material.HasProperty("_EmissionColor") ? material.GetColor("_EmissionColor") : Color.black);
             SetKeyword(material, "_EMISSION", shouldEmissionBeEnabled);
 
-            //Hair shader stuff
-            SetKeyword(material, "OCCLUSION_ON", material.HasProperty("_UseOCCLUSION") && material.GetFloat("_UseOCCLUSION") > 0.5);
-            SetKeyword(material, "SPECULAR_ON", material.HasProperty("_UseSpecular") && material.GetFloat("_UseSpecular") > 0.5);
-            SetKeyword(material, "NORMALMAP", material.HasProperty("_UseNormal") && material.GetFloat("_UseNormal") > 0.5);
-            SetKeyword(material, "FUZZ_ON", material.HasProperty("_UseNormal") && material.GetFloat("_UseNormal") > 0.5);
-            SetKeyword(material, "DETAILNORMAL_ON", material.HasProperty("_UseDetail") && material.GetFloat("_UseDetail") > 0.5);
-
-
             // Setup lightmap emissive flags
             MaterialGlobalIlluminationFlags flags = material.globalIlluminationFlags;
             if ((flags & (MaterialGlobalIlluminationFlags.BakedEmissive | MaterialGlobalIlluminationFlags.RealtimeEmissive)) != 0)
@@ -1069,6 +1211,17 @@ namespace HSStandard
 
                 material.globalIlluminationFlags = flags;
             }
+        }
+
+        private static void SetMaterialKeywordsAnisotropic(Material material)
+        {
+            SetKeyword(material, "OCCLUSION_ON", CheckTexture(material, "_OcclusionMap"));
+            SetKeyword(material, "SPECULAR_ON", true);
+            SetKeyword(material, "NORMALMAP", CheckTexture(material, "_BumpMap"));
+            SetKeyword(material, "FUZZ_ON", CheckTexture(material, "_FuzzTex"));
+            SetKeyword(material, "DETAILNORMAL_ON", CheckTexture(material, "_DetailNormal"));
+
+            SetMaterialKeywords(material);
         }
 
         private static bool CheckTexture(Material mat, string property)
@@ -1109,25 +1262,26 @@ namespace HSStandard
 
         private static void ChangeMaterialTranspilerInjected(Material material, CharReference.TagObjKey key)
         {
-            switch (key)
-            {
-                case CharReference.TagObjKey.ObjEyeHi:
-                    material.renderQueue += 10;
-                    break;
-                case CharReference.TagObjKey.ObjNip:
-                    material.renderQueue -= 1;
-                    material.SetFloat("_Cutoff", 0f);
-                    break;
-                case CharReference.TagObjKey.ObjUnderHair:
-                    material.SetFloat("_Cutoff", 0f);
-                    material.SetInt("_ZWrite", 0); //Might remove in the future if more problem arise
-                    material.DisableKeyword("_NORMALMAP");
-                    break;
-                case CharReference.TagObjKey.ObjEyebrow: 
-                    material.SetInt("_ZWrite", 0); //This might be replaced by disabling ZWrite on PBRsp_texture_alpha altoghether, but this might break other things, I don't know, we'll see I guess.
-                    material.renderQueue += 11;
-                    break;
-            }
+            if (material != null)
+                switch (key)
+                {
+                    case CharReference.TagObjKey.ObjEyeHi:
+                        material.renderQueue += 10;
+                        break;
+                    case CharReference.TagObjKey.ObjNip:
+                        material.renderQueue -= 1;
+                        material.SetFloat("_Cutoff", 0f);
+                        break;
+                    case CharReference.TagObjKey.ObjUnderHair:
+                        material.SetFloat("_Cutoff", 0f);
+                        material.SetInt("_ZWrite", 0); //Might remove in the future if more problem arise
+                        material.DisableKeyword("_NORMALMAP");
+                        break;
+                    case CharReference.TagObjKey.ObjEyebrow:
+                        material.SetInt("_ZWrite", 0); //This might be replaced by disabling ZWrite on PBRsp_texture_alpha altoghether, but this might break other things, I don't know, we'll see I guess.
+                        material.renderQueue += 11;
+                        break;
+                }
         }
 
         private static void SetIsHairFalse()
@@ -1270,7 +1424,10 @@ namespace HSStandard
                 return;
             foreach (GameObject gameObject in __instance.objHair)
             {
-                foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
+                Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>(true);
+                if (renderers.Any(r => r.materials.Any(m => m.shader.name.EndsWith("blend", StringComparison.OrdinalIgnoreCase))))
+                    continue;
+                foreach (Renderer renderer in renderers)
                 {
                     if (renderer.sharedMaterials.Length == 1)
                     {
@@ -1286,7 +1443,10 @@ namespace HSStandard
                 return;
             foreach (GameObject gameObject in __instance.objHair)
             {
-                foreach (Renderer renderer in gameObject.GetComponentsInChildren<Renderer>(true))
+                Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>(true);
+                if (renderers.Any(r => r.materials.Any(m => m.shader.name.EndsWith("blend", StringComparison.OrdinalIgnoreCase))))
+                    continue;
+                foreach (Renderer renderer in renderers)
                 {
                     if (renderer.sharedMaterials.Length == 1)
                     {
@@ -1299,7 +1459,7 @@ namespace HSStandard
         private static void AddDepthTextureOnlyMaterial(Renderer renderer)
         {
             Material mat = renderer.materials[0];
-            if (mat.GetTag("RenderType", false).StartsWith("Transparent") && mat.shader.name.EndsWith("blend", StringComparison.OrdinalIgnoreCase) == false)
+            if (mat.GetTag("RenderType", false).StartsWith("Transparent"))
             {
                 Material[] newMaterials = new Material[2];
                 newMaterials[0] = mat;
@@ -1309,8 +1469,154 @@ namespace HSStandard
                 renderer.materials = newMaterials;
             }
         }
-        #endregion
 
+        private static class CustomTextureContrl_RebuildTextureAndSetMaterial_Patches
+        {
+            private static Texture _texMain;
+            private static RenderTexture _createTex;
+
+            public static void Prefix(Texture ___texMain, RenderTexture ___createTex)
+            {
+                _texMain = ___texMain;
+                _createTex = ___createTex;
+            }
+
+            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                int j = 0;
+                List<CodeInstruction> instructionsList = instructions.ToList();
+                for (int i = 0; i < instructionsList.Count; i++)
+                {
+                    CodeInstruction inst = instructionsList[i];
+                    yield return inst;
+                    if (j != 2 && inst.ToString().Equals("call Void set_sRGBWrite(Boolean)"))
+                    {
+                        if (j == 1)
+                        {
+                            yield return new CodeInstruction(OpCodes.Call, typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                        }
+                        ++j;
+                    }
+                }
+            }
+
+            private static void Injected()
+            {
+                if (_ignoreSwap)
+                    return;
+                RenderTexture temp = RenderTexture.GetTemporary(_createTex.width, _createTex.height, _createTex.depth, _createTex.format);
+                RenderTexture active = RenderTexture.active;
+
+                RenderTexture.active = temp;
+                GL.Clear(false, true, Color.clear);
+                RenderTexture.active = active;
+
+                _addAlpha.SetTexture("_AlphaTex", _texMain);
+                Graphics.Blit(_createTex, temp, _addAlpha);
+                Graphics.Blit(temp, _createTex);
+
+                RenderTexture.ReleaseTemporary(temp);
+            }
+        }
+
+        private static bool UpdateSiruPrefix(CharFemaleBody __instance, bool forceChange, CharFileInfoStatusFemale ___femaleStatusInfo)
+        {
+            if (_ignoreSwap)
+                return true;
+            if (null != __instance.customMatFace)
+            {
+                const int faceIndex = 0;
+                if (forceChange || ___femaleStatusInfo.siruLv[faceIndex] != __instance.siruNewLv[faceIndex])
+                {
+                    ___femaleStatusInfo.siruLv[faceIndex] = __instance.siruNewLv[faceIndex];
+                    int newLength = 3;
+                    if (__instance.siruNewLv[faceIndex] == 0)
+                        newLength = 2;
+                    Material[] newMaterials = new Material[newLength];
+                    newMaterials[0] = __instance.customMatFace;
+                    newMaterials[1] = SwapShaderIgnoreProjector(__instance.matHohoAka);
+                    List<GameObject> faceSkinObjects = __instance.chaInfo.GetTagInfo(CharReference.TagObjKey.ObjSkinFace);
+                    Material[] materials = faceSkinObjects[0].GetComponent<Renderer>().materials;
+                    if (materials.Length >= 2)
+                        newMaterials[1] = materials[1];
+                    newMaterials[1].SetOverrideTag("IgnoreProjector", "True");
+                    if (__instance.siruNewLv[faceIndex] != 0)
+                    {
+                        string key = CharDefine.SiruParts.SiruKao + __instance.siruNewLv[faceIndex].ToString("00");
+                        Material material = null;
+                        if (Singleton<Manager.Character>.Instance.dictSiruMaterial.TryGetValue(key, out material))
+                            newMaterials[2] = SwapShaderIgnoreProjector(material);
+                    }
+                    foreach (GameObject gameObject in faceSkinObjects)
+                    {
+                        if (null != gameObject)
+                            gameObject.GetComponent<Renderer>().materials = newMaterials;
+                    }
+                }
+            }
+            if (null != __instance.customMatBody)
+            {
+                CharDefine.SiruParts[] siruParts =
+                {
+                        CharDefine.SiruParts.SiruFrontUp,
+                        CharDefine.SiruParts.SiruFrontDown,
+                        CharDefine.SiruParts.SiruBackUp,
+                        CharDefine.SiruParts.SiruBackDown
+                    };
+                List<string> list = new List<string>();
+                bool flag = false;
+                for (int j = 0; j < siruParts.Length; j++)
+                {
+                    if (forceChange || ___femaleStatusInfo.siruLv[(int)siruParts[j]] != __instance.siruNewLv[(int)siruParts[j]])
+                        flag = true;
+                    if (__instance.siruNewLv[(int)siruParts[j]] != 0)
+                    {
+                        string item = siruParts[j] + __instance.siruNewLv[(int)siruParts[j]].ToString("00");
+                        list.Add(item);
+                    }
+                    ___femaleStatusInfo.siruLv[(int)siruParts[j]] = __instance.siruNewLv[(int)siruParts[j]];
+                }
+                if (flag)
+                {
+                    int num4 = 1 + list.Count;
+                    Material[] newMaterials = new Material[num4];
+                    newMaterials[0] = __instance.customMatBody;
+                    for (int k = 0; k < list.Count; k++)
+                    {
+                        Material material;
+                        if (Singleton<Manager.Character>.Instance.dictSiruMaterial.TryGetValue(list[k], out material))
+                        {
+                            material.SetOverrideTag("IgnoreProjector", "True");
+                            newMaterials[1 + k] = SwapShaderIgnoreProjector(material);
+                        }
+                    }
+                    List<GameObject> bodySkinObjects = __instance.chaInfo.GetTagInfo(CharReference.TagObjKey.ObjSkinBody);
+                    foreach (GameObject gameObject in bodySkinObjects)
+                    {
+                        if (gameObject != null)
+                            gameObject.GetComponent<Renderer>().materials = newMaterials;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static Material SwapShaderIgnoreProjector(Material source)
+        {
+            switch (source.shader.name)
+            {
+                case "Standard":
+                    Material newMaterial = new Material(_standardIgnoreProjector);
+                    newMaterial.name = source.name;
+                    newMaterial.renderQueue = source.renderQueue;
+                    newMaterial.CopyPropertiesFromMaterial(source);
+                    return newMaterial;
+            }
+            return source;
+        }
+
+        #endregion
     }
 
     internal class DummyAssetBundleLoadAssetOperation : AssetBundleLoadAssetOperation
