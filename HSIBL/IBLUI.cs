@@ -490,12 +490,12 @@ namespace HSIBL
             }
             return toggle;
         }
-        internal static bool ToggleGUI(bool toggle, GUIContent title, string[] switches)
+        internal static bool ToggleGUI(bool toggle, GUIContent title, string option1 = "Disable", string option2 = "Enable")
         {
-            return ToggleGUI(toggle, title, switches, labelStyle);
+            return ToggleGUI(toggle, title, labelStyle, option1, option2);
         }
 
-        internal static bool ToggleGUI(bool toggle, GUIContent title, string[] switches, GUIStyle titleStyle)
+        internal static bool ToggleGUI(bool toggle, GUIContent title, GUIStyle titleStyle, string option1 = "Disable", string option2 = "Enable")
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label(title, titleStyle);
@@ -505,10 +505,10 @@ namespace HSIBL
             {
                 temp = 1;
             }
-            temp = GUILayout.SelectionGrid(temp, new GUIContent[]
+            temp = GUILayout.SelectionGrid(temp, new[]
             {
-                new GUIContent(switches[0], title.tooltip),
-                new GUIContent(switches[1], title.tooltip)
+                new GUIContent(option1, title.tooltip),
+                new GUIContent(option2, title.tooltip)
             }, 2, selectStyle, GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
             if (temp == 0)

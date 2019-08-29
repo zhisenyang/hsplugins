@@ -88,6 +88,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BackwardCompatibility.cs" />
     <Compile Include="CvsAccessory.cs" />
     <Compile Include="HarmonyPatches.cs" />
     <Compile Include="MoreAccessories.cs" />

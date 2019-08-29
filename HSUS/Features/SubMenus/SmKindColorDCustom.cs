@@ -68,7 +68,7 @@ namespace HSUS
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
             int[] keys = { 39, 40, 41, 42, 43, 9, 8 };
-            if (HSUS.self._asyncLoading)
+            if (HSUS._self._asyncLoading)
             {
                 CharInfo chaInfo = originalComponent.customControl.chainfo;
                 foreach (int key in keys)
@@ -201,7 +201,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmKindColorD __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo, CharFileInfoCustomFemale ___customInfoF)

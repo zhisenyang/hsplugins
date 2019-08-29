@@ -669,11 +669,26 @@ namespace MoreAccessories
     }
 
     [HarmonyPatch(typeof(SmClothesLoad), "OnChangeBtn01")]
-    internal static class SmClothesLoad_OnChangeBtn02_Patches
+    internal static class SmClothesLoad_OnChangeBtn01_Patches
     {
         private static void Prefix(int ___nowSubMenuTypeId)
         {
             if (___nowSubMenuTypeId == 52)
+                MoreAccessories._self._loadAdditionalAccessories = false;
+        }
+
+        private static void Postfix()
+        {
+            MoreAccessories._self._loadAdditionalAccessories = true;
+        }
+    }
+
+    [HarmonyPatch(typeof(SmClothesLoad), "OnChangeBtn03")]
+    internal static class SmClothesLoad_OnChangeBtn03_Patches
+    {
+        private static void Prefix(int ___nowSubMenuTypeId)
+        {
+            if (___nowSubMenuTypeId == 51)
                 MoreAccessories._self._loadAdditionalAccessories = false;
         }
 

@@ -121,8 +121,19 @@ namespace RendererEditor
                 }
             }
 
+            internal Texture2D _thumbnail;
+
             public string path;
             public Texture2D texture;
+            public Texture2D thumbnail
+            {
+                get
+                {
+                    if (this.texture != null)
+                        return this.texture;
+                    return this._thumbnail;
+                }
+            }
             public TextureSettings settings;
         }
 
@@ -167,10 +178,12 @@ namespace RendererEditor
 
         #region Private Variables
 #if HONEYSELECT
-        private const string _texturesDir = "Plugins\\RendererEditor\\Textures";
+        private const string _pluginDir = "Plugins\\RendererEditor";
 #elif KOIKATSU
-        private const string _texturesDir = "BepInEx\\RendererEditor\\Textures";
+        private const string _pluginDir = "BepInEx\\RendererEditor";
 #endif
+        private const string _texturesDir = _pluginDir + "\\Textures";
+        private const string _thumbnailCacheDir = _pluginDir + "\\Cache";
         private const string _dumpDir = _texturesDir + "\\Dump\\";
 #if KOIKATSU
         private const string _extSaveKey = "rendererEditor";
@@ -1096,7 +1109,7 @@ namespace RendererEditor
                         continue;
                     if (RendererEditor.previewTextures)
                     {
-                        TextureWrapper texture = this.GetTexture(file);
+                        TextureWrapper texture = this.GetThumbnail(file);
                         if (texture != null)
                         {
                             GUILayout.BeginVertical(GUI.skin.box);
@@ -1105,7 +1118,7 @@ namespace RendererEditor
                             GUILayout.FlexibleSpace();
                             if (GUILayout.Button(GUIContent.none, GUILayout.Width(178), GUILayout.Height(178)))
                             {
-                                this._selectTextureCallback(file, texture.texture);
+                                this._selectTextureCallback(file, this.GetTexture(file)?.texture);
                                 this.CloseTextureWindow();
                             }
                             Rect layoutRectangle = GUILayoutUtility.GetLastRect();
@@ -1116,7 +1129,7 @@ namespace RendererEditor
                             layoutRectangle.xMax -= 2;
                             layoutRectangle.yMin += 2;
                             layoutRectangle.yMax -= 2;
-                            GUI.DrawTexture(layoutRectangle, texture.texture, ScaleMode.StretchToFill, true);
+                            GUI.DrawTexture(layoutRectangle, texture.thumbnail, ScaleMode.StretchToFill, true);
                             GUILayout.BeginHorizontal();
                             GUILayout.FlexibleSpace();
                             if (GUILayout.Button("Properties", GUILayout.ExpandWidth(false)))
@@ -1155,7 +1168,7 @@ namespace RendererEditor
                         GUILayout.FlexibleSpace();
                         if (GUILayout.Button("Properties", GUILayout.ExpandWidth(false)))
                         {
-                            TextureWrapper texture = this.GetTexture(file);
+                            TextureWrapper texture = this.GetThumbnail(file);
 
                             this._selectedTextureForUpdateSettings = texture;
                             this._displayedSettings = new TextureWrapper.TextureSettings(texture.settings);
@@ -1207,7 +1220,10 @@ namespace RendererEditor
                     if (usedTextures.Contains(pair.Key) == false)
                     {
                         this._textures.Remove(pair.Key);
-                        Destroy(pair.Value.texture);
+                        if (pair.Value.texture != null)
+                            Destroy(pair.Value.texture);
+                        if (pair.Value._thumbnail != null)
+                            Destroy(pair.Value._thumbnail);
                     }
                 }
                 Resources.UnloadUnusedAssets();
@@ -1221,7 +1237,8 @@ namespace RendererEditor
             GUILayout.BeginVertical();
             {
                 GUILayout.Label(Path.GetFileName(this._selectedTextureForUpdateSettings.path));
-                GUILayout.Label("Size: " + this._selectedTextureForUpdateSettings.texture.width + "x" + this._selectedTextureForUpdateSettings.texture.height);
+                if (this._selectedTextureForUpdateSettings.texture != null)
+                    GUILayout.Label("Size: " + this._selectedTextureForUpdateSettings.texture.width + "x" + this._selectedTextureForUpdateSettings.texture.height);
                 this._displayedSettings.bypassSRGBSampling = GUILayout.Toggle(this._displayedSettings.bypassSRGBSampling, "Bypass sRGB sampling");
                 GUILayout.Label("Filter Mode");
                 this._displayedSettings.filterMode = (FilterMode)GUILayout.SelectionGrid((int)this._displayedSettings.filterMode, this._filterModeNames, 3);
@@ -1289,12 +1306,21 @@ namespace RendererEditor
 
         private void RefreshSingleTexture(TextureWrapper texture)
         {
-            Destroy(texture.texture);
-            this._textures.Remove(texture.path);
-            this.LoadSingleTexture(texture.path);
+            if (texture.texture != null)
+            {
+                Destroy(texture.texture);
+                this._textures.Remove(texture.path);
+                this.LoadSingleTexture(texture.path);
+            }
+            else if (texture._thumbnail != null)
+            {
+                Destroy(texture._thumbnail);
+                this._textures.Remove(texture.path);
+                this.LoadThumbnail(texture.path);
+            }
         }
 
-        private TextureWrapper LoadSingleTexture(string path, TextureWrapper.TextureSettings settings = null)
+        private TextureWrapper.TextureSettings ValidateTextureSettings(string path, TextureWrapper.TextureSettings settings = null)
         {
             string settingsFile = path + ".settings.xml";
             if (File.Exists(settingsFile))
@@ -1309,6 +1335,12 @@ namespace RendererEditor
                 }
                 TextureWrapper.TextureSettings.Save(path, settings);
             }
+            return settings;
+        }
+
+        private TextureWrapper LoadSingleTexture(string path, TextureWrapper.TextureSettings settings = null)
+        {
+            settings = this.ValidateTextureSettings(path, settings);
 
             Texture2D texture = new Texture2D(1024, 1024, TextureFormat.ARGB32, true, settings.bypassSRGBSampling);
             if (!texture.LoadImage(File.ReadAllBytes(path)))
@@ -1373,20 +1405,24 @@ namespace RendererEditor
             if (settings.compressed)
                 texture.Compress(true);
 
-            TextureWrapper textureWrapper = new TextureWrapper
+            TextureWrapper textureWrapper;
+            if (this._textures.TryGetValue(path, out textureWrapper) == false)
             {
-                path = path,
-                texture = texture,
-                settings = settings
-            };
-
-            if (this._textures.ContainsKey(path) == false)
+                textureWrapper = new TextureWrapper();
                 this._textures.Add(path, textureWrapper);
-            else
-            {
-                Destroy(this._textures[path].texture);
-                this._textures[path] = textureWrapper;
             }
+
+            textureWrapper.path = path;
+            if (textureWrapper.texture != null)
+                Destroy(textureWrapper.texture);
+            if (textureWrapper._thumbnail != null)
+            {
+                Destroy(textureWrapper._thumbnail);
+                textureWrapper._thumbnail = null;
+            }
+            textureWrapper.texture = texture;
+            textureWrapper.settings = settings;
+
             foreach (KeyValuePair<ITarget, ITargetData> pair in this._dirtyTargets)
             {
                 foreach (KeyValuePair<Material, MaterialData> pair2 in pair.Value.dirtyMaterials)
@@ -1403,6 +1439,70 @@ namespace RendererEditor
             return textureWrapper;
         }
 
+        private TextureWrapper LoadThumbnail(string path, TextureWrapper.TextureSettings settings = null)
+        {
+            settings = this.ValidateTextureSettings(path, settings);
+
+            string thumbPath = path.Replace(_texturesDir, _thumbnailCacheDir).Replace(".jpg", ".png");
+
+            Texture2D texture = new Texture2D(128, 128, TextureFormat.ARGB32, true, settings.bypassSRGBSampling);
+            if (File.Exists(thumbPath) && File.GetLastWriteTime(path) == File.GetLastWriteTime(thumbPath))
+            {
+                if (!texture.LoadImage(File.ReadAllBytes(thumbPath)))
+                    return null;
+                texture.filterMode = settings.filterMode;
+                texture.anisoLevel = settings.anisoLevel;
+                texture.wrapMode = settings.wrapMode;
+                texture.Apply(true);
+                texture.Compress(true);
+            }
+            else
+            {
+                if (!texture.LoadImage(File.ReadAllBytes(path)))
+                    return null;
+                if (texture.width > 128 || texture.height > 128)
+                {
+                    switch (settings.filterMode)
+                    {
+                        case FilterMode.Point:
+                            TextureScale.Point(texture, 128, 128);
+                            break;
+                        case FilterMode.Bilinear:
+                        case FilterMode.Trilinear:
+                            TextureScale.Bilinear(texture, 128, 128);
+                            break;
+                    }
+                }
+                texture.filterMode = settings.filterMode;
+                texture.anisoLevel = settings.anisoLevel;
+                texture.wrapMode = settings.wrapMode;
+                texture.Apply(true);
+
+                byte[] bytes = texture.EncodeToPNG();
+                string dir = thumbPath.Replace(Path.GetFileName(thumbPath), "");
+                if (Directory.Exists(dir) == false)
+                    Directory.CreateDirectory(dir);
+                File.WriteAllBytes(thumbPath, bytes);
+                File.SetLastWriteTime(thumbPath, File.GetLastWriteTime(path));
+                texture.Compress(true);
+            }
+
+            TextureWrapper textureWrapper;
+            if (this._textures.TryGetValue(path, out textureWrapper) == false)
+            {
+                textureWrapper = new TextureWrapper();
+                this._textures.Add(path, textureWrapper);
+            }
+
+            textureWrapper.path = path;
+            if (textureWrapper._thumbnail != null)
+                Destroy(textureWrapper._thumbnail);
+            textureWrapper._thumbnail = texture;
+            textureWrapper.settings = settings;
+
+            return textureWrapper;
+        }
+
         private void ExploreCurrentFolder()
         {
             if (Directory.Exists(this._pwd) == false)
@@ -1414,10 +1514,18 @@ namespace RendererEditor
             this._localFolders = Directory.GetDirectories(this._pwd);
         }
 
+        private TextureWrapper GetThumbnail(string path, TextureWrapper.TextureSettings settings = null)
+        {
+            TextureWrapper t;
+            if (this._textures.TryGetValue(path, out t) && t.thumbnail != null)
+                return t;
+            return this.LoadThumbnail(path, settings);
+        }
+
         private TextureWrapper GetTexture(string path, TextureWrapper.TextureSettings settings = null)
         {
             TextureWrapper t;
-            if (this._textures.TryGetValue(path, out t))
+            if (this._textures.TryGetValue(path, out t) && t.texture != null)
                 return t;
             return this.LoadSingleTexture(path, settings);
         }
@@ -1911,7 +2019,7 @@ namespace RendererEditor
             GUILayout.Label(property.name, GUILayout.ExpandWidth(false));
             GUI.color = guiColor;
 
-            if (GUILayout.Button("Hit me senpai <3", GUILayout.ExpandWidth(true)))
+            if (GUILayout.Button("Hit me senpai <3", GUILayout.ExpandWidth(true), GUILayout.Height(40f)))
             {
 #if HONEYSELECT
                 Studio.Studio.Instance.colorPaletteCtrl.visible = !Studio.Studio.Instance.colorPaletteCtrl.visible;
@@ -1933,7 +2041,7 @@ namespace RendererEditor
                     }
                     catch (Exception)
                     {
-                        UnityEngine.Debug.LogError("RendererEditor: Color is HDR, couldn't assign it properly.");
+                        UnityEngine.Debug.LogError("RendererEditor: Couldn't assign color properly.");
                     }
                 }
 #elif KOIKATSU
@@ -2065,8 +2173,6 @@ namespace RendererEditor
                         File.WriteAllBytes(fileName, bytes);
 
                         RenderTexture.ReleaseTemporary(rt);
-
-                        this.LoadSingleTexture(fileName);
                     }
                 }
                 GUILayout.EndVertical();

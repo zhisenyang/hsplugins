@@ -72,7 +72,7 @@ namespace HSUS
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
             int[] keys = {57, 58, 59, 60, 61, 62, 63, 64, 76, 77};
-            if (HSUS.self._asyncLoading)
+            if (HSUS._self._asyncLoading)
             {
                 CharInfo chaInfo = originalComponent.customControl.chainfo;
                 foreach (int key in keys)
@@ -207,7 +207,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)
@@ -496,7 +496,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)
@@ -550,7 +550,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)

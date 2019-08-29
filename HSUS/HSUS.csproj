@@ -53,29 +53,51 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="CameraShortcuts.cs" />
+    <Compile Include="Features\AlternativeCenterToObjects.cs" />
+    <Compile Include="Features\AutoJointCorrection.cs" />
+    <Compile Include="Features\DefaultChars.cs" />
+    <Compile Include="Features\DeleteConfirmation.cs" />
+    <Compile Include="Features\EyesBlink.cs" />
+    <Compile Include="Features\FingersFKCopyButtons.cs" />
+    <Compile Include="Features\FKColors.cs" />
+    <Compile Include="Features\ImprovedTransformOperations.cs" />
+    <Compile Include="Features\ImproveNeoUI.cs" />
+    <Compile Include="Features\UIScale.cs" />
+    <Compile Include="Features\Forced\ParentCharactersToObjects.cs" />
+    <Compile Include="Features\Various.cs" />
+    <Compile Include="MiniProfiler\AbstractValueProvider.cs" />
+    <Compile Include="Features\CameraShortcuts.cs" />
     <Compile Include="CharaMakerUtils.cs" />
-    <Compile Include="DeleteConfirmation.cs" />
-    <Compile Include="GenericFK.cs" />
-    <Compile Include="HDRColorPicker.cs" />
+    <Compile Include="MiniProfiler\FramerateValueProvider.cs" />
+    <Compile Include="Features\GenericFK.cs" />
+    <Compile Include="MiniProfiler\Graphic.cs" />
+    <Compile Include="Features\Forced\HDRColorPicker.cs" />
     <Compile Include="HSUS.cs" />
-    <Compile Include="ImprovedTransformOperations.cs" />
-    <Compile Include="OptimizeNEO.cs" />
-    <Compile Include="ObjectTreeDebug.cs" />
+    <Compile Include="MiniProfiler\KeyboardShortcut.cs" />
+    <Compile Include="MiniProfiler\MemoryValueProvider.cs" />
+    <Compile Include="MiniProfiler\MiniProfiler.cs" />
+    <Compile Include="Features\OptimizeCharaMaker.cs" />
+    <Compile Include="Features\OptimizeNEO.cs" />
+    <Compile Include="Features\DebugConsole.cs" />
     <Compile Include="PointerDownHandler.cs" />
-    <Compile Include="PostProcessing.cs" />
+    <Compile Include="Features\PostProcessing.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="RoutinesComponent.cs" />
-    <Compile Include="ShortcutsDisabler.cs" />
-    <Compile Include="SubMenus\SmAccessoryCustom.cs" />
-    <Compile Include="SubMenus\SmCharaLoadCustom.cs" />
-    <Compile Include="SubMenus\SmClothesLoadCustom.cs" />
-    <Compile Include="SubMenus\SmClothes_FCustom.cs" />
-    <Compile Include="SubMenus\SmFaceSkinCustom.cs" />
-    <Compile Include="SubMenus\SmHair_FCustom.cs" />
-    <Compile Include="SubMenus\SmKindColorDCustom.cs" />
-    <Compile Include="SubMenus\SmKindColorDSCustom.cs" />
-    <Compile Include="SubMenus\SmSwimsuitCustom.cs" />
+    <Compile Include="Features\SubMenus\SmAccessoryCustom.cs" />
+    <Compile Include="Features\SubMenus\SmCharaLoadCustom.cs" />
+    <Compile Include="Features\SubMenus\SmClothesLoadCustom.cs" />
+    <Compile Include="Features\SubMenus\SmClothes_FCustom.cs" />
+    <Compile Include="Features\SubMenus\SmFaceSkinCustom.cs" />
+    <Compile Include="Features\SubMenus\SmHair_FCustom.cs" />
+    <Compile Include="Features\SubMenus\SmKindColorDCustom.cs" />
+    <Compile Include="Features\SubMenus\SmKindColorDSCustom.cs" />
+    <Compile Include="Features\SubMenus\SmSwimsuitCustom.cs" />
+    <Compile Include="MiniProfiler\Texture2DUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ToolBox\ToolBox.csproj">
@@ -93,6 +115,7 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="packages.config" />
+    <None Include="Resources\hsusresources.unity3d" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="ILMergeOrder.txt" />
@@ -174,6 +197,13 @@
       <Private>False</Private>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
     <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>

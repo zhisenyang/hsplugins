@@ -169,7 +169,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmSwimsuit __instance, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo, CharFileInfoClothesFemale ___clothesInfoF)

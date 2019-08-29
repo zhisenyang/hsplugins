@@ -1,4 +1,5 @@
-﻿using System.Xml;
+﻿using System;
+using System.Xml;
 using Studio;
 using UnityEngine;
 using Vectrosity;
@@ -84,115 +85,178 @@ namespace HSPE.AMModules
             return Event.current.type == EventType.Repaint && _repeatTimer > _repeatBeforeDuration;
         }
 
-        protected void IncEditor(int maxHeight = 75, bool label = false)
+        protected void IncEditor(int maxHeight = 76, bool label = false)
         {
-            GUILayout.BeginVertical();
-            if (label)
-                GUILayout.Label("10^1", GUI.skin.box, GUILayout.MaxWidth(45));
-            Color c = GUI.color;
-            GUI.color = Color.white;
-            float maxWidth = label ? 45 : 20;
-            GUILayout.BeginHorizontal(GUILayout.MaxWidth(maxWidth));
-            GUILayout.FlexibleSpace();
-            this._incIndex = Mathf.RoundToInt(GUILayout.VerticalSlider(this._incIndex, 1f, -5f, GUILayout.MaxHeight(maxHeight)));
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            GUI.color = c;
-            _inc = Mathf.Pow(10, this._incIndex);
-            if (label)
-                GUILayout.Label("10^-5", GUI.skin.box, GUILayout.MaxWidth(45));
-            GUILayout.EndVertical();
+            this.IncEditor(ref this._incIndex, out this._inc, maxHeight, label);
         }
 
-        protected void IncEditor(ref int incIndex, out float inc, int maxHeight = 75, bool label = false)
+        protected void IncEditor(ref int incIndex, out float inc, int maxHeight = 76, bool label = false)
         {
             GUILayout.BeginVertical();
             if (label)
+            {
                 GUILayout.Label("10^1", GUI.skin.box, GUILayout.MaxWidth(45));
-            Color c = GUI.color;
-            GUI.color = Color.white;
-            float maxWidth = label ? 45 : 20;
-            GUILayout.BeginHorizontal(GUILayout.MaxWidth(maxWidth));
-            GUILayout.FlexibleSpace();
-            incIndex = Mathf.RoundToInt(GUILayout.VerticalSlider(incIndex, 1f, -5f, GUILayout.MaxHeight(maxHeight)));
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            GUI.color = c;
+                if (GUILayout.Button("+", GUILayout.MaxWidth(45)))
+                    incIndex = Mathf.Clamp(incIndex + 1, -5, 1);
+
+                GUILayout.BeginHorizontal(GUILayout.MaxWidth(45));
+                GUILayout.FlexibleSpace();
+                incIndex = Mathf.RoundToInt(GUILayout.VerticalSlider(incIndex, 1f, -5f, GUILayout.MaxHeight(maxHeight)));
+                GUILayout.FlexibleSpace();
+                GUILayout.EndHorizontal();
+
+                if (GUILayout.Button("-", GUILayout.MaxWidth(45)))
+                    incIndex = Mathf.Clamp(incIndex - 1, -5, 1);
+                GUILayout.Label("10^-5", GUI.skin.box, GUILayout.MaxWidth(45));
+            }
+            else
+            {
+                GUILayout.BeginHorizontal(GUILayout.MaxWidth(40));
+
+                GUILayout.BeginVertical();
+                if (GUILayout.Button("+", GUILayout.MaxWidth(20), GUILayout.Height(37)))
+                    incIndex = Mathf.Clamp(incIndex + 1, -5, 1);
+                GUILayout.Space(1);
+                if (GUILayout.Button("-", GUILayout.MaxWidth(20), GUILayout.Height(37)))
+                    incIndex = Mathf.Clamp(incIndex - 1, -5, 1);
+                GUILayout.EndVertical();
+
+                GUILayout.FlexibleSpace();
+                incIndex = Mathf.RoundToInt(GUILayout.VerticalSlider(incIndex, 1f, -5f, GUILayout.MaxHeight(maxHeight)));
+                GUILayout.FlexibleSpace();
+
+                GUILayout.EndHorizontal();
+            }
             inc = Mathf.Pow(10, incIndex);
-            if (label)
-                GUILayout.Label("10^-5", GUI.skin.box, GUILayout.MaxWidth(45));
             GUILayout.EndVertical();
         }
 
-        protected Vector3 Vector3Editor(Vector3 value)
+        protected Vector3 Vector3Editor(Vector3 value, string xLabel = "X:\t", string yLabel = "Y:\t", string zLabel = "Z:\t", Action onValueChanged = null)
         {
+            return this.Vector3Editor(value, _redColor, _greenColor, _blueColor, this._inc, xLabel, yLabel, zLabel, onValueChanged);
+        }
+
+        protected Vector3 Vector3Editor(Vector3 value, float customInc, string xLabel = "X:\t", string yLabel = "Y:\t", string zLabel = "Z:\t", Action onValueChanged = null)
+        {
+            return this.Vector3Editor(value, _redColor, _greenColor, _blueColor, customInc, xLabel, yLabel, zLabel, onValueChanged);
+        }
+
+        protected Vector3 Vector3Editor(Vector3 value, Color color, string xLabel = "X:\t", string yLabel = "Y:\t", string zLabel = "Z:\t", Action onValueChanged = null)
+        {
+            return this.Vector3Editor(value, color, color, color, this._inc, xLabel, yLabel, zLabel, onValueChanged);
+        }
+
+        protected Vector3 Vector3Editor(Vector3 value, Color color, float customInc, string xLabel = "X:\t", string yLabel = "Y:\t", string zLabel = "Z:\t", Action onValueChanged = null)
+        {
+            return this.Vector3Editor(value, color, color, color, customInc, xLabel, yLabel, zLabel, onValueChanged);
+        }
+
+        protected Vector3 Vector3Editor(Vector3 value, Color xColor, Color yColor, Color zColor, float customInc, string xLabel = "X:\t", string yLabel = "Y:\t", string zLabel = "Z:\t", Action onValueChanged = null)
+        {
+            string customIncString = customInc.ToString("+0.#####;-0.#####");
+            string minusCustomIncString = (-customInc).ToString("+0.#####;-0.#####");
+
             GUILayout.BeginVertical();
             Color c = GUI.color;
-            GUI.color = _redColor;
+            GUI.color = xColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("X:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(xLabel, GUILayout.ExpandWidth(false));
 
             string oldValue = value.x.ToString("0.00000");
-            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
+                {
                     value.x = res;
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.right;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.right;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value -= customInc * Vector3.right;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value += customInc * Vector3.right;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
-            GUI.color = c;
 
-            GUI.color = _greenColor;
+            GUI.color = yColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Y:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(yLabel, GUILayout.ExpandWidth(false));
 
             oldValue = value.y.ToString("0.00000");
-            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
+                {
                     value.y = res;
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.up;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.up;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value -= customInc * Vector3.up;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value += customInc * Vector3.up;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
-            GUI.color = c;
 
-            GUI.color = _blueColor;
+            GUI.color = zColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Z:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(zLabel, GUILayout.ExpandWidth(false));
 
             oldValue = value.z.ToString("0.00000");
-            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
+                {
                     value.z = res;
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.forward;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.forward;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value -= customInc * Vector3.forward;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value += customInc * Vector3.forward;
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
             GUI.color = c;
@@ -200,73 +264,144 @@ namespace HSPE.AMModules
             return value;
         }
 
-        protected Vector3 Vector3Editor(Vector3 value, Color color)
+
+        protected Quaternion QuaternionEditor(Quaternion value, float customInc, string xLabel = "X (Pitch):\t", string yLabel = "Y (Yaw):\t", string zLabel = "Z (Roll):\t", Action onValueChanged = null)
         {
+            return this.QuaternionEditor(value, _redColor, _greenColor, _blueColor, customInc, xLabel, yLabel, zLabel, onValueChanged);
+        }
+
+        protected Quaternion QuaternionEditor(Quaternion value, Color xColor, Color yColor, Color zColor, float customInc, string xLabel = "X (Pitch):\t", string yLabel = "Y (Yaw):\t", string zLabel = "Z (Roll):\t", Action onValueChanged = null)
+        {
+            string customIncString = customInc.ToString("+0.#####;-0.#####");
+            string minusCustomIncString = (-customInc).ToString("+0.#####;-0.#####");
+
             GUILayout.BeginVertical();
             Color c = GUI.color;
-            GUI.color = color;
+            GUI.color = xColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("X:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(xLabel, GUILayout.ExpandWidth(false));
 
-            string oldValue = value.x.ToString("0.00000");
-            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            string oldValue = value.eulerAngles.x.ToString("0.00000");
+            string newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
-                    value.x = res;
+                {
+                    value = Quaternion.Euler(res, value.eulerAngles.y, value.eulerAngles.z);
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.right;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.right;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(-customInc, Vector3.right);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(customInc, Vector3.right);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
 
+            GUI.color = yColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Y:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(yLabel, GUILayout.ExpandWidth(false));
 
-            oldValue = value.y.ToString("0.00000");
-            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            oldValue = value.eulerAngles.y.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
-                    value.y = res;
+                {
+                    value = Quaternion.Euler(value.eulerAngles.x, res, value.eulerAngles.z);
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.up;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.up;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(-customInc, Vector3.up);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(customInc, Vector3.up);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
 
+            GUI.color = zColor;
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Z:\t", GUILayout.ExpandWidth(false));
+            GUILayout.Label(zLabel, GUILayout.ExpandWidth(false));
 
-            oldValue = value.z.ToString("0.00000");
-            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(80));
+            oldValue = value.eulerAngles.z.ToString("0.00000");
+            newValue = GUILayout.TextField(oldValue, GUILayout.MaxWidth(60));
             if (oldValue != newValue)
             {
                 float res;
                 if (float.TryParse(newValue, out res))
+                {
                     value.z = res;
+                    value = Quaternion.Euler(value.eulerAngles.x, value.eulerAngles.y, res); 
+                    if (onValueChanged != null)
+                        onValueChanged();
+                }
             }
             GUILayout.FlexibleSpace();
 
             GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-            if (GUILayout.RepeatButton((-_inc).ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value -= _inc * Vector3.forward;
-            if (GUILayout.RepeatButton(_inc.ToString("+0.#####;-0.#####")) && this.RepeatControl())
-                value += _inc * Vector3.forward;
+            if (GUILayout.RepeatButton(minusCustomIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(-customInc, Vector3.forward);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
+            if (GUILayout.RepeatButton(customIncString) && this.RepeatControl())
+            {
+                value *= Quaternion.AngleAxis(customInc, Vector3.forward);
+                if (onValueChanged != null)
+                    onValueChanged();
+            }
             GUILayout.EndHorizontal();
             GUILayout.EndHorizontal();
+            GUI.color = c;
+            GUILayout.EndHorizontal();
+            return value;
+        }
+
+        protected float FloatEditor(float value, float min, float max, string label = "Label\t", string format = "0.000", float inputWidth = 40f, Func<float, float> onReset = null)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, GUILayout.ExpandWidth(false));
+            value = GUILayout.HorizontalSlider(value, min, max);
+            string oldValue = value.ToString("0.000");
+            string newValue = GUILayout.TextField(oldValue, GUILayout.Width(inputWidth));
+            if (oldValue != newValue)
+            {
+                float res;
+                if (float.TryParse(newValue, out res))
+                    value = res;
+            }
+
+            Color c = GUI.color;
+            GUI.color = Color.red;
+            if (onReset != null && GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
+                value = onReset(value);
             GUI.color = c;
             GUILayout.EndHorizontal();
             return value;

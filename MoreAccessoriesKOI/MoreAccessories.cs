@@ -107,6 +107,8 @@ namespace MoreAccessoriesKOI
         public CharAdditionalData _charaMakerData = null;
         private float _slotUIPositionY;
         private bool _usingSideloader = false;
+        internal bool _hasDarkness;
+        internal bool _isParty = false;
 
         private bool _inCharaMaker = false;
         private Binary _binary;
@@ -137,6 +139,10 @@ namespace MoreAccessoriesKOI
 
         #endregion
 
+        #region Accessors
+        internal 
+        #endregion
+
         #region Unity Methods
         void Awake()
         {
@@ -144,6 +150,7 @@ namespace MoreAccessoriesKOI
             _self = this;
             switch (Paths.ProcessName)
             {
+                case "Koikatsu Party":
                 case "Koikatu":
                     this._binary = Binary.Game;
                     break;
@@ -151,6 +158,8 @@ namespace MoreAccessoriesKOI
                     this._binary = Binary.Studio;
                     break;
             }
+            this._hasDarkness = typeof(ChaControl).GetMethod("ChangeShakeAccessory", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance) != null;
+            this._isParty = Application.productName == "Koikatsu Party";
             ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
             ExtendedSave.CardBeingSaved += this.OnCharaSave;
             ExtendedSave.CoordinateBeingLoaded += this.OnCoordLoad;
@@ -321,7 +330,7 @@ namespace MoreAccessoriesKOI
         /// <returns></returns>
         public int GetCvsAccessoryCount()
         {
-            if(this._inCharaMaker)
+            if (this._inCharaMaker)
                 return this._additionalCharaMakerSlots.Count + 20;
             return 0;
         }
@@ -354,7 +363,7 @@ namespace MoreAccessoriesKOI
             group.childForceExpandWidth = parentGroup.childForceExpandWidth;
             group.spacing = parentGroup.spacing;
             this._charaMakerScrollView.content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            
+
             this.ExecuteDelayed(() =>
             {
                 this._slotUIPositionY = this._charaMakerSlotTemplate.transform.parent.position.y;
@@ -424,7 +433,7 @@ namespace MoreAccessoriesKOI
                         }
                         this.AccessorySlotCanvasGroupCallback(-1, info.tglItem, info.cgItem);
                     });
-                   ((RectTransform)info.cgItem.transform).anchoredPosition += new Vector2(0f, 40f);
+                    ((RectTransform)info.cgItem.transform).anchoredPosition += new Vector2(0f, 40f);
                 }
                 else if (i == 21)
                 {
@@ -466,7 +475,7 @@ namespace MoreAccessoriesKOI
             this._copySlotTemplate = this._charaMakerCopyScrollView.content.GetChild(0).gameObject;
             this._raycastCtrls.Add(container.parent.GetComponent<UI_RaycastCtrl>());
             this._charaMakerCopyScrollView.transform.SetAsFirstSibling();
-            this._charaMakerCopyScrollView.transform.SetRect(new  Vector2(0f, 1f), Vector2.one, new Vector2(16f, -570f), new Vector2(-16f, -80f));
+            this._charaMakerCopyScrollView.transform.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(16f, -570f), new Vector2(-16f, -80f));
 
             container = (RectTransform)GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/04_AccessoryTop/tglChange/ChangeTop/rect").transform;
             this._charaMakerTransferScrollView = UIUtility.CreateScrollView("Slots", container);
@@ -505,7 +514,7 @@ namespace MoreAccessoriesKOI
         {
             Transform accList = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/01_State/Viewport/Content/Slot").transform;
             this._studioToggleTemplate = accList.Find("Slot20") as RectTransform;
-            
+
             MPCharCtrl ctrl = ((MPCharCtrl)Studio.Studio.Instance.manipulatePanelCtrl.GetPrivate("charaPanelInfo").GetPrivate("m_MPCharCtrl"));
 
             this._studioToggleAll = new StudioSlotData();
@@ -592,7 +601,7 @@ namespace MoreAccessoriesKOI
             for (int i = 0; i < 2; i++)
                 this._additionalHSceneSlots.Add(new List<HSceneSlotData>());
             this._hSprite = hSceneProc.sprite;
-                this._hSceneMultipleFemaleButtons = this._hSprite.lstMultipleFemaleDressButton;
+            this._hSceneMultipleFemaleButtons = this._hSprite.lstMultipleFemaleDressButton;
             this._hSceneSoloFemaleAccessoryButton = this._hSprite.categoryAccessory;
             this.UpdateHUI();
         }
@@ -1001,6 +1010,7 @@ namespace MoreAccessoriesKOI
                 }
                 return false;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("IterateCardPrefixes", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1077,6 +1087,7 @@ namespace MoreAccessoriesKOI
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("IterateCoordinatePrefixes", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1125,6 +1136,7 @@ namespace MoreAccessoriesKOI
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCardLoad", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1143,6 +1155,7 @@ namespace MoreAccessoriesKOI
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCardSave", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1161,6 +1174,7 @@ namespace MoreAccessoriesKOI
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCoordinateLoad", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1179,6 +1193,7 @@ namespace MoreAccessoriesKOI
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
             }
+
             private static MethodInfo TargetMethod()
             {
                 return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCoordinateSave", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1191,7 +1206,7 @@ namespace MoreAccessoriesKOI
         }
         #endregion
 
-        [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new []{typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
+        [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new[] {typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool)})]
         private static class ChaFileControl_LoadFileLimited_Patches
         {
             private static void Prefix(ChaFileControl __instance, bool coordinate = true)
@@ -1292,7 +1307,8 @@ namespace MoreAccessoriesKOI
                                         };
                                     }
                                     part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
-                                    part.noShake = accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value);
+                                    if (this._hasDarkness)
+                                        part.SetPrivateProperty("noShake", accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value));
                                 }
                                 parts.Add(part);
                             }
@@ -1389,7 +1405,8 @@ namespace MoreAccessoriesKOI
                             }
 
                             xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
-                            xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString(part.noShake));
+                            if (this._hasDarkness)
+                                xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString((bool)part.GetPrivateProperty("noShake")));
                         }
                         xmlWriter.WriteEndElement();
                     }
@@ -1431,7 +1448,7 @@ namespace MoreAccessoriesKOI
             if (this._loadAdditionalAccessories == false) // This stuff is done this way because some user might want to change _loadAdditionalAccessories manually through reflection.
             {
                 this._loadAdditionalAccessories = true;
-                return;                
+                return;
             }
             ChaFile chaFile = null;
             foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
@@ -1505,7 +1522,8 @@ namespace MoreAccessoriesKOI
                             };
                         }
                         part.hideCategory = XmlConvert.ToInt32(accessoryNode.Attributes["hideCategory"].Value);
-                        part.noShake = accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value);
+                        if (this._hasDarkness)
+                            part.SetPrivateProperty("noShake", accessoryNode.Attributes["noShake"] != null && XmlConvert.ToBoolean(accessoryNode.Attributes["noShake"].Value));
                     }
                     data.nowAccessories.Add(part);
                 }
@@ -1573,7 +1591,8 @@ namespace MoreAccessoriesKOI
                             xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
                         }
                         xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
-                        xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString(part.noShake));
+                        if (this._hasDarkness)
+                            xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString((bool)part.GetPrivateProperty("noShake")));
                     }
                     xmlWriter.WriteEndElement();
                 }

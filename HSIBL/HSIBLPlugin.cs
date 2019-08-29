@@ -21,23 +21,33 @@ namespace HSIBL
         public void OnApplicationQuit() { }
         public void OnLevelWasInitialized(int level)
         {
-            if ((Application.productName == "StudioNEO" && level == 3)  && !GameObject.Find("HSIBL"))
+            switch (Application.productName)
             {
-                GameObject HSIBL = new GameObject("HSIBL");
-                HSIBL.AddComponent<HSIBL>();
-                HSIBL.AddComponent<CameraCtrlOffStudio>();
-            }
-            else if (Application.productName == "HoneySelect" && level == 15)
-            {
-                GameObject HSIBL = new GameObject("HSIBL");
-                HSIBL.AddComponent<HSIBL>();
-                HSIBL.AddComponent<CameraCtrlOffGame>();
-            }
-            else if (Application.productName == "HoneySelect" && (level == 21 || level == 22))
-            {
-                GameObject HSIBL = new GameObject("HSIBL");
-                HSIBL.AddComponent<HSIBL>();
-                HSIBL.AddComponent<CameraCtrlOffCM>();
+                case "StudioNEO":
+                    if (level == 3 && !GameObject.Find("HSIBL"))
+                    {
+                        GameObject hsibl = new GameObject("HSIBL");
+                        hsibl.AddComponent<HSIBL>();
+                        hsibl.AddComponent<CameraCtrlOffStudio>();
+                    }
+                    break;
+                case "HoneySelect":
+                case "Honey Select Unlimited":
+                    switch (level)
+                    {
+                        case 15:
+                            GameObject hsibl = new GameObject("HSIBL");
+                            hsibl.AddComponent<HSIBL>();
+                            hsibl.AddComponent<CameraCtrlOffGame>();
+                            break;
+                        case 21:
+                        case 22:
+                            hsibl = new GameObject("HSIBL");
+                            hsibl.AddComponent<HSIBL>();
+                            hsibl.AddComponent<CameraCtrlOffCM>();
+                            break;
+                    }
+                    break;
             }
         }
         public void OnFixedUpdate() { }

@@ -113,7 +113,7 @@ namespace FogEditor
         {
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.FogEditorResources);
             this._ui = Instantiate(bundle.LoadAsset<GameObject>("FogEditorCanvas")).GetComponent<Canvas>();
-            bundle.Unload(false);
+            bundle.Unload(true);
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
             Transform topContainer = bg.Find("Top Container");

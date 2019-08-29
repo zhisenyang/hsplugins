@@ -184,7 +184,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo, List<RectTransform> ___lstRtfTgl)
@@ -242,6 +242,7 @@ namespace HSUS
                         HSUS._self._currentClothesPathGame = HSUS._self._currentClothesPathGame.Remove(index);
                         SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
                         Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
+                        __instance.UpdateSort();
                     }
                 });
                 text.fontStyle = FontStyle.BoldAndItalic;
@@ -287,6 +288,7 @@ namespace HSUS
                         HSUS._self._currentClothesPathGame += fi.path;
                         SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
                         Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
+                        __instance.UpdateSort();
                     }
                 });
                 display.toggle.isOn = false;
@@ -418,7 +420,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Postfix(SmClothesLoad __instance)
@@ -432,7 +434,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Postfix(SmClothesLoad __instance)
@@ -446,7 +448,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
@@ -489,7 +491,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
@@ -526,6 +528,25 @@ namespace HSUS
             return false;
         }
     }
+
+    [HarmonyPatch(typeof(SmClothesLoad), "UpdateSort")]
+    internal static class SmClothesLoad_UpdateSort_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS._self._optimizeCharaMaker;
+        }
+
+        private static bool Prefix(SmClothesLoad __instance)
+        {
+            if ((byte)__instance.GetPrivate("lastSort") == 0)
+                __instance.SortName((bool)__instance.GetPrivate("ascendName"));
+            else
+                __instance.SortDate((bool)__instance.GetPrivate("ascendDate"));
+            return false;
+        }
+    }
+
 }
 
 #endif

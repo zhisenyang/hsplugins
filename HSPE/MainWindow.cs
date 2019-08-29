@@ -108,6 +108,8 @@ namespace HSPE
         private int _lastScreenHeight = Screen.height;
         private Button _copyLeftArmButton;
         private Button _copyRightArmButton;
+        private Button _copyLeftHandButton;
+        private Button _copyRightHandButton;
         private Button _copyLeftLegButton;
         private Button _copyRightLegButton;
         private Button _swapPostButton;
@@ -187,6 +189,11 @@ namespace HSPE
                         foreach (XmlNode alias in node.ChildNodes)
                             if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
                                 BonesEditor._boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
+                        break;
+                    case "blendShapeAliases":
+                        foreach (XmlNode alias in node.ChildNodes)
+                            if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
+                                BlendShapesEditor._blendShapeAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
                         break;
                     case "crotchCorrectionByDefault":
                         if (node.Attributes["value"] != null)
@@ -363,6 +370,16 @@ namespace HSPE
 
                     xmlWriter.WriteStartElement("boneAliases");
                     foreach (KeyValuePair<string, string> kvp in BonesEditor._boneAliases)
+                    {
+                        xmlWriter.WriteStartElement("alias");
+                        xmlWriter.WriteAttributeString("key", kvp.Key);
+                        xmlWriter.WriteAttributeString("value", kvp.Value);
+                        xmlWriter.WriteEndElement();
+                    }
+                    xmlWriter.WriteEndElement();
+
+                    xmlWriter.WriteStartElement("blendShapeAliases");
+                    foreach (KeyValuePair<string, string> kvp in BlendShapesEditor._blendShapeAliases)
                     {
                         xmlWriter.WriteStartElement("alias");
                         xmlWriter.WriteAttributeString("key", kvp.Key);
@@ -644,6 +661,20 @@ namespace HSPE
                     ((CharaPoseController)this._poseTarget).CopyLimbToTwin(FullBodyBipedChain.LeftArm, OIBoneInfo.BoneGroup.LeftArm);
             });
 
+            this._copyLeftHandButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Hand Button").GetComponent<Button>();
+            this._copyLeftHandButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    ((CharaPoseController)this._poseTarget).CopyHandToTwin(OIBoneInfo.BoneGroup.RightHand);
+            });
+
+            this._copyRightHandButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Left Hand Button").GetComponent<Button>();
+            this._copyRightHandButton.onClick.AddListener(() =>
+            {
+                if (this._poseTarget != null)
+                    ((CharaPoseController)this._poseTarget).CopyHandToTwin(OIBoneInfo.BoneGroup.LeftHand);
+            });
+
             this._copyLeftLegButton = this._ui.transform.Find("BG/Controls/Other buttons/Copy Limbs/Copy Right Leg Button").GetComponent<Button>();
             this._copyLeftLegButton.onClick.AddListener(() =>
             {
@@ -796,6 +827,7 @@ namespace HSPE
                 this._advancedModeRect.xMin = this._advancedModeRect.xMax - xSlider.value;
             });
             xSlider.maxValue = Screen.width * 0.8f;
+            xSlider.value = this._advancedModeRect.width;
 
             Slider ySlider = this._ui.transform.Find("Options Window/Options/Advanced Mode Window Size Container/Height Slider").GetComponent<Slider>();
             ySlider.onValueChanged.AddListener((f) =>
@@ -803,6 +835,7 @@ namespace HSPE
                 this._advancedModeRect.yMin = this._advancedModeRect.yMax - ySlider.value;
             });
             ySlider.maxValue = Screen.height * 0.8f;
+            ySlider.value = this._advancedModeRect.height;
 
             this._shortcutKeyButton = this._ui.transform.Find("Options Window/Options/Shortcut Key Container/Listener Button").GetComponent<Button>();
             Text text = this._shortcutKeyButton.GetComponentInChildren<Text>();
@@ -1322,6 +1355,8 @@ namespace HSPE
                 this._optimizeIKToggle.interactable = isCharacter;
                 this._copyLeftArmButton.interactable = isCharacter;
                 this._copyRightArmButton.interactable = isCharacter;
+                this._copyLeftHandButton.interactable = isCharacter;
+                this._copyRightHandButton.interactable = isCharacter;
                 this._copyLeftLegButton.interactable = isCharacter;
                 this._copyRightLegButton.interactable = isCharacter;
                 this._swapPostButton.interactable = isCharacter;

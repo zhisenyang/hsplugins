@@ -26,6 +26,12 @@ namespace Instrumentation
     BaseUnityPlugin
 #endif
     {
+        public class SpecialMethodData
+        {
+            public Type type;
+            public MethodData method;
+        }
+
         public class MethodData
         {
             public string name;
@@ -88,7 +94,14 @@ namespace Instrumentation
             new MethodData(){name = "Reset"}
         };
 
+        private readonly SpecialMethodData[] _specialMethods =
+        {
+            new SpecialMethodData() {type = typeof(GC), method = new MethodData() {name = "Collect"}}
+        };
+
         public static Dictionary<int, Dictionary<Type, ulong>>[] times;
+
+        public static Dictionary<int, ulong>[] specialTimes;
 
         public static readonly Dictionary<Type, Stopwatch> _stopwatches = new Dictionary<Type, Stopwatch>();
 
@@ -151,6 +164,10 @@ namespace Instrumentation
             for (int i = 0; i < this._methods.Length; i++)
                 times[i] = new Dictionary<int, Dictionary<Type, ulong>>();
 
+            specialTimes = new Dictionary<int, ulong>[this._specialMethods.Length];
+            for (int i = 0; i < this._specialMethods.Length; i++)
+                specialTimes[i] = new Dictionary<int, ulong>();
+
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.instrumentation");
             Type component = typeof(Component);
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -188,6 +205,26 @@ namespace Instrumentation
                             }
                         }
                     }
+                    for (int i = 0; i < this._specialMethods.Length; i++)
+                    {
+                        SpecialMethodData data = this._specialMethods[i];
+                        try
+                        {
+                            MethodInfo info = data.type.GetMethod(data.method.name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static, null, data.method.arguments, null);
+                            if (info != null)
+                            {
+                                harmony.Patch(
+                                              info,
+                                              new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.SpecialUpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
+                                              new HarmonyMethod(typeof(Patches).GetMethod($"SpecialUpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
+                                             );
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
@@ -221,7 +258,34 @@ namespace Instrumentation
                     }
                     avgDic[j] = avg;
                 }
+                Dictionary<Type, ulong>[] specialAvgDic = new Dictionary<Type, ulong>[this._specialMethods.Length];
+                for (int j = 0; j < this._specialMethods.Length; j++)
+                {
+                    SpecialMethodData data = this._specialMethods[j];
+                    Dictionary<Type, ulong> avg = new Dictionary<Type, ulong>();
+                    for (int i = 1; i < 60; i++)
+                    {
+                        ulong t;
+                        if (specialTimes[j].TryGetValue(Time.frameCount - i, out t))
+                        {
+                            if (avg.ContainsKey(data.type) == false)
+                                avg.Add(data.type, 0);
+                            avg[data.type] += t;
+                        }
+                    }
+                    specialAvgDic[j] = avg;
+                }
                 StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < this._specialMethods.Length; i++)
+                {
+                    Dictionary<Type, ulong> avg = specialAvgDic[i];
+                    List<KeyValuePair<Type, ulong>> list = avg.ToList();
+                    list.Sort((a, b) => b.Value.CompareTo(a.Value));
+                    foreach (KeyValuePair<Type, ulong> pair in list)
+                    {
+                        sb.AppendLine(pair.Key.FullName + "." + this._specialMethods[i].method.name + "," + (pair.Value / 59));
+                    }
+                }
                 for (int i = 0; i < this._methods.Length; i++)
                 {
                     Dictionary<Type, ulong> avg = avgDic[i];
@@ -237,11 +301,18 @@ namespace Instrumentation
             if (Input.GetKeyDown(KeyCode.X))
             {
                 StringBuilder sb = new StringBuilder();
-                for (int j = 0; j < this._methods.Length; j++)
+                for (int i = 1; i < 2400; i++)
                 {
-                    for (int i = 1; i < 300; i++)
+                    sb.AppendLine((Time.frameCount - i).ToString());
+                    for (int j = 0; j < this._specialMethods.Length; j++)
                     {
-                        sb.AppendLine((Time.frameCount - i).ToString());
+                        SpecialMethodData data = this._specialMethods[j];
+                        ulong t;
+                        if (specialTimes[j].TryGetValue(Time.frameCount - i, out t))
+                            sb.AppendLine(data.type.FullName + "." + data.method.name + "," + t);
+                    }
+                    for (int j = 0; j < this._methods.Length; j++)
+                    {
                         Dictionary<Type, ulong> dic;
                         if (times[j].TryGetValue(Time.frameCount - i, out dic))
                         {
@@ -252,22 +323,42 @@ namespace Instrumentation
                 }
                 System.IO.File.WriteAllText("FrameSample.txt", sb.ToString());
             }
-            if (times != null)
-            foreach (Dictionary<int, Dictionary<Type, ulong>> dic in times)
+            if (Input.GetKeyDown(KeyCode.T))
             {
-                if (dic.ContainsKey(Time.frameCount - 301))
-                    dic.Remove(Time.frameCount - 301);
+                UnityEngine.Object[] objs = Resources.FindObjectsOfTypeAll<UnityEngine.Object>();
+                List<IGrouping<Type, UnityEngine.Object>> groups = objs.GroupBy(o => o.GetType()).ToList();
+                groups.Sort((x, y) => x.Count().CompareTo(y.Count()));
+                StringBuilder sb = new StringBuilder();
+                foreach (IGrouping<Type, UnityEngine.Object> group in groups)
+                {
+                    sb.AppendLine(group.Key.FullName + " " + group.Count());
+                }
+                sb.AppendLine(objs.Length.ToString());
+                UnityEngine.Debug.LogError(sb.ToString());
 
             }
+            if (times != null)
+                foreach (Dictionary<int, Dictionary<Type, ulong>> dic in times)
+                {
+                    if (dic.ContainsKey(Time.frameCount - 2401))
+                        dic.Remove(Time.frameCount - 2401);
+
+                }
+            if (specialTimes != null)
+                foreach (Dictionary<int, ulong> dic in specialTimes)
+                {
+                    if (dic.ContainsKey(Time.frameCount - 2401))
+                        dic.Remove(Time.frameCount - 2401);
+
+                }
         }
     }
 
 
     public static class Patches
     {
-        public static void UpdatePrefixes(object __instance)
+        public static void InitStopwatch(Type t)
         {
-            Type t = __instance.GetType();
             if (Instrumentation._stopwatches.TryGetValue(t, out Stopwatch watch) == false)
             {
                 watch = new Stopwatch();
@@ -277,6 +368,22 @@ namespace Instrumentation
             watch.Start();
         }
 
+        public static Stopwatch StopStopwatch(Type t)
+        {
+            if (Instrumentation._stopwatches.TryGetValue(t, out Stopwatch watch) == false)
+            {
+                watch = new Stopwatch();
+                Instrumentation._stopwatches.Add(t, watch);
+            }
+            watch.Stop();
+            return watch;
+        }
+
+        public static void UpdatePrefixes(object __instance)
+        {
+            Type t = __instance.GetType();
+            InitStopwatch(t);
+        }
 
         public static void UpdatePostfixes0(object __instance){UpdatePostfixes(__instance, 0);}
         public static void UpdatePostfixes1(object __instance){UpdatePostfixes(__instance, 1);}
@@ -334,11 +441,7 @@ namespace Instrumentation
         public static void UpdatePostfixes(object __instance, int i)
         {
             Type t = __instance.GetType();
-            if (Instrumentation._stopwatches.TryGetValue(t, out Stopwatch watch) == false)
-            {
-                watch = new Stopwatch();
-                Instrumentation._stopwatches.Add(t, watch);
-            }
+            Stopwatch watch = StopStopwatch(t);
             Dictionary<Type, ulong> frameDic;
             Dictionary<int, Dictionary<Type, ulong>> times = Instrumentation.times[i];
             if (times.TryGetValue(Time.frameCount, out frameDic) == false)
@@ -351,5 +454,22 @@ namespace Instrumentation
             frameDic[t] += (ulong)watch.ElapsedTicks;
         }
 
+
+        public static void SpecialUpdatePrefixes(MethodInfo __originalMethod)
+        {
+            InitStopwatch(__originalMethod.DeclaringType);
+        }
+
+        public static void SpecialUpdatePostfixes0(MethodInfo __originalMethod) { SpecialUpdatePostfixes(__originalMethod, 0); }
+
+        public static void SpecialUpdatePostfixes(MethodInfo __originalMethod, int i)
+        {
+            Type t = __originalMethod.DeclaringType;
+            Stopwatch watch = StopStopwatch(t);
+            Dictionary<int, ulong> times = Instrumentation.specialTimes[i];
+            if (times.ContainsKey(Time.frameCount) == false)
+                times.Add(Time.frameCount, 0);
+            times[Time.frameCount] += (ulong)watch.ElapsedTicks;
+        }
     }
 }

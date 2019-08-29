@@ -478,7 +478,7 @@ namespace MoreAccessories
 
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.MoreAccessoriesResources);
             this._charaMakerGuideObject = GameObject.Instantiate(bundle.LoadAsset<GameObject>("M Root")).AddComponent<GuideObject>();
-            bundle.Unload(false);
+            bundle.Unload(true);
 
             this._guideObjectCamera = new GameObject("GuideObjectCamera").AddComponent<Camera>();
             this._guideObjectCamera.transform.SetParent(Camera.main.transform);
@@ -811,7 +811,6 @@ namespace MoreAccessories
             this._charaMakerCopyScrollView.content.offsetMin = new Vector2(0f, -158f - 20f * (i / 3));
             this._charaMakerBulkColorContainer.preferredHeight = 184 + 20f * (i / 3);
 
-
             for (; i < this._displayedMakerSlots.Count; i++)
             {
                 MakerSlotData sd = this._displayedMakerSlots[i];
@@ -1106,6 +1105,8 @@ namespace MoreAccessories
 
         private void OnCharaLoadGeneric(CharFile charFile, XmlNode node, bool readVisibility = false)
         {
+            if (this._loadAdditionalAccessories == false)
+                return;
             CharAdditionalData additionalData;
             if (this._accessoriesByChar.TryGetValue(charFile, out additionalData) == false)
             {
@@ -1117,7 +1118,7 @@ namespace MoreAccessories
                 foreach (KeyValuePair<CharDefine.CoordinateType, List<CharFileInfoClothes.Accessory>> pair in additionalData.rawAccessoriesInfos) // Useful only in the chara maker
                     pair.Value.Clear();
             }
-            if (node != null && this._loadAdditionalAccessories)
+            if (node != null)
             {
                 foreach (XmlNode childNode in node.ChildNodes)
                 {
@@ -1334,12 +1335,12 @@ namespace MoreAccessories
                         additionalData = this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
                     break;
             }
-            if (additionalData == null)
+            if (additionalData == null || this._loadAdditionalAccessories == false)
                 return;
             List<CharFileInfoClothes.Accessory> accessories2 = additionalData.clothesInfoAccessory;
             accessories2.Clear();
 
-            if (node != null && this._loadAdditionalAccessories)
+            if (node != null)
             {
                 node = node.FirstChild;
                 foreach (XmlNode childNode in node.ChildNodes)
@@ -1410,15 +1411,15 @@ namespace MoreAccessories
                         accessory = new CharFileInfoClothes.Accessory();
                     accessories2.Add(accessory);
                 }
-                while (additionalData.infoAccessory.Count < additionalData.clothesInfoAccessory.Count)
-                    additionalData.infoAccessory.Add(null);
-                while (additionalData.objAccessory.Count < additionalData.clothesInfoAccessory.Count)
-                    additionalData.objAccessory.Add(null);
-                while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
-                    additionalData.objAcsMove.Add(null);
-                while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
-                    additionalData.showAccessory.Add(this._charaMakerCharInfo == null || this._charaMakerCharInfo.statusInfo.showAccessory[0]);
             }
+            while (additionalData.infoAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.infoAccessory.Add(null);
+            while (additionalData.objAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAccessory.Add(null);
+            while (additionalData.objAcsMove.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.objAcsMove.Add(null);
+            while (additionalData.showAccessory.Count < additionalData.clothesInfoAccessory.Count)
+                additionalData.showAccessory.Add(this._charaMakerCharInfo == null || this._charaMakerCharInfo.statusInfo.showAccessory[0]);
             this.UpdateMakerGUI();
             this.UpdateStudioUI();
         }

@@ -247,6 +247,7 @@ namespace HSLRE.CustomEffects
         private bool silentError = false;
         private LensDirtTextureEnum m_currentLensDirtTexture = LensDirtTextureEnum.DirtHighContrast;
         private LensStarburstTextureEnum m_currentLensStardurstTex = LensStarburstTextureEnum.Starburst;
+        private Vector2 m_screenshotMultiplier = new Vector2(1, 1); 
 
 #if TRIAL
 		private Texture2D watermark = null;
@@ -527,7 +528,7 @@ namespace HSLRE.CustomEffects
             }
 
             // CALCULATE THRESHOLD
-            RenderTexture thresholdRT = AmplifyUtils.GetTempRenderTarget(src.width / thresholdResDiv, src.height / thresholdResDiv);
+            RenderTexture thresholdRT = AmplifyUtils.GetTempRenderTarget((int)(src.width / (float)thresholdResDiv / this.m_screenshotMultiplier.x), (int)(src.height / (float)thresholdResDiv / this.m_screenshotMultiplier.y));
             if (this.m_maskTexture != null)
             {
                 this.m_bloomMaterial.SetTexture(AmplifyUtils.MaskTextureId, this.m_maskTexture);
@@ -709,7 +710,7 @@ namespace HSLRE.CustomEffects
             if (this.m_lensFlare.ApplyLensFlare && this.m_debugToScreen != DebugToScreenEnum.Bloom)
             {
                 lensFlareRT = this.m_lensFlare.ApplyFlare(this.m_bloomMaterial, featuresRT);
-                this.ApplyGaussianBlur(lensFlareRT, this.m_lensFlare.LensFlareGaussianBlurAmount);
+                this.ApplyGaussianBlur(lensFlareRT, this.m_lensFlare.LensFlareGaussianBlurAmount, this.m_lensFlare.LensFlareGaussianBlurRadius);
                 if (this.m_debugToScreen == DebugToScreenEnum.LensFlare)
                 {
                     Graphics.Blit(lensFlareRT, dest);
@@ -1043,6 +1044,8 @@ namespace HSLRE.CustomEffects
 
         public MainThresholdSizeEnum MainThresholdSize { get { return this.m_mainThresholdSize; } set { this.m_mainThresholdSize = value; } }
 
+        public Vector2 ScreenshotMultiplier { get { return this.m_screenshotMultiplier; } set { this.m_screenshotMultiplier = value; } }
+
         public RenderTexture TargetTexture { get { return this.m_targetTexture; } set { this.m_targetTexture = value; } }
 
         public Texture MaskTexture { get { return this.m_maskTexture; } set { this.m_maskTexture = value; } }
@@ -1105,6 +1108,9 @@ namespace HSLRE.CustomEffects
 
         [SerializeField]
         private int m_lensFlareGaussianBlurAmount = 1;
+
+        [SerializeField]
+        private float m_lensFlareGaussianBlurRadius = 1f;
 
         public AmplifyLensFlare()
         {
@@ -1232,6 +1238,8 @@ namespace HSLRE.CustomEffects
         public float LensFlareHaloChrDistortion { get { return this.m_lensFlareHaloChrDistortion; } set { this.m_lensFlareHaloChrDistortion = value; } }
 
         public int LensFlareGaussianBlurAmount { get { return this.m_lensFlareGaussianBlurAmount; } set { this.m_lensFlareGaussianBlurAmount = value; } }
+
+        public float LensFlareGaussianBlurRadius { get { return this.m_lensFlareGaussianBlurRadius; } set { this.m_lensFlareGaussianBlurRadius = value; } }
     }
 
 

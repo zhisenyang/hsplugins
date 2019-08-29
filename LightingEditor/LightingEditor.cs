@@ -384,7 +384,7 @@ namespace LightingEditor
             this._reflectionIntensityInputField.onEndEdit.AddListener(this.ReflectionIntensityChanged);
             globalContainer.Find("Reflection Intensity/Button").GetComponent<Button>().onClick.AddListener(this.ResetReflectionIntensity);
 #endif
-            bundle.Unload(false);
+            bundle.Unload(true);
         }
 
         private void UpdateUI()

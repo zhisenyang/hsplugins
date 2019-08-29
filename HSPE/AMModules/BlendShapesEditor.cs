@@ -48,12 +48,13 @@ namespace HSPE.AMModules
             {"cf_O_namida_S",  "Tears S"},
         };
 #endif
+        private const string _presetsPath = MainWindow._pluginDir + "BlendShapesPresets\\";
         #endregion
 
         #region Statics
-        private const string _presetsPath = MainWindow._pluginDir + "BlendShapesPresets\\";
         private static Dictionary<FaceBlendShape, BlendShapesEditor> _instanceByFaceBlendShape = new Dictionary<FaceBlendShape, BlendShapesEditor>();
         private static string[] _presets = new string[0];
+        internal static readonly Dictionary<string, string> _blendShapeAliases = new Dictionary<string, string>();
         #endregion
 
         #region Private Types
@@ -110,19 +111,22 @@ namespace HSPE.AMModules
 #if HONEYSELECT
         private readonly HashSet<SkinnedMeshRenderer> _eyesSkinnedMeshRenderers = new HashSet<SkinnedMeshRenderer>();
         private readonly HashSet<SkinnedMeshRenderer> _mouthSkinnedMeshRenderers = new HashSet<SkinnedMeshRenderer>();
+#elif KOIKATSU
+        private SkinnedMeshRenderer _eyesMouthRenderer;
 #endif
         private int _eyesShapesCount = Int32.MaxValue;
         private SkinnedMeshRenderer _skinnedMeshTarget;
         private bool _linkEyesAndEyelashes = true;
-        private SkinnedMeshRenderer _eyesMouthRenderer;
         private readonly Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper> _links = new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererWrapper>();
         private string _search = "";
         private readonly GenericOCITarget _target;
-        private Dictionary<XmlNode, SkinnedMeshRenderer> _secondPassLoadingNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
+        private readonly Dictionary<XmlNode, SkinnedMeshRenderer> _secondPassLoadingNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
         private bool _showSaveLoadWindow = false;
         private Vector2 _presetsScroll;
         private string _presetName = "";
         private bool _removePresetMode;
+        private int _renameIndex = -1;
+        private string _renameString = "";
         #endregion
 
         #region Public Fields
@@ -290,10 +294,7 @@ namespace HSPE.AMModules
                 this.RefreshSkinnedMeshRendererList();
             GUI.color = Color.red;
             if (GUILayout.Button("Reset all"))
-            {
-                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> pair in new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData>(this._dirtySkinnedMeshRenderers))
-                    this.SetMeshRendererNotDirty(pair.Key);
-            }
+                this.ResetAll();
             GUI.color = c;
             GUILayout.EndVertical();
 
@@ -342,7 +343,11 @@ namespace HSPE.AMModules
                     }
 #endif
                     string blendShapeName = this._skinnedMeshTarget.sharedMesh.GetBlendShapeName(i);
-                    if (blendShapeName.IndexOf(this._search, StringComparison.CurrentCultureIgnoreCase) != -1)
+                    string blendShapeAlias;
+                    if (_blendShapeAliases.TryGetValue(blendShapeName, out blendShapeAlias) == false)
+                        blendShapeAlias = null;
+                    if ((blendShapeAlias != null && blendShapeAlias.IndexOf(this._search, StringComparison.CurrentCultureIgnoreCase) != -1) ||
+                        blendShapeName.IndexOf(this._search, StringComparison.CurrentCultureIgnoreCase) != -1)
                     {
                         zeroResult = false;
                         float blendShapeWeight;
@@ -361,27 +366,55 @@ namespace HSPE.AMModules
                         GUILayout.BeginVertical(GUILayout.ExpandHeight(false));
 
                         GUILayout.BeginHorizontal();
-                        GUILayout.Label($"{displayI} {blendShapeName}");
-                        GUILayout.FlexibleSpace();
+                        if (this._renameIndex != i)
+                        {
+                            GUILayout.Label($"{displayI} {(blendShapeAlias == null ? blendShapeName : blendShapeAlias)}");
+                            GUILayout.FlexibleSpace();
+                        }
+                        else
+                        {
+                            GUILayout.Label(displayI.ToString(), GUILayout.ExpandWidth(false));
+                            this._renameString = GUILayout.TextField(this._renameString, GUILayout.ExpandWidth(true));
+                        }
+                        if (GUILayout.Button(this._renameIndex != i ? "Rename" : "Save", GUILayout.ExpandWidth(false)))
+                        {
+                            if (this._renameIndex != i)
+                            {
+                                this._renameIndex = i;
+                                this._renameString = blendShapeAlias == null ? blendShapeName : blendShapeAlias;
+                            }
+                            else
+                            {
+                                this._renameIndex = -1;
+                                this._renameString = this._renameString.Trim();
+                                if (this._renameString == string.Empty || this._renameString == blendShapeName)
+                                {
+                                    if (_blendShapeAliases.ContainsKey(blendShapeName))
+                                        _blendShapeAliases.Remove(blendShapeName);
+                                }
+                                else
+                                {
+                                    if (_blendShapeAliases.ContainsKey(blendShapeName) == false)
+                                        _blendShapeAliases.Add(blendShapeName, this._renameString);
+                                    else
+                                        _blendShapeAliases[blendShapeName] = this._renameString;
+                                }
+                            }
+                        }
                         GUILayout.Label(blendShapeWeight.ToString("000"), GUILayout.ExpandWidth(false));
                         GUILayout.EndHorizontal();
 
                         GUILayout.BeginHorizontal();
-                        int newBlendShapeWeight = Mathf.RoundToInt(GUILayout.HorizontalSlider(blendShapeWeight, 0f, 100f));
-                        if (GUILayout.Button("-1", GUILayout.ExpandWidth(false)) && newBlendShapeWeight != 0)
+                        float newBlendShapeWeight = GUILayout.HorizontalSlider(blendShapeWeight, 0f, 100f);
+                        if (GUILayout.Button("-1", GUILayout.ExpandWidth(false)))
                             newBlendShapeWeight -= 1;
-                        if (GUILayout.Button("+1", GUILayout.ExpandWidth(false)) && newBlendShapeWeight != 100)
+                        if (GUILayout.Button("+1", GUILayout.ExpandWidth(false)))
                             newBlendShapeWeight += 1;
+                        newBlendShapeWeight = Mathf.Clamp(newBlendShapeWeight, 0, 100);
                         GUILayout.EndHorizontal();
                         if (Mathf.Approximately(newBlendShapeWeight, blendShapeWeight) == false)
                         {
-                            data = this.SetMeshRendererDirty(this._skinnedMeshTarget);
-                            if (data.dirtyBlendShapes.TryGetValue(i, out bsData) == false)
-                            {
-                                bsData = new BlendShapeData();
-                                bsData.originalWeight = blendShapeWeight;
-                                data.dirtyBlendShapes.Add(i, bsData);
-                            }
+                            bsData = this.SetBlendShapeDirty(this._skinnedMeshTarget, i);
                             bsData.weight = newBlendShapeWeight;
                             if (this._linkEyesAndEyelashes)
                             {
@@ -392,13 +425,7 @@ namespace HSPE.AMModules
                                     {
                                         if (i >= link.renderer.sharedMesh.blendShapeCount)
                                             continue;
-                                        data = this.SetMeshRendererDirty(link.renderer);
-                                        if (data.dirtyBlendShapes.TryGetValue(i, out bsData) == false)
-                                        {
-                                            bsData = new BlendShapeData();
-                                            bsData.originalWeight = blendShapeWeight;
-                                            data.dirtyBlendShapes.Add(i, bsData);
-                                        }
+                                        bsData = this.SetBlendShapeDirty(link.renderer, i);
                                         bsData.weight = newBlendShapeWeight;
                                     }
                                 }
@@ -500,27 +527,36 @@ namespace HSPE.AMModules
         public override int SaveXml(XmlTextWriter xmlWriter)
         {
             int written = 0;
-            if (this._dirtySkinnedMeshRenderers.Count != 0)
+            xmlWriter.WriteStartElement("skinnedMeshes");
+            if (this._target.type == GenericOCITarget.Type.Character)
             {
-                xmlWriter.WriteStartElement("skinnedMeshes");
-                foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
-                {
-                    xmlWriter.WriteStartElement("skinnedMesh");
-                    xmlWriter.WriteAttributeString("name", kvp.Key.transform.GetPathFrom(this._parent.transform));
-
-                    foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
-                    {
-                        xmlWriter.WriteStartElement("blendShape");
-                        xmlWriter.WriteAttributeString("index", XmlConvert.ToString(weight.Key));
-                        xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(weight.Value.weight));
-                        xmlWriter.WriteEndElement();
-                    }
-
-                    xmlWriter.WriteEndElement();
-                    ++written;
-                }
-                xmlWriter.WriteEndElement();
+                xmlWriter.WriteAttributeString("eyesPtn", XmlConvert.ToString(this._target.ociChar.charInfo.GetEyesPtn()));
+                xmlWriter.WriteAttributeString("eyesOpen", XmlConvert.ToString(this._target.ociChar.charInfo.GetEyesOpenMax()));
+                xmlWriter.WriteAttributeString("mouthPtn", XmlConvert.ToString(this._target.ociChar.charInfo.GetMouthPtn()));
+                xmlWriter.WriteAttributeString("mouthOpen", XmlConvert.ToString(this._target.ociChar.oiCharInfo.mouthOpen));
+#if KOIKATSU
+                xmlWriter.WriteAttributeString("eyebrowsPtn", XmlConvert.ToString(this._target.ociChar.charInfo.GetEyebrowPtn()));
+                xmlWriter.WriteAttributeString("eyebrowsOpen", XmlConvert.ToString(this._target.ociChar.charInfo.GetEyebrowOpenMax()));
+#endif
+                ++written;
             }
+            foreach (KeyValuePair<SkinnedMeshRenderer, SkinnedMeshRendererData> kvp in this._dirtySkinnedMeshRenderers)
+            {
+                xmlWriter.WriteStartElement("skinnedMesh");
+                xmlWriter.WriteAttributeString("name", kvp.Key.transform.GetPathFrom(this._parent.transform));
+
+                foreach (KeyValuePair<int, BlendShapeData> weight in kvp.Value.dirtyBlendShapes)
+                {
+                    xmlWriter.WriteStartElement("blendShape");
+                    xmlWriter.WriteAttributeString("index", XmlConvert.ToString(weight.Key));
+                    xmlWriter.WriteAttributeString("weight", XmlConvert.ToString(weight.Value.weight));
+                    xmlWriter.WriteEndElement();
+                }
+
+                xmlWriter.WriteEndElement();
+                ++written;
+            }
+            xmlWriter.WriteEndElement();
             return written;
         }
 
@@ -534,6 +570,24 @@ namespace HSPE.AMModules
             Dictionary<XmlNode, SkinnedMeshRenderer> potentialChildrenNodes = new Dictionary<XmlNode, SkinnedMeshRenderer>();
             if (skinnedMeshesNode != null)
             {
+                if (this._target.type == GenericOCITarget.Type.Character)
+                {
+                    if (skinnedMeshesNode.Attributes["eyesPtn"] != null)
+                        this._target.ociChar.charInfo.ChangeEyesPtn(XmlConvert.ToInt32(skinnedMeshesNode.Attributes["eyesPtn"].Value), true);
+                    if (skinnedMeshesNode.Attributes["eyesOpen"] != null)
+                        this._target.ociChar.ChangeEyesOpen(XmlConvert.ToSingle(skinnedMeshesNode.Attributes["eyesOpen"].Value));
+                    if (skinnedMeshesNode.Attributes["mouthPtn"] != null)
+                        this._target.ociChar.charInfo.ChangeMouthPtn(XmlConvert.ToInt32(skinnedMeshesNode.Attributes["mouthPtn"].Value), true);
+                    if (skinnedMeshesNode.Attributes["mouthOpen"] != null)
+                        this._target.ociChar.ChangeMouthOpen(XmlConvert.ToSingle(skinnedMeshesNode.Attributes["mouthOpen"].Value));
+#if KOIKATSU
+                    if (skinnedMeshesNode.Attributes["eyebrowsPtn"] != null)
+                        this._target.ociChar.charInfo.ChangeEyebrowPtn(XmlConvert.ToInt32(skinnedMeshesNode.Attributes["eyebrowsPtn"].Value), false);
+                    if (skinnedMeshesNode.Attributes["eyebrowsOpen"] != null)
+                        this._target.ociChar.charInfo.ChangeEyebrowOpenMax(XmlConvert.ToSingle(skinnedMeshesNode.Attributes["eyebrowsOpen"].Value));
+#endif
+
+                }
                 foreach (XmlNode node in skinnedMeshesNode.ChildNodes)
                 {
                     try
@@ -605,10 +659,9 @@ namespace HSPE.AMModules
                 if (index >= renderer.sharedMesh.blendShapeCount)
                     continue;
                 loaded = true;
-                BlendShapeData bsData = new BlendShapeData();
+                BlendShapeData bsData = this.SetBlendShapeDirty(data, index);
                 bsData.originalWeight = renderer.GetBlendShapeWeight(index);
                 bsData.weight = XmlConvert.ToSingle(childNode.Attributes["weight"].Value);
-                data.dirtyBlendShapes.Add(index, bsData);
             }
             data.path = renderer.transform.GetPathFrom(this._parent.transform);
             this._dirtySkinnedMeshRenderers.Add(renderer, data);
@@ -730,6 +783,7 @@ namespace HSPE.AMModules
 #endif
                 if (renderer.sharedMesh.blendShapeCount < this._eyesShapesCount)
                     this._eyesShapesCount = renderer.sharedMesh.blendShapeCount;
+#if KOIKATSU
                 switch (renderer.name)
                 {
                     case "cf_O_head":
@@ -737,6 +791,7 @@ namespace HSPE.AMModules
                         this._eyesMouthRenderer = renderer;
                         break;
                 }
+#endif
 #if HONEYSELECT
                 if (!renderer.name.Equals("cf_O_mayuge") && !renderer.name.Equals("cm_O_mayuge"))
 #endif
@@ -801,16 +856,40 @@ namespace HSPE.AMModules
             }
         }
 
-        private SkinnedMeshRendererData SetMeshRendererDirty(SkinnedMeshRenderer bone)
+        private SkinnedMeshRendererData SetMeshRendererDirty(SkinnedMeshRenderer renderer)
         {
             SkinnedMeshRendererData data;
-            if (this._dirtySkinnedMeshRenderers.TryGetValue(bone, out data) == false)
+            if (this._dirtySkinnedMeshRenderers.TryGetValue(renderer, out data) == false)
             {
                 data = new SkinnedMeshRendererData();
-                data.path = bone.transform.GetPathFrom(this._parent.transform);
-                this._dirtySkinnedMeshRenderers.Add(bone, data);
+                data.path = renderer.transform.GetPathFrom(this._parent.transform);
+                this._dirtySkinnedMeshRenderers.Add(renderer, data);
             }
             return data;
+        }
+
+        private BlendShapeData SetBlendShapeDirty(SkinnedMeshRenderer renderer, int index)
+        {
+            SkinnedMeshRendererData data = this.SetMeshRendererDirty(renderer);
+            BlendShapeData bsData;
+            if (data.dirtyBlendShapes.TryGetValue(index, out bsData) == false)
+            {
+                bsData = new BlendShapeData();
+                bsData.originalWeight = renderer.GetBlendShapeWeight(index);
+                data.dirtyBlendShapes.Add(index, bsData);
+            }
+            return bsData;
+        }
+
+        private BlendShapeData SetBlendShapeDirty(SkinnedMeshRendererData data, int index)
+        {
+            BlendShapeData bsData;
+            if (data.dirtyBlendShapes.TryGetValue(index, out bsData) == false)
+            {
+                bsData = new BlendShapeData();
+                data.dirtyBlendShapes.Add(index, bsData);
+            }
+            return bsData;
         }
 
         private void RefreshSkinnedMeshRendererList()

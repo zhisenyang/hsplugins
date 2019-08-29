@@ -935,7 +935,8 @@ namespace HSLRE.CustomEffects
             if (!this.systemSupported.fullFunctionality)
             {
                 Debug.LogWarning("SEGI is not supported on the current platform. Check for shader compile errors in SEGI/Resources");
-                HSLRE.self.effectsDictionary[this].enabled = false;
+                if (HSLRE.self.effectsDictionary.TryGetValue(this, out HSLRE.EffectData data))
+                    data.enabled = false;
             }
         }
 

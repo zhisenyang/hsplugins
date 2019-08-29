@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
 using Harmony;
 using IllusionPlugin;
 using Studio;
@@ -107,6 +108,8 @@ namespace VideoExport
         private int _resizeY;
         private UpdateDynamicBonesType _selectedUpdateDynamicBones;
         private int _prewarmLoopCount = 3;
+        private string _imagesPrefix = "";
+        private string _imagesPostfix = "";
         #endregion
 
         #region Public Variables
@@ -140,6 +143,8 @@ namespace VideoExport
             this._resizeY = ModPrefs.GetInt("VideoExport", "resizeY", Screen.height, true);
             this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)ModPrefs.GetInt("VideoExport", "selectedUpdateDynamicBonesMode", (int)UpdateDynamicBonesType.Default, true);
             this._prewarmLoopCount = ModPrefs.GetInt("VideoExport", "prewarmLoopCount", 3, true);
+            this._imagesPrefix = ModPrefs.GetString("VideoExport", "imagesPrefix", "", true);
+            this._imagesPostfix = ModPrefs.GetString("VideoExport", "imagesPostfix", "", true);
             _outputFolder = ModPrefs.GetString("VideoExport", "outputFolder", _outputFolder, true);
             _globalFramesFolder = ModPrefs.GetString("VideoExport", "framesFolder", _globalFramesFolder, true);
 #if HONEYSELECT
@@ -245,6 +250,8 @@ namespace VideoExport
             ModPrefs.SetInt("VideoExport", "resizeY", this._resizeY);
             ModPrefs.SetInt("VideoExport", "selectedUpdateDynamicBonesMode", (int)this._selectedUpdateDynamicBones);
             ModPrefs.SetInt("VideoExport", "prewarmLoopCount", this._prewarmLoopCount);
+            ModPrefs.SetString("VideoExport", "imagesPrefix", this._imagesPrefix);
+            ModPrefs.SetString("VideoExport", "imagesPostfix", this._imagesPostfix);
             foreach (IScreenshotPlugin plugin in this._screenshotPlugins)
                 plugin.SaveParams();
             foreach (IExtension extension in this._extensions)
@@ -443,6 +450,43 @@ namespace VideoExport
                 GUILayout.Label("Dynamic Bones Update Mode");
                     this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)GUILayout.SelectionGrid((int)this._selectedUpdateDynamicBones, this._updateDynamicBonesTypeNames, 2);
 
+                GUILayout.BeginHorizontal();
+                {
+                    GUILayout.Label("Prefix", GUILayout.ExpandWidth(false));
+                    string s = GUILayout.TextField(this._imagesPrefix);
+                    if (s != this._imagesPrefix)
+                    {
+                        StringBuilder builder = new StringBuilder(s);
+                        foreach (char chr in Path.GetInvalidFileNameChars())
+                            builder.Replace(chr.ToString(), "");
+                        foreach (char chr in Path.GetInvalidPathChars())
+                            builder.Replace(chr.ToString(), "");
+                        this._imagesPrefix = builder.ToString();
+                    }
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                {
+                    GUILayout.Label("Postfix", GUILayout.ExpandWidth(false));
+                    string s = GUILayout.TextField(this._imagesPostfix);
+                    if (s != this._imagesPostfix)
+                    {
+                        StringBuilder builder = new StringBuilder(s);
+                        foreach (char chr in Path.GetInvalidFileNameChars())
+                            builder.Replace(chr.ToString(), "");
+                        foreach (char chr in Path.GetInvalidPathChars())
+                            builder.Replace(chr.ToString(), "");
+                        this._imagesPostfix = builder.ToString();
+                    }
+                }
+                GUILayout.EndHorizontal();
+
+                bool forcePng = this._autoGenerateVideo && extension is GIFExtension;
+                string actualExtension = forcePng ? "png" : plugin.extension;
+
+                GUILayout.Label($"Example Result: {this._imagesPrefix}123{this._imagesPostfix}.{actualExtension}");
+
                 this._startOnNextClick = GUILayout.Toggle(this._startOnNextClick, "Start Recording On Next Click");
 
                 GUI.enabled = this._generatingVideo == false && this._startOnNextClick == false &&
@@ -589,7 +633,7 @@ namespace VideoExport
                     GC.Collect();
                 }
                 byte[] frame = screenshotPlugin.Capture(forcePng);
-                File.WriteAllBytes($"{framesFolder}/{i}.{actualExtension}", frame);
+                File.WriteAllBytes($"{framesFolder}/{this._imagesPrefix}{i}{this._imagesPostfix}.{actualExtension}", frame);
 
                 elapsed = DateTime.Now - startTime;
 
@@ -626,7 +670,7 @@ namespace VideoExport
                 yield return null;
                 IExtension extension = this._extensions[(int)this._selectedExtension];
                 string executable = extension.GetExecutable();
-                string arguments = extension.GetArguments(framesFolder, actualExtension, this._fps, screenshotPlugin.transparency, this._resize, this._resizeX, this._resizeY, Path.Combine(_outputFolder, tempName));
+                string arguments = extension.GetArguments(framesFolder, this._imagesPrefix, this._imagesPostfix, actualExtension, this._fps, screenshotPlugin.transparency, this._resize, this._resizeX, this._resizeY, Path.Combine(_outputFolder, tempName));
                 startTime = DateTime.Now;
                 Process proc = this.StartExternalProcess(executable, arguments, extension.canProcessStandardOutput, extension.canProcessStandardError);
                 while (proc.HasExited == false)

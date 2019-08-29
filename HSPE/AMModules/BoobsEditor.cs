@@ -218,6 +218,7 @@ namespace HSPE.AMModules
 #if HONEYSELECT
         private bool _alternativeUpdateMode = false;
 #endif
+        internal DynamicBone_Ver02[] _dynamicBones;
         #endregion
 
         #region Public Fields        
@@ -257,7 +258,6 @@ namespace HSPE.AMModules
             DynamicBone_Ver02_LateUpdate_Patches.shouldExecuteLateUpdate += this.ShouldExecuteDynamicBoneLateUpdate;
             this._leftBoob = ((CharFemaleBody)this._chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastL);
             this._rightBoob = ((CharFemaleBody)this._chara.charBody).getDynamicBone(CharFemaleBody.DynamicBoneKind.BreastR);
-
             if (_initTransforms == null)
                 _initTransforms = this._leftBoob.GetType().GetMethod("InitTransforms", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
             if (_updateDynamicBones == null)
@@ -268,7 +268,8 @@ namespace HSPE.AMModules
             this._leftButtCheek = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.HipL); // "Hip" ( ͡° ͜ʖ ͡°)
             this._rightButtCheek = this._chara.charInfo.getDynamicBoneBust(ChaInfo.DynamicBoneKind.HipR);
 #endif
-            foreach (DynamicBone_Ver02 bone in this._parent.GetComponentsInChildren<DynamicBone_Ver02>(true))
+            this._dynamicBones = this._parent.GetComponentsInChildren<DynamicBone_Ver02>(true);
+            foreach (DynamicBone_Ver02 bone in this._dynamicBones)
                 foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
                 {
                     if (bone.Colliders.Contains(collider) == false)
@@ -369,11 +370,11 @@ namespace HSPE.AMModules
             GUILayout.EndVertical();
 
 #if HONEYSELECT
-            GUILayout.BeginVertical();
-            GUILayout.FlexibleSpace();
+            //GUILayout.BeginVertical();
+            //GUILayout.FlexibleSpace();
             this.IncEditor(150, true);
-            GUILayout.FlexibleSpace();
-            GUILayout.EndVertical();
+            //GUILayout.FlexibleSpace();
+            //GUILayout.EndVertical();
 #endif
 
             GUILayout.BeginVertical(GUI.skin.box);
@@ -576,6 +577,39 @@ namespace HSPE.AMModules
             }
             return changed;
         }
+
+        public string GetID(DynamicBone_Ver02 db)
+        {
+            if (db == this._leftBoob)
+                return "BreastL";
+            if (db == this._rightBoob)
+                return "BreastR";
+#if KOIKATSU
+            if (db == this._leftButtCheek)
+                return "HipL";
+            if (db == this._rightButtCheek)
+                return "HipR";
+#endif
+            return null;
+        }
+
+        public DynamicBone_Ver02 GetDynamicBone(string id)
+        {
+            switch (id)
+            {
+                case "BreastL":
+                    return this._leftBoob;
+                case "BreastR":
+                    return this._rightBoob;
+#if KOIKATSU
+                case "HipL":
+                    return this._leftButtCheek;
+                case "HipR":
+                    return this._rightButtCheek;
+#endif
+            }
+            return null;
+        }
         #endregion
 
         #region Private Methods
@@ -608,10 +642,9 @@ namespace HSPE.AMModules
 
         private void DisplaySingle(DynamicBone_Ver02 elem)
         {
-            GUILayout.BeginVertical();
             GUILayout.Label("Gravity");
             Vector3 gravity = elem.Gravity;
-            gravity = this.Vector3Editor(gravity, AdvancedModeModule._redColor);
+            gravity = this.Vector3Editor(gravity, AdvancedModeModule._redColor, "X:   ", "Y:   ", "Z:   ");
             if (gravity != elem.Gravity)
             {
                 this.SetDirty(elem);
@@ -619,12 +652,10 @@ namespace HSPE.AMModules
                     this._dirtyDynamicBones[elem].originalGravity = elem.Gravity;
                 this._dirtyDynamicBones[elem].gravity.value = gravity;
             }
-            GUILayout.EndVertical();
 
-            GUILayout.BeginVertical();
             GUILayout.Label("Force");
             Vector3 force = elem.Force;
-            force = this.Vector3Editor(force, AdvancedModeModule._blueColor);
+            force = this.Vector3Editor(force, AdvancedModeModule._blueColor, "X:   ", "Y:   ", "Z:   ");
             if (force != elem.Force)
             {
                 this.SetDirty(elem);
@@ -632,9 +663,21 @@ namespace HSPE.AMModules
                     this._dirtyDynamicBones[elem].originalForce = elem.Force;
                 this._dirtyDynamicBones[elem].force.value = force;
             }
-            GUILayout.EndVertical();
 
             GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Go to root", GUILayout.ExpandWidth(false)))
+            {
+                this._parent.EnableModule(this._parent._bonesEditor);
+                this._parent._bonesEditor.GoToObject(elem.Root.gameObject);
+            }
+
+            if (GUILayout.Button("Go to tail", GUILayout.ExpandWidth(false)))
+            {
+                this._parent.EnableModule(this._parent._bonesEditor);
+                this._parent._bonesEditor.GoToObject(elem.Root.GetDeepestLeaf().gameObject);
+            }
+
             GUILayout.FlexibleSpace();
             Color c = GUI.color;
             GUI.color = AdvancedModeModule._redColor;

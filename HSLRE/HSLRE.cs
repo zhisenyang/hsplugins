@@ -145,6 +145,12 @@ namespace HSLRE
         public CameraMotionBlur motionBlur;
         public AmplifyBloom amplifyBloom;
         public BlurOptimized blur;
+
+        public bool fixDofForUpscaledScreenshots = true;
+        public bool fixNoiseAndGrainForUpscaledScreenshots = true;
+        public bool fixBlurForUpscaledScreenshots = true;
+        public bool fixAmplifyBloomForUpscaledScreenshots = true;
+        public bool fixSsrForUpscaledScreenshots = true;
         #endregion
 
         #region Unity Methods
@@ -225,9 +231,16 @@ namespace HSLRE
                 this.ssao = mainCamera.GetComponent<SSAOPro>();
                 if (this.ssao != null)
                 {
-                    this.segi = new SEGI(mainCamera);
-                    this.segi.ApplyPreset(10);
-                    this.AddPostProcessingToList(true, false, this.segi, false, EffectType.FourKDiffuse | EffectType.LRE, "segi");
+                    try
+                    {
+                        this.segi = new SEGI(mainCamera);
+                        this.segi.ApplyPreset(10);
+                        this.AddPostProcessingToList(true, false, this.segi, false, EffectType.FourKDiffuse | EffectType.LRE, "segi");
+                    }
+                    catch
+                    {
+                        this.segi = null;
+                    }
 
                     this.AddPostProcessingToList(true, false, this.ssao, true, EffectType.FourKDiffuse | EffectType.LRE, "ssao");
 

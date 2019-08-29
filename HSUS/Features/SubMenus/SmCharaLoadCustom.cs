@@ -135,7 +135,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         internal static bool Prefix(SmCharaLoad __instance, ref bool ___initEnd, ref byte ___folderInfoSex, CharInfo ___chaInfo, List<SmCharaLoad.FileInfo> ___lstFileInfo)
@@ -209,7 +209,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, CharInfo ___chaInfo)
@@ -391,7 +391,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo, List<SmCharaLoad.FileInfo> ___lstFileInfo)
@@ -463,7 +463,7 @@ namespace HSUS
         internal static readonly Dictionary<CharFile, string> _fullPathByInstance = new Dictionary<CharFile, string>();
         private static bool Prepare()
         {
-            return (HSUS.self.optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS.self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo);
+            return (HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo);
         }
 
         private static void Prefix(CharFile __instance, string path)
@@ -486,7 +486,7 @@ namespace HSUS
         }
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -507,7 +507,7 @@ namespace HSUS
 
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -530,7 +530,7 @@ namespace HSUS
 
         private static bool Prepare()
         {
-            return (HSUS.self.optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS.self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo) && (Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier") != null || Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifierStudioNEO") != null);
+            return (HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo) && (Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier") != null || Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifierStudioNEO") != null);
         }
 
         private static void Postfix(CharInfo ___charInfo, ref string __result)
@@ -555,7 +555,7 @@ namespace HSUS
 
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
         }
 
         private static void Postfix(CharInfo ___charInfo, ref bool __result)
@@ -571,7 +571,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Prefix()
@@ -585,7 +585,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Postfix(SmCharaLoad __instance)
@@ -599,7 +599,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Postfix(SmCharaLoad __instance)
@@ -614,7 +614,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, bool ascend)
@@ -654,7 +654,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, bool ascend)
@@ -689,12 +689,30 @@ namespace HSUS
         }
     }
 
+    [HarmonyPatch(typeof(SmCharaLoad), "UpdateSort")]
+    internal static class SmCharaLoad_UpdateSort_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS._self._optimizeCharaMaker;
+        }
+
+        private static bool Prefix(SmCharaLoad __instance)
+        {
+            if ((byte)__instance.GetPrivate("lastSort") == 0)
+                __instance.SortName((bool)__instance.GetPrivate("ascendName"));
+            else
+                __instance.SortDate((bool)__instance.GetPrivate("ascendDate"));
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(FusionCtrl), "Init")]
     internal static class FusionCtrl_Init_Patches
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         private static bool Prefix(FusionCtrl __instance)
@@ -798,7 +816,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -826,7 +844,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

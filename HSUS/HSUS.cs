@@ -3,19 +3,21 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 using System.Xml;
+using FBSAssist;
 #if HONEYSELECT
 using CustomMenu;
 using IllusionPlugin;
 using Studio;
+using StudioFileCheck;
 #elif KOIKATSU
 using BepInEx;
 using ChaCustom;
 using UnityEngine.SceneManagement;
-using StudioFileCheck;
 #endif
 using Harmony;
 using ToolBox;
@@ -38,9 +40,9 @@ namespace HSUS
 #endif
     {
 #if HONEYSELECT
-        internal const string _version = "1.7.1";
+        internal const string _version = "1.8.0b";
 #elif KOIKATSU
-        internal const string _version = "1.0.0";
+        internal const string _version = "1.0.1";
 #endif
 
         #region Private Types
@@ -50,12 +52,7 @@ namespace HSUS
             Game,
         }
 
-        private class CanvasData
-        {
-            public float scaleFactor;
-            public float scaleFactor2;
-            public Vector2 referenceResolution;
-        }
+
         internal delegate bool TranslationDelegate(ref string text);
 
         #endregion
@@ -75,7 +72,6 @@ namespace HSUS
         internal float _gameUIScale = 1f;
         internal float _neoUIScale = 1f;
         internal bool _deleteConfirmation = true;
-        internal bool _disableShortcutsWhenTyping = true;
         internal string _defaultFemaleChar = "";
         internal string _defaultMaleChar = "";
         internal bool _improveNeoUI = true;
@@ -87,6 +83,10 @@ namespace HSUS
         internal bool _debugEnabled = false;
 #endif
         internal KeyCode _debugShortcut = KeyCode.RightControl;
+#if HONEYSELECT
+        internal bool _miniProfilerEnabled = true;
+        internal bool _miniProfilerStartCollapsed = true;
+#endif
         internal bool _improvedTransformOperations = true;
         internal bool _autoJointCorrection = true;
         internal bool _eyesBlink = false;
@@ -131,7 +131,6 @@ namespace HSUS
         internal Sprite _searchBarBackground;
         internal Sprite _buttonBackground;
         private float _lastCleanup;
-        private Dictionary<Canvas, CanvasData> _scaledCanvases = new Dictionary<Canvas, CanvasData>();
         private int _lastScreenWidth;
         private int _lastScreenHeight;
         internal TranslationDelegate _translationMethod;
@@ -145,11 +144,9 @@ namespace HSUS
         public string Name { get { return "HSUS"; } }
         public string Version { get { return _version; } }
         public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
-        public static HSUS self { get { return _self; } } //Keeping this for legacy
-        public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } } //Keeping this for legacy
-        public Sprite searchBarBackground { get { return this._searchBarBackground; } } //Keeping this for legacy
 #endif
-        public KeyCode debugShortcut { get { return this._debugShortcut; } }
+        public bool optimizeCharaMaker { get { return this._optimizeCharaMaker; } }
+        public static HSUS self { get { return _self; } }
         #endregion
 
         #region Unity Methods
@@ -171,6 +168,7 @@ namespace HSUS
                 case "Honey Select Unlimited_32":
                 case "Honey Select Unlimited_64":                    
 #elif KOIKATSU
+                case "Koikatsu Party":
                 case "Koikatu":
 #endif
                     this._binary = Binary.Game;
@@ -246,10 +244,6 @@ namespace HSUS
                             if (node.Attributes["enabled"] != null)
                                 this._deleteConfirmation = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
                             break;
-                        case "disableShortcutsWhenTyping":
-                            if (node.Attributes["enabled"] != null)
-                                this._disableShortcutsWhenTyping = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
-                            break;
                         case "defaultFemaleChar":
                             if (node.Attributes["path"] != null)
                                 this._defaultFemaleChar = node.Attributes["path"].Value;
@@ -279,6 +273,12 @@ namespace HSUS
                                 if (Enum.IsDefined(typeof(KeyCode), value))
                                     this._debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
                             }
+#if HONEYSELECT
+                            if (node.Attributes["miniProfilerEnabled"] != null)
+                                this._miniProfilerEnabled = XmlConvert.ToBoolean(node.Attributes["miniProfilerEnabled"].Value);
+                            if (node.Attributes["miniProfilerStartCollapsed"] != null)
+                                this._miniProfilerStartCollapsed = XmlConvert.ToBoolean(node.Attributes["miniProfilerStartCollapsed"].Value);
+#endif
                             break;
                         case "improvedTransformOperations":
                             if (node.Attributes["enabled"] != null)
@@ -424,7 +424,7 @@ namespace HSUS
             }
             else
             {
-                this.InitUIScale();
+                UIScale.Init();
             }
         }
 #endif
@@ -491,14 +491,6 @@ namespace HSUS
                         xmlWriter.WriteEndElement();
                     }
 
-#if HONEYSELECT
-                    {
-                        xmlWriter.WriteStartElement("disableShortcutsWhenTyping");
-                        xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._disableShortcutsWhenTyping));
-                        xmlWriter.WriteEndElement();
-                    }
-#endif
-
                     {
                         xmlWriter.WriteStartElement("defaultFemaleChar");
                         xmlWriter.WriteAttributeString("path", this._defaultFemaleChar);
@@ -539,6 +531,10 @@ namespace HSUS
                         xmlWriter.WriteStartElement("debug");
                         xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(this._debugEnabled));
                         xmlWriter.WriteAttributeString("value", this._debugShortcut.ToString());
+#if HONEYSELECT
+                        xmlWriter.WriteAttributeString("miniProfilerEnabled", XmlConvert.ToString(this._miniProfilerEnabled));
+                        xmlWriter.WriteAttributeString("miniProfilerStartCollapsed", XmlConvert.ToString(this._miniProfilerStartCollapsed));
+#endif
                         xmlWriter.WriteEndElement();
                     }
 
@@ -712,49 +708,21 @@ namespace HSUS
         public void OnLevelWasInitialized(int level)
         {
             this._go = new GameObject("HSUS");
-            this._go.AddComponent<ObjectTreeDebug>();
+            if (this._debugEnabled)
+                this._go.AddComponent<DebugConsole>();
             this._routines = this._go.AddComponent<RoutinesComponent>();
 
-            //#if HONEYSELECT
-            //            if (level == 3)
-            //#elif KOIKATSU
-            //            if (level == 1)
-            //#endif
             this.SetProcessAffinity();
             switch (this._binary)
             {
                 case Binary.Game:
 #if HONEYSELECT
                     if (this._optimizeCharaMaker)
-                        this.InitFasterCharaMakerLoading();
-                    if (level == 21 && string.IsNullOrEmpty(this._defaultFemaleChar) == false)
-                        this.LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
-                    if (level == 21)
-                    {
-                        GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/Infomation/TabControl/TabItem01/Name/InputField").GetComponent<InputField>().characterLimit = 0;
-                        GameObject.Find("CustomScene/CustomControl/CustomUI/CustomCheck/checkPng/checkInputName/InputField").GetComponent<InputField>().characterLimit = 0;
-                    }
+                        OptimizeCharaMaker.Do(level);
                     this._currentCharaPathGame = "";
                     this._currentClothesPathGame = "";
-#elif KOIKATSU
-                    if (level == 2)
-                    {
-                        this.ExecuteDelayed(() =>
-                        {
-                            switch (CustomBase.Instance.modeSex)
-                            {
-                                case 0:
-                                    if (string.IsNullOrEmpty(this._defaultMaleChar) == false)
-                                        this.LoadCustomDefault(UserData.Path + "chara/male/" + this._defaultMaleChar);
-                                    break;
-                                case 1:
-                                    if (string.IsNullOrEmpty(this._defaultFemaleChar) == false)
-                                        this.LoadCustomDefault(UserData.Path + "chara/female/" + this._defaultFemaleChar);
-                                    break;
-                            }
-                        });
-                    }
 #endif
+                    DefaultChars.Do(level);
                     break;
                 case Binary.Neo:
 #if HONEYSELECT
@@ -763,16 +731,17 @@ namespace HSUS
                     if (level == 1)
 #endif
                     {
-                        if (this._deleteConfirmation)
-                            this.InitDeleteConfirmationDialog();
 #if HONEYSELECT
                         if (this._improveNeoUI)
-                            this.ImproveNeoUI();
+                            ImproveNeoUI.Do();
                         if (this._fingersFkCopyButtons)
-                            this._routines.ExecuteDelayed(this.InitFingersFKCopyButtons, 1);
+                            FingersFKCopyButtons.Do();
 #endif
                         if (this._improvedTransformOperations)
-                            GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
+                            ImprovedTransformOperations.Do();
+                        if (this._deleteConfirmation)
+                            DeleteConfirmation.Do();
+
                         //UnityEngine.Debug.LogError("currentDisplay " + Camera.main.targetDisplay);
                         //foreach (Display display in Display.displays)
                         //{
@@ -784,11 +753,7 @@ namespace HSUS
                     }
                     break;
             }
-            this.InitUIScale();
-#if HONEYSELECT
-            if (this._disableShortcutsWhenTyping)
-                this._go.AddComponent<ShortcutsDisabler>();
-#endif
+            UIScale.Init();
         }
 
 #if HONEYSELECT
@@ -832,7 +797,6 @@ namespace HSUS
 
         public void OnLateUpdate()
         {
-
         }
 
         public void OnFixedUpdate()
@@ -845,496 +809,11 @@ namespace HSUS
         private void OnWindowResize()
         {
 #if HONEYSELECT
-            this._routines.ExecuteDelayed(this.ApplyUIScale, 2);
+            this._routines.ExecuteDelayed(UIScale.Do, 2);
 #elif KOIKATSU
-            this.ExecuteDelayed(this.ApplyUIScale, 2);
+            this.ExecuteDelayed(UIScale.Do, 2);
 #endif
         }
-
-#if HONEYSELECT
-        private void InitFasterCharaMakerLoading()
-        {
-            this._routines.ExecuteDelayed(() =>
-            {
-                foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
-                {
-                    switch (sprite.name)
-                    {
-                        case "rect_middle":
-                            this._searchBarBackground = sprite;
-                            break;
-                        case "btn_01":
-                            this._buttonBackground = sprite;
-                            break;
-                    }
-                }
-                foreach (Mask mask in Resources.FindObjectsOfTypeAll<Mask>()) //Thank you Henk for this tip
-                {
-                    mask.gameObject.AddComponent<RectMask2D>();
-                    Object.DestroyImmediate(mask);
-                }
-                foreach (SmClothesLoad f in Resources.FindObjectsOfTypeAll<SmClothesLoad>())
-                {
-                    SmClothesLoad_Data.Init(f);
-                    break;
-                }
-                foreach (SmCharaLoad f in Resources.FindObjectsOfTypeAll<SmCharaLoad>())
-                {
-                    SmCharaLoad_Data.Init(f);
-                    break;
-                }
-                foreach (SmClothes_F f in Resources.FindObjectsOfTypeAll<SmClothes_F>())
-                {
-                    SmClothes_F_Data.Init(f);
-                    break;
-                }
-                foreach (SmAccessory f in Resources.FindObjectsOfTypeAll<SmAccessory>())
-                {
-                    SmAccessory_Data.Init(f);
-                    break;
-                }
-                foreach (SmSwimsuit f in Resources.FindObjectsOfTypeAll<SmSwimsuit>())
-                {
-                    SmSwimsuit_Data.Init(f);
-                    break;
-                }
-                foreach (SmHair_F f in Resources.FindObjectsOfTypeAll<SmHair_F>())
-                {
-                    SmHair_F_Data.Init(f);
-                    break;
-                }
-                foreach (SmKindColorD f in Resources.FindObjectsOfTypeAll<SmKindColorD>())
-                {
-                    SmKindColorD_Data.Init(f);
-                    break;
-                }
-                foreach (SmKindColorDS f in Resources.FindObjectsOfTypeAll<SmKindColorDS>())
-                {
-                    SmKindColorDS_Data.Init(f);
-                    break;
-                }
-                foreach (SmFaceSkin f in Resources.FindObjectsOfTypeAll<SmFaceSkin>())
-                {
-                    SmFaceSkin_Data.Init(f);
-                    break;
-                }
-            }, 10);
-        }
-#endif
-
-        private void InitUIScale()
-        {
-#if HONEYSELECT
-            this._routines.ExecuteDelayed(() =>
-#elif KOIKATSU
-            this.ExecuteDelayed(() =>
-#endif
-            {
-                switch (this._binary)
-                {
-                    case Binary.Game:
-#if HONEYSELECT
-                        GameObject go = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu");
-                        if (go != null)
-                        {
-                            RectTransform rt = (RectTransform)go.transform;
-                            Vector3 cachedPosition = rt.position;
-                            rt.anchorMax = Vector2.one;
-                            rt.anchorMin = Vector2.one;
-                            rt.position = cachedPosition;
-                        }
-                        go = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomSystem/W_System");
-                        if (go != null)
-                        {
-                            RectTransform rt = (RectTransform)go.transform;
-                            Vector3 cachedPosition = rt.position;
-                            rt.anchorMax = Vector2.zero;
-                            rt.anchorMin = Vector2.zero;
-                            rt.position = cachedPosition;
-                        }
-                        go = GameObject.Find("CustomScene/CustomControl/CustomUI/ColorMenu/BasePanel");
-                        if (go != null)
-                        {
-                            RectTransform rt = (RectTransform)go.transform;
-                            Vector3 cachedPosition = rt.position;
-                            rt.anchorMax = new Vector2(1, 0);
-                            rt.anchorMin = new Vector2(1, 0);
-                            rt.position = cachedPosition;
-                        }
-#endif
-                        break;
-                    case Binary.Neo:
-#if KOIKATSU
-                        GameObject go;
-#endif
-                        go = GameObject.Find("StudioScene/Canvas Object List/Image Bar");
-                        if (go != null)
-                        {
-                            RectTransform rt = (RectTransform)go.transform;
-                            Vector3 cachedPosition = rt.position;
-                            rt.anchorMax = Vector2.one;
-                            rt.anchorMin = Vector2.one;
-                            rt.position = cachedPosition;
-                        }
-                        break;
-                }
-
-
-                foreach (Canvas c in Resources.FindObjectsOfTypeAll<Canvas>())
-                {
-                    if (this._scaledCanvases.ContainsKey(c) == false && this.ShouldScaleUI(c))
-                    {
-                        CanvasScaler cs = c.GetComponent<CanvasScaler>();
-                        if (cs != null)
-                        {
-                            switch (cs.uiScaleMode)
-                            {
-                                case CanvasScaler.ScaleMode.ConstantPixelSize:
-                                    this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor, scaleFactor2 = cs.scaleFactor});
-                                    break;
-                                case CanvasScaler.ScaleMode.ScaleWithScreenSize:
-                                    this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor, referenceResolution = cs.referenceResolution});
-                                    break;
-                            }
-                        }
-                        else
-                        {
-                            this._scaledCanvases.Add(c, new CanvasData() { scaleFactor = c.scaleFactor });
-                        }
-                    }
-                }
-                Dictionary<Canvas, CanvasData> newScaledCanvases = new Dictionary<Canvas, CanvasData>();
-                foreach (KeyValuePair<Canvas, CanvasData> pair in this._scaledCanvases)
-                {
-                    if (pair.Key != null)
-                        newScaledCanvases.Add(pair.Key, pair.Value);
-                }
-                this._scaledCanvases = newScaledCanvases;
-                this.ApplyUIScale();
-            }, 10);
-        }
-
-        private void ApplyUIScale()
-        {
-            float usedScale = this._binary == Binary.Game ? this._gameUIScale : this._neoUIScale;
-            if (usedScale != 1f) //Fuck you shortcutshsparty
-            {
-                Type t = Type.GetType("ShortcutsHSParty.DefaultMenuController,ShortcutsHSParty");
-                if (t != null)
-                {
-                    MonoBehaviour component = (MonoBehaviour)Object.FindObjectOfType(t);
-                    if (component != null)
-                        component.enabled = false;
-                }
-            }
-            foreach (KeyValuePair<Canvas, CanvasData> pair in this._scaledCanvases)
-            {
-                if (pair.Key != null && this.ShouldScaleUI(pair.Key))
-                {
-                    CanvasScaler cs = pair.Key.GetComponent<CanvasScaler>();
-                    if (cs != null)
-                    {
-                        switch (cs.uiScaleMode)
-                        {
-                            case CanvasScaler.ScaleMode.ConstantPixelSize:
-                                cs.scaleFactor = pair.Value.scaleFactor2 * usedScale;
-                                break;
-                            case CanvasScaler.ScaleMode.ScaleWithScreenSize:
-                                cs.referenceResolution = pair.Value.referenceResolution / usedScale;
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        pair.Key.scaleFactor = pair.Value.scaleFactor * usedScale;
-                    }
-                }
-            }
-        }
-
-        private bool ShouldScaleUI(Canvas c)
-        {
-            bool ok = true;
-            string path = c.transform.GetPathFrom((Transform)null);
-            if (this._binary == Binary.Neo)
-            {
-                switch (path)
-                {
-#if HONEYSELECT
-                    case "StartScene/Canvas":
-                    case "VectorCanvas":
-                    case "New Game Object"://AdjustMod/SkintexMod
-#elif KOIKATSU
-                    case "SceneLoadScene/Canvas Load":
-                    case "SceneLoadScene/Canvas Load Work":
-                    case "ExitScene/Canvas":
-                    case "NotificationScene/Canvas":
-                    case "CheckScene/Canvas":
-#endif
-                        ok = false;
-                        break;
-                }
-            }
-            else
-            {
-                switch (path)
-                {
-#if HONEYSELECT
-                    case "LogoScene/Canvas":
-                    case "LogoScene/Canvas (1)":
-                    case "CustomScene/CustomControl/CustomUI/BackGround":
-                    case "CustomScene/CustomControl/CustomUI/Fusion":
-                    case "GameScene/Canvas":
-                    case "MapSelectScene/Canvas":
-                    case "SubtitleUserInterface":
-                    case "ADVScene/Canvas":
-#elif KOIKATSU
-                    case "CustomScene/CustomRoot/BackUIGroup/CvsBackground":
-                    case "CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsCharaName":
-                    case "AssetBundleManager/scenemanager/Canvas":
-                    case "FreeHScene/Canvas":
-                    case "ExitScene":
-                    case "CustomScene/CustomRoot/SaveFrame/BackSpCanvas":
-                    case "CustomScene/CustomRoot/SaveFrame/FrontSpCanvas":
-                    case "CustomScene/CustomRoot/FrontUIGroup/CvsCaptureFront":
-#endif
-                    case "TitleScene/Canvas":
-                        ok = false;
-                        break;
-                }
-            }
-            Canvas parent = c.GetComponentInParent<Canvas>();
-            return ok && c.isRootCanvas && (parent == null || parent == c);
-        }
-
-        private void InitDeleteConfirmationDialog()
-        {
-            this._routines.ExecuteDelayed(() =>
-            {
-                Canvas c = UIUtility.CreateNewUISystem("HSUSDeleteConfirmation");
-                c.sortingOrder = 40;
-                c.transform.SetParent(GameObject.Find("StudioScene").transform);
-                c.transform.localPosition = Vector3.zero;
-                c.transform.localScale = Vector3.one;
-                c.transform.SetRect();
-                c.transform.SetAsLastSibling();
-
-                Image bg = UIUtility.CreateImage("Background", c.transform);
-                bg.rectTransform.SetRect();
-                bg.sprite = null;
-                bg.color = new Color(0f, 0f, 0f, 0.5f);
-                bg.raycastTarget = true;
-
-                Image panel = UIUtility.CreatePanel("Panel", bg.transform);
-                panel.rectTransform.SetRect(Vector2.zero, Vector2.one, new Vector2(640f / 2, 360f / 2), new Vector2(-640f / 2, -360f / 2));
-                panel.color = Color.gray;
-
-                Text text = UIUtility.CreateText("Text", panel.transform, "Are you sure you want to delete this object?");
-                text.rectTransform.SetRect(new Vector2(0f, 0.5f), Vector2.one, new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                text.color = Color.white;
-                text.resizeTextForBestFit = true;
-                text.resizeTextMaxSize = 100;
-                text.alignByGeometry = true;
-                text.alignment = TextAnchor.MiddleCenter;
-
-                Button yes = UIUtility.CreateButton("YesButton", panel.transform, "Yes");
-                (yes.transform as RectTransform).SetRect(Vector2.zero, new Vector2(0.5f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                text = yes.GetComponentInChildren<Text>();
-                text.resizeTextForBestFit = true;
-                text.resizeTextMaxSize = 100;
-                text.alignByGeometry = true;
-                text.alignment = TextAnchor.MiddleCenter;
-
-                Button no = UIUtility.CreateButton("NoButton", panel.transform, "No");
-                (no.transform as RectTransform).SetRect(new Vector2(0.5f, 0f), new Vector2(1f, 0.5f), new Vector2(10f, 10f), new Vector2(-10f, -10f));
-                text = no.GetComponentInChildren<Text>();
-                text.resizeTextForBestFit = true;
-                text.resizeTextMaxSize = 100;
-                text.alignByGeometry = true;
-                text.alignment = TextAnchor.MiddleCenter;
-
-                c.gameObject.AddComponent<DeleteConfirmation>();
-                c.gameObject.SetActive(false);
-
-            }, 20);
-        }
-
-#if HONEYSELECT
-        private void ImproveNeoUI()
-        {
-            RectTransform rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item") as RectTransform;
-            rt.offsetMax += new Vector2(60f, 0f);
-            rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport") as RectTransform;
-            rt.offsetMax += new Vector2(60f, 0f);
-            rt = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content") as RectTransform;
-            rt.offsetMax += new Vector2(60f, 0f);
-
-            VerticalLayoutGroup group = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<VerticalLayoutGroup>();
-            group.childForceExpandWidth = true;
-            group.padding = new RectOffset(group.padding.left + 4, group.padding.right + 24, group.padding.top, group.padding.bottom);
-            GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/Viewport/Content").GetComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
-
-            Text t = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/01_Add/02_Item/Scroll View Item/node/Text").GetComponent<Text>();
-            t.resizeTextForBestFit = true;
-            t.resizeTextMinSize = 2;
-            t.resizeTextMaxSize = 100;
-        }
-
-        private void InitFingersFKCopyButtons()
-        {
-            RectTransform toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Right Hand").transform as RectTransform;
-            Button b = UIUtility.CreateButton("Copy Right Fingers Button", toggle.parent, "From Anim");
-            RectTransform rt = (RectTransform)b.transform;
-            rt.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
-            
-            GameObject go = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Right Hand Control View");
-            if (go != null)
-            {
-                rt.offsetMin += new Vector2(18, 0f);
-                rt = (RectTransform)go.transform;
-                rt.anchoredPosition -= new Vector2(11f, 0f);
-            }
-
-            b.onClick.AddListener(() =>
-            {
-                TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
-                if (treeNodeObject == null)
-                    return;
-                ObjectCtrlInfo info;
-                if (!Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
-                    return;
-                OCIChar selected = info as OCIChar;
-                if (selected == null)
-                    return;
-                this.CopyToFKBoneOfGroup(selected.listBones, OIBoneInfo.BoneGroup.RightHand);
-            });
-            Text text = b.GetComponentInChildren<Text>();
-            text.rectTransform.SetRect();
-            text.color = Color.white;
-            Image image = b.GetComponent<Image>();
-            image.sprite = null;
-            image.color = new Color32(89, 88, 85, 255);
-            toggle = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Left Hand").transform as RectTransform;
-            b = UIUtility.CreateButton("Copy Left Fingers Button", toggle.parent, "From Anim");
-            rt = (RectTransform)b.transform;
-            b.transform.SetRect(toggle.anchorMin, toggle.anchorMax, new Vector2(toggle.offsetMax.x + 4f, toggle.offsetMin.y), new Vector2(toggle.offsetMax.x + 64f, toggle.offsetMax.y));
-            go = GameObject.Find("StudioScene/Canvas Main Menu/02_Manipulate/00_Chara/02_Kinematic/00_FK/Toggle Left Hand Control View");
-            if (go != null)
-            {
-                rt.offsetMin += new Vector2(18, 0f);
-                rt = (RectTransform)go.transform;
-                rt.anchoredPosition -= new Vector2(11f, 0f);
-            }
-
-            b.onClick.AddListener(() =>
-            {
-                TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
-                if (treeNodeObject == null)
-                    return;
-                ObjectCtrlInfo info;
-                if (!Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
-                    return;
-                OCIChar selected = info as OCIChar;
-                if (selected == null)
-                    return;
-                this.CopyToFKBoneOfGroup(selected.listBones, OIBoneInfo.BoneGroup.LeftHand);
-            });
-            text = b.GetComponentInChildren<Text>();
-            text.rectTransform.SetRect();
-            text.color = Color.white;
-            image = b.GetComponent<Image>();
-            image.sprite = null;
-            image.color = new Color32(89, 88, 85, 255);
-        }
-
-        private void CopyToFKBoneOfGroup(List<OCIChar.BoneInfo> listBones, OIBoneInfo.BoneGroup group)
-        {
-            List<GuideCommand.EqualsInfo> infos = new List<GuideCommand.EqualsInfo>();
-            foreach (OCIChar.BoneInfo bone in listBones)
-            {
-                if (bone.guideObject != null && bone.guideObject.transformTarget != null && bone.boneGroup == group)
-                {
-                    Vector3 oldValue = bone.guideObject.changeAmount.rot;
-                    bone.guideObject.changeAmount.rot = bone.guideObject.transformTarget.localEulerAngles;
-                    infos.Add(new GuideCommand.EqualsInfo()
-                    {
-                        dicKey = bone.guideObject.dicKey,
-                        oldValue = oldValue,
-                        newValue = bone.guideObject.changeAmount.rot
-                    });
-                }
-            }
-            UndoRedoManager.Instance.Push(new GuideCommand.RotationEqualsCommand(infos.ToArray()));
-        }
-#endif
-#if HONEYSELECT
-        private void LoadCustomDefault(string path)
-        {
-            CustomControl customControl = Resources.FindObjectsOfTypeAll<CustomControl>()[0];
-            int personality = customControl.chainfo.customInfo.personality;
-            string name = customControl.chainfo.customInfo.name;
-            bool isConcierge = customControl.chainfo.customInfo.isConcierge;
-            bool flag = false;
-            bool flag2 = false;
-            if (customControl.modeCustom == 0)
-            {
-                customControl.chainfo.chaFile.Load(path);
-                customControl.chainfo.chaFile.ChangeCoordinateType(customControl.chainfo.statusInfo.coordinateType);
-                if (customControl.chainfo.chaFile.customInfo.isConcierge)
-                {
-                    flag = true;
-                    flag2 = true;
-                }
-            }
-            else
-            {
-                customControl.chainfo.chaFile.LoadBlockData(customControl.chainfo.customInfo, path);
-                customControl.chainfo.chaFile.LoadBlockData(customControl.chainfo.chaFile.coordinateInfo, path);
-                customControl.chainfo.chaFile.ChangeCoordinateType(customControl.chainfo.statusInfo.coordinateType);
-                flag = true;
-                flag2 = true;
-            }
-            customControl.chainfo.customInfo.isConcierge = isConcierge;
-            if (customControl.chainfo.Sex == 0)
-            {
-                CharMale charMale = customControl.chainfo as CharMale;
-                charMale.Reload();
-                charMale.maleStatusInfo.visibleSon = false;
-            }
-            else
-            {
-                CharFemale charFemale = customControl.chainfo as CharFemale;
-                charFemale.Reload();
-                charFemale.UpdateBustSoftnessAndGravity();
-            }
-            if (flag)
-            {
-                customControl.chainfo.customInfo.personality = personality;
-            }
-            if (flag2)
-            {
-                customControl.chainfo.customInfo.name = name;
-            }
-            //this.UpdateLimitMainMenu();
-            customControl.SetSameSetting();
-            customControl.noChangeSubMenu = true;
-            customControl.ChangeSwimTypeFromLoad();
-            customControl.noChangeSubMenu = false;
-            customControl.UpdateCharaName();
-            customControl.UpdateAcsName();
-        }
-
-#elif KOIKATSU
-        private void LoadCustomDefault(string path)
-        {
-            ChaControl chaCtrl = Singleton<CustomBase>.Instance.chaCtrl;
-            CustomBase.Instance.chaCtrl.chaFile.LoadFileLimited(path, chaCtrl.sex, true, true, true, true, true);
-            chaCtrl.ChangeCoordinateType(true);
-            chaCtrl.Reload(false, false, false, false);
-            CustomBase.Instance.updateCustomUI = true;
-            //CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
-        }
-#endif
 
         private void SetProcessAffinity()
         {
@@ -1361,119 +840,6 @@ namespace HSUS
 
     }
 
-#if HONEYSELECT
-    // Various fixes and safeguards
-
-    [HarmonyPatch(typeof(SetRenderQueue), "Awake")]
-    public class SetRenderQueue_Awake_Patches
-    {
-        public static bool Prefix(SetRenderQueue __instance, int[] ___m_queues)
-        {
-            Renderer renderer = __instance.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                Material[] materials = renderer.materials;
-                int num = 0;
-                while (num < materials.Length && num < ___m_queues.Length)
-                {
-                    materials[num].renderQueue = ___m_queues[num];
-                    num++;
-                }
-            }
-            else
-            {
-                __instance.ExecuteDelayed(() =>
-                {
-                    renderer = __instance.GetComponent<Renderer>();
-                    if (renderer == null)
-                        return;
-                    Material[] materials = renderer.materials;
-                    int num = 0;
-                    while (num < materials.Length && num < ___m_queues.Length)
-                    {
-                        materials[num].renderQueue = ___m_queues[num];
-                        num++;
-                    }
-                }, 3);
-            }
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(DragObject), "OnBeginDrag", typeof(PointerEventData))]
-    internal static class DragObject_OnBeginDrag_Patches
-    {
-        internal static Vector2 _cachedDragPosition;
-        internal static Vector2 _cachedMousePosition;
-
-        private static bool Prefix(DragObject __instance)
-        {
-            _cachedDragPosition = __instance.transform.position;
-            _cachedMousePosition = Input.mousePosition;
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(DragObject), "OnDrag", typeof(PointerEventData))]
-    internal static class DragObject_OnDrag_Patches
-    {
-        private static bool Prefix(DragObject __instance)
-        {
-            __instance.transform.position = DragObject_OnBeginDrag_Patches._cachedDragPosition + ((Vector2)Input.mousePosition - DragObject_OnBeginDrag_Patches._cachedMousePosition);
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(UI_DragWindow), "OnBeginDrag", typeof(PointerEventData))]
-    internal static class UI_DragWindow_OnBeginDrag_Patches
-    {
-        internal static Vector2 _cachedDragPosition;
-        internal static Vector2 _cachedMousePosition;
-
-        private static bool Prefix(UI_DragWindow __instance)
-        {
-            _cachedDragPosition = __instance.rtMove.position;
-            _cachedMousePosition = Input.mousePosition;
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(UI_DragWindow), "OnDrag", typeof(PointerEventData))]
-    internal static class UI_DragWindow_OnDrag_Patches
-    {
-        private static bool Prefix(UI_DragWindow __instance)
-        {
-            __instance.rtMove.position = UI_DragWindow_OnBeginDrag_Patches._cachedDragPosition + ((Vector2)Input.mousePosition - UI_DragWindow_OnBeginDrag_Patches._cachedMousePosition);
-            return false;
-        }
-    }
-
-    [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
-    internal static class Studio_Duplicate_Patches
-    {
-        private static void Prefix(Studio.Studio __instance)
-        {
-            foreach (TreeNodeObject treeNodeObject in __instance.treeNodeCtrl.selectNodes)
-            {
-                Recurse(treeNodeObject, (n) =>
-                {
-                    ObjectCtrlInfo objectCtrlInfo;
-                    if (__instance.dicInfo.TryGetValue(n, out objectCtrlInfo))
-                        objectCtrlInfo.OnSavePreprocessing();
-                });
-            }
-        }
-
-        private static void Recurse(TreeNodeObject node, Action<TreeNodeObject> onItem)
-        {
-            onItem(node);
-            foreach (TreeNodeObject treeNodeObject in node.child)
-            {
-                Recurse(treeNodeObject, onItem);
-            }
-        }
-    }
-#endif
     //[HarmonyPatch(typeof(Studio.Info), "LoadItemLoadInfoCoroutine", new[] { typeof(string), typeof(string) })]
     //public class Testetetetetet
     //{

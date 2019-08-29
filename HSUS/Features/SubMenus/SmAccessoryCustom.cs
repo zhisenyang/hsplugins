@@ -68,7 +68,7 @@ namespace HSUS
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
-            if (HSUS.self._asyncLoading)
+            if (HSUS._self._asyncLoading)
             {
                 CharInfo chaInfo = originalComponent.customControl.chainfo;
                 for (int i = 0; i < 12; i++)
@@ -200,7 +200,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmAccessory __instance, int newType, int newId, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo)
@@ -382,7 +382,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Prefix(int smTypeId, bool sameSubMenu)
@@ -402,7 +402,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static void Prefix(int newType)

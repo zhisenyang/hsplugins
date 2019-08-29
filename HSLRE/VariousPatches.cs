@@ -1,7 +1,10 @@
 ﻿using System;
 using System.IO;
+using System.Reflection;
 using Harmony;
+using IllusionPlugin;
 using UnityEngine;
+using UnityStandardAssets.CinematicEffects;
 using UnityStandardAssets.ImageEffects;
 using DepthOfField = UnityStandardAssets.ImageEffects.DepthOfField;
 using Object = UnityEngine.Object;
@@ -39,9 +42,11 @@ namespace HSLRE
                     int width = tex.width;
                     int height = tex.height;
                     if (Mathf.IsPowerOfTwo(width) == false)
-                        width = Mathf.Min(Mathf.NextPowerOfTwo(width), 8192);
+                        width = Mathf.NextPowerOfTwo(width);
                     if (Mathf.IsPowerOfTwo(height) == false)
-                        height = Mathf.Min(Mathf.NextPowerOfTwo(height), 8192);
+                        height = Mathf.NextPowerOfTwo(height);
+                    width = Mathf.Clamp(width, 4096, 8192);
+                    height = Mathf.Clamp(height, 4096, 8192);
                     RenderTexture newRenderTexture = new RenderTexture(width, height, 0);
                     ___createTex.Release();
                     ___createTex = newRenderTexture;
@@ -172,6 +177,193 @@ namespace HSLRE
             }
         }
 
+        private static class ScrenshotFix
+        {
+            private static float _dofMaxBlurSize;
+            private static float _noiseAndGrainSoftness;
+            private static float _blurBlurSize;
+            //private static float _lensGlareStreakScale;
+            //private static float _lensFlareGaussianBlurRadius;
+            //private static float _amplifyBloomBloomScale;
+            //private static float _lensGlareIntensity;
+            //private static float _lensFlareGhostChrDistortion;
+            //private static float _lensFlareHaloChrDistortion;
+            private static Vector2 _amplifyBloomScreenshotMultiplier;
+            private static int _ssrReflectionSettingsMaxSteps;
+
+            internal static void PreScreenshot(Vector2 multiplier, bool fixDof = true)
+            {
+                if (HSLRE.self.dof != null)
+                {
+                    _dofMaxBlurSize = HSLRE.self.dof.maxBlurSize;
+                    if (HSLRE.self.fixDofForUpscaledScreenshots && fixDof)
+                        HSLRE.self.dof.maxBlurSize *= multiplier.x;
+                }
+                if (HSLRE.self.noiseAndGrain != null)
+                {
+                    _noiseAndGrainSoftness = HSLRE.self.noiseAndGrain.softness;
+                    if (HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots)
+                        HSLRE.self.noiseAndGrain.softness = (HSLRE.self.noiseAndGrain.softness + multiplier.x - 1) / multiplier.x;
+                }
+                if (HSLRE.self.blur != null)
+                {
+                    _blurBlurSize = HSLRE.self.blur.blurSize;
+                    if (HSLRE.self.fixBlurForUpscaledScreenshots)
+                        HSLRE.self.blur.blurSize *= multiplier.x;
+                }
+                if (HSLRE.self.amplifyBloom != null)
+                {
+                    _amplifyBloomScreenshotMultiplier = HSLRE.self.amplifyBloom.ScreenshotMultiplier;
+                    if (HSLRE.self.fixAmplifyBloomForUpscaledScreenshots)
+                    {
+                        HSLRE.self.amplifyBloom.ScreenshotMultiplier = new Vector2(HSLRE.self.amplifyBloom.ScreenshotMultiplier.x * multiplier.x, HSLRE.self.amplifyBloom.ScreenshotMultiplier.y * multiplier.y);
+                        //HSLRE.self.amplifyBloom.UpscaleBlurRadius *= multiplier;
+                        //HSLRE.self.amplifyBloom.LensGlareInstance.Intensity = (float)(HSLRE.self.amplifyBloom.LensGlareInstance.Intensity * Math.Pow(multiplier, -0.1699250014));
+                        //HSLRE.self.amplifyBloom.LensGlareInstance.OverallStreakScale *= multiplier;
+                        //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGaussianBlurRadius *= multiplier;
+                        //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGhostChrDistortion *= multiplier;
+                        //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareHaloChrDistortion *= multiplier;
+                    }
+                } //_amplifyBloomBloomScale = HSLRE.self.amplifyBloom.UpscaleBlurRadius;
+                //_lensGlareIntensity = HSLRE.self.amplifyBloom.LensGlareInstance.Intensity;
+                //_lensGlareStreakScale = HSLRE.self.amplifyBloom.LensGlareInstance.OverallStreakScale;
+                //_lensFlareGaussianBlurRadius = HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGaussianBlurRadius;
+                //_lensFlareGhostChrDistortion = HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGhostChrDistortion;
+                //_lensFlareHaloChrDistortion = HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareHaloChrDistortion;
+                if (HSLRE.self.ssr != null)
+                {
+                    _ssrReflectionSettingsMaxSteps = HSLRE.self.ssr.settings.reflectionSettings.maxSteps;
+                    if (HSLRE.self.fixSsrForUpscaledScreenshots)
+                    {
+                        ScreenSpaceReflection.ReflectionSettings settings = HSLRE.self.ssr.settings.reflectionSettings;
+                        settings.maxSteps = (int)(settings.maxSteps * multiplier.x);
+                        HSLRE.self.ssr.settings.reflectionSettings = settings;
+                    }
+                }
+            }
+
+            internal static void PostScreenshot()
+            {
+                if (HSLRE.self.dof != null)
+                    HSLRE.self.dof.maxBlurSize = _dofMaxBlurSize;
+                if (HSLRE.self.noiseAndGrain != null)
+                    HSLRE.self.noiseAndGrain.softness = _noiseAndGrainSoftness;
+                if (HSLRE.self.blur != null)
+                    HSLRE.self.blur.blurSize = _blurBlurSize;
+                if (HSLRE.self.amplifyBloom != null)
+                    HSLRE.self.amplifyBloom.ScreenshotMultiplier = _amplifyBloomScreenshotMultiplier;
+                if (HSLRE.self.ssr != null)
+                {
+                    ScreenSpaceReflection.ReflectionSettings settings = HSLRE.self.ssr.settings.reflectionSettings;
+                    settings.maxSteps = _ssrReflectionSettingsMaxSteps;
+                    HSLRE.self.ssr.settings.reflectionSettings = settings;
+                }
+                //HSLRE.self.amplifyBloom.UpscaleBlurRadius = _amplifyBloomBloomScale;
+                //HSLRE.self.amplifyBloom.LensGlareInstance.Intensity = _lensGlareIntensity;
+                //HSLRE.self.amplifyBloom.LensGlareInstance.OverallStreakScale = _lensGlareStreakScale;
+                //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGaussianBlurRadius = _lensFlareGaussianBlurRadius;
+                //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareGhostChrDistortion = _lensFlareGhostChrDistortion;
+                //HSLRE.self.amplifyBloom.LensFlareInstance.LensFlareHaloChrDistortion = _lensFlareHaloChrDistortion;
+            }
+        }
+
+        [HarmonyPatch]
+        private static class HoneyShotPlugin_CaptureUsingCameras_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("HoneyShot.HoneyShotPlugin,HoneyShot") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("HoneyShot.HoneyShotPlugin,HoneyShot").GetMethod("CaptureUsingCameras", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+
+            private static void Prefix()
+            {
+                ScrenshotFix.PreScreenshot(new Vector2(ModPrefs.GetInt("HoneyShot", "width", 0, false) / (float)Screen.width, ModPrefs.GetInt("HoneyShot", "height", 0, false) / (float)Screen.height));
+            }
+
+            private static void Postfix()
+            {
+                ScrenshotFix.PostScreenshot();
+            }
+        }
+
+        [HarmonyPatch]
+        private static class ScreenShot_myScreenShot_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("ScreenShot,PlayShot24ZHNeo") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("ScreenShot,PlayShot24ZHNeo").GetMethod("myScreenShot", BindingFlags.Public | BindingFlags.Instance);
+            }
+
+            private static void Prefix(int size)
+            {
+                ScrenshotFix.PreScreenshot(new Vector2(size, size));
+            }
+
+            private static void Postfix()
+            {
+                ScrenshotFix.PostScreenshot();
+            }
+        }
+
+        [HarmonyPatch]
+        private static class ScreenShot_myScreenShotTransparent_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("ScreenShot,PlayShot24ZHNeo") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("ScreenShot,PlayShot24ZHNeo").GetMethod("myScreenShotTransparent", BindingFlags.Public | BindingFlags.Instance);
+            }
+
+            [HarmonyBefore("com.joan6694.illusionplugins.videoexport")]
+            private static void Prefix(int size)
+            {
+                ScrenshotFix.PreScreenshot(new Vector2(size, size));
+            }
+
+            [HarmonyAfter("com.joan6694.illusionplugins.videoexport")]
+            private static void Postfix()
+            {
+                ScrenshotFix.PostScreenshot();
+            }
+        }
+
+        [HarmonyPatch]
+        private static class ScreencapMB_CaptureOpaque_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("ScreencapMB,Screencap") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("ScreencapMB,Screencap").GetMethod("CaptureOpaque", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+
+            private static void Prefix(int ___Width, int ___Height)
+            {
+                ScrenshotFix.PreScreenshot(new Vector2(___Width / (float)Screen.width, ___Height / (float)Screen.height));
+            }
+
+            private static void Postfix()
+            {
+                ScrenshotFix.PostScreenshot();
+            }
+        }
 
     }
 }

@@ -381,6 +381,45 @@ namespace ToolBox
             return self;
         }
 
+        public static Transform GetDeepestLeaf(this Transform self)
+        {
+            int d = -1;
+            Transform res = null;
+            foreach (Transform transform in self)
+            {
+                int resD;
+                Transform resT = GetDeepestLeaf(transform, 0, out resD);
+                if (resD > d)
+                {
+                    d = resD;
+                    res = resT;
+                }
+            }
+            return res;
+        }
+
+        private static Transform GetDeepestLeaf(Transform t, int depth, out int resultDepth)
+        {
+            if (t.childCount == 0)
+            {
+                resultDepth = depth;
+                return t;
+            }
+            Transform res = null;
+            int d = 0;
+            foreach (Transform child in t)
+            {
+                int resD;
+                Transform resT = GetDeepestLeaf(child, depth + 1, out resD);
+                if (resD > d)
+                {
+                    d = resD;
+                    res = resT;
+                }
+            }
+            resultDepth = d;
+            return res;
+        }
 
         public static int IndexOf<T>(this T[] self, T obj)
         {

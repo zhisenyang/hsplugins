@@ -218,7 +218,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS.self.optimizeCharaMaker;
+            return HSUS._self._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmFaceSkin __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo)

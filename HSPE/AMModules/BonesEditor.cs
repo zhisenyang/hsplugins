@@ -361,61 +361,9 @@ namespace HSPE.AMModules
                                 position = this._boneTarget.localPosition;
                         }
                         bool shouldSaveValue = false;
-                        Color c = GUI.color;
-                        GUI.color = AdvancedModeModule._redColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("X:\t" + position.x.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position -= _positionInc * Vector3.right;
-                        }
-                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position += _positionInc * Vector3.right;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
 
-                        GUI.color = AdvancedModeModule._greenColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Y:\t" + position.y.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position -= _positionInc * Vector3.up;
-                        }
-                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position += _positionInc * Vector3.up;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
-
-                        GUI.color = AdvancedModeModule._blueColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Z:\t" + position.z.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_positionInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position -= _positionInc * Vector3.forward;
-                        }
-                        if (GUILayout.RepeatButton(_positionInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            position += _positionInc * Vector3.forward;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
-                        if (Event.current.rawType == EventType.Repaint)
+                        position = this.Vector3Editor(position, _positionInc, onValueChanged: () => shouldSaveValue = true);
+                        //if (Event.current.rawType == EventType.Repaint)
                         {
                             if (this._boneTarget != null && shouldSaveValue)
                             {
@@ -450,68 +398,72 @@ namespace HSPE.AMModules
                                 rotation = this._boneTarget.localRotation;
                         }
                         shouldSaveValue = false;
-                        c = GUI.color;
-                        GUI.color = AdvancedModeModule._redColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("X (Pitch):\t" + rotation.eulerAngles.x.ToString("0.00"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.right);
-                        }
-                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.right);
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
 
-                        GUI.color = AdvancedModeModule._greenColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Y (Yaw):\t" + rotation.eulerAngles.y.ToString("0.00"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.up);
-                        }
-                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.up);
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
+                        rotation = this.QuaternionEditor(rotation, _rotationInc, onValueChanged: () => shouldSaveValue = true);
 
-                        GUI.color = AdvancedModeModule._blueColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Z (Roll):\t" + rotation.eulerAngles.z.ToString("0.00"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.forward);
-                        }
-                        if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            if (this.RepeatControl())
-                                rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.forward);
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
 
-                        if (Event.current.rawType == EventType.Repaint)
+                        //Color c = GUI.color;
+                        //GUI.color = AdvancedModeModule._redColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("X (Pitch):\t" + rotation.eulerAngles.x.ToString("0.00"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.right);
+                        //}
+                        //if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.right);
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
+
+                        //GUI.color = AdvancedModeModule._greenColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("Y (Yaw):\t" + rotation.eulerAngles.y.ToString("0.00"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.up);
+                        //}
+                        //if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.up);
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
+
+                        //GUI.color = AdvancedModeModule._blueColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("Z (Roll):\t" + rotation.eulerAngles.z.ToString("0.00"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_rotationInc).ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(-_rotationInc, Vector3.forward);
+                        //}
+                        //if (GUILayout.RepeatButton(_rotationInc.ToString("+0.#####;-0.#####")) && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    if (this.RepeatControl())
+                        //        rotation *= Quaternion.AngleAxis(_rotationInc, Vector3.forward);
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
+
+                        //if (Event.current.rawType == EventType.Repaint)
                         {
                             if (this._boneTarget != null)
                             {
@@ -584,60 +536,63 @@ namespace HSPE.AMModules
                                 scale = this._boneTarget.localScale;
                         }
                         shouldSaveValue = false;
-                        c = GUI.color;
-                        GUI.color = AdvancedModeModule._redColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("X:\t" + scale.x.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale -= _scaleInc * Vector3.right;
-                        }
-                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale += _scaleInc * Vector3.right;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
 
-                        GUI.color = AdvancedModeModule._greenColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Y:\t" + scale.y.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale -= _scaleInc * Vector3.up;
-                        }
-                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale += _scaleInc * Vector3.up;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
+                        scale = this.Vector3Editor(scale, _scaleInc, onValueChanged: () => shouldSaveValue = true);
 
-                        GUI.color = AdvancedModeModule._blueColor;
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("Z:\t" + scale.z.ToString("0.00000"));
-                        GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
-                        if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale -= _scaleInc * Vector3.forward;
-                        }
-                        if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
-                        {
-                            shouldSaveValue = true;
-                            scale += _scaleInc * Vector3.forward;
-                        }
-                        GUILayout.EndHorizontal();
-                        GUILayout.EndHorizontal();
-                        GUI.color = c;
+                        //Color c = GUI.color;
+                        //GUI.color = AdvancedModeModule._redColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("X:\t" + scale.x.ToString("0.00000"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale -= _scaleInc * Vector3.right;
+                        //}
+                        //if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale += _scaleInc * Vector3.right;
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
+
+                        //GUI.color = AdvancedModeModule._greenColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("Y:\t" + scale.y.ToString("0.00000"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale -= _scaleInc * Vector3.up;
+                        //}
+                        //if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale += _scaleInc * Vector3.up;
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
+
+                        //GUI.color = AdvancedModeModule._blueColor;
+                        //GUILayout.BeginHorizontal();
+                        //GUILayout.Label("Z:\t" + scale.z.ToString("0.00000"));
+                        //GUILayout.BeginHorizontal(GUILayout.MaxWidth(160f));
+                        //if (GUILayout.RepeatButton((-_scaleInc).ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale -= _scaleInc * Vector3.forward;
+                        //}
+                        //if (GUILayout.RepeatButton(_scaleInc.ToString("+0.#####;-0.#####")) && this.RepeatControl() && this._boneTarget != null)
+                        //{
+                        //    shouldSaveValue = true;
+                        //    scale += _scaleInc * Vector3.forward;
+                        //}
+                        //GUILayout.EndHorizontal();
+                        //GUILayout.EndHorizontal();
+                        //GUI.color = c;
 
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X/Y/Z");
@@ -654,8 +609,8 @@ namespace HSPE.AMModules
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.EndHorizontal();
-                        GUI.enabled = true;
-                        if (Event.current.rawType == EventType.Repaint)
+                        //GUI.enabled = true;
+                        //if (Event.current.rawType == EventType.Repaint)
                         {
                             if (this._boneTarget != null && shouldSaveValue)
                             {
@@ -681,7 +636,7 @@ namespace HSPE.AMModules
                         shouldSaveValue = false;
                         Vector3 axis = Vector3.zero;
                         float angle = 0f;
-                        c = GUI.color;
+                        Color c = GUI.color;
                         GUI.color = AdvancedModeModule._redColor;
                         GUILayout.BeginHorizontal();
                         GUILayout.Label("X (Pitch)");
@@ -991,6 +946,19 @@ namespace HSPE.AMModules
             UpdateDebugLinesState(this);
         }
 
+        public void GoToObject(GameObject go)
+        {
+            if (ReferenceEquals(go, this._parent.transform.gameObject))
+                return;
+            GameObject goBak = go;
+            this.ChangeBoneTarget(go.transform);
+            this.OpenParents(go);
+            Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
+            this.GetScrollPosition(this._parent.transform.gameObject, goBak, 0, ref scroll);
+            scroll.y -= GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4;
+            this._boneEditionScroll = scroll;
+        }
+
         public void LoadFrom(BonesEditor other)
         {
             MainWindow._self.ExecuteDelayed(() =>
@@ -1076,8 +1044,9 @@ namespace HSPE.AMModules
                         if (node.Name != "object")
                             continue;
                         string name = node.Attributes["name"].Value;
-
-                        GameObject obj = this._parent.transform.Find(name).gameObject;
+                        Transform obj = this._parent.transform.Find(name);
+                        if (obj == null)
+                            continue;
                         TransformData data = new TransformData();
                         if (node.Attributes["posX"] != null && node.Attributes["posY"] != null && node.Attributes["posZ"] != null)
                         {
@@ -1086,7 +1055,7 @@ namespace HSPE.AMModules
                             pos.y = XmlConvert.ToSingle(node.Attributes["posY"].Value);
                             pos.z = XmlConvert.ToSingle(node.Attributes["posZ"].Value);
                             data.position = pos;
-                            data.originalPosition = obj.transform.localPosition;
+                            data.originalPosition = obj.localPosition;
                         }
                         if (node.Attributes["rotW"] != null && node.Attributes["rotX"] != null && node.Attributes["rotY"] != null && node.Attributes["rotZ"] != null)
                         {
@@ -1096,7 +1065,7 @@ namespace HSPE.AMModules
                             rot.y = XmlConvert.ToSingle(node.Attributes["rotY"].Value);
                             rot.z = XmlConvert.ToSingle(node.Attributes["rotZ"].Value);
                             data.rotation = rot;
-                            data.originalRotation = obj.transform.localRotation;
+                            data.originalRotation = obj.localRotation;
                         }
                         if (node.Attributes["scaleX"] != null && node.Attributes["scaleY"] != null && node.Attributes["scaleZ"] != null)
                         {
@@ -1105,13 +1074,13 @@ namespace HSPE.AMModules
                             scale.y = XmlConvert.ToSingle(node.Attributes["scaleY"].Value);
                             scale.z = XmlConvert.ToSingle(node.Attributes["scaleZ"].Value);
                             data.scale = scale;
-                            data.originalScale = obj.transform.localScale;
+                            data.originalScale = obj.localScale;
                         }
 
                         if (data.position.hasValue || data.rotation.hasValue || data.scale.hasValue)
                         {
                             changed = true;
-                            this._dirtyBones.Add(obj, data);
+                            this._dirtyBones.Add(obj.gameObject, data);
                         }
                     }
                     catch (Exception e)
@@ -1322,19 +1291,6 @@ namespace HSPE.AMModules
                     this._dirtyBones.Remove(go);
                 }
             }
-        }
-
-        private void GoToObject(GameObject go)
-        {
-            if (ReferenceEquals(go, this._parent.transform.gameObject))
-                return;
-            GameObject goBak = go;
-            this.ChangeBoneTarget(go.transform);
-            this.OpenParents(go);
-            Vector2 scroll = new Vector2(0f, -GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) - 4);
-            this.GetScrollPosition(this._parent.transform.gameObject, goBak, 0, ref scroll);
-            scroll.y -= GUI.skin.button.CalcHeight(new GUIContent("a"), 100f) + 4;
-            this._boneEditionScroll = scroll;
         }
 
         private void OpenParents(GameObject child)

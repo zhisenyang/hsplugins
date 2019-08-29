@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
-using Studio;
 using ToolBox;
 using UnityEngine;
 using Vectrosity;
@@ -237,6 +235,7 @@ namespace HSPE.AMModules
             public EditableValue<float> originalHeight;
             public EditableValue<DynamicBoneCollider.Direction> originalDirection;
             public EditableValue<DynamicBoneCollider.Bound> originalBound;
+            public Dictionary<PoseController, HashSet<object>> ignoredDynamicBones = new Dictionary<PoseController, HashSet<object>>();
 
             public ColliderData()
             {
@@ -249,6 +248,20 @@ namespace HSPE.AMModules
                 this.originalHeight = other.originalHeight;
                 this.originalDirection = other.originalDirection;
                 this.originalBound = other.originalBound;
+                foreach (KeyValuePair<PoseController, HashSet<object>> pair in other.ignoredDynamicBones)
+                {
+                    HashSet<object> dbs;
+                    if (this.ignoredDynamicBones.TryGetValue(pair.Key, out dbs) == false)
+                    {
+                        dbs = new HashSet<object>();
+                        this.ignoredDynamicBones.Add(pair.Key, dbs);
+                    }
+                    foreach (DynamicBone db in pair.Value)
+                    {
+                        if (dbs.Contains(db) == false)
+                            dbs.Add(db);
+                    }
+                }
             }
         }
         #endregion
@@ -263,6 +276,9 @@ namespace HSPE.AMModules
         private DynamicBoneCollider _colliderTarget;
         private readonly Dictionary<DynamicBoneCollider, ColliderData> _dirtyColliders = new Dictionary<DynamicBoneCollider, ColliderData>();
         private static ColliderDebugLines _colliderDebugLines;
+        private static readonly string[] _directionNames;
+        private static readonly string[] _boundNames;
+        private Vector2 _ignoredDynamicBonesScroll;
         #endregion
 
         #region Public Accessors
@@ -280,6 +296,12 @@ namespace HSPE.AMModules
         #endregion
 
         #region Unity Methods
+        static CollidersEditor()
+        {
+            _directionNames = Enum.GetNames(typeof(DynamicBoneCollider.Direction));
+            _boundNames = Enum.GetNames(typeof(DynamicBoneCollider.Bound));
+        }
+
         public CollidersEditor(PoseController parent, GenericOCITarget target): base(parent)
         {
             this._target = target;
@@ -289,6 +311,7 @@ namespace HSPE.AMModules
             Transform colliderTransform;
             if (this._parent.name.Equals("Collider") && (colliderTransform = this._parent.transform.Find("Collider")) != null && (collider = colliderTransform.GetComponent<DynamicBoneCollider>()) != null)
             {
+                this._parent.onUpdate += this.Update;
                 this._isLoneCollider = true;
                 _loneColliders.Add(collider);
                 foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
@@ -316,6 +339,45 @@ namespace HSPE.AMModules
             this._incIndex = -2;
         }
 
+        private void Update()
+        {
+            foreach (KeyValuePair<DynamicBoneCollider, ColliderData> colliderPair in this._dirtyColliders)
+            {
+                Dictionary<PoseController, HashSet<object>> newIgnored = null;
+                foreach (KeyValuePair<PoseController, HashSet<object>> pair in colliderPair.Value.ignoredDynamicBones)
+                {
+                    if (pair.Key == null || pair.Value.Any(e => e == null))
+                    {
+                        newIgnored = new Dictionary<PoseController, HashSet<object>>();
+                        break;
+                    }
+                }
+                if (newIgnored != null)
+                {
+                    foreach (KeyValuePair<PoseController, HashSet<object>> pair in colliderPair.Value.ignoredDynamicBones)
+                    {
+                        if (pair.Key != null)
+                        {
+                            HashSet<object> newValue;
+                            if (pair.Value.Count != 0)
+                            {
+                                newValue = new HashSet<object>();
+                                foreach (object o in pair.Value)
+                                {
+                                    if (o != null)
+                                        newValue.Add(o);
+                                }
+                            }
+                            else
+                                newValue = pair.Value;
+                            newIgnored.Add(pair.Key, newValue);
+                        }
+                    }
+                    colliderPair.Value.ignoredDynamicBones = newIgnored;
+                }
+            }
+        }
+
 
         public override void OnDestroy()
         {
@@ -334,6 +396,7 @@ namespace HSPE.AMModules
                     if (bone.Colliders.Contains(collider))
                         bone.Colliders.Remove(collider);
                 }
+                this._parent.onUpdate -= this.Update;
             }
         }
 
@@ -395,81 +458,142 @@ namespace HSPE.AMModules
             GUILayout.BeginVertical(GUI.skin.box);
 
             GUILayout.BeginVertical();
-            GUILayout.Label("Center:");
+            GUILayout.Label("Center");
             GUILayout.BeginHorizontal();
             Vector3 center = this.Vector3Editor(this._colliderTarget.m_Center);
             if (center != this._colliderTarget.m_Center)
             {
-                this.SetColliderDirty(this._colliderTarget);
-                if (this._dirtyColliders[this._colliderTarget].originalCenter.hasValue == false)
-                    this._dirtyColliders[this._colliderTarget].originalCenter = this._colliderTarget.m_Center;
+                ColliderData data = this.SetColliderDirty(this._colliderTarget);
+                if (data.originalCenter.hasValue == false)
+                    data.originalCenter = this._colliderTarget.m_Center;
                 this._colliderTarget.m_Center = center;
             }
             this.IncEditor();
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Radius\t", GUILayout.ExpandWidth(false));
-            float radius = GUILayout.HorizontalSlider(this._colliderTarget.m_Radius, 0f, 1f);
+            float radius = this.FloatEditor(this._colliderTarget.m_Radius, 0f, 1f, "Radius\t");
             if (Mathf.Approximately(radius, this._colliderTarget.m_Radius) == false)
             {
-                this.SetColliderDirty(this._colliderTarget);
-                if (this._dirtyColliders[this._colliderTarget].originalRadius.hasValue == false)
-                    this._dirtyColliders[this._colliderTarget].originalRadius = this._colliderTarget.m_Radius;
+                ColliderData data = this.SetColliderDirty(this._colliderTarget);
+                if (data.originalRadius.hasValue == false)
+                    data.originalRadius = this._colliderTarget.m_Radius;
                 this._colliderTarget.m_Radius = radius;
             }
-            GUILayout.Label(this._colliderTarget.m_Radius.ToString("0.000"), GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Height\t", GUILayout.ExpandWidth(false));
-            float height = GUILayout.HorizontalSlider(this._colliderTarget.m_Height, 2 * this._colliderTarget.m_Radius, 3f);
+            float height = this.FloatEditor(this._colliderTarget.m_Height, 2 * this._colliderTarget.m_Radius, Mathf.Max(4f, 4f * this._colliderTarget.m_Radius), "Height\t");
             if (height < this._colliderTarget.m_Radius * 2)
                 height = this._colliderTarget.m_Radius * 2;
             if (Mathf.Approximately(height, this._colliderTarget.m_Height) == false)
             {
-                this.SetColliderDirty(this._colliderTarget);
-                if (this._dirtyColliders[this._colliderTarget].originalHeight.hasValue == false)
-                    this._dirtyColliders[this._colliderTarget].originalHeight = this._colliderTarget.m_Height;
+                ColliderData data = this.SetColliderDirty(this._colliderTarget);
+                if (data.originalHeight.hasValue == false)
+                    data.originalHeight = this._colliderTarget.m_Height;
                 this._colliderTarget.m_Height = height;
             }
-            GUILayout.Label(this._colliderTarget.m_Height.ToString("0.000"), GUILayout.ExpandWidth(false));
-            GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Direction:");
-            DynamicBoneCollider.Direction direction = this._colliderTarget.m_Direction;
-            if (GUILayout.Toggle(this._colliderTarget.m_Direction == DynamicBoneCollider.Direction.X, "X"))
-                this._colliderTarget.m_Direction = DynamicBoneCollider.Direction.X;
-            if (GUILayout.Toggle(this._colliderTarget.m_Direction == DynamicBoneCollider.Direction.Y, "Y"))
-                this._colliderTarget.m_Direction = DynamicBoneCollider.Direction.Y;
-            if (GUILayout.Toggle(this._colliderTarget.m_Direction == DynamicBoneCollider.Direction.Z, "Z"))
-                this._colliderTarget.m_Direction = DynamicBoneCollider.Direction.Z;
+            GUILayout.Label("Direction\t", GUILayout.ExpandWidth(false));
+            DynamicBoneCollider.Direction direction = (DynamicBoneCollider.Direction)GUILayout.SelectionGrid((int)this._colliderTarget.m_Direction, _directionNames, 3);
             if (direction != this._colliderTarget.m_Direction)
             {
-                this.SetColliderDirty(this._colliderTarget);
-                if (this._dirtyColliders[this._colliderTarget].originalDirection.hasValue == false)
-                    this._dirtyColliders[this._colliderTarget].originalDirection = direction;
+                ColliderData data = this.SetColliderDirty(this._colliderTarget);
+                if (data.originalDirection.hasValue == false)
+                    data.originalDirection = this._colliderTarget.m_Direction;
+                this._colliderTarget.m_Direction = direction;
             }
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Bound:");
-            DynamicBoneCollider.Bound bound = this._colliderTarget.m_Bound;
-            if (GUILayout.Toggle(this._colliderTarget.m_Bound == DynamicBoneCollider.Bound.Inside, "Inside"))
-                this._colliderTarget.m_Bound = DynamicBoneCollider.Bound.Inside;
-            if (GUILayout.Toggle(this._colliderTarget.m_Bound == DynamicBoneCollider.Bound.Outside, "Outside"))
-                this._colliderTarget.m_Bound = DynamicBoneCollider.Bound.Outside;
+            GUILayout.Label("Bound\t", GUILayout.ExpandWidth(false));
+            DynamicBoneCollider.Bound bound = (DynamicBoneCollider.Bound)GUILayout.SelectionGrid((int)this._colliderTarget.m_Bound, _boundNames, 2);
             if (bound != this._colliderTarget.m_Bound)
             {
-                this.SetColliderDirty(this._colliderTarget);
-                if (this._dirtyColliders[this._colliderTarget].originalBound.hasValue == false)
-                    this._dirtyColliders[this._colliderTarget].originalBound = bound;
+                ColliderData data = this.SetColliderDirty(this._colliderTarget);
+                if (data.originalBound.hasValue == false)
+                    data.originalBound = this._colliderTarget.m_Bound;
+                this._colliderTarget.m_Bound = bound;
             }
             GUILayout.EndHorizontal();
 
+            if (this._isLoneCollider)
+            {
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUILayout.Label("Affected Dynamic Bones");
+                {
+                    ColliderData cd;
+                    if (this._dirtyColliders.TryGetValue(this._colliderTarget, out cd) == false)
+                        cd = null;
+
+                    this._ignoredDynamicBonesScroll = GUILayout.BeginScrollView(this._ignoredDynamicBonesScroll);
+                    foreach (PoseController controller in PoseController._poseControllers)
+                    {
+                        int total = controller._dynamicBonesEditor._dynamicBones.Count;
+                        CharaPoseController charaPoseController = null;
+                        if (CharaPoseController._charaPoseControllers.Contains(controller))
+                        {
+                            charaPoseController = (CharaPoseController)controller;
+                            if (charaPoseController._boobsEditor != null)
+                                total += charaPoseController._boobsEditor._dynamicBones.Length;
+                        }
+                        if (total == 0)
+                            continue;
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label(controller.target.oci.treeNodeObject.textName + " (" + controller.target.oci.guideObject.transformTarget.name + ") ", GUILayout.ExpandWidth(false));
+                        if (GUILayout.Button("Center camera on", GUILayout.ExpandWidth(false)))
+                            Studio.Studio.Instance.cameraCtrl.targetPos = controller.target.oci.guideObject.transformTarget.position;
+                        GUILayout.EndHorizontal();
+
+                        HashSet<object> ignored;
+                        if (cd == null || cd.ignoredDynamicBones.TryGetValue(controller, out ignored) == false)
+                            ignored = null;
+                        int i = 1;
+                        GUILayout.BeginHorizontal();
+                        foreach (DynamicBone dynamicBone in controller._dynamicBonesEditor._dynamicBones)
+                        {
+                            if (dynamicBone.m_Root == null)
+                                continue;
+                            bool e = ignored == null || ignored.Contains(dynamicBone) == false;
+                            bool newE = GUILayout.Toggle(e, dynamicBone.m_Root.name);
+                            if (e != newE)
+                                this.SetIgnoreDynamicBone(this._colliderTarget, controller, dynamicBone, !newE);
+                            if (i % 3 == 0)
+                            {
+                                GUILayout.EndHorizontal();
+                                GUILayout.BeginHorizontal();
+                            }
+                            ++i;
+                        }
+
+                        if (charaPoseController != null && charaPoseController._boobsEditor != null)
+                        {
+                            foreach (DynamicBone_Ver02 dynamicBone in charaPoseController._boobsEditor._dynamicBones)
+                            {
+                                bool e = ignored == null || ignored.Contains(dynamicBone) == false;
+                                bool newE = GUILayout.Toggle(e, dynamicBone.Root.name);
+                                if (e != newE)
+                                    this.SetIgnoreDynamicBone(this._colliderTarget, controller, dynamicBone, !newE);
+                                if (i % 3 == 0)
+                                {
+                                    GUILayout.EndHorizontal();
+                                    GUILayout.BeginHorizontal();
+                                }
+                                ++i;
+                            }
+                        }
+                        GUILayout.EndHorizontal();
+                    }
+                    GUILayout.EndScrollView();
+                }
+                GUILayout.EndVertical();
+            }
+
             GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Go to bone", GUILayout.ExpandWidth(false)))
+            {
+                this._parent.EnableModule(this._parent._bonesEditor);
+                this._parent._bonesEditor.GoToObject(this._colliderTarget.gameObject);
+            }
             GUILayout.FlexibleSpace();
             GUI.color = AdvancedModeModule._redColor;
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
@@ -540,6 +664,35 @@ namespace HSPE.AMModules
                         xmlWriter.WriteAttributeString("direction", XmlConvert.ToString((int)kvp.Key.m_Direction));
                     if (kvp.Value.originalBound.hasValue)
                         xmlWriter.WriteAttributeString("bound", XmlConvert.ToString((int)kvp.Key.m_Bound));
+
+                    foreach (KeyValuePair<PoseController, HashSet<object>> ignoredPair in kvp.Value.ignoredDynamicBones)
+                    {
+                        CharaPoseController charaPoseController = ignoredPair.Key as CharaPoseController;
+                        foreach (object o in ignoredPair.Value)
+                        {
+                            DynamicBone db = o as DynamicBone;
+                            if (db != null)
+                            {
+                                xmlWriter.WriteStartElement("ignoredDynamicBone");
+
+                                xmlWriter.WriteAttributeString("poseControllerId", XmlConvert.ToString(ignoredPair.Key.GetInstanceID()));
+                                xmlWriter.WriteAttributeString("root", ignoredPair.Key._dynamicBonesEditor.GetRoot(db));
+
+                                xmlWriter.WriteEndElement();
+                            }
+                            else if (charaPoseController != null && charaPoseController._boobsEditor != null)
+                            {
+                                DynamicBone_Ver02 db2 = (DynamicBone_Ver02)o;
+                                xmlWriter.WriteStartElement("ignoredDynamicBone2");
+
+                                xmlWriter.WriteAttributeString("poseControllerId", XmlConvert.ToString(ignoredPair.Key.GetInstanceID()));
+                                xmlWriter.WriteAttributeString("id", charaPoseController._boobsEditor.GetID(db2));
+
+                                xmlWriter.WriteEndElement();
+                            }
+                        }
+                    }
+
                     xmlWriter.WriteEndElement();
                     ++written;
                 }
@@ -599,6 +752,38 @@ namespace HSPE.AMModules
                             data.originalBound = collider.m_Bound;
                             collider.m_Bound = (DynamicBoneCollider.Bound)bound;
                         }
+                        if (node.HasChildNodes)
+                            changed = true;
+
+                        if (this._isLoneCollider)
+                        {
+                            this._parent.ExecuteDelayed(() =>
+                            {
+                                foreach (XmlNode childNode in node.ChildNodes)
+                                {
+                                    int id = XmlConvert.ToInt32(childNode.Attributes["poseControllerId"].Value);
+                                    switch (childNode.Name)
+                                    {
+                                        case "ignoredDynamicBone":
+                                            PoseController controller = PoseController._poseControllers.FirstOrDefault(e => e._oldInstanceId == id);
+                                            if (controller == null)
+                                                break;
+                                            DynamicBone db = controller._dynamicBonesEditor.GetDynamicBone(childNode.Attributes["root"].Value);
+                                            if (db == null)
+                                                break;
+                                            this.SetIgnoreDynamicBone(collider, controller, db, true);
+                                            break;
+                                        case "ignoredDynamicBone2":
+                                            CharaPoseController controller2 = CharaPoseController._charaPoseControllers.FirstOrDefault(e => e._oldInstanceId == id) as CharaPoseController;
+                                            if (controller2 == null || controller2._boobsEditor == null)
+                                                break;
+                                            DynamicBone_Ver02 db2 = controller2._boobsEditor.GetDynamicBone(childNode.Attributes["id"].Value);
+                                            this.SetIgnoreDynamicBone(collider, controller2, db2, true);
+                                            break;
+                                    }
+                                }
+                            }, 5);
+                        }
                         if (data.originalCenter.hasValue || data.originalRadius.hasValue || data.originalHeight.hasValue || data.originalDirection.hasValue || data.originalBound.hasValue)
                         {
                             changed = true;
@@ -631,10 +816,15 @@ namespace HSPE.AMModules
                 this.SetColliderNotDirty(pair.Key);
         }
 
-        private void SetColliderDirty(DynamicBoneCollider collider)
+        private ColliderData SetColliderDirty(DynamicBoneCollider collider)
         {
-            if (!this.IsColliderDirty(collider))
-                this._dirtyColliders.Add(collider, new ColliderData());
+            ColliderData data;
+            if (this._dirtyColliders.TryGetValue(collider, out data) == false)
+            {
+                data = new ColliderData();
+                this._dirtyColliders.Add(collider, data);
+            }
+            return data;
         }
 
         private bool IsColliderDirty(DynamicBoneCollider collider)
@@ -672,10 +862,68 @@ namespace HSPE.AMModules
                     collider.m_Bound = data.originalBound;
                     data.originalBound.Reset();
                 }
+                foreach (KeyValuePair<PoseController, HashSet<object>> pair in data.ignoredDynamicBones)
+                {
+                    foreach (object dynamicBone in pair.Value)
+                    {
+                        List<DynamicBoneCollider> colliders;
+                        if (dynamicBone is DynamicBone db)
+                            colliders = db.m_Colliders;
+                        else
+                            colliders = ((DynamicBone_Ver02)dynamicBone).Colliders;
+                        if (colliders.Contains(collider) == false)
+                            colliders.Add(collider);
+                    }
+                }
+                data.ignoredDynamicBones.Clear();
                 this._dirtyColliders.Remove(collider);
             }
         }
-        
+
+        private void SetIgnoreDynamicBone(DynamicBoneCollider collider, PoseController dynamicBoneParent, object dynamicBone, bool ignore)
+        {
+            ColliderData colliderData = this.SetColliderDirty(collider);
+            if (ignore)
+            {
+                HashSet<object> ignoredList;
+                if (colliderData.ignoredDynamicBones.TryGetValue(dynamicBoneParent, out ignoredList) == false)
+                {
+                    ignoredList = new HashSet<object>();
+                    colliderData.ignoredDynamicBones.Add(dynamicBoneParent, ignoredList);
+                }
+                if (ignoredList.Contains(dynamicBone) == false)
+                    ignoredList.Add(dynamicBone);
+
+                List<DynamicBoneCollider> colliders;
+                if (dynamicBone is DynamicBone db)
+                    colliders = db.m_Colliders;
+                else
+                    colliders = ((DynamicBone_Ver02)dynamicBone).Colliders;
+
+                int index = colliders.IndexOf(collider);
+                if (index != -1)
+                    colliders.RemoveAt(index);
+            }
+            else
+            {
+                HashSet<object> ignoredList;
+                if (colliderData.ignoredDynamicBones.TryGetValue(dynamicBoneParent, out ignoredList))
+                {
+                    if (ignoredList.Contains(dynamicBone))
+                        ignoredList.Remove(dynamicBone);
+                }
+
+                List<DynamicBoneCollider> colliders;
+                if (dynamicBone is DynamicBone db)
+                    colliders = db.m_Colliders;
+                else
+                    colliders = ((DynamicBone_Ver02)dynamicBone).Colliders;
+
+                if (colliders.Contains(collider) == false)
+                    colliders.Add(collider);
+            }
+        }
+
         private void UpdateGizmos()
         {
             if (!this._isEnabled || !PoseController._drawAdvancedMode || this._colliderTarget == null || MainWindow._self._poseTarget != this._parent)

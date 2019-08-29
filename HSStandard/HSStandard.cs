@@ -29,6 +29,7 @@ namespace HSStandard
         private static Material _hsStandard;
         private static Material _hsStandardSSS;
         private static Material _hsStandardFade;
+        private static Material _hsStandardTransparent;
         private static Material _hsStandardCutout;
         private static Material _hsStandardTwoSided;
         private static Material _hsStandardTwoSidedFade;
@@ -89,6 +90,7 @@ namespace HSStandard
             _hsStandardSSS = bundle.LoadAsset<Material>("HSStandardSSS");
             _hsStandardTwoSided = bundle.LoadAsset<Material>("HSStandardTwoSided");
             _hsStandardFade = bundle.LoadAsset<Material>("HSStandardFade");
+            _hsStandardTransparent = bundle.LoadAsset<Material>("HSStandardTransparent");
             _hsStandardCutout = bundle.LoadAsset<Material>("HSStandardCutout");
             _hsStandardTwoSidedFade = bundle.LoadAsset<Material>("HSStandardTwoSidedFade");
             _hsStandardTwoSidedCutout = bundle.LoadAsset<Material>("HSStandardTwoSidedCutout");
@@ -126,7 +128,7 @@ namespace HSStandard
 
             if (_replaceSkin && _dedicatedSkinShader)
             {
-                harmony.Patch(AccessTools.Method(typeof(CustomTextureControl), "RebuildTextureAndSetMaterial"), new HarmonyMethod(typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches), nameof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches.Prefix)), null, new HarmonyMethod(typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches), nameof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches.Transpiler)));
+                harmony.Patch(AccessTools.Method(typeof(CustomTextureControl), "RebuildTextureAndSetMaterial"), null, new HarmonyMethod(typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches), nameof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches.Postfix)));
             }
 
             harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "UpdateSiru", new []{ typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(UpdateSiruPrefix)));
@@ -152,10 +154,10 @@ namespace HSStandard
 
             //IsHair Modifiers
             harmony.Patch(AccessTools.Method(typeof(AddObjectItem), "Load", new []{ typeof(OIItemInfo), typeof(ObjectCtrlInfo), typeof(TreeNodeObject), typeof(bool), typeof(int) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsHair)));
-            harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHead", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsHair)));
-            harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHead", new[] { typeof(int), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsHair)));
-            harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHead", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsHair)));
-            harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHead", new[] { typeof(int), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsHair)));
+            harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHead", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrueIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuffIsHair)));
+            harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHead", new[] { typeof(int), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrueIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuffIsHair)));
+            harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHead", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrueIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuffIsHair)));
+            harmony.Patch(AccessTools.Method(typeof(CharMaleBody), "ChangeHead", new[] { typeof(int), typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetIsBodyStuffTrueIsHairFalse)), new HarmonyMethod(typeof(HSStandard), nameof(ResetIsBodyStuffIsHair)));
 
             ////ForceHair Modifiers
             //harmony.Patch(AccessTools.Method(typeof(CharFemaleBody), "ChangeHair", new[] { typeof(bool) }), new HarmonyMethod(typeof(HSStandard), nameof(SetForceHairTrue)), new HarmonyMethod(typeof(HSStandard), nameof(ResetForceHair)));
@@ -546,6 +548,17 @@ namespace HSStandard
 
                         SetMaterialKeywords(newMaterial);
                     }
+                    break;
+
+                case "Shader Forge/PBRsp_texture_alpha_glass": //Transparent
+                    if (mat.GetInt("_HairEffect") == 1 && _isHair && _dedicatedHairShader)
+                        break;
+                        newMaterial = new Material(_hsStandardTransparent);
+                        SwapPropertiesClassic(mat, newMaterial);
+
+                        newMaterial.SetInt("_ZWrite", mat.HasProperty("_ZWrite") ? mat.GetInt("_ZWrite") : 1);
+
+                        SetMaterialKeywords(newMaterial);
                     break;
 
                 case "Standard_culloff": //Just a test, might remove in the future
@@ -1346,6 +1359,18 @@ namespace HSStandard
             ResetIsHair();
         }
 
+        private static void SetIsBodyStuffTrueIsHairFalse()
+        {
+            SetIsBodyStuffTrue();
+            SetIsHairFalse();
+        }
+
+        private static void ResetIsBodyStuffIsHair()
+        {
+            ResetIsBodyStuff();
+            ResetIsHair();
+        }
+
         private static void SetIsVanillaMapTrue()
         {
             _isVanillaMap = true;
@@ -1472,50 +1497,29 @@ namespace HSStandard
 
         private static class CustomTextureContrl_RebuildTextureAndSetMaterial_Patches
         {
-            private static Texture _texMain;
-            private static RenderTexture _createTex;
-
-            public static void Prefix(Texture ___texMain, RenderTexture ___createTex)
-            {
-                _texMain = ___texMain;
-                _createTex = ___createTex;
-            }
-
-            public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-            {
-                int j = 0;
-                List<CodeInstruction> instructionsList = instructions.ToList();
-                for (int i = 0; i < instructionsList.Count; i++)
-                {
-                    CodeInstruction inst = instructionsList[i];
-                    yield return inst;
-                    if (j != 2 && inst.ToString().Equals("call Void set_sRGBWrite(Boolean)"))
-                    {
-                        if (j == 1)
-                        {
-                            yield return new CodeInstruction(OpCodes.Call, typeof(CustomTextureContrl_RebuildTextureAndSetMaterial_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
-                        }
-                        ++j;
-                    }
-                }
-            }
-
-            private static void Injected()
+            public static void Postfix(Texture ___texMain, RenderTexture ___createTex)
             {
                 if (_ignoreSwap)
                     return;
-                RenderTexture temp = RenderTexture.GetTemporary(_createTex.width, _createTex.height, _createTex.depth, _createTex.format);
+
+
+                RenderTexture temp = RenderTexture.GetTemporary(___createTex.width, ___createTex.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
+
+                bool sRGBWrite = GL.sRGBWrite;
+                GL.sRGBWrite = true;
+
                 RenderTexture active = RenderTexture.active;
+                RenderTexture.active = null;
 
-                RenderTexture.active = temp;
-                GL.Clear(false, true, Color.clear);
-                RenderTexture.active = active;
-
-                _addAlpha.SetTexture("_AlphaTex", _texMain);
-                Graphics.Blit(_createTex, temp, _addAlpha);
-                Graphics.Blit(temp, _createTex);
+                Graphics.Blit(Texture2D.whiteTexture, temp);
+                _addAlpha.SetTexture("_AlphaTex", ___texMain);
+                Graphics.Blit(___createTex, temp, _addAlpha);
+                Graphics.Blit(temp, ___createTex);
 
                 RenderTexture.ReleaseTemporary(temp);
+                RenderTexture.active = active;
+
+                GL.sRGBWrite = sRGBWrite;
             }
         }
 
@@ -1587,7 +1591,9 @@ namespace HSStandard
                         if (Singleton<Manager.Character>.Instance.dictSiruMaterial.TryGetValue(list[k], out material))
                         {
                             material.SetOverrideTag("IgnoreProjector", "True");
-                            newMaterials[1 + k] = SwapShaderIgnoreProjector(material);
+                            material = SwapShaderIgnoreProjector(material);
+                            material.renderQueue -= 1;
+                            newMaterials[1 + k] = material;
                         }
                     }
                     List<GameObject> bodySkinObjects = __instance.chaInfo.GetTagInfo(CharReference.TagObjKey.ObjSkinBody);

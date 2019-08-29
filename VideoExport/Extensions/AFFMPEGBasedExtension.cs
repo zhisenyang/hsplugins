@@ -48,7 +48,7 @@ namespace VideoExport.Extensions
             return _ffmpegExe;
         }
 
-        public abstract string GetArguments(string framesFolder, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName);
+        public abstract string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName);
 
         public virtual void ProcessStandardOutput(char c)
         {

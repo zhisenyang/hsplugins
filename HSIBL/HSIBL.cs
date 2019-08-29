@@ -11,6 +11,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Xml;
+using HSLRE;
 using HSLRE.CustomEffects;
 using IllusionPlugin;
 using IllusionUtility.GetUtility;
@@ -22,12 +23,21 @@ namespace HSIBL
 {
     public class HSIBL : MonoBehaviour
     {
+        #region Types
+        private enum DOFFocusType
+        {
+            Crosshair,
+            Object,
+            Manual
+        }
+        #endregion
+
         #region Fields
         private readonly ProceduralSkyboxManager _proceduralSkybox = new ProceduralSkyboxManager();
         private readonly SkyboxManager _skybox = new SkyboxManager();
         public GameObject probeGameObject = new GameObject("RealtimeReflectionProbe");
-        private ProceduralSkyboxParams _tempproceduralskyboxparams;
-        private SkyboxParams _tempskyboxparams;
+        private ProceduralSkyboxParams _tempProceduralSkyboxParams;
+        private SkyboxParams _tempSkyboxParams;
         private GameObject _lightsObj;
         private Quaternion _lightsObjDefaultRotation;
         private ReflectionProbe _probeComponent;
@@ -67,7 +77,7 @@ namespace HSIBL
         private HSLRE.CustomEffects.Bloom _cinematicBloom;
         private LensAberrations _lensManager;
 
-        private float _previousambientintensity = 1f;
+        private float _previousAmbientIntensity = 1f;
 
         private bool _environmentUpdateFlag = false;
 
@@ -103,7 +113,10 @@ namespace HSIBL
         private DepthOfField _depthOfField;
         private string[] _possibleBlurSampleCountNames;
         private string[] _possibleDOFBlurTypeNames;
-        private Transform _depthOfFieldFocusPoint;
+        private Transform _depthOfFieldOriginalFocusPoint;
+        private DOFFocusType _focusType = DOFFocusType.Crosshair;
+        private string[] _possibleDOFFocusTypeNames;
+        private ObjectCtrlInfo _focussedObject;
 
         private ScreenSpaceReflection _ssr;
         private string[] _possibleSSRResolutionNames;
@@ -135,6 +148,8 @@ namespace HSIBL
 
         private SEGI _segi;
         private string[] _possibleVoxelResolutionNames;
+        private string[] _possiblePresetNames;
+        private int _selectedSegiPreset = 10;
 
         private AmplifyBloom _amplifyBloom;
         private string[] _possibleUpscaleQualityEnumNames;
@@ -160,6 +175,8 @@ namespace HSIBL
         private bool _removePresetMode;
         private string[] _presets = new string[0];
         internal static bool _isStudio = false;
+        private int _currentScene;
+        private AmbientMode _oldAmbientMode;
         #endregion
 
         #region Accessors
@@ -198,6 +215,7 @@ namespace HSIBL
             this._possibleSunShaftsResolutionNames = Enum.GetNames(typeof(SunShafts.SunShaftsResolution));
             this._possibleShaftsScreenBlendModeNames = Enum.GetNames(typeof(SunShafts.ShaftsScreenBlendMode));
             this._possibleBlurSampleCountNames = Enum.GetNames(typeof(DepthOfField.BlurSampleCount));
+            this._possibleDOFFocusTypeNames = Enum.GetNames(typeof(DOFFocusType));
             this._possibleDOFBlurTypeNames = Enum.GetNames(typeof(DepthOfField.BlurType));
             this._possibleSSRResolutionNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRResolution));
             this._possibleSSRDebugModeNames = Enum.GetNames(typeof(ScreenSpaceReflection.SSRDebugMode));
@@ -234,6 +252,7 @@ namespace HSIBL
                 this._shortcut = (KeyCode)Enum.Parse(typeof(KeyCode), ModPrefs.GetString("HSIBL", "shortcut", this._shortcut.ToString(), true));
             }
             catch (Exception){}
+            this._currentScene = SceneManager.GetActiveScene().buildIndex;
         }
 
         private IEnumerator Start()
@@ -258,7 +277,7 @@ namespace HSIBL
             if (this._depthOfField != null)
             {
                 this._effectsModules.Add(this._depthOfField, this.DepthOfFieldModule);
-                this._depthOfFieldFocusPoint = this._depthOfField.focalTransform;
+                this._depthOfFieldOriginalFocusPoint = this._depthOfField.focalTransform;
             }
             this._ssr = HSLRE.HSLRE.self.ssr;
             if (this._ssr != null)
@@ -316,8 +335,8 @@ namespace HSIBL
             if (this._blur != null)
                 this._effectsModules.Add(this._blur, this.BlurModule);
 
-            if (_isStudio == false && HSLRE.Settings.basicSettings.CharaMakerReform && (SceneManager.GetActiveScene().buildIndex == 21 || SceneManager.GetActiveScene().buildIndex == 22))
-                this.LoadCubemapWithName(this._defaultCharaMakerCubemap);
+            if (_isStudio == false && HSLRE.Settings.basicSettings.CharaMakerReform && (this._currentScene == 21 || this._currentScene == 22))
+                this._selectedCubemap = this.LoadCubemap(this._defaultCharaMakerCubemap);
 
             if (this._segi != null)
             {
@@ -340,7 +359,11 @@ namespace HSIBL
                     }
                 }
                 this._segi.sun = selected;
+
+                this._possiblePresetNames = this._segi._presets.Select(e => e.name).ToArray();
             }
+
+            this._ev = Mathf.Log(HSLRE.Settings.tonemappingSettings.exposure, 2);
         }
 
         private void OnEnable()
@@ -349,9 +372,9 @@ namespace HSIBL
             {
                 this._proceduralSkybox.Init();
             }
-            this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
+            this._tempProceduralSkyboxParams = this._proceduralSkybox.skyboxparams;
             this.StopAllCoroutines();
-            this.StartCoroutine(this.UpdateEnvironment());
+            this.StartCoroutine(this.EndOfFrame());
             if (_isStudio)
             {
                 this._subCamera = GameObject.Find("Camera").GetComponent<Camera>();
@@ -396,11 +419,14 @@ namespace HSIBL
             }
 
             this.RefreshPresetList();
-
+            this._environmentUpdateFlag = true;
         }
 
         private void Update()
         {
+            if (this._oldAmbientMode != RenderSettings.ambientMode)
+                this._environmentUpdateFlag = true;
+            this._oldAmbientMode = RenderSettings.ambientMode;
             if (Input.GetKeyDown(this._shortcut))
                 _showUI = !_showUI;
 
@@ -408,24 +434,36 @@ namespace HSIBL
                 _showUI = false;
             if (this._selectedCubemap == 0)
             {
-                if (!Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) || !(this._tempproceduralskyboxparams).Equals(this._proceduralSkybox.skyboxparams))
-                {
-                    this._proceduralSkybox.ApplySkyboxParams();
+                if (!Mathf.Approximately(this._previousAmbientIntensity, RenderSettings.ambientIntensity) || !(this._tempProceduralSkyboxParams).Equals(this._proceduralSkybox.skyboxparams))
                     this._environmentUpdateFlag = true;
-                    this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
-                    this._previousambientintensity = RenderSettings.ambientIntensity;
-                }
+                this._proceduralSkybox.ApplySkyboxParams();
+                this._tempProceduralSkyboxParams = this._proceduralSkybox.skyboxparams;
+                this._previousAmbientIntensity = RenderSettings.ambientIntensity;
             }
             else if (this._selectedCubemap > 0)
             {
-                if (!Mathf.Approximately(this._previousambientintensity, RenderSettings.ambientIntensity) || !(this._tempskyboxparams).Equals(this._skybox.skyboxparams))
-                {
-                    this._skybox.ApplySkyboxParams();
+                if (!Mathf.Approximately(this._previousAmbientIntensity, RenderSettings.ambientIntensity) || !(this._tempSkyboxParams).Equals(this._skybox.skyboxparams))
                     this._environmentUpdateFlag = true;
-                    this._tempskyboxparams = this._skybox.skyboxparams;
-                    this._previousambientintensity = RenderSettings.ambientIntensity;
-                }
+                this._skybox.ApplySkyboxParams();
+                this._tempSkyboxParams = this._skybox.skyboxparams;
+                this._previousAmbientIntensity = RenderSettings.ambientIntensity;
             }
+
+            if (this._hideSkybox)
+            {
+                Camera.main.clearFlags = CameraClearFlags.SolidColor;
+            }
+            else
+            {
+                if (_isStudio == false && (this._currentScene == 21 || this._currentScene == 22))
+                {
+                    if (Settings.basicSettings.CharaMakerReform)
+                        Camera.main.clearFlags = (CameraClearFlags)Settings.basicSettings.CharaMakerBackgroundType;
+                }
+                else
+                    Camera.main.clearFlags = this._cubemapLoaded ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
+            }
+
             if (_isStudio && this._segi != null && Studio.Studio.Instance != null && this._lastObjectCount != Studio.Studio.Instance.dicObjectCtrl.Count)
             {
                 Light selected = null;
@@ -740,61 +778,16 @@ namespace HSIBL
             GUILayout.BeginHorizontal();
             GUILayout.Label("Load Cubemaps:", UIUtils.labelStyle);
             GUILayout.FlexibleSpace();
-            bool newHideSkybox = UIUtils.ToggleButton(this._hideSkybox, new GUIContent("Hide","Hide skybox in the background"));
+            this._hideSkybox = UIUtils.ToggleButton(this._hideSkybox, new GUIContent("Hide","Hide skybox in the background"));
             GUILayout.EndHorizontal();
-            if (newHideSkybox != this._hideSkybox)
-            {
-                if (newHideSkybox)
-                {
-                    Camera.main.clearFlags = CameraClearFlags.SolidColor;
-                }
-                else
-                {
-                    if (_isStudio == false && (SceneManager.GetActiveScene().buildIndex == 21 || SceneManager.GetActiveScene().buildIndex == 22))
-                        Camera.main.clearFlags = (CameraClearFlags)HSLRE.Settings.basicSettings.CharaMakerBackgroundType;
-                    else
-                        Camera.main.clearFlags = this._cubemapLoaded ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
-                }                
-            }
-            this._hideSkybox = newHideSkybox;
             UIUtils.scrollPosition[0] = GUILayout.BeginScrollView(UIUtils.scrollPosition[0]);
 
             if (GUILayout.Button("None", UIUtils.buttonStyleStrechWidthAlignLeft))
-            {
-                this._skybox.Skybox = this._originalSkybox;
-                RenderSettings.skybox = this._originalSkybox;
-                RenderSettings.ambientMode = this._originalAmbientMode;
-                RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
-                if (_isStudio == false && (SceneManager.GetActiveScene().buildIndex == 21 || SceneManager.GetActiveScene().buildIndex == 22))
-                    Camera.main.clearFlags = (CameraClearFlags)HSLRE.Settings.basicSettings.CharaMakerBackgroundType;
-                else
-                    Camera.main.clearFlags = CameraClearFlags.SolidColor;
-                this._cubemapLoaded = false;
                 this._selectedCubemap = -1;
-                this._previousSelectedCubeMap = -1;
-            }
 
             this._selectedCubemap = GUILayout.SelectionGrid(this._selectedCubemap, this._cubeMapFileNames, 1, UIUtils.buttonStyleStrechWidthAlignLeft);
 
-            switch (this._selectedCubemap)
-            {
-                case -1:
-                    break;
-                case 0:
-                    if (this._previousSelectedCubeMap != 0)
-                    {
-                        this._proceduralSkybox.ApplySkybox();
-                        this._proceduralSkybox.ApplySkyboxParams();
-                        this._environmentUpdateFlag = true;
-                        this._cubemapLoaded = true;
-                    }
-                    break;
-                default:
-                    if (this._previousSelectedCubeMap != this._selectedCubemap)
-                        this.StartCoroutine(this.LoadCubemapFileAsync(this._cubemapFolder.lstFile[this._selectedCubemap - 1].FileName));
-                    break;
-            }
-            this._previousSelectedCubeMap = this._selectedCubemap;
+            this._selectedCubemap = this.LoadCubemap(this._selectedCubemap);
 
             GUILayout.EndScrollView();
         }
@@ -832,7 +825,7 @@ namespace HSIBL
 
         private void ReflectionModule()
         {
-            this._probeComponent.enabled = UIUtils.ToggleGUI(this._probeComponent.enabled, new GUIContent(GUIStrings.reflection), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+            this._probeComponent.enabled = UIUtils.ToggleGUI(this._probeComponent.enabled, new GUIContent(GUIStrings.reflection), UIUtils.titleStyle2);
 
             if (this._probeComponent.enabled)
             {
@@ -913,7 +906,7 @@ namespace HSIBL
                     GUILayout.EndHorizontal();
                 }
                 GUILayout.Space(UIUtils.space);
-                this._probeComponent.boxProjection = UIUtils.ToggleGUI(this._probeComponent.boxProjection, new GUIContent("Box Projection", "Box Projection is useful for reflections in enclosed spaces  where some parrallax and movement in the reflection is wanted. If not endbled then cubemap reflection will be treated as coming infinite far away. And within this zone objects with the Standard shader will receive this probe's cubemap."), GUIStrings.disableVsEnable);
+                this._probeComponent.boxProjection = UIUtils.ToggleGUI(this._probeComponent.boxProjection, new GUIContent("Box Projection", "Box Projection is useful for reflections in enclosed spaces  where some parrallax and movement in the reflection is wanted. If not endbled then cubemap reflection will be treated as coming infinite far away. And within this zone objects with the Standard shader will receive this probe's cubemap."));
 
                 this._probeComponent.intensity = UIUtils.SliderGUI(this._probeComponent.intensity, 0f, 2f, 1f, GUIStrings.reflectionIntensity, "N3");
 
@@ -1286,8 +1279,8 @@ namespace HSIBL
                 if (settings.quality == SMAA.QualityPreset.Custom)
                 {
                     SMAA.QualitySettings quality = this._smaa.quality;
-                    quality.diagonalDetection = UIUtils.ToggleGUI(quality.diagonalDetection, new GUIContent("Diagonal Detection", "Enables/Disables diagonal processing."), GUIStrings.disableVsEnable);
-                    quality.cornerDetection = UIUtils.ToggleGUI(quality.cornerDetection, new GUIContent("Corner Detection", "Enables/Disables corner detection. Leave this on to avoid blurry corners."), GUIStrings.disableVsEnable);
+                    quality.diagonalDetection = UIUtils.ToggleGUI(quality.diagonalDetection, new GUIContent("Diagonal Detection", "Enables/Disables diagonal processing."));
+                    quality.cornerDetection = UIUtils.ToggleGUI(quality.cornerDetection, new GUIContent("Corner Detection", "Enables/Disables corner detection. Leave this on to avoid blurry corners."));
                     quality.threshold = UIUtils.SliderGUI(quality.threshold, 0f, 0.5f, 0.01f, "Threshold", "Filters out pixels under this level of brightness.", "N3");
                     quality.depthThreshold = UIUtils.SliderGUI(quality.depthThreshold, 0.0001f, 10f, 0.01f, "Depth Threshold", "Specifies the threshold for depth edge detection. Lowering this value you will be able to detect more edges at the expense of performance.", "N4");
                     quality.maxSearchSteps = (int)UIUtils.SliderGUI(quality.maxSearchSteps, 0f, 112, 16, "Max Search Steps", "Specifies the maximum steps performed in the horizontal/vertical pattern searches, at each side of the pixel.\nIn number of pixels, it's actually the double. So the maximum line length perfectly handled by, for example 16, is 64 (by perfectly, we meant that longer lines won't look as good, but still antialiased).", "N");
@@ -1297,7 +1290,7 @@ namespace HSIBL
                     this._smaa.quality = quality;
                 }
 
-                predication.enabled = UIUtils.ToggleGUI(predication.enabled, new GUIContent("Predication", "Predicated thresholding allows to better preserve texture details and to improve performance, by decreasing the number of detected edges using an additional buffer (the detph buffer).\nIt locally decreases the luma or color threshold if an edge is found in an additional buffer (so the global threshold can be higher)."), GUIStrings.disableVsEnable);
+                predication.enabled = UIUtils.ToggleGUI(predication.enabled, new GUIContent("Predication", "Predicated thresholding allows to better preserve texture details and to improve performance, by decreasing the number of detected edges using an additional buffer (the detph buffer).\nIt locally decreases the luma or color threshold if an edge is found in an additional buffer (so the global threshold can be higher)."));
                 if (predication.enabled)
                 {
                     predication.threshold = UIUtils.SliderGUI(predication.threshold, 0.0001f, 10f, 0.01f, "Threshold", "Threshold to be used in the additional predication buffer.", "N4");
@@ -1305,7 +1298,7 @@ namespace HSIBL
                     predication.strength = UIUtils.SliderGUI(predication.strength, 0f, 1f, 0.4f, "Strength", "How much to locally decrease the threshold.", "N4");
                 }
 
-                temporal.enabled = UIUtils.ToggleGUI(temporal.enabled, new GUIContent("Temporal", "Temporal filtering makes it possible for the SMAA algorithm to benefit from minute subpixel information available that has been accumulated over many frames."), GUIStrings.disableVsEnable);
+                temporal.enabled = UIUtils.ToggleGUI(temporal.enabled, new GUIContent("Temporal", "Temporal filtering makes it possible for the SMAA algorithm to benefit from minute subpixel information available that has been accumulated over many frames."));
                 if (temporal.enabled)
                 {
                     temporal.fuzzSize = UIUtils.SliderGUI(temporal.fuzzSize, 0.5f, 10f, 2f, "Fuzz Size", "The size of the fuzz-displacement (jitter) in pixels applied to the camera's perspective projection matrix.\nUsed for 2x temporal anti-aliasing.", "N3");
@@ -1328,21 +1321,21 @@ namespace HSIBL
                 this._cinematicBloom.settings.threshold = UIUtils.SliderGUI(this._cinematicBloom.settings.threshold, 0f, 8f, 1f, "Threshold", "Filters out pixels under this level of brightness.", "N3");
                 this._cinematicBloom.settings.softKnee = UIUtils.SliderGUI(this._cinematicBloom.settings.softKnee, 0f, 1f, 0.2f, "Softknee", "Makes transition between under/over-threshold gradual.", "N3");
                 this._cinematicBloom.settings.radius = UIUtils.SliderGUI(this._cinematicBloom.settings.radius, 0f, 16f, 3f, "Radius", "Changes extent of veiling effects in a screen resolution-independent fashion.", "N3");
-                this._cinematicBloom.settings.antiFlicker = UIUtils.ToggleGUI(this._cinematicBloom.settings.antiFlicker, GUIStrings.bloomAntiflicker, GUIStrings.disableVsEnable);
+                this._cinematicBloom.settings.antiFlicker = UIUtils.ToggleGUI(this._cinematicBloom.settings.antiFlicker, GUIStrings.bloomAntiflicker);
             }
         }
         
         private void SSAOModule(HSLRE.HSLRE.EffectData effectData, int index)
         {
-            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " SSAO"), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " SSAO"), UIUtils.titleStyle2);
             if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableSSAO = effectData.enabled;
             if (effectData.enabled)
             {
                 //GUILayout.Label("SSAO", UIUtils.titlestyle2);
                 GUILayout.Space(UIUtils.space);
-                this._ssao.DebugAO = UIUtils.ToggleGUI(this._ssao.DebugAO, new GUIContent("Debug AO"), GUIStrings.disableVsEnable);
-                this._ssao.UseHighPrecisionDepthMap = UIUtils.ToggleGUI(this._ssao.UseHighPrecisionDepthMap, new GUIContent("Use high precision depth map"), GUIStrings.disableVsEnable);
+                this._ssao.DebugAO = UIUtils.ToggleGUI(this._ssao.DebugAO, new GUIContent("Debug AO"));
+                this._ssao.UseHighPrecisionDepthMap = UIUtils.ToggleGUI(this._ssao.UseHighPrecisionDepthMap, new GUIContent("Use high precision depth map"));
 
                 GUILayout.Label(new GUIContent("Sample Count", "The number of ambient occlusion samples for each pixel on screen. More samples means slower but smoother rendering. Five presets are available"), UIUtils.labelStyle);
                 this._ssao.Samples = (SSAOPro.SampleCount)GUILayout.SelectionGrid((int)this._ssao.Samples, this._possibleSSAOSampleCountNames, 3, UIUtils.buttonStyleStrechWidth);
@@ -1365,7 +1358,7 @@ namespace HSIBL
                 this._ssao.Blur = (SSAOPro.BlurMode)GUILayout.SelectionGrid((int)this._ssao.Blur, this._possibleSSAOBlurModeNames, 2, UIUtils.buttonStyleStrechWidth);
                 if (this._ssao.Blur != SSAOPro.BlurMode.None)
                 {
-                    this._ssao.BlurDownsampling = UIUtils.ToggleGUI(this._ssao.BlurDownsampling, new GUIContent("Blur Downsampling", "If enabled, the blur pass will be applied to the downsampled render before it gets resized to fit the screen. Else, it will be applied after the resize, which increases quality but is a bit slower."), GUIStrings.disableVsEnable);
+                    this._ssao.BlurDownsampling = UIUtils.ToggleGUI(this._ssao.BlurDownsampling, new GUIContent("Blur Downsampling", "If enabled, the blur pass will be applied to the downsampled render before it gets resized to fit the screen. Else, it will be applied after the resize, which increases quality but is a bit slower."));
                     this._ssao.BlurPasses = Mathf.RoundToInt(UIUtils.SliderGUI(this._ssao.BlurPasses, 1f, 4f, 1, "Blur Passes", "Applies more blur to give a smoother effect at the cost of performance.", "0"));
                     if (this._ssao.Blur == SSAOPro.BlurMode.HighQualityBilateral)
                         this._ssao.BlurBilateralThreshold = UIUtils.SliderGUI(this._ssao.BlurBilateralThreshold, 0.05f, 1f, 0.1f, "Depth Threshold", "Tweak this to adjust the blur \"sharpness\".", "N3");
@@ -1387,7 +1380,7 @@ namespace HSIBL
             {
                 //GUILayout.Label("Sun Shafts", UIUtils.titlestyle2);
                 GUILayout.Space(UIUtils.space);
-                this._sunShafts.useDepthTexture = UIUtils.ToggleGUI(this._sunShafts.useDepthTexture, new GUIContent("Use Depth Buffer"), GUIStrings.disableVsEnable);
+                this._sunShafts.useDepthTexture = UIUtils.ToggleGUI(this._sunShafts.useDepthTexture, new GUIContent("Use Depth Buffer"));
                 GUILayout.Label(new GUIContent("Resolution", "The resolution at which the shafts are generated. Lower resolutions are faster to calculate and create softer results."), UIUtils.labelStyle);
                 this._sunShafts.resolution = (SunShafts.SunShaftsResolution)GUILayout.SelectionGrid((int)this._sunShafts.resolution, this._possibleSunShaftsResolutionNames, 3, UIUtils.buttonStyleStrechWidth);
                 GUILayout.Label("Screen Blend Mode", UIUtils.labelStyle);
@@ -1419,19 +1412,78 @@ namespace HSIBL
             {
                 GUILayout.Space(UIUtils.space);
 
-                this._depthOfField.visualizeFocus = UIUtils.ToggleGUI(this._depthOfField.visualizeFocus, new GUIContent("Visualize Focus", "Overlay color indicating camera focus."), GUIStrings.disableVsEnable);
-                bool useCameraOrigin = UIUtils.ToggleGUI(this._depthOfField.focalTransform != null, new GUIContent("Use Camera Origin as Focus", "If enabled, makes the camera origin the automatic focus point, otherwise the Focal Distance is used."), GUIStrings.disableVsEnable);
-                if (useCameraOrigin)
+                this._depthOfField.visualizeFocus = UIUtils.ToggleGUI(this._depthOfField.visualizeFocus, new GUIContent("Visualize Focus", "Overlay color indicating camera focus."));
+
+                GUILayout.Label(new GUIContent("Focus Type", "Decides which focus point to use."), UIUtils.labelStyle);
+                DOFFocusType newFocusType = (DOFFocusType)GUILayout.SelectionGrid((int)this._focusType, this._possibleDOFFocusTypeNames, 3, UIUtils.buttonStyleStrechWidth);
+
+                if (this._focusType != newFocusType)
                 {
-                    if (this._depthOfField.focalTransform == null)
-                        this._depthOfField.focalTransform = this._depthOfFieldFocusPoint;
+                    this._focusType = newFocusType;
+                    switch (this._focusType)
+                    {
+                        case DOFFocusType.Crosshair:
+                            this._depthOfField.focalTransform = this._depthOfFieldOriginalFocusPoint;
+                            break;
+                        case DOFFocusType.Object:
+                            if (_isStudio == false)
+                            {
+                                this._depthOfField.focalTransform = this._depthOfFieldOriginalFocusPoint;
+                                this._focusType = DOFFocusType.Crosshair;
+                                break;                                
+                            }
+                            ObjectCtrlInfo info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault().Value;
+                            if (info != null)
+                            {
+                                this._depthOfField.focalTransform = info.guideObject.transformTarget;
+                                this._focussedObject = info;
+                            }
+                            else
+                            {
+                                this._depthOfField.focalTransform = this._depthOfFieldOriginalFocusPoint;
+                                this._focusType = DOFFocusType.Crosshair;
+                            }
+                            break;
+                        case DOFFocusType.Manual:
+                            this._depthOfField.focalTransform = null;
+                            break;
+                    }
                 }
-                else
+
+                switch (this._focusType)
                 {
-                    if (this._depthOfField.focalTransform != null)
-                        this._depthOfField.focalTransform = null;
-                    this._depthOfField.focalLength = UIUtils.SliderGUI(this._depthOfField.focalLength, 0.01f, 50f, 10f, "Focal Distance", "The distance to the focal plane from the camera position in world space.", "N2");
+                    case DOFFocusType.Object:
+
+                        if (this._depthOfField.focalTransform == null || this._focussedObject == null)
+                        {
+                            this._focusType = DOFFocusType.Manual;
+                            break;
+                        }
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("Current Focus: " + this._focussedObject.treeNodeObject.textName, UIUtils.labelStyle);
+                        GUILayout.FlexibleSpace();
+                        if (GUILayout.Button("Select", UIUtils.buttonStyleStrechWidth))
+                        {
+                            KeyValuePair<TreeNodeObject, ObjectCtrlInfo> kvp = Studio.Studio.Instance.dicInfo.FirstOrDefault(e => e.Value == this._focussedObject);
+                            if (kvp.Key != null)
+                                Studio.Studio.Instance.treeNodeCtrl.SelectSingle(kvp.Key);
+                        }
+                        GUILayout.EndHorizontal();
+                        if (GUILayout.Button("Set selected as focus", UIUtils.buttonStyleStrechWidth))
+                        {
+                            ObjectCtrlInfo info;
+                            if (Studio.Studio.Instance.dicInfo.TryGetValue(Studio.Studio.Instance.treeNodeCtrl.selectNode, out info))
+                            {
+                                this._depthOfField.focalTransform = info.guideObject.transformTarget;
+                                this._focussedObject = info;
+                            }
+                        }
+                        break;
+                    case DOFFocusType.Manual:
+                        this._depthOfField.focalLength = UIUtils.SliderGUI(this._depthOfField.focalLength, 0.01f, 50f, 10f, "Focal Distance", "The distance to the focal plane from the camera position in world space.", "N2");
+                        break;
                 }
+
                 this._depthOfField.focalSize = UIUtils.SliderGUI(this._depthOfField.focalSize, 0f, 2f, 0.05f,"Focal Size", "Increase the total focal area.", "N3");
                 if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
@@ -1439,8 +1491,8 @@ namespace HSIBL
                 if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                     Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
                 this._depthOfField.maxBlurSize = UIUtils.SliderGUI(this._depthOfField.maxBlurSize, 0f, 128f, 2f,"Max Blur Distance", "Max distance for filter taps. Affects texture cache and can cause undersampling artifacts if value is too big. A value smaller than 4.0 should produce decent results.", "N1");
-                this._depthOfField.highResolution = UIUtils.ToggleGUI(this._depthOfField.highResolution, new GUIContent("High Resolution", "Perform defocus operations in full resolution. Affects performance but might help reduce unwanted artifacts and produce more defined bokeh shapes."), GUIStrings.disableVsEnable);
-                this._depthOfField.nearBlur = UIUtils.ToggleGUI(this._depthOfField.nearBlur, new GUIContent("Near Blur", "Foreground areas will overlap at a performance cost."), GUIStrings.disableVsEnable);
+                this._depthOfField.highResolution = UIUtils.ToggleGUI(this._depthOfField.highResolution, new GUIContent("High Resolution", "Perform defocus operations in full resolution. Affects performance but might help reduce unwanted artifacts and produce more defined bokeh shapes."));
+                this._depthOfField.nearBlur = UIUtils.ToggleGUI(this._depthOfField.nearBlur, new GUIContent("Near Blur", "Foreground areas will overlap at a performance cost."));
                 if (this._depthOfField.nearBlur)
                     this._depthOfField.foregroundOverlap = UIUtils.SliderGUI(this._depthOfField.foregroundOverlap, 0.1f, 2f, 1,"Overlap Size", "Increase foreground overlap dilation if needed.", "N3");
                 GUILayout.Label(new GUIContent("Blur Type", "Algorithm used to produce defocused areas. DX11 is effectively a bokeh splatting technique while DiscBlur indicates a more traditional (scatter as gather) based blur."), UIUtils.labelStyle);
@@ -1459,6 +1511,7 @@ namespace HSIBL
                         this._depthOfField.dx11SpawnHeuristic = UIUtils.SliderGUI(this._depthOfField.dx11SpawnHeuristic, 0.01f, 1f, 0.0875f,"Spawn Heuristic", "Bokeh shapes will only be cast if pixel in questions passes a frequency check. A threshold around 0.1 seems like a good tradeoff between performance and quality.", "N4");
                         break;
                 }
+                HSLRE.HSLRE.self.fixDofForUpscaledScreenshots = UIUtils.ToggleGUI(HSLRE.HSLRE.self.fixDofForUpscaledScreenshots, new GUIContent("Fix Upscaled Screenshots", ""));
                 if (GUILayout.Button("Open full documentation in browser", UIUtils.buttonStyleStrechWidth))
                     System.Diagnostics.Process.Start("https://docs.unity3d.com/530/Documentation/Manual/script-DepthOfField.html");
             }
@@ -1466,7 +1519,7 @@ namespace HSIBL
 
         private void SSRModule(HSLRE.HSLRE.EffectData effectData, int index)
         {
-            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " Screen Space Reflections"), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " Screen Space Reflections"), UIUtils.titleStyle2);
             //GUILayout.Label("Screen Space Reflections", UIUtils.titlestyle2);
             if (_isStudio && Studio.Studio.Instance != null && Studio.Studio.Instance.sceneInfo != null)
                 Studio.Studio.Instance.sceneInfo.enableSSR = effectData.enabled;
@@ -1488,8 +1541,8 @@ namespace HSIBL
                     basicSettings.maxDistance = UIUtils.SliderGUI(basicSettings.maxDistance, 0.5f, 1000f, 100f,"Max Distance","Maximum reflection distance in world units.","N1");
                     basicSettings.fadeDistance = UIUtils.SliderGUI(basicSettings.fadeDistance, 0.0f, 1000f, 100f,"Fade Distance","How far away from the maxDistance to begin fading SSR.","N1");
                     basicSettings.screenEdgeFading = UIUtils.SliderGUI(basicSettings.screenEdgeFading, 0.0f, 1f, 0.03f,"Screen Edge Fading","Higher = fade out SSRR near the edge of the screen so that reflections don't pop under camera motion.","N3");
-                    basicSettings.enableHDR = UIUtils.ToggleGUI(basicSettings.enableHDR, new GUIContent("Enable HDR","Enable for better reflections of very bright objects at a performance cost"), GUIStrings.disableVsEnable);
-                    basicSettings.additiveReflection = UIUtils.ToggleGUI(basicSettings.additiveReflection, new GUIContent("Additive Reflection","Add reflections on top of existing ones. Not physically correct."), GUIStrings.disableVsEnable);
+                    basicSettings.enableHDR = UIUtils.ToggleGUI(basicSettings.enableHDR, new GUIContent("Enable HDR","Enable for better reflections of very bright objects at a performance cost"));
+                    basicSettings.additiveReflection = UIUtils.ToggleGUI(basicSettings.additiveReflection, new GUIContent("Additive Reflection","Add reflections on top of existing ones. Not physically correct."));
                 }
 
                 GUILayout.Label("Reflection Settings", UIUtils.labelStyle);
@@ -1509,18 +1562,18 @@ namespace HSIBL
                 ScreenSpaceReflection.AdvancedSettings advancedSettings = ssrSettings.advancedSettings;
                 {
                     advancedSettings.temporalFilterStrength = UIUtils.SliderGUI(advancedSettings.temporalFilterStrength, 0.0f, 0.99f, 0f,"Temporal Filter Strength","Increase to decrease flicker in scenes; decrease to prevent ghosting (especially in dynamic scenes). 0 gives maximum performance.","N3");
-                    advancedSettings.useTemporalConfidence = UIUtils.ToggleGUI(advancedSettings.useTemporalConfidence, new GUIContent("Use Temporal Confidence","Enable to limit ghosting from applying the temporal filter."), GUIStrings.disableVsEnable);
-                    advancedSettings.traceBehindObjects = UIUtils.ToggleGUI(advancedSettings.traceBehindObjects, new GUIContent("Trace Behind Objects","Enable to allow rays to pass behind objects. This can lead to more screen-space reflections, but the reflections are more likely to be wrong."), GUIStrings.disableVsEnable);
-                    advancedSettings.highQualitySharpReflections = UIUtils.ToggleGUI(advancedSettings.highQualitySharpReflections, new GUIContent("High Quality Sharp Reflections","Enable to increase quality of the sharpest reflections (through filtering), at a performance cost."), GUIStrings.disableVsEnable);
-                    advancedSettings.traceEverywhere = UIUtils.ToggleGUI(advancedSettings.traceEverywhere, new GUIContent("Trace Everywhere","Improves quality in scenes with varying smoothness, at a potential performance cost."), GUIStrings.disableVsEnable);
-                    advancedSettings.treatBackfaceHitAsMiss = UIUtils.ToggleGUI(advancedSettings.treatBackfaceHitAsMiss, new GUIContent("Treat Backface Hit As Miss","Enable to force more surfaces to use reflection probes if you see streaks on the sides of objects or bad reflections of their backs."), GUIStrings.disableVsEnable);
-                    advancedSettings.allowBackwardsRays = UIUtils.ToggleGUI(advancedSettings.allowBackwardsRays, new GUIContent("Allow Backward Rays","Enable for a performance gain in scenes where most glossy objects are horizontal, like floors, water, and tables. Leave on for scenes with glossy vertical objects."), GUIStrings.disableVsEnable);
-                    advancedSettings.improveCorners = UIUtils.ToggleGUI(advancedSettings.improveCorners, new GUIContent("Improve Corners","Improve visual fidelity of reflections on rough surfaces near corners in the scene, at the cost of a small amount of performance."), GUIStrings.disableVsEnable);
+                    advancedSettings.useTemporalConfidence = UIUtils.ToggleGUI(advancedSettings.useTemporalConfidence, new GUIContent("Use Temporal Confidence","Enable to limit ghosting from applying the temporal filter."));
+                    advancedSettings.traceBehindObjects = UIUtils.ToggleGUI(advancedSettings.traceBehindObjects, new GUIContent("Trace Behind Objects","Enable to allow rays to pass behind objects. This can lead to more screen-space reflections, but the reflections are more likely to be wrong."));
+                    advancedSettings.highQualitySharpReflections = UIUtils.ToggleGUI(advancedSettings.highQualitySharpReflections, new GUIContent("High Quality Sharp Reflections","Enable to increase quality of the sharpest reflections (through filtering), at a performance cost."));
+                    advancedSettings.traceEverywhere = UIUtils.ToggleGUI(advancedSettings.traceEverywhere, new GUIContent("Trace Everywhere","Improves quality in scenes with varying smoothness, at a potential performance cost."));
+                    advancedSettings.treatBackfaceHitAsMiss = UIUtils.ToggleGUI(advancedSettings.treatBackfaceHitAsMiss, new GUIContent("Treat Backface Hit As Miss","Enable to force more surfaces to use reflection probes if you see streaks on the sides of objects or bad reflections of their backs."));
+                    advancedSettings.allowBackwardsRays = UIUtils.ToggleGUI(advancedSettings.allowBackwardsRays, new GUIContent("Allow Backward Rays","Enable for a performance gain in scenes where most glossy objects are horizontal, like floors, water, and tables. Leave on for scenes with glossy vertical objects."));
+                    advancedSettings.improveCorners = UIUtils.ToggleGUI(advancedSettings.improveCorners, new GUIContent("Improve Corners","Improve visual fidelity of reflections on rough surfaces near corners in the scene, at the cost of a small amount of performance."));
                     GUILayout.Label(new GUIContent("Resolution","Half resolution SSRR is much faster, but less accurate. Quality can be reclaimed for some performance by doing the resolve at full resolution."), UIUtils.labelStyle);
                     advancedSettings.resolution = (ScreenSpaceReflection.SSRResolution)GUILayout.SelectionGrid((int)advancedSettings.resolution, this._possibleSSRResolutionNames, 2, UIUtils.buttonStyleStrechWidth);
-                    advancedSettings.bilateralUpsample = UIUtils.ToggleGUI(advancedSettings.bilateralUpsample, new GUIContent("Bilateral Upsample","Drastically improves reflection reconstruction quality at the expense of some performance."), GUIStrings.disableVsEnable);
-                    advancedSettings.reduceBanding = UIUtils.ToggleGUI(advancedSettings.reduceBanding, new GUIContent("Reduce Banding","Improve visual fidelity of mirror reflections at the cost of a small amount of performance."), GUIStrings.disableVsEnable);
-                    advancedSettings.highlightSuppression = UIUtils.ToggleGUI(advancedSettings.highlightSuppression, new GUIContent("Highlight Suppression","Enable to limit the effect a few bright pixels can have on rougher surfaces"), GUIStrings.disableVsEnable);
+                    advancedSettings.bilateralUpsample = UIUtils.ToggleGUI(advancedSettings.bilateralUpsample, new GUIContent("Bilateral Upsample","Drastically improves reflection reconstruction quality at the expense of some performance."));
+                    advancedSettings.reduceBanding = UIUtils.ToggleGUI(advancedSettings.reduceBanding, new GUIContent("Reduce Banding","Improve visual fidelity of mirror reflections at the cost of a small amount of performance."));
+                    advancedSettings.highlightSuppression = UIUtils.ToggleGUI(advancedSettings.highlightSuppression, new GUIContent("Highlight Suppression","Enable to limit the effect a few bright pixels can have on rougher surfaces"));
                 }
 
                 ssrSettings.basicSettings = basicSettings;
@@ -1528,6 +1581,7 @@ namespace HSIBL
                 ssrSettings.advancedSettings = advancedSettings;
                 ssrSettings.debugSettings = debugSettings;
                 this._ssr.settings = ssrSettings;
+                HSLRE.HSLRE.self.fixSsrForUpscaledScreenshots = UIUtils.ToggleGUI(HSLRE.HSLRE.self.fixSsrForUpscaledScreenshots, new GUIContent("Fix Upscaled Screenshots", ""));
             }
         }
 
@@ -1557,7 +1611,7 @@ namespace HSIBL
                     Studio.Studio.Instance.sceneInfo.bloomBlur = this._bloomAndFlares.sepBlurSpread;
                 }
 
-                this._bloomAndFlares.lensflares = UIUtils.ToggleGUI(this._bloomAndFlares.lensflares, new GUIContent("Cast lens flares", "Enable or disable automatic lens flare generation."), GUIStrings.disableVsEnable);
+                this._bloomAndFlares.lensflares = UIUtils.ToggleGUI(this._bloomAndFlares.lensflares, new GUIContent("Cast lens flares", "Enable or disable automatic lens flare generation."));
                 if (this._bloomAndFlares.lensflares)
                 {
                     GUILayout.Label(new GUIContent("Lens flare mode", "The type of lens flare. The options are Ghosting, Anamorphic or a mix of the two."), UIUtils.labelStyle);
@@ -1633,7 +1687,7 @@ namespace HSIBL
                     Studio.Studio.Instance.sceneInfo.vignetteVignetting = this._vignette.intensity;
 
 
-                GUILayout.Label(new GUIContent("Blend mode", "The method used to add bloom to the color buffer. The softer \"Screen\" mode is better for preserving bright image details but doesn’t work with HDR."), UIUtils.labelStyle);
+                GUILayout.Label(new GUIContent("Aberration mode", "Advanced tries to model more aberration effects (the constant axial aberration existant on the entire image plane) while Simple only models tangential aberration (limited to corners)."), UIUtils.labelStyle);
                 this._vignette.mode = (VignetteAndChromaticAberration.AberrationMode)GUILayout.SelectionGrid((int)this._vignette.mode, this._possibleAberrationModeNames, 2, UIUtils.buttonStyleStrechWidth);
 
                 this._vignette.chromaticAberration = UIUtils.SliderGUI(this._vignette.chromaticAberration, 0f, 5f, 0.2f, "Tangential Aberration", "The degree of tangential chromatic aberration: Uniform on the entire image plane.", "N3");
@@ -1654,7 +1708,7 @@ namespace HSIBL
 
             if (effectData.enabled)
             {
-                GUILayout.Label(new GUIContent("Blend mode", "The method used to add bloom to the color buffer. The softer \"Screen\" mode is better for preserving bright image details but doesn’t work with HDR."), UIUtils.labelStyle);
+                GUILayout.Label(new GUIContent("AA Technique", "The algorithm to be used."), UIUtils.labelStyle);
                 this._antialiasing.mode = (AAMode)GUILayout.SelectionGrid((int)this._antialiasing.mode, this._possibleAAModeNames, 3, UIUtils.buttonStyleStrechWidth);
 
                 switch (this._antialiasing.mode)
@@ -1667,10 +1721,10 @@ namespace HSIBL
                     case AAMode.NFAA:
                         this._antialiasing.offsetScale = UIUtils.SliderGUI(this._antialiasing.offsetScale, 0f, 4f, 0.2f, "Edge Detect Offset", "", "N3");
                         this._antialiasing.blurRadius = UIUtils.SliderGUI(this._antialiasing.blurRadius, 0f, 18f, 18f, "Blur Radius", "", "N3");
-                        this._antialiasing.showGeneratedNormals = UIUtils.ToggleGUI(this._antialiasing.showGeneratedNormals, new GUIContent("Show Normals", ""), GUIStrings.disableVsEnable);
+                        this._antialiasing.showGeneratedNormals = UIUtils.ToggleGUI(this._antialiasing.showGeneratedNormals, new GUIContent("Show Normals", ""));
                         break;
                     case AAMode.DLAA:
-                        this._antialiasing.dlaaSharp = UIUtils.ToggleGUI(this._antialiasing.dlaaSharp, new GUIContent("Sharp", ""), GUIStrings.disableVsEnable);
+                        this._antialiasing.dlaaSharp = UIUtils.ToggleGUI(this._antialiasing.dlaaSharp, new GUIContent("Sharp", ""));
                         break;
                 }
             }
@@ -1682,8 +1736,8 @@ namespace HSIBL
 
             if (effectData.enabled)
             {
-                this._noiseAndGrain.dx11Grain = UIUtils.ToggleGUI(this._noiseAndGrain.dx11Grain, new GUIContent("DX11 Grain", "Enable high quality noise and grain (DX11/GL3 only)."), GUIStrings.disableVsEnable);
-                this._noiseAndGrain.monochrome = UIUtils.ToggleGUI(this._noiseAndGrain.monochrome, new GUIContent("Monochrome", "Use greyscale noise only."), GUIStrings.disableVsEnable);
+                this._noiseAndGrain.dx11Grain = UIUtils.ToggleGUI(this._noiseAndGrain.dx11Grain, new GUIContent("DX11 Grain", "Enable high quality noise and grain (DX11/GL3 only)."));
+                this._noiseAndGrain.monochrome = UIUtils.ToggleGUI(this._noiseAndGrain.monochrome, new GUIContent("Monochrome", "Use greyscale noise only."));
 
                 this._noiseAndGrain.intensityMultiplier = UIUtils.SliderGUI(this._noiseAndGrain.intensityMultiplier, 0f, 10f, 0.25f, "Intensity multiplier", "Global intensity adjustment.", "N3");
                 this._noiseAndGrain.generalIntensity = UIUtils.SliderGUI(this._noiseAndGrain.generalIntensity, 0f, 1f, 0.5f, "General", "Add noise equally for all luminance ranges.", "N3");
@@ -1717,6 +1771,7 @@ namespace HSIBL
                                                                 );
                     }
                 }
+                HSLRE.HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots = UIUtils.ToggleGUI(HSLRE.HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots, new GUIContent("Fix Upscaled Screenshots", ""));
                 if (GUILayout.Button("Open full documentation in browser", UIUtils.buttonStyleStrechWidth))
                     System.Diagnostics.Process.Start("https://docs.unity3d.com/530/Documentation/Manual/script-NoiseAndGrain.html");
             }
@@ -1745,7 +1800,7 @@ namespace HSIBL
                 if (this._motionBlur.filterType >= CameraMotionBlur.MotionBlurFilter.Reconstruction)
                     this._motionBlur.jitter = UIUtils.SliderGUI(this._motionBlur.jitter, 0f, 10f, 0.05f, "Jitter Strength", "N3");
 
-                this._motionBlur.preview = UIUtils.ToggleGUI(this._motionBlur.preview, new GUIContent("Preview", "Preview how blur might look like given artificial camera motion values."), GUIStrings.disableVsEnable);
+                this._motionBlur.preview = UIUtils.ToggleGUI(this._motionBlur.preview, new GUIContent("Preview", "Preview how blur might look like given artificial camera motion values."));
                 if (this._motionBlur.preview)
                 {
                     this._motionBlur.previewScale = new Vector3(
@@ -1761,7 +1816,7 @@ namespace HSIBL
 
         private void SEGIModule(HSLRE.HSLRE.EffectData effectData, int i)
         {
-            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(i + " SEGI"), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(i + " SEGI"), UIUtils.titleStyle2);
 
             if (effectData.enabled)
             {
@@ -1773,10 +1828,17 @@ namespace HSIBL
                     GUI.color = color;
                 }
 
+                GUILayout.Label("Presets", UIUtils.labelStyle);
+                this._selectedSegiPreset = GUILayout.SelectionGrid(this._selectedSegiPreset, this._possiblePresetNames, 3, UIUtils.buttonStyleStrechWidth);
+                GUILayout.BeginHorizontal();
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button(new GUIContent("Apply", "Pressing this will apply the selected preset and change your settings, be careful."), UIUtils.buttonStyleStrechWidth, GUILayout.ExpandWidth(false)))
+                    this._segi.ApplyPreset(this._selectedSegiPreset);
+                GUILayout.EndHorizontal();
 
-                this._segi.visualizeSunDepthTexture = UIUtils.ToggleGUI(this._segi.visualizeSunDepthTexture, new GUIContent("Visualize Sun Depth Texture", "Visualize the depth texture used to render proper shadows while injecting sunlight into voxel data."), GUIStrings.disableVsEnable);
-                this._segi.visualizeGI = UIUtils.ToggleGUI(this._segi.visualizeGI, new GUIContent("Visualize GI", "Visualize GI result only (no textures)."), GUIStrings.disableVsEnable);
-                this._segi.visualizeVoxels = UIUtils.ToggleGUI(this._segi.visualizeVoxels, new GUIContent("Visualize Voxels", "Directly view the voxels in the scene."), GUIStrings.disableVsEnable);
+                this._segi.visualizeSunDepthTexture = UIUtils.ToggleGUI(this._segi.visualizeSunDepthTexture, new GUIContent("Visualize Sun Depth Texture", "Visualize the depth texture used to render proper shadows while injecting sunlight into voxel data."));
+                this._segi.visualizeGI = UIUtils.ToggleGUI(this._segi.visualizeGI, new GUIContent("Visualize GI", "Visualize GI result only (no textures)."));
+                this._segi.visualizeVoxels = UIUtils.ToggleGUI(this._segi.visualizeVoxels, new GUIContent("Visualize Voxels", "Directly view the voxels in the scene."));
 
                 GUILayout.Space(UIUtils.space);
 
@@ -1801,14 +1863,14 @@ namespace HSIBL
                         this._segi.voxelResolution = SEGI.VoxelResolution.high;
                         break;
                 }
-                this._segi.voxelAA = UIUtils.ToggleGUI(this._segi.voxelAA, new GUIContent("Voxel AA", "Enables anti-aliasing during voxelization for higher precision voxels."), GUIStrings.disableVsEnable);
+                this._segi.voxelAA = UIUtils.ToggleGUI(this._segi.voxelAA, new GUIContent("Voxel AA", "Enables anti-aliasing during voxelization for higher precision voxels."));
                 this._segi.innerOcclusionLayers = Mathf.RoundToInt(UIUtils.SliderGUI(this._segi.innerOcclusionLayers, 0f, 2f, 1f, "Inner Occlusion Layers", "Enables the writing of additional black occlusion voxel layers on the back face of geometry. Can help with light leaking but may cause artifacts with small objects.", "0"));
-                this._segi.gaussianMipFilter = UIUtils.ToggleGUI(this._segi.gaussianMipFilter, new GUIContent("Gaussian Mip Filter", "Enables gaussian filtering during mipmap generation. This can improve visual smoothness and consistency, particularly with large moving objects."), GUIStrings.disableVsEnable);
+                this._segi.gaussianMipFilter = UIUtils.ToggleGUI(this._segi.gaussianMipFilter, new GUIContent("Gaussian Mip Filter", "Enables gaussian filtering during mipmap generation. This can improve visual smoothness and consistency, particularly with large moving objects."));
                 this._segi.voxelSpaceSize = UIUtils.SliderGUI(this._segi.voxelSpaceSize, 1f, 100f, 50f, "Voxel Space Size", "The size of the voxel volume in world units. Everything inside the voxel volume will contribute to GI.", "N3");
                 this._segi.shadowSpaceSize = UIUtils.SliderGUI(this._segi.shadowSpaceSize, 1f, 100f, 50f, "Shadow Space Size", "The size of the sun shadow texture used to inject sunlight with shadows into the voxels in world units. It is recommended to set this value similar to Voxel Space Size.", "N3");
-                this._segi.updateGI = UIUtils.ToggleGUI(this._segi.updateGI, new GUIContent("Update GI", "Whether voxelization and multi-bounce rendering should update every frame. When disabled, GI tracing will use cached data from the last time this was enabled."), GUIStrings.disableVsEnable);
-                this._segi.infiniteBounces = UIUtils.ToggleGUI(this._segi.infiniteBounces, new GUIContent("Infinite Bounces", "Enables infinite bounces. This is expensive for complex scenes and is still experimental."), GUIStrings.disableVsEnable);
-                this._segi.hsStandardCustomShadersCompatibility = UIUtils.ToggleGUI(this._segi.hsStandardCustomShadersCompatibility, new GUIContent("HSStandard Custom Shaders Compatibility", "Enabling this makes sure the custom hair and skin shaders used in HSStandard when using the options \"dedicatedHairShader\" and \"dedicatedSkinShader\" are used by SEGI (incurs a performance cost)."), GUIStrings.disableVsEnable);
+                this._segi.updateGI = UIUtils.ToggleGUI(this._segi.updateGI, new GUIContent("Update GI", "Whether voxelization and multi-bounce rendering should update every frame. When disabled, GI tracing will use cached data from the last time this was enabled."));
+                this._segi.infiniteBounces = UIUtils.ToggleGUI(this._segi.infiniteBounces, new GUIContent("Infinite Bounces", "Enables infinite bounces. This is expensive for complex scenes and is still experimental."));
+                this._segi.hsStandardCustomShadersCompatibility = UIUtils.ToggleGUI(this._segi.hsStandardCustomShadersCompatibility, new GUIContent("HSStandard Custom Shaders Compatibility", "Enabling this makes sure the custom hair and skin shaders used in HSStandard when using the options \"dedicatedHairShader\" and \"dedicatedSkinShader\" are used by SEGI (incurs a performance cost)."));
 
                 GUILayout.Label("VRAM Usage: " + this._segi.vramUsage.ToString("F2") + " MB", UIUtils.labelStyle);
 
@@ -1819,14 +1881,14 @@ namespace HSIBL
                     this._segi.skyColor = c;
                 });
                 this._segi.skyIntensity = UIUtils.SliderGUI(this._segi.skyIntensity, 0f, 8f, 1f, "Sky Intensity", "The brightness of the sky light.", "N3");
-                this._segi.sphericalSkylight = UIUtils.ToggleGUI(this._segi.sphericalSkylight, new GUIContent("Spherical Skylight", "If enabled, light from the sky will come from all directions. If disabled, light from the sky will only come from the top hemisphere."), GUIStrings.disableVsEnable);
+                this._segi.sphericalSkylight = UIUtils.ToggleGUI(this._segi.sphericalSkylight, new GUIContent("Spherical Skylight", "If enabled, light from the sky will come from all directions. If disabled, light from the sky will only come from the top hemisphere."));
 
                 GUILayout.Space(UIUtils.space);
 
                 this._segi.temporalBlendWeight = UIUtils.SliderGUI(this._segi.temporalBlendWeight, 0.01f, 1f, 0.1f, "Temporal Blend Weight", "The lower the value, the more previous frames will be blended with the current frame. Lower values result in smoother GI that updates less quickly.", "N3");
-                this._segi.useBilateralFiltering = UIUtils.ToggleGUI(this._segi.useBilateralFiltering, new GUIContent("Bilateral Filtering", "Enables filtering of the GI result to reduce noise."), GUIStrings.disableVsEnable);
-                this._segi.halfResolution = UIUtils.ToggleGUI(this._segi.halfResolution, new GUIContent("Half Resolution", "If enabled, GI tracing will be done at half screen resolution. Improves speed of GI tracing."), GUIStrings.disableVsEnable);
-                this._segi.stochasticSampling = UIUtils.ToggleGUI(this._segi.stochasticSampling, new GUIContent("Stochastic Sampling", "If enabled, uses random jitter to reduce banding and discontinuities during GI tracing."), GUIStrings.disableVsEnable);
+                this._segi.useBilateralFiltering = UIUtils.ToggleGUI(this._segi.useBilateralFiltering, new GUIContent("Bilateral Filtering", "Enables filtering of the GI result to reduce noise."));
+                this._segi.halfResolution = UIUtils.ToggleGUI(this._segi.halfResolution, new GUIContent("Half Resolution", "If enabled, GI tracing will be done at half screen resolution. Improves speed of GI tracing."));
+                this._segi.stochasticSampling = UIUtils.ToggleGUI(this._segi.stochasticSampling, new GUIContent("Stochastic Sampling", "If enabled, uses random jitter to reduce banding and discontinuities during GI tracing."));
 
                 this._segi.cones = Mathf.RoundToInt(UIUtils.SliderGUI(this._segi.cones, 1f, 128f, 6f, "Cones", "The number of cones that will be traced in different directions for diffuse GI tracing. More cones result in a smoother result at the cost of performance.", "0"));
                 this._segi.coneTraceSteps = Mathf.RoundToInt(UIUtils.SliderGUI(this._segi.coneTraceSteps, 1f, 32f, 14f, "Cone Trace Steps", "The number of tracing steps for each cone. Too few results in skipping thin features. Higher values result in more accuracy at the cost of performance.", "0"));
@@ -1849,7 +1911,7 @@ namespace HSIBL
 
                 GUILayout.Space(UIUtils.space);
 
-                this._segi.doReflections = UIUtils.ToggleGUI(this._segi.doReflections, new GUIContent("Do Reflections", "Enable this for cone-traced reflections."), GUIStrings.disableVsEnable);
+                this._segi.doReflections = UIUtils.ToggleGUI(this._segi.doReflections, new GUIContent("Do Reflections", "Enable this for cone-traced reflections."));
                 this._segi.reflectionSteps = Mathf.RoundToInt(UIUtils.SliderGUI(this._segi.reflectionSteps, 12f, 128f, 64f, "Reflection Steps", "Number of reflection trace steps.", "0"));
                 this._segi.reflectionOcclusionPower = UIUtils.SliderGUI(this._segi.reflectionOcclusionPower, 0.001f, 4f, 1f, "Reflection Occlusion Power", "Strength of light blocking during reflection tracing.", "N3");
                 this._segi.skyReflectionIntensity = UIUtils.SliderGUI(this._segi.skyReflectionIntensity, 0f, 1f, 1f, "Sky Reflection Intensity", "Intensity of sky reflections.", "N3");
@@ -1882,6 +1944,11 @@ namespace HSIBL
                     this._amplifyBloom.OverallIntensity = UIUtils.SliderGUI(this._amplifyBloom.OverallIntensity, 0f, 8f, 0.8f, "Intensity", "Overall bloom intensity. Affects all the effects bellow.", "N3");
 
                     this._amplifyBloom.OverallThreshold = UIUtils.SliderGUI(this._amplifyBloom.OverallThreshold, 0f, 8f, 0.53f, "Threshold", "Luminance threshold to setup what should generate bloom.", "N3");
+
+                    if (this._amplifyBloom.UpscaleQuality == UpscaleQualityEnum.Realistic)
+                    {
+                        this._amplifyBloom.UpscaleBlurRadius = UIUtils.SliderGUI(this._amplifyBloom.UpscaleBlurRadius, 1f, 12f, 1f, "Upscale Blur Radius", "Radius used on the tent filter when upscaling to source size", "N3");
+                    }
                     //int weightMaxDowsampleCount = Mathf.Max(1, this._amplifyBloom.BloomDownsampleCount);
                     {
                         /*
@@ -1893,10 +1960,6 @@ namespace HSIBL
                             this._amplifyBloom.BloomDownsampleCount = UIUtils.SliderGUI(this._amplifyBloom.BloomDownsampleCount, AmplifyBloomBase.MinDownscales, this._amplifyBloom.SoftMaxdownscales, 0f, m_downscaleAmountGC, "N3");
                             bool guiState = this._amplifyBloom.BloomDownsampleCount != 0;
 
-                            GUI.enabled = (this._amplifyBloom.UpscaleQuality == UpscaleQualityEnum.Realistic) && guiState;
-                            {
-                                this._amplifyBloom.UpscaleBlurRadius = UIUtils.SliderGUI(this._amplifyBloom.UpscaleBlurRadius, 1f, 3.0f, 0f, m_upscaleScaleRadiusGC, "N3");
-                            }
                             GUI.enabled = guiState;
 
                             int featuresSourceId = this._amplifyBloom.FeaturesSourceId + 1;
@@ -1948,21 +2011,21 @@ namespace HSIBL
                         */
                     }
 
-                    this._amplifyBloom.TemporalFilteringActive = UIUtils.ToggleGUI(this._amplifyBloom.TemporalFilteringActive, new GUIContent("Temporal Filter", "Settings for temporal filtering configuration."), GUIStrings.disableVsEnable);
+                    this._amplifyBloom.TemporalFilteringActive = UIUtils.ToggleGUI(this._amplifyBloom.TemporalFilteringActive, new GUIContent("Temporal Filter", "Settings for temporal filtering configuration."));
                     if (this._amplifyBloom.TemporalFilteringActive)
                     {
                         //this._amplifyBloom.TemporalFilteringCurve = GUILayout.CurveField(m_filterCurveGC, this._amplifyBloom.TemporalFilteringCurve, TemporalCurveColor, TemporalCurveRanges);
                         this._amplifyBloom.TemporalFilteringValue = UIUtils.SliderGUI(this._amplifyBloom.TemporalFilteringValue, 0.01f, 1f, 0.05f, "Filter Value", "Position on the filter curve.", "N3");
                     }
 
-                    this._amplifyBloom.SeparateFeaturesThreshold = UIUtils.ToggleGUI(this._amplifyBloom.SeparateFeaturesThreshold, new GUIContent("Features Threshold", "Settings for features threshold."), GUIStrings.disableVsEnable);
+                    this._amplifyBloom.SeparateFeaturesThreshold = UIUtils.ToggleGUI(this._amplifyBloom.SeparateFeaturesThreshold, new GUIContent("Features Threshold", "Settings for features threshold."));
                     if (this._amplifyBloom.SeparateFeaturesThreshold)
                     {
                         this._amplifyBloom.FeaturesThreshold = UIUtils.SliderGUI(this._amplifyBloom.FeaturesThreshold, 0f, 8f, 0.05f, "Threshold", "Threshold value for second threshold layer.", "N3");
                     }
                 }
 
-                this._amplifyBloom.ApplyLensDirt = UIUtils.ToggleGUI(this._amplifyBloom.ApplyLensDirt, new GUIContent("Lens Dirt", "Settings for Lens Dirt composition."), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+                this._amplifyBloom.ApplyLensDirt = UIUtils.ToggleGUI(this._amplifyBloom.ApplyLensDirt, new GUIContent("Lens Dirt", "Settings for Lens Dirt composition."), UIUtils.titleStyle2);
                 if (this._amplifyBloom.ApplyLensDirt)
                 {
                     this._amplifyBloom.LensDirtStrength = UIUtils.SliderGUI(this._amplifyBloom.LensDirtStrength, 0f, 8f, 2f, "Intensity", "Lens Dirt Intensity.", "N3");
@@ -1980,7 +2043,7 @@ namespace HSIBL
                     this._amplifyBloom.LensDirtTexture = (LensDirtTextureEnum)GUILayout.SelectionGrid((int)this._amplifyBloom.LensDirtTexture, this._possibleLensDirtTextureEnumNames, 2, UIUtils.buttonStyleStrechWidth);
                 }
 
-                this._amplifyBloom.ApplyLensStardurst = UIUtils.ToggleGUI(this._amplifyBloom.ApplyLensStardurst, new GUIContent("Lens Starburst", "Settings for Lens Starburts composition."), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+                this._amplifyBloom.ApplyLensStardurst = UIUtils.ToggleGUI(this._amplifyBloom.ApplyLensStardurst, new GUIContent("Lens Starburst", "Settings for Lens Starburts composition."), UIUtils.titleStyle2);
                 if (this._amplifyBloom.ApplyLensStardurst)
                 {
                     this._amplifyBloom.LensStarburstStrength = UIUtils.SliderGUI(this._amplifyBloom.LensStarburstStrength, 0f, 8f, 2f, "Intensity", "Lens Starburst Intensity.", "N3");
@@ -1999,10 +2062,10 @@ namespace HSIBL
                     this._amplifyBloom.LensStardurstTex = (LensStarburstTextureEnum)GUILayout.SelectionGrid((int)this._amplifyBloom.LensStardurstTex, this._possibleLensStarburstTextureEnumNames, 2, UIUtils.buttonStyleStrechWidth);
                 }
 
-                this._amplifyBloom.BokehFilterInstance.ApplyBokeh = UIUtils.ToggleGUI(this._amplifyBloom.BokehFilterInstance.ApplyBokeh, new GUIContent("Bokeh Filter", "Settings for Bokeh filter generation."), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+                this._amplifyBloom.BokehFilterInstance.ApplyBokeh = UIUtils.ToggleGUI(this._amplifyBloom.BokehFilterInstance.ApplyBokeh, new GUIContent("Bokeh Filter", "Settings for Bokeh filter generation."), UIUtils.titleStyle2);
                 if (this._amplifyBloom.BokehFilterInstance.ApplyBokeh)
                 {
-                    this._amplifyBloom.BokehFilterInstance.ApplyOnBloomSource = UIUtils.ToggleGUI(this._amplifyBloom.BokehFilterInstance.ApplyOnBloomSource, new GUIContent("Apply on Bloom Source", "Bokeh filtering can either be applied on the bloom source and visually affect it or only affect features (lens flare/glare/dirt/starburst)."), GUIStrings.disableVsEnable);
+                    this._amplifyBloom.BokehFilterInstance.ApplyOnBloomSource = UIUtils.ToggleGUI(this._amplifyBloom.BokehFilterInstance.ApplyOnBloomSource, new GUIContent("Apply on Bloom Source", "Bokeh filtering can either be applied on the bloom source and visually affect it or only affect features (lens flare/glare/dirt/starburst)."));
                     GUILayout.Label(new GUIContent("Aperture Shape", "Type of bokeh filter which will reshape bloom results."), UIUtils.labelStyle);
                     this._amplifyBloom.BokehFilterInstance.ApertureShape = (ApertureShape)GUILayout.SelectionGrid((int)this._amplifyBloom.BokehFilterInstance.ApertureShape, this._possibleApertureShapeNames, 3, UIUtils.buttonStyleStrechWidth);
 
@@ -2014,7 +2077,7 @@ namespace HSIBL
                     this._amplifyBloom.BokehFilterInstance.MaxCoCDiameter = UIUtils.SliderGUI(this._amplifyBloom.BokehFilterInstance.MaxCoCDiameter, 0f, 2f, 0.18f, "Max CoC Diameter", "Bokeh imaginary camera DOF's Max Circle of Confusion diameter.", "N3");
                 }
 
-                this._amplifyBloom.LensFlareInstance.ApplyLensFlare = UIUtils.ToggleGUI(this._amplifyBloom.LensFlareInstance.ApplyLensFlare, new GUIContent("Lens Flare", "Overall settings for Lens Flare (Halo/Ghosts) generation."), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+                this._amplifyBloom.LensFlareInstance.ApplyLensFlare = UIUtils.ToggleGUI(this._amplifyBloom.LensFlareInstance.ApplyLensFlare, new GUIContent("Lens Flare", "Overall settings for Lens Flare (Halo/Ghosts) generation."), UIUtils.titleStyle2);
                 if (this._amplifyBloom.LensFlareInstance.ApplyLensFlare)
                 {
                     this._amplifyBloom.LensFlareInstance.OverallIntensity = UIUtils.SliderGUI(this._amplifyBloom.LensFlareInstance.OverallIntensity, 0f, 8f, 1f, "Intensity", "Overall intensity for both halo and ghosts.", "N3");
@@ -2046,10 +2109,10 @@ namespace HSIBL
                     }
                 }
 
-                this._amplifyBloom.LensGlareInstance.ApplyLensGlare = UIUtils.ToggleGUI(this._amplifyBloom.LensGlareInstance.ApplyLensGlare, new GUIContent("Lens Glare", "Settings for Anamorphic Lens Glare generation."), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+                this._amplifyBloom.LensGlareInstance.ApplyLensGlare = UIUtils.ToggleGUI(this._amplifyBloom.LensGlareInstance.ApplyLensGlare, new GUIContent("Lens Glare", "Settings for Anamorphic Lens Glare generation."), UIUtils.titleStyle2);
                 if (this._amplifyBloom.LensGlareInstance.ApplyLensGlare)
                 {
-                    this._amplifyBloom.LensGlareInstance.Intensity = UIUtils.SliderGUI(this._amplifyBloom.LensGlareInstance.Intensity, 0f, 8f, 0.17f, "Intensity", "Lens Glare intensity.", "N3");
+                    this._amplifyBloom.LensGlareInstance.Intensity = UIUtils.SliderGUI(this._amplifyBloom.LensGlareInstance.Intensity, 0f, 0.5f, 0.17f, "Intensity", "Lens Glare intensity.", "N3");
                     this._amplifyBloom.LensGlareInstance.OverallStreakScale = UIUtils.SliderGUI(this._amplifyBloom.LensGlareInstance.OverallStreakScale, 0, 2, 1, "Streak Scale", "Overall glare streak length modifier.", "N3");
                     UIUtils.ColorPickerGUI(this._amplifyBloom.LensGlareInstance.OverallTint, Color.white, "Overall Tint", "Tint applied uniformly across each type of glare.", (c) => { this._amplifyBloom.LensGlareInstance.OverallTint = c; });
 
@@ -2098,6 +2161,7 @@ namespace HSIBL
                         this._amplifyBloom.LensGlareInstance.GlareMaxPassCount = Mathf.RoundToInt(UIUtils.SliderGUI(this._amplifyBloom.LensGlareInstance.GlareMaxPassCount, 1, AmplifyGlare.MaxPasses, 4, "Max Per Ray Passes", "Max amount of passes used to build each ray. More passes means more defined and propagated rays but decreases performance.", "0"));
                     }
                 }
+                HSLRE.HSLRE.self.fixAmplifyBloomForUpscaledScreenshots = UIUtils.ToggleGUI(HSLRE.HSLRE.self.fixAmplifyBloomForUpscaledScreenshots, new GUIContent("Fix Upscaled Screenshots", ""));
                 if (GUILayout.Button("Open full documentation in browser", UIUtils.buttonStyleStrechWidth))
                     System.Diagnostics.Process.Start("http://wiki.amplify.pt/index.php?title=Unity_Products:Amplify_Bloom/Manual");
             }
@@ -2114,13 +2178,14 @@ namespace HSIBL
                 this._blur.blurIterations = Mathf.RoundToInt(UIUtils.SliderGUI(this._blur.blurIterations, 1, 4, 2, "Blur Iterations", "The number of times the filter operations will be repeated.", "0"));
                 GUILayout.Label(new GUIContent("Type", "Type of glare."), UIUtils.labelStyle);
                 this._blur.blurType = (BlurOptimized.BlurType)GUILayout.SelectionGrid((int)this._blur.blurType, this._possibleBlurTypeNames, 2, UIUtils.buttonStyleStrechWidth);
+                HSLRE.HSLRE.self.fixBlurForUpscaledScreenshots = UIUtils.ToggleGUI(HSLRE.HSLRE.self.fixBlurForUpscaledScreenshots, new GUIContent("Fix Upscaled Screenshots", ""));
             }
         }
 
 
         private void GenericModule(HSLRE.HSLRE.EffectData effectData, int index)
         {
-            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " " + effectData.effect.GetType().Name), GUIStrings.disableVsEnable, UIUtils.titleStyle2);
+            effectData.enabled = UIUtils.ToggleGUI(effectData.enabled, new GUIContent(index + " " + effectData.effect.GetType().Name), UIUtils.titleStyle2);
         }
 
 
@@ -2334,99 +2399,82 @@ namespace HSIBL
             }
         }
         
-        private IEnumerator UpdateEnvironment()
+        private IEnumerator EndOfFrame()
         {
             while (true)
             {
                 if (this._environmentUpdateFlag)
                 {
-                    DynamicGI.UpdateEnvironment();
-                    if (this._probeComponent.refreshMode == ReflectionProbeRefreshMode.ViaScripting)
-                    {
-                        this._probeComponent.RenderProbe();
-                    }
+                    this.UpdateEnvironment();
                     this._environmentUpdateFlag = false;
                 }
                 yield return new WaitForEndOfFrame();
             }
         }
 
-        private void LoadCubemapWithName(string cubemapName, int loadedIndex = -2)
+        private void UpdateEnvironment()
         {
-            if (loadedIndex == -2)
-                switch (cubemapName)
+            DynamicGI.UpdateEnvironment();
+            if (this._probeComponent.refreshMode == ReflectionProbeRefreshMode.ViaScripting)
+                this._probeComponent.RenderProbe();
+        }
+
+        private int LoadCubemap(int index)
+        {
+            if (this._previousSelectedCubeMap != index)
+            {
+                switch (index)
                 {
-                    case "":
-                        this._selectedCubemap = -1;
+                    case -1:
+                        this._skybox.Skybox = this._originalSkybox;
+                        this._skybox.ApplySkybox();
+                        //RenderSettings.skybox = this._originalSkybox;
+                        RenderSettings.ambientMode = this._originalAmbientMode;
+                        RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
+                        this._cubemapLoaded = false;
+                        this._environmentUpdateFlag = true;
                         break;
-                    case "Procedural":
-                        this._selectedCubemap = 0;
+                    case 0:
+                        this._proceduralSkybox.ApplySkybox();
+                        this._proceduralSkybox.ApplySkyboxParams();
+                        this._cubemapLoaded = true;
+                        this._environmentUpdateFlag = true;
                         break;
                     default:
-                        this._selectedCubemap = 1;
+                        this.StartCoroutine(this.LoadCubemapFileAsync(this._cubemapFolder.lstFile[index - 1].FileName));
                         break;
                 }
-            else
-                this._selectedCubemap = loadedIndex;
-
-            if (this._selectedCubemap == -1)
-            {
-                this._skybox.Skybox = this._originalSkybox;
-                RenderSettings.skybox = this._originalSkybox;
-                RenderSettings.ambientMode = this._originalAmbientMode;
-                RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
-                this._cubemapLoaded = false;
-                this._selectedCubemap = -1;
-                this._previousSelectedCubeMap = -1;
-            }
-            else if (this._selectedCubemap == 0)
-            {
-                this._proceduralSkybox.ApplySkybox();
-                this._proceduralSkybox.ApplySkyboxParams();
                 this._environmentUpdateFlag = true;
-                this._cubemapLoaded = true;
-                this._previousSelectedCubeMap = 0;
             }
-            else
-            {
-                this._selectedCubemap = -1;
-                for (int i = 0; i < this._cubemapFolder.lstFile.Count; i++)
-                {
-                    FolderAssist.FileInfo fileInfo = this._cubemapFolder.lstFile[i];
-                    if (string.Compare(cubemapName, fileInfo.FileName, StringComparison.OrdinalIgnoreCase) == 0)
-                    {
-                        this._selectedCubemap = i + 1;
-                        break;
-                    }
-                }
-                if (this._selectedCubemap == -1)
-                {
-                    this._skybox.Skybox = this._originalSkybox;
-                    RenderSettings.skybox = this._originalSkybox;
-                    RenderSettings.ambientMode = this._originalAmbientMode;
-                    RenderSettings.defaultReflectionMode = this._originalDefaultReflectionMode;
-                    this._cubemapLoaded = false;
-                    this._selectedCubemap = -1;
-                    this._previousSelectedCubeMap = -1;
-                }
-                else
-                {
-                    this.LoadCubemapFile(this._cubemapFolder.lstFile[this._selectedCubemap - 1].FileName);
-                    this._previousSelectedCubeMap = this._selectedCubemap;
-                }
-            }
+            this._previousSelectedCubeMap = index;
+            return index;
+        }
 
-            if (this._hideSkybox)
+        private int LoadCubemap(string cubemapName)
+        {
+            int index;
+            switch (cubemapName)
             {
-                Camera.main.clearFlags = CameraClearFlags.SolidColor;
+                case "":
+                    index = -1;
+                    break;
+                case "Procedural":
+                    index = 0;
+                    break;
+                default:
+                    index = -1;
+                    for (int i = 0; i < this._cubemapFolder.lstFile.Count; i++)
+                    {
+                        FolderAssist.FileInfo fileInfo = this._cubemapFolder.lstFile[i];
+                        if (string.Compare(cubemapName, fileInfo.FileName, StringComparison.OrdinalIgnoreCase) == 0)
+                        {
+                            index = i + 1;
+                            break;
+                        }
+                    }
+                    break;
             }
-            else
-            {
-                if (_isStudio == false && (SceneManager.GetActiveScene().buildIndex == 21 || SceneManager.GetActiveScene().buildIndex == 22))
-                    Camera.main.clearFlags = (CameraClearFlags)HSLRE.Settings.basicSettings.CharaMakerBackgroundType;
-                else
-                    Camera.main.clearFlags = this._cubemapLoaded ? CameraClearFlags.Skybox : CameraClearFlags.SolidColor;
-            }
+            return this.LoadCubemap(index);
         }
 
         private IEnumerator LoadCubemapFileAsync(string filename)
@@ -2441,13 +2489,7 @@ namespace HSIBL
             cubemapbundle.Unload(false);
             this._skybox.ApplySkybox();
             this._skybox.ApplySkyboxParams();
-
             this._environmentUpdateFlag = true;
-
-            if (this._hideSkybox == false)
-            {
-                Camera.main.clearFlags = CameraClearFlags.Skybox;
-            }
 
             this._cubemapLoaded = true;
             cubemapbundle = null;
@@ -2456,27 +2498,6 @@ namespace HSIBL
             Resources.UnloadUnusedAssets();
             this._isLoading = false;
             yield break;
-        }
-
-        private void LoadCubemapFile(string filename)
-        {
-            this._isLoading = true;
-            AssetBundle cubemapbundle = AssetBundle.LoadFromFile(Application.dataPath + "/../abdata/plastic/cubemaps/" + filename + ".unity3d");
-            this._skybox.Skybox = cubemapbundle.LoadAsset<Material>("skybox");
-            cubemapbundle.Unload(false);
-            this._skybox.ApplySkybox();
-            this._skybox.ApplySkyboxParams();
-
-            this._environmentUpdateFlag = true;
-
-            if (this._hideSkybox == false)
-            {
-                Camera.main.clearFlags = CameraClearFlags.Skybox;
-            }
-
-            this._cubemapLoaded = true;
-            Resources.UnloadUnusedAssets();
-            this._isLoading = false;
         }
         #endregion
 
@@ -2538,7 +2559,11 @@ namespace HSIBL
                 {
                     case "cubemap":
                         this._hideSkybox = XmlConvert.ToBoolean(moduleNode.Attributes["hide"].Value);
-                        this.LoadCubemapWithName(moduleNode.Attributes["fileName"].Value, XmlConvert.ToInt32(moduleNode.Attributes["index"].Value));
+                        int index = XmlConvert.ToInt32(moduleNode.Attributes["index"].Value);
+                        if (index == 0) //Procedural
+                            this._selectedCubemap = this.LoadCubemap(index);
+                        else //Other
+                            this._selectedCubemap = this.LoadCubemap(moduleNode.Attributes["fileName"].Value);
                         break;
                     case "skybox":
                         this._proceduralSkybox.skyboxparams.exposure = XmlConvert.ToSingle(moduleNode.Attributes["proceduralExposure"].Value);
@@ -2560,9 +2585,7 @@ namespace HSIBL
                         c.g = XmlConvert.ToSingle(moduleNode.Attributes["classicTintG"].Value);
                         c.b = XmlConvert.ToSingle(moduleNode.Attributes["classicTintB"].Value);
                         this._skybox.skyboxparams.tint = c;
-
                         RenderSettings.ambientIntensity = XmlConvert.ToSingle(moduleNode.Attributes["ambientIntensity"].Value);
-
                         break;
                     case "reflection":
                         this._probeComponent.enabled = moduleNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
@@ -2842,7 +2865,7 @@ namespace HSIBL
                             this._sunShafts.sunShaftBlurRadius = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftBlurRadius"].Value);
                             this._sunShafts.radialBlurIterations = XmlConvert.ToInt32(moduleNode.Attributes["radialBlurIterations"].Value);
                             this._sunShafts.sunShaftIntensity = XmlConvert.ToSingle(moduleNode.Attributes["sunShaftIntensity"].Value);
-                            if (Studio.Studio.Instance != null)
+                            if (_isStudio && Studio.Studio.Instance != null)
                                 Studio.Studio.Instance.sceneInfo.enableSunShafts = effectData.enabled;
                         }
 
@@ -2854,7 +2877,53 @@ namespace HSIBL
                             effectData.enabled = moduleNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
 
                             this._depthOfField.visualizeFocus = XmlConvert.ToBoolean(moduleNode.Attributes["visualizeFocus"].Value);
-                            this._depthOfField.focalTransform = moduleNode.Attributes["useCameraOriginAsFocus"] == null || XmlConvert.ToBoolean(moduleNode.Attributes["useCameraOriginAsFocus"].Value) ? this._depthOfFieldFocusPoint : null;
+
+                            //this.StartCoroutine(SetFocusType()); //Yeah, sorry about that
+                            //IEnumerator SetFocusType()
+                            //{
+                            //    yield return null;
+                            //    yield return null;
+                            //    yield return null;
+                                if (moduleNode.Attributes["useCameraOriginAsFocus"] != null)
+                                    this._focusType = XmlConvert.ToBoolean(moduleNode.Attributes["useCameraOriginAsFocus"].Value) ? DOFFocusType.Crosshair : DOFFocusType.Manual;
+                                else if (moduleNode.Attributes["focusType"] != null)
+                                    this._focusType = (DOFFocusType)XmlConvert.ToInt32(moduleNode.Attributes["focusType"].Value);
+                                else
+                                    this._focusType = DOFFocusType.Manual;
+
+                                switch (this._focusType)
+                                {
+                                    case DOFFocusType.Crosshair:
+                                        this._depthOfField.focalTransform = this._depthOfFieldOriginalFocusPoint;
+                                        break;
+                                    case DOFFocusType.Object:
+                                        if (_isStudio && moduleNode.Attributes["focussedObjectIndex"] != null)
+                                        {
+                                            List<KeyValuePair<int, ObjectCtrlInfo>> list = Studio.Studio.Instance.dicObjectCtrl.OrderBy(e => e.Key).ToList();
+                                            int focussedObjectIndex = XmlConvert.ToInt32(moduleNode.Attributes["focussedObjectIndex"].Value);
+                                            if (focussedObjectIndex < list.Count)
+                                            {
+                                                this._focussedObject = list[focussedObjectIndex].Value;
+                                                this._depthOfField.focalTransform = this._focussedObject.guideObject.transformTarget;
+                                            }
+                                            else
+                                            {
+                                                this._focusType = DOFFocusType.Crosshair;
+                                                goto case DOFFocusType.Crosshair;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            this._focusType = DOFFocusType.Crosshair;
+                                            goto case DOFFocusType.Crosshair;
+                                        }
+                                        break;
+                                    case DOFFocusType.Manual:
+                                        this._depthOfField.focalTransform = null;
+                                        break;
+                                }
+                            //}
+
                             this._depthOfField.focalLength = XmlConvert.ToSingle(moduleNode.Attributes["focalLength"].Value);
                             this._depthOfField.focalSize = XmlConvert.ToSingle(moduleNode.Attributes["focalSize"].Value);
                             this._depthOfField.aperture = XmlConvert.ToSingle(moduleNode.Attributes["aperture"].Value);
@@ -2868,9 +2937,13 @@ namespace HSIBL
                             this._depthOfField.dx11BokehIntensity = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehIntensity"].Value);
                             this._depthOfField.dx11BokehThreshold = XmlConvert.ToSingle(moduleNode.Attributes["dx11BokehThreshold"].Value);
                             this._depthOfField.dx11SpawnHeuristic = XmlConvert.ToSingle(moduleNode.Attributes["dx11SpawnHeuristic"].Value);
-                            Studio.Studio.Instance.sceneInfo.enableDepth = effectData.enabled;
-                            Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
-                            Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
+                            HSLRE.HSLRE.self.fixDofForUpscaledScreenshots = moduleNode.Attributes["fixUpscaledScreenshots"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["fixUpscaledScreenshots"].Value);
+                            if (_isStudio && Studio.Studio.Instance != null)
+                            {
+                                Studio.Studio.Instance.sceneInfo.enableDepth = effectData.enabled;
+                                Studio.Studio.Instance.sceneInfo.depthFocalSize = this._depthOfField.focalSize;
+                                Studio.Studio.Instance.sceneInfo.depthAperture = this._depthOfField.aperture;
+                            }
                         }
                         break;
                     case "ssr":
@@ -2878,6 +2951,7 @@ namespace HSIBL
                         {
                             HSLRE.HSLRE.EffectData effectData = HSLRE.HSLRE.self.effectsDictionary[this._ssr];
                             effectData.enabled = moduleNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(moduleNode.Attributes["enabled"].Value);
+                            HSLRE.HSLRE.self.fixSsrForUpscaledScreenshots = moduleNode.Attributes["fixUpscaledScreenshots"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["fixUpscaledScreenshots"].Value);
 
                             ScreenSpaceReflection.SSRSettings ssrSettings = this._ssr.settings;
 
@@ -2917,7 +2991,8 @@ namespace HSIBL
                             ssrSettings.reflectionSettings = reflectionSettings;
                             ssrSettings.advancedSettings = advancedSettings;
                             this._ssr.settings = ssrSettings;
-                            Studio.Studio.Instance.sceneInfo.enableSSR = effectData.enabled;
+                            if (_isStudio && Studio.Studio.Instance != null)
+                                Studio.Studio.Instance.sceneInfo.enableSSR = effectData.enabled;
                         }
 
                         break;
@@ -2971,6 +3046,12 @@ namespace HSIBL
                                                                          XmlConvert.ToSingle(moduleNode.Attributes["flareColorDB"].Value),
                                                                          XmlConvert.ToSingle(moduleNode.Attributes["flareColorDA"].Value)
                                                                         );
+                            if (_isStudio && Studio.Studio.Instance != null)
+                            {
+                                Studio.Studio.Instance.sceneInfo.enableBloom = effectData.enabled;
+                                Studio.Studio.Instance.sceneInfo.bloomIntensity = this._bloomAndFlares.bloomIntensity;
+                                Studio.Studio.Instance.sceneInfo.bloomBlur = this._bloomAndFlares.sepBlurSpread;
+                            }
                         }
                         break;
                     case "colorCorrectionCurves":
@@ -2994,6 +3075,12 @@ namespace HSIBL
                             this._vignette.axialAberration = XmlConvert.ToSingle(moduleNode.Attributes["axialAberration"].Value);
                             this._vignette.luminanceDependency = XmlConvert.ToSingle(moduleNode.Attributes["luminanceDependency"].Value);
                             this._vignette.blurDistance = XmlConvert.ToSingle(moduleNode.Attributes["blurDistance"].Value);
+
+                            if (_isStudio && Studio.Studio.Instance != null)
+                            {
+                                Studio.Studio.Instance.sceneInfo.enableVignette = effectData.enabled;
+                                Studio.Studio.Instance.sceneInfo.vignetteVignetting = this._vignette.intensity;
+                            }
                         }
                         break;
                     case "antialiasing":
@@ -3037,6 +3124,7 @@ namespace HSIBL
                                                                      XmlConvert.ToSingle(moduleNode.Attributes["tilingY"].Value),
                                                                      XmlConvert.ToSingle(moduleNode.Attributes["tilingZ"].Value)
                                                                     );
+                            HSLRE.HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots = moduleNode.Attributes["fixUpscaledScreenshots"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["fixUpscaledScreenshots"].Value);
                         }
                         break;
                     case "motionBlur":
@@ -3127,6 +3215,9 @@ namespace HSIBL
                             this._amplifyBloom.BloomRange = XmlConvert.ToSingle(moduleNode.Attributes["BloomRange"].Value);
                             this._amplifyBloom.OverallIntensity = XmlConvert.ToSingle(moduleNode.Attributes["OverallIntensity"].Value);
                             this._amplifyBloom.OverallThreshold = XmlConvert.ToSingle(moduleNode.Attributes["OverallThreshold"].Value);
+
+                            this._amplifyBloom.UpscaleBlurRadius = moduleNode.Attributes["UpscaleBlurRadius"] != null ? XmlConvert.ToSingle(moduleNode.Attributes["UpscaleBlurRadius"].Value) : 1;
+
                             this._amplifyBloom.DebugToScreen = (DebugToScreenEnum)XmlConvert.ToInt32(moduleNode.Attributes["DebugToScreen"].Value);
                             this._amplifyBloom.TemporalFilteringActive = XmlConvert.ToBoolean(moduleNode.Attributes["TemporalFilteringActive"].Value);
                             this._amplifyBloom.TemporalFilteringValue = XmlConvert.ToSingle(moduleNode.Attributes["TemporalFilteringValue"].Value);
@@ -3226,6 +3317,7 @@ namespace HSIBL
                             this._amplifyBloom.LensGlareInstance.CurrentGlare = (GlareLibType)XmlConvert.ToInt32(moduleNode.Attributes["LensGlareInstance.CurrentGlare"].Value);
                             this._amplifyBloom.LensGlareInstance.PerPassDisplacement = XmlConvert.ToSingle(moduleNode.Attributes["LensGlareInstance.PerPassDisplacement"].Value);
                             this._amplifyBloom.LensGlareInstance.GlareMaxPassCount = XmlConvert.ToInt32(moduleNode.Attributes["LensGlareInstance.GlareMaxPassCount"].Value);
+                            HSLRE.HSLRE.self.fixAmplifyBloomForUpscaledScreenshots = moduleNode.Attributes["fixUpscaledScreenshots"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["fixUpscaledScreenshots"].Value);
                         }
                         break;
                     case "effectsOrder":
@@ -3246,6 +3338,7 @@ namespace HSIBL
                             this._blur.blurSize = XmlConvert.ToSingle(moduleNode.Attributes["blurSize"].Value);
                             this._blur.blurIterations = XmlConvert.ToInt32(moduleNode.Attributes["blurIterations"].Value);
                             this._blur.blurType = (BlurOptimized.BlurType)XmlConvert.ToInt32(moduleNode.Attributes["blurType"].Value);
+                            HSLRE.HSLRE.self.fixBlurForUpscaledScreenshots = moduleNode.Attributes["fixUpscaledScreenshots"] != null && XmlConvert.ToBoolean(moduleNode.Attributes["fixUpscaledScreenshots"].Value);
                         }
                         break;
                 }
@@ -3253,17 +3346,17 @@ namespace HSIBL
             if (this._selectedCubemap == 0)
             {
                 this._proceduralSkybox.ApplySkyboxParams();
-                this._environmentUpdateFlag = true;
-                this._tempproceduralskyboxparams = this._proceduralSkybox.skyboxparams;
-                this._previousambientintensity = RenderSettings.ambientIntensity;
+                this._tempProceduralSkyboxParams = this._proceduralSkybox.skyboxparams;
+                this._previousAmbientIntensity = RenderSettings.ambientIntensity;
             }
             else if (this._selectedCubemap > 0)
             {
                 this._skybox.ApplySkyboxParams();
-                this._environmentUpdateFlag = true;
-                this._tempskyboxparams = this._skybox.skyboxparams;
-                this._previousambientintensity = RenderSettings.ambientIntensity;
+                this._tempSkyboxParams = this._skybox.skyboxparams;
+                this._previousAmbientIntensity = RenderSettings.ambientIntensity;
             }
+
+            this._environmentUpdateFlag = true;
 
             if (this._segi != null)
             {
@@ -3547,7 +3640,14 @@ namespace HSIBL
                 writer.WriteStartElement("depthOfField");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(effectData.enabled));
                 writer.WriteAttributeString("visualizeFocus", XmlConvert.ToString(this._depthOfField.visualizeFocus));
-                writer.WriteAttributeString("useCameraOriginAsFocus", XmlConvert.ToString(this._depthOfField.focalTransform != null));
+                writer.WriteAttributeString("focusType", XmlConvert.ToString((int)this._focusType));
+                if (this._focusType == DOFFocusType.Object && this._focussedObject != null && this._depthOfField.focalTransform != null)
+                {
+                    List<KeyValuePair<int, ObjectCtrlInfo>> list = Studio.Studio.Instance.dicObjectCtrl.OrderBy(e => e.Key).ToList();
+                    int index = list.FindIndex(e => e.Value == this._focussedObject);
+                    if (index != -1)
+                        writer.WriteAttributeString("focussedObjectIndex", XmlConvert.ToString(index));               
+                }
                 writer.WriteAttributeString("focalLength", XmlConvert.ToString(this._depthOfField.focalLength));
                 writer.WriteAttributeString("focalSize", XmlConvert.ToString(this._depthOfField.focalSize));
                 writer.WriteAttributeString("aperture", XmlConvert.ToString(this._depthOfField.aperture));
@@ -3561,6 +3661,7 @@ namespace HSIBL
                 writer.WriteAttributeString("dx11BokehIntensity", XmlConvert.ToString(this._depthOfField.dx11BokehIntensity));
                 writer.WriteAttributeString("dx11BokehThreshold", XmlConvert.ToString(this._depthOfField.dx11BokehThreshold));
                 writer.WriteAttributeString("dx11SpawnHeuristic", XmlConvert.ToString(this._depthOfField.dx11SpawnHeuristic));
+                writer.WriteAttributeString("fixUpscaledScreenshots", XmlConvert.ToString(HSLRE.HSLRE.self.fixDofForUpscaledScreenshots));
                 writer.WriteEndElement();
             }
 
@@ -3571,6 +3672,7 @@ namespace HSIBL
                 writer.WriteStartElement("ssr");
 
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(effectData.enabled));
+                writer.WriteAttributeString("fixUpscaledScreenshots", XmlConvert.ToString(HSLRE.HSLRE.self.fixSsrForUpscaledScreenshots));
 
                 ScreenSpaceReflection.SSRSettings ssrSettings = this._ssr.settings;
 
@@ -3729,6 +3831,7 @@ namespace HSIBL
                 writer.WriteAttributeString("tilingX", XmlConvert.ToString(this._noiseAndGrain.tiling.x));
                 writer.WriteAttributeString("tilingY", XmlConvert.ToString(this._noiseAndGrain.tiling.y));
                 writer.WriteAttributeString("tilingZ", XmlConvert.ToString(this._noiseAndGrain.tiling.z));
+                writer.WriteAttributeString("fixUpscaledScreenshots", XmlConvert.ToString(HSLRE.HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots));
                 writer.WriteEndElement();
             }
 
@@ -3821,6 +3924,7 @@ namespace HSIBL
                 writer.WriteAttributeString("BloomRange", XmlConvert.ToString(this._amplifyBloom.BloomRange));
                 writer.WriteAttributeString("OverallIntensity", XmlConvert.ToString(this._amplifyBloom.OverallIntensity));
                 writer.WriteAttributeString("OverallThreshold", XmlConvert.ToString(this._amplifyBloom.OverallThreshold));
+                writer.WriteAttributeString("UpscaleBlurRadius", XmlConvert.ToString(this._amplifyBloom.UpscaleBlurRadius));
                 writer.WriteAttributeString("DebugToScreen", XmlConvert.ToString((int)this._amplifyBloom.DebugToScreen));
                 writer.WriteAttributeString("TemporalFilteringActive", XmlConvert.ToString(this._amplifyBloom.TemporalFilteringActive));
                 writer.WriteAttributeString("TemporalFilteringValue", XmlConvert.ToString(this._amplifyBloom.TemporalFilteringValue));
@@ -3864,6 +3968,7 @@ namespace HSIBL
                 writer.WriteAttributeString("LensGlareInstance.OverallTintA", XmlConvert.ToString(this._amplifyBloom.LensGlareInstance.OverallTint.a));
                 writer.WriteAttributeString("LensGlareInstance.CurrentGlare", XmlConvert.ToString((int)this._amplifyBloom.LensGlareInstance.CurrentGlare));
                 writer.WriteAttributeString("LensGlareInstance.PerPassDisplacement", XmlConvert.ToString(this._amplifyBloom.LensGlareInstance.PerPassDisplacement));
+                writer.WriteAttributeString("fixUpscaledScreenshots", XmlConvert.ToString(HSLRE.HSLRE.self.fixAmplifyBloomForUpscaledScreenshots));
                 writer.WriteAttributeString("LensGlareInstance.GlareMaxPassCount", XmlConvert.ToString(this._amplifyBloom.LensGlareInstance.GlareMaxPassCount));
 
                 writer.WriteStartElement("LensFlareInstance.LensFlareGradient");
@@ -3917,6 +4022,7 @@ namespace HSIBL
                 writer.WriteAttributeString("blurSize", XmlConvert.ToString(this._blur.blurSize));
                 writer.WriteAttributeString("blurIterations", XmlConvert.ToString(this._blur.blurIterations));
                 writer.WriteAttributeString("blurType", XmlConvert.ToString((int)this._blur.blurType));
+                writer.WriteAttributeString("fixUpscaledScreenshots", XmlConvert.ToString(HSLRE.HSLRE.self.fixBlurForUpscaledScreenshots));
                 writer.WriteEndElement();
             }
 

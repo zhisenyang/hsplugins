@@ -9,15 +9,17 @@ using System.Text;
 using Config;
 using Harmony;
 using ILSetUtility.TimeUtility;
+using kleberswf.tools.miniprofiler;
 using Studio;
 using ToolBox;
+using UILib;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
 namespace HSUS
 {
-    public class ObjectTreeDebug : MonoBehaviour
+    public class DebugConsole : MonoBehaviour
     {
         private struct ObjectPair
         {
@@ -84,14 +86,16 @@ namespace HSUS
         private readonly HashSet<ObjectPair> _openedObjects = new HashSet<ObjectPair>();
         private static string _goSearch = "";
         private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+        private bool _showHidden = false;
 
 
 #if HONEYSELECT
         private static readonly string _has630Patch;
-        private Mesh _cubeMesh;
+        private GameObject _miniProfilerUI;
+        //private Mesh _cubeMesh;
 #endif
 
-        static ObjectTreeDebug()
+        static DebugConsole()
         {
             Application.logMessageReceived += HandleLog;
             _process = Process.GetCurrentProcess();
@@ -115,45 +119,58 @@ namespace HSUS
             Console.SetOut(new FunctionTextWriter(Console.Out));
         }
 
- 
         void Awake()
         {
             this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
+        }
 
-            GameObject cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            this._cubeMesh = cube.GetComponentInChildren<MeshFilter>().sharedMesh;
-            UnityEngine.Object.Destroy(cube);
-
+        void Start()
+        {
+#if HONEYSELECT
+            if (HSUS._self._miniProfilerEnabled)
+            {
+                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSUSResources);
+                this._miniProfilerUI = Instantiate(bundle.LoadAsset<GameObject>("MiniProfilerCanvas"));
+                bundle.Unload(true);
+                this._miniProfilerUI.gameObject.SetActive(Manager.Config.DebugStatus.FPS);
+                this._miniProfilerUI.transform.SetAsLastSibling();
+                foreach (MiniProfiler profiler in this._miniProfilerUI.GetComponentsInChildren<MiniProfiler>())
+                    profiler.Collapsed = HSUS._self._miniProfilerStartCollapsed;
+                this._miniProfilerUI.GetComponent<Canvas>().sortingOrder = 1000;
+            }
+#endif
         }
 
         void Update()
         {
-            if (HSUS._self._debugEnabled && Input.GetKeyDown(HSUS._self.debugShortcut))
+            if (Input.GetKeyDown(HSUS._self._debugShortcut))
                 _debug = !_debug;
-
-            if (Input.GetKey(KeyCode.LeftShift) && Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.C) && Studio.Studio.Instance != null)
+#if HONEYSELECT
+            if (HSUS._self._miniProfilerEnabled)
             {
-                ObjectCtrlInfo objectCtrlInfo;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(Studio.Studio.Instance.treeNodeCtrl.selectNode, out objectCtrlInfo))
-                foreach (Renderer target in objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Renderer>())
-                {
-                    {
-                        SkinnedMeshRenderer smr = target as SkinnedMeshRenderer;
-                        if (smr != null)
-                        {
-                            smr.sharedMesh = this._cubeMesh;
-                        }
-                        else if (target is MeshRenderer)
-                        {
-                            target.GetComponent<MeshFilter>().sharedMesh = this._cubeMesh;
-                        }
-                    }
-                }
+                if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
+                    this._miniProfilerUI.gameObject.SetActive(Manager.Config.DebugStatus.FPS);
             }
-        }
-
-        void OnDestroy()
-        {
+#endif
+            //if (Input.GetKey(KeyCode.LeftShift) && Input.GetKey(KeyCode.LeftControl) && Input.GetKeyDown(KeyCode.C) && Studio.Studio.Instance != null)
+            //{
+            //    ObjectCtrlInfo objectCtrlInfo;
+            //    if (Studio.Studio.Instance.dicInfo.TryGetValue(Studio.Studio.Instance.treeNodeCtrl.selectNode, out objectCtrlInfo))
+            //    foreach (Renderer target in objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Renderer>())
+            //    {
+            //        {
+            //            SkinnedMeshRenderer smr = target as SkinnedMeshRenderer;
+            //            if (smr != null)
+            //            {
+            //                smr.sharedMesh = this._cubeMesh;
+            //            }
+            //            else if (target is MeshRenderer)
+            //            {
+            //                target.GetComponent<MeshFilter>().sharedMesh = this._cubeMesh;
+            //            }
+            //        }
+            //    }
+            //}
         }
 
         private static void HandleLog(string condition, string stackTrace, LogType type)
@@ -166,11 +183,19 @@ namespace HSUS
 
         private void DisplayObjectTree(GameObject go, int indent)
         {
+            float alpha = 1;
+            if ((go.hideFlags & HideFlags.HideInHierarchy) > 0)
+            {
+                if (this._showHidden == false)
+                    return;
+                alpha = 0.5f;
+            }
             if (_goSearch.Length == 0 || go.name.IndexOf(_goSearch, StringComparison.OrdinalIgnoreCase) != -1)
             {
                 Color c = GUI.color;
                 if (this._target == go.transform)
                     GUI.color = Color.cyan;
+                GUI.color = new Color(GUI.color.r, GUI.color.g, GUI.color.b, alpha);
                 GUILayout.BeginHorizontal();
 
                 if (_goSearch.Length == 0)
@@ -241,6 +266,7 @@ namespace HSUS
                 if (t.parent == null)
                     this.DisplayObjectTree(t.gameObject, 0);
             GUILayout.EndScrollView();
+            this._showHidden = GUILayout.Toggle(this._showHidden, "Show Hidden");
             GUILayout.EndVertical();
 
             GUILayout.BeginVertical();
@@ -314,6 +340,12 @@ namespace HSUS
                         Slider b = c as Slider;
                         for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
                             GUILayout.Label(b.onValueChanged.GetPersistentTarget(i).GetType().FullName + "." + b.onValueChanged.GetPersistentMethodName(i));
+                        IList calls = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_Calls").GetPrivate("m_RuntimeCalls") as IList;
+                        for (int i = 0; i < calls.Count; ++i)
+                        {
+                            UnityAction<float> unityAction = ((UnityAction<float>)calls[i].GetPrivate("Delegate"));
+                            GUILayout.Label(unityAction.Target.GetType().FullName + "." + unityAction.Method.Name);
+                        }
                     }
                     else if (c is Text)
                     {
@@ -633,10 +665,11 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._debugEnabled;
+            return HSUS._self._debugEnabled && HSUS._self._miniProfilerEnabled;
         }
 
-        private static bool Prefix(TimeUtility __instance, ref float ___deltaTime, ref float ___memTime, ref float ___time_cnt, ref float ___fps, ref uint ___frame_cnt)
+        [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
+        private static bool Prefix()
         {
             if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
             {
@@ -644,23 +677,20 @@ namespace HSUS
                 debugStatus.FPS = !debugStatus.FPS;
                 Singleton<Manager.Config>.Instance.Save();
             }
-            if (!__instance.ForceDrawFPS && !Manager.Config.DebugStatus.FPS)
-            {
-                return false;
-            }
-            ___deltaTime = Time.deltaTime * __instance.time_scale;
-            if (__instance.mode_mem)
-            {
-                ___memTime += Time.deltaTime;
-            }
-            ___time_cnt += Time.deltaTime;
-            ___frame_cnt += 1u;
-            if (0.25f <= ___time_cnt)
-            {
-                ___fps = ___frame_cnt / ___time_cnt;
-                ___frame_cnt = 0u;
-                ___time_cnt = 0f;
-            }
+            return false;
+        }
+    }
+    [HarmonyPatch(typeof(TimeUtility), "OnGUI")]
+    internal static class TimeUtility_OnGUI_Patches
+    {
+        private static bool Prepare()
+        {
+            return HSUS._self._debugEnabled && HSUS._self._miniProfilerEnabled;
+        }
+
+        [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
+        private static bool Prefix()
+        {
             return false;
         }
     }

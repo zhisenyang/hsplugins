@@ -11,6 +11,10 @@ namespace HSPE
 {
     public class PoseController : MonoBehaviour
     {
+        #region Static Variables
+        internal static readonly HashSet<PoseController> _poseControllers = new HashSet<PoseController>();
+        #endregion
+
         #region Events
         public static event Action<TreeNodeObject, TreeNodeObject> onParentage;
         public event Action onUpdate;
@@ -42,6 +46,7 @@ namespace HSPE
         protected List<GuideCommand.EqualsInfo> _additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
         protected bool _lockDrag = false;
         internal DragType _currentDragType;
+        internal int _oldInstanceId = 0;
         #endregion
 
         #region Private Variables
@@ -57,6 +62,7 @@ namespace HSPE
         #region Unity Methods
         protected virtual void Awake()
         {
+            _poseControllers.Add(this);
             foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
             {
                 if (pair.Value.guideObject.transformTarget.gameObject == this.gameObject)
@@ -122,6 +128,7 @@ namespace HSPE
         {
             onParentage -= this.OnParentage;
             this.onDestroy();
+            _poseControllers.Remove(this);
         }
         #endregion
 
@@ -176,15 +183,7 @@ namespace HSPE
                 if (module == this._currentModule)
                     GUI.color = Color.cyan;
                 if (module.shouldDisplay && GUILayout.Button(module.displayName))
-                {
-                    this._currentModule = module;
-                    module.isEnabled = true;
-                    foreach (AdvancedModeModule module2 in this._modules)
-                    {
-                        if (module2 != module)
-                            module2.isEnabled = false;
-                    }
-                }
+                    this.EnableModule(module);
                 GUI.color = c;
             }
 
@@ -205,6 +204,19 @@ namespace HSPE
             _drawAdvancedMode = !_drawAdvancedMode;
             foreach (AdvancedModeModule module in this._modules)
                 module.DrawAdvancedModeChanged();
+        }
+
+        public void EnableModule(AdvancedModeModule module)
+        {
+            if (module.shouldDisplay == false)
+                return;
+            this._currentModule = module;
+            module.isEnabled = true;
+            foreach (AdvancedModeModule module2 in this._modules)
+            {
+                if (module2 != module)
+                    module2.isEnabled = false;
+            }
         }
 
         public static void SelectionChanged(PoseController self)
@@ -317,6 +329,7 @@ namespace HSPE
 
         public virtual void SaveXml(XmlTextWriter xmlWriter)
         {
+            xmlWriter.WriteAttributeString("uniqueId", XmlConvert.ToString(this.GetInstanceID()));
             foreach (AdvancedModeModule module in this._modules)
                 module.SaveXml(xmlWriter);
         }
@@ -326,7 +339,7 @@ namespace HSPE
         protected virtual bool LoadDefaultVersion(XmlNode xmlNode)
         {
             bool changed = false;
-
+            this._oldInstanceId = xmlNode.Attributes["uniqueId"] == null ? 0 : XmlConvert.ToInt32(xmlNode.Attributes["uniqueId"].Value);
             foreach (AdvancedModeModule module in this._modules)
                 changed = module.LoadXml(xmlNode) || changed;
             return changed;

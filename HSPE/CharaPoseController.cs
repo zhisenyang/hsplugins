@@ -45,6 +45,8 @@ namespace HSPE
             FullBodyBipedEffector.RightShoulder,
             FullBodyBipedEffector.RightThigh
         };
+
+        internal static readonly HashSet<PoseController> _charaPoseControllers = new HashSet<PoseController>();
         #endregion
 
         #region Patches
@@ -157,8 +159,8 @@ namespace HSPE
 
         internal BoobsEditor _boobsEditor;
         private Action _scheduleNextIKPostUpdate = null;
-        private FullBodyBipedChain _nextIKLimbCopy;
-        private OIBoneInfo.BoneGroup _nextFKLimbCopy;
+        private FullBodyBipedChain _nextIKCopy;
+        private OIBoneInfo.BoneGroup _nextFKCopy;
         #endregion
 
         #region Public Accessors
@@ -193,6 +195,7 @@ namespace HSPE
         protected override void Awake()
         {
             base.Awake();
+            _charaPoseControllers.Add(this);
 #if HONEYSELECT
             this._body = this._target.ociChar.animeIKCtrl.IK;
 #elif KOIKATSU
@@ -307,6 +310,7 @@ namespace HSPE
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile -= this.OnLoadClothesFile;
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo -= this.OnCoordinateReplaced;
             base.OnDestroy();
+            _charaPoseControllers.Remove(this);
         }
         #endregion
 
@@ -409,8 +413,14 @@ namespace HSPE
         public void CopyLimbToTwin(FullBodyBipedChain ikLimb, OIBoneInfo.BoneGroup fkLimb)
         {
             this._scheduleNextIKPostUpdate = this.CopyLimbToTwinInternal;
-            this._nextIKLimbCopy = ikLimb;
-            this._nextFKLimbCopy = fkLimb;
+            this._nextIKCopy = ikLimb;
+            this._nextFKCopy = fkLimb;
+        }
+
+        public void CopyHandToTwin(OIBoneInfo.BoneGroup fkLimb)
+        {
+            this._scheduleNextIKPostUpdate = this.CopyHandToTwinInternal;
+            this._nextFKCopy = fkLimb;
         }
 
         public void SwapPose()
@@ -530,7 +540,7 @@ namespace HSPE
                 module.OnCoordinateReplaced(type, force);
         }
 
-        private FullBodyBipedEffector GetTwinBone(FullBodyBipedEffector effector)
+        private FullBodyBipedEffector GetTwinEffector(FullBodyBipedEffector effector)
         {
             switch (effector)
             {
@@ -554,7 +564,7 @@ namespace HSPE
             return effector;
         }
 
-        private FullBodyBipedChain GetTwinBone(FullBodyBipedChain chain)
+        private FullBodyBipedChain GetTwinChain(FullBodyBipedChain chain)
         {
             switch (chain)
             {
@@ -575,7 +585,7 @@ namespace HSPE
             this.StartDrag(DragType.Both);
             this._lockDrag = true;
             HashSet<OIBoneInfo.BoneGroup> fkTwinLimb = new HashSet<OIBoneInfo.BoneGroup>();
-            switch (this._nextFKLimbCopy)
+            switch (this._nextFKCopy)
             {
                 case OIBoneInfo.BoneGroup.RightLeg:
                     fkTwinLimb.Add(OIBoneInfo.BoneGroup.LeftLeg);
@@ -641,7 +651,7 @@ namespace HSPE
                 }
             }
 
-            FullBodyBipedChain limb = this._nextIKLimbCopy;
+            FullBodyBipedChain limb = this._nextIKCopy;
             FullBodyBipedEffector effectorSrc;
             FullBodyBipedChain bendGoalSrc;
             FullBodyBipedEffector effectorDest;
@@ -683,8 +693,8 @@ namespace HSPE
                     break;
             }
             bendGoalSrc = limb;
-            bendGoalDest = this.GetTwinBone(limb);
-            effectorDest = this.GetTwinBone(effectorSrc);
+            bendGoalDest = this.GetTwinChain(limb);
+            effectorDest = this.GetTwinEffector(effectorSrc);
 
             Vector3 localPos = root.InverseTransformPoint(this._target.ociChar.listIKTarget[_effectorToIndex[effectorSrc]].guideObject.transformTarget.position);
             localPos.x *= -1f;
@@ -709,6 +719,74 @@ namespace HSPE
                 this._lockDrag = false;
                 this.StopDrag();
             };
+        }
+
+        private void CopyHandToTwinInternal()
+        {
+            this.StartDrag(DragType.Both);
+            this._lockDrag = true;
+            HashSet<OIBoneInfo.BoneGroup> fkTwinLimb = new HashSet<OIBoneInfo.BoneGroup>();
+            switch (this._nextFKCopy)
+            {
+                case OIBoneInfo.BoneGroup.RightHand:
+                    fkTwinLimb.Add(OIBoneInfo.BoneGroup.LeftHand);
+                    fkTwinLimb.Add((OIBoneInfo.BoneGroup)65);
+                    break;
+                case OIBoneInfo.BoneGroup.LeftHand:
+                    fkTwinLimb.Add(OIBoneInfo.BoneGroup.RightHand);
+                    fkTwinLimb.Add((OIBoneInfo.BoneGroup)33);
+                    break;
+            }
+             
+            //TODO Delete that disgusting duplicated code
+            this._additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
+            foreach (OCIChar.BoneInfo bone in this._target.ociChar.listBones)
+            {
+                Transform twinBoneTransform = null;
+                Transform boneTransform = bone.guideObject.transformTarget;
+                if (fkTwinLimb.Contains(bone.boneGroup) == false)
+                    continue;
+                twinBoneTransform = this._bonesEditor.GetTwinBone(boneTransform);
+                if (twinBoneTransform == null)
+                    twinBoneTransform = boneTransform;
+
+                OCIChar.BoneInfo twinBone;
+                if (twinBoneTransform != null && this._target.fkObjects.TryGetValue(twinBoneTransform.gameObject, out twinBone))
+                {
+                    if (twinBoneTransform == boneTransform)
+                    {
+                        Quaternion rot = Quaternion.Euler(bone.guideObject.changeAmount.rot);
+                        rot = new Quaternion(rot.x, -rot.y, -rot.z, rot.w);
+
+                        Vector3 oldRotValue = bone.guideObject.changeAmount.rot;
+
+                        bone.guideObject.changeAmount.rot = rot.eulerAngles;
+
+                        this._additionalRotationEqualsCommands.Add(new GuideCommand.EqualsInfo()
+                        {
+                            dicKey = bone.guideObject.dicKey,
+                            oldValue = oldRotValue,
+                            newValue = bone.guideObject.changeAmount.rot
+                        });
+                    }
+                    else
+                    {
+                        Quaternion twinRot = Quaternion.Euler(twinBone.guideObject.changeAmount.rot);
+                        twinRot = new Quaternion(twinRot.x, -twinRot.y, -twinRot.z, twinRot.w);
+                        Vector3 oldRotValue = bone.guideObject.changeAmount.rot;
+                        bone.guideObject.changeAmount.rot = twinRot.eulerAngles;
+                        this._additionalRotationEqualsCommands.Add(new GuideCommand.EqualsInfo()
+                        {
+                            dicKey = bone.guideObject.dicKey,
+                            oldValue = oldRotValue,
+                            newValue = bone.guideObject.changeAmount.rot
+                        });
+                    }
+                }
+            }
+
+            this._lockDrag = false;
+            this.StopDrag();
         }
 
         private void SwapPoseInternal()
@@ -810,7 +888,7 @@ namespace HSPE
                     case FullBodyBipedEffector.LeftHand:
                     case FullBodyBipedEffector.LeftThigh:
                     case FullBodyBipedEffector.LeftFoot:
-                        FullBodyBipedEffector twin = this.GetTwinBone(pair.Key);
+                        FullBodyBipedEffector twin = this.GetTwinEffector(pair.Key);
                         Vector3 position = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
                         position.x *= -1f;
                         Vector3 twinPosition = this._target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localPosition;
@@ -827,7 +905,7 @@ namespace HSPE
                 {
                     case FullBodyBipedChain.LeftArm:
                     case FullBodyBipedChain.LeftLeg:
-                        FullBodyBipedChain twin = this.GetTwinBone(pair.Key);
+                        FullBodyBipedChain twin = this.GetTwinChain(pair.Key);
                         Vector3 position = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localPosition;
                         position.x *= -1f;
                         Vector3 twinPosition = this._target.ociChar.listIKTarget[_chainToIndex[twin]].guideObject.transformTarget.localPosition;
@@ -846,7 +924,7 @@ namespace HSPE
                     {
                         case FullBodyBipedEffector.LeftHand:
                         case FullBodyBipedEffector.LeftFoot:
-                            FullBodyBipedEffector twin = this.GetTwinBone(pair.Key);
+                            FullBodyBipedEffector twin = this.GetTwinEffector(pair.Key);
                             Quaternion rot = this._target.ociChar.listIKTarget[pair.Value].guideObject.transformTarget.localRotation;
                             rot = new Quaternion(-rot.x, rot.y, rot.z, -rot.w);
                             Quaternion twinRot = this._target.ociChar.listIKTarget[_effectorToIndex[twin]].guideObject.transformTarget.localRotation;

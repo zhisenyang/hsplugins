@@ -31,6 +31,8 @@ namespace HSLRE
                 this.BloomRange = 500;
                 this.OverallIntensity = 0.8f;
                 this.OverallThreshold = 0.53f;
+                this.BloomScale = 1f;
+                this.UpscaleBlurRadius = 1f;
                 this.TemporalFilteringActive = false;
                 this.TemporalFilteringValue = 0.05f;
                 this.SeparateFeaturesThreshold = false;
@@ -71,6 +73,7 @@ namespace HSLRE
                 this.LensGlareInstanceCurrentGlare = "CheapLens";
                 this.LensGlareInstancePerPassDisplacement = 4;
                 this.LensGlareInstanceGlareMaxPassCount = 4;
+                this.fixUpscaledScreenshots = true;
             }
 
             public bool enabled;
@@ -114,12 +117,15 @@ namespace HSLRE
             public bool SeparateFeaturesThreshold;
             public float TemporalFilteringValue;
             public bool TemporalFilteringActive;
+            public float UpscaleBlurRadius;
+            public float BloomScale;
             public float OverallThreshold;
             public float OverallIntensity;
             public float BloomRange;
             public string CurrentPrecisionMode;
             public string MainThresholdSize;
             public string UpscaleQuality;
+            public bool fixUpscaledScreenshots;
         }
         public class AntialiasingSetting : BaseSystem
         {
@@ -338,6 +344,7 @@ namespace HSLRE
                 this.dx11SpawnHeuristic = 0.0875f;
                 this.dx11BokehScale = 1.2f;
                 this.dx11BokehIntensity = 2.5f;
+                this.fixUpscaledScreenshots = true;
             }
 
             public bool enabled;
@@ -354,6 +361,8 @@ namespace HSLRE
             public float dx11SpawnHeuristic;
             public float dx11BokehScale;
             public float dx11BokehIntensity;
+            public bool fixUpscaledScreenshots;
+
         }
         public class LensAberrationSetting : BaseSystem
         {
@@ -432,6 +441,7 @@ namespace HSLRE
                 this.tiling = new Vector3(64f, 64f, 64f);
                 this.monochromeTiling = 64f;
                 this.filterMode = "Bilinear";
+                this.fixUpscaledScreenshots = true;
             }
 
             public bool enabled;
@@ -447,6 +457,7 @@ namespace HSLRE
             public float softness;
             public float monochromeTiling;
             public Vector3 tiling;
+            public bool fixUpscaledScreenshots;
         }
         public class Preset : BaseSystem
         {
@@ -901,6 +912,7 @@ namespace HSLRE
             switch (Application.productName)
             {
                 case "HoneySelect":
+                case "Honey Select Unlimited":
                     imageEffectPreset = gamePresets.ImageEffectPreset;
                     shadowPreset = gamePresets.ShadowPreset;
                     stylePreset = gamePresets.StylePreset;
@@ -1109,7 +1121,11 @@ namespace HSLRE
                 {
                     HSLRE.self.effectsDictionary[HSLRE.self.bloomAndFlares].enabled = bloomAndFlaresSettings.BloomEnabled;
                     HSLRE.self.bloomAndFlares.bloomIntensity = bloomAndFlaresSettings.Bloomintensity;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.bloomIntensity = HSLRE.self.bloomAndFlares.bloomIntensity;
                     HSLRE.self.bloomAndFlares.sepBlurSpread = bloomAndFlaresSettings.BloomBlurSpread;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.bloomBlur = HSLRE.self.bloomAndFlares.sepBlurSpread;
                     HSLRE.self.bloomAndFlares.bloomThreshold = bloomAndFlaresSettings.BloomThreshold;
 
                     switch (bloomAndFlaresSettings.BloomScreenBlendMode)
@@ -1197,6 +1213,8 @@ namespace HSLRE
                     HSLRE.self.effectsDictionary[HSLRE.self.vignette].enabled = vignetteSettings.enabled;
                     HSLRE.self.vignette.mode = vignetteSettings.mode;
                     HSLRE.self.vignette.intensity = vignetteSettings.intensity;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.vignetteVignetting = HSLRE.self.vignette.intensity;
                     HSLRE.self.vignette.chromaticAberration = vignetteSettings.chromaticAberration;
                     HSLRE.self.vignette.axialAberration = vignetteSettings.axialAberration;
                     HSLRE.self.vignette.blur = vignetteSettings.blur;
@@ -1261,6 +1279,8 @@ namespace HSLRE
                             break;
                     }
                     HSLRE.self.ssao.Intensity = ssaoSettings.SSAOIntensity;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.ssaoIntensity = HSLRE.self.ssao.Intensity;
                     HSLRE.self.ssao.UseHighPrecisionDepthMap = ssaoSettings.SSAOUseHighPrecisionDepthMap;
                     HSLRE.self.ssao.Downsampling = ssaoSettings.SSAODownsampling;
                     switch (ssaoSettings.SSAOBlur)
@@ -1284,6 +1304,8 @@ namespace HSLRE
                     }
                     HSLRE.self.ssao.BlurDownsampling = ssaoSettings.SSAOBlurDownsampling;
                     HSLRE.self.ssao.OcclusionColor = ssaoSettings.SSAOOcclusionColor;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.ssaoColor.SetDiffuseRGBA(HSLRE.self.ssao.OcclusionColor);
                 }
 
                 if (HSLRE.self.ssr != null)
@@ -1339,7 +1361,11 @@ namespace HSLRE
                     HSLRE.self.effectsDictionary[HSLRE.self.dof].enabled = depthOfFieldSettings.enabled;
                     HSLRE.self.dof.focalLength = depthOfFieldSettings.focalLength;
                     HSLRE.self.dof.focalSize = depthOfFieldSettings.focalSize;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.depthFocalSize = HSLRE.self.dof.focalSize;
                     HSLRE.self.dof.aperture = depthOfFieldSettings.aperture;
+                    if (Studio.Studio.Instance != null)
+                        Studio.Studio.Instance.sceneInfo.depthAperture = HSLRE.self.dof.aperture;
                     HSLRE.self.dof.maxBlurSize = depthOfFieldSettings.maxBlurSize;
                     HSLRE.self.dof.highResolution = depthOfFieldSettings.highResolution;
                     switch (depthOfFieldSettings.blurType)
@@ -1377,6 +1403,7 @@ namespace HSLRE
                     HSLRE.self.dof.dx11SpawnHeuristic = depthOfFieldSettings.dx11SpawnHeuristic;
                     HSLRE.self.dof.dx11BokehScale = depthOfFieldSettings.dx11BokehScale;
                     HSLRE.self.dof.dx11BokehIntensity = depthOfFieldSettings.dx11BokehIntensity;
+                    HSLRE.self.fixDofForUpscaledScreenshots = depthOfFieldSettings.fixUpscaledScreenshots;
                 }
 
                 if (HSLRE.self.sunShafts != null)
@@ -1450,6 +1477,7 @@ namespace HSLRE
                     HSLRE.self.noiseAndGrain.softness = noiseAndGrainSettings.softness;
                     HSLRE.self.noiseAndGrain.monochromeTiling = noiseAndGrainSettings.monochromeTiling;
                     HSLRE.self.noiseAndGrain.tiling = noiseAndGrainSettings.tiling;
+                    HSLRE.self.fixNoiseAndGrainForUpscaledScreenshots = noiseAndGrainSettings.fixUpscaledScreenshots;
                 }
 
                 if (HSLRE.self.segi != null)
@@ -1522,6 +1550,7 @@ namespace HSLRE
                     HSLRE.self.amplifyBloom.BloomRange = amplifyBloomSettings.BloomRange;
                     HSLRE.self.amplifyBloom.OverallIntensity = amplifyBloomSettings.OverallIntensity;
                     HSLRE.self.amplifyBloom.OverallThreshold = amplifyBloomSettings.OverallThreshold;
+                    HSLRE.self.amplifyBloom.UpscaleBlurRadius = amplifyBloomSettings.UpscaleBlurRadius;
                     HSLRE.self.amplifyBloom.TemporalFilteringActive = amplifyBloomSettings.TemporalFilteringActive;
                     HSLRE.self.amplifyBloom.TemporalFilteringValue = amplifyBloomSettings.TemporalFilteringValue;
                     HSLRE.self.amplifyBloom.SeparateFeaturesThreshold = amplifyBloomSettings.SeparateFeaturesThreshold;
@@ -1566,6 +1595,7 @@ namespace HSLRE
                         HSLRE.self.amplifyBloom.LensGlareInstance.CurrentGlare = newGlareLibType;
                     HSLRE.self.amplifyBloom.LensGlareInstance.PerPassDisplacement = amplifyBloomSettings.LensGlareInstancePerPassDisplacement;
                     HSLRE.self.amplifyBloom.LensGlareInstance.GlareMaxPassCount = amplifyBloomSettings.LensGlareInstanceGlareMaxPassCount;
+                    HSLRE.self.fixAmplifyBloomForUpscaledScreenshots = amplifyBloomSettings.fixUpscaledScreenshots;
                 }
             }
 
