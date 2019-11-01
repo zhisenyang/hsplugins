@@ -1,19 +1,194 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using System.Xml;
+#if HONEYSELECT
+using Harmony;
+using IllusionInjector;
+using IllusionPlugin;
 using Studio;
+#elif PLAYHOME
+using Harmony;
+using IllusionInjector;
+using IllusionPlugin;
+using Studio;
+#elif KOIKATSU
+using HarmonyLib;
+using Studio;
+#elif AISHOUJO
+using HarmonyLib;
+#endif
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace ToolBox
+namespace ToolBox.Extensions
 {
-    public static class Extensions
+    internal static class HarmonyExtensions
     {
+        public class Replacement
+        {
+            public CodeInstruction[] pattern = null;
+            public CodeInstruction[] replacer = null;
+        }
+
+        public static IEnumerable<CodeInstruction> ReplaceCodePattern(IEnumerable<CodeInstruction> instructions, IList<Replacement> replacements)
+        {
+            List<CodeInstruction> codeInstructions = instructions.ToList();
+            foreach (Replacement replacement in replacements)
+            {
+                for (int i = 0; i < codeInstructions.Count; i++)
+                {
+                    int j = 0;
+                    while (j < replacement.pattern.Length && i + j < codeInstructions.Count &&
+                           CompareCodeInstructions(codeInstructions[i + j], replacement.pattern[j]))
+                        ++j;
+                    if (j == replacement.pattern.Length)
+                    {
+                        for (int k = 0; k < replacement.replacer.Length; k++)
+                        {
+                            int finalIndex = i + k;
+                            codeInstructions[finalIndex] = new CodeInstruction(replacement.replacer[k]) { labels = new List<Label>(codeInstructions[finalIndex].labels) };
+                        }
+                        i += replacement.replacer.Length;
+                    }
+                }
+            }
+            return codeInstructions;
+        }
+
+        private static bool CompareCodeInstructions(CodeInstruction first, CodeInstruction second)
+        {
+            return first.opcode == second.opcode && first.operand == second.operand;
+        }
+    }
+
+    internal static class IMGUIExtensions
+    {
+        public static void SetGlobalFontSize(int size)
+        {
+            foreach (GUIStyle style in GUI.skin)
+            {
+                style.fontSize = size;
+            }
+            GUI.skin = GUI.skin;
+        }
+
+        public static void ResetFontSize()
+        {
+            SetGlobalFontSize(0);
+        }
+
+        public static void HorizontalSliderWithValue(string label, float value, float left, float right, string valueFormat = "", Action<float> onChanged = null)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, GUILayout.ExpandWidth(false));
+            float newValue = GUILayout.HorizontalSlider(value, left, right);
+            string valueString = newValue.ToString(valueFormat);
+            string newValueString = GUILayout.TextField(valueString, 5, GUILayout.Width(50f));
+
+            if (newValueString != valueString)
+            {
+                float parseResult;
+                if (float.TryParse(newValueString, out parseResult))
+                    newValue = parseResult;
+            }
+            GUILayout.EndHorizontal();
+
+            if (onChanged != null && !Mathf.Approximately(value, newValue))
+                onChanged(newValue);
+        }
+    }
+
+    internal static class MonoBehaviourExtensions
+    {
+#if HONEYSELECT
+        private static PluginComponent _pluginComponent;
+        private static void CheckPluginComponent()
+        {
+            if (_pluginComponent == null)
+                _pluginComponent = UnityEngine.Object.FindObjectOfType<PluginComponent>();
+        }
+        public static Coroutine ExecuteDelayed(this IPlugin self, Action action, int framecount = 1)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.ExecuteDelayed(action, framecount);
+        }
+        public static Coroutine ExecuteDelayed(this IPlugin self, Action action, float delay, bool timeScaled = true)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.ExecuteDelayed(action, delay, timeScaled);
+        }
+        public static Coroutine ExecuteDelayedFixed(this IPlugin self, Action action, int waitCount = 1)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.ExecuteDelayedFixed(action, waitCount);
+        }
+        public static Coroutine ExecuteDelayed(this IPlugin self, Func<bool> waitUntil, Action action)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.ExecuteDelayed(waitUntil, action);
+        }
+#endif
+
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
+        {
+            return self.StartCoroutine(ExecuteDelayed_Routine(action));
+        }
+
+        private static IEnumerator ExecuteDelayed_Routine(Action action, int frameCount = 1)
+        {
+            for (int i = 0; i < frameCount; i++)
+                yield return null;
+            action();
+        }
+
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, float delay, bool timeScaled = true)
+        {
+            return self.StartCoroutine(ExecuteDelayed_Routine(action, delay, timeScaled));
+        }
+
+        private static IEnumerator ExecuteDelayed_Routine(Action action, float delay, bool timeScaled)
+        {
+            if (timeScaled)
+                yield return new WaitForSeconds(delay);
+            else
+                yield return new WaitForSecondsRealtime(delay);
+            action();
+        }
+
+        public static Coroutine ExecuteDelayedFixed(this MonoBehaviour self, Action action, int waitCount = 1)
+        {
+            return self.StartCoroutine(ExecuteDelayedFixed_Routine(action, waitCount));
+        }
+
+        private static IEnumerator ExecuteDelayedFixed_Routine(Action action, int waitCount)
+        {
+            for (int i = 0; i < waitCount; i++)
+                yield return new WaitForFixedUpdate();
+            action();
+        }
+
+        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Func<bool> waitUntil, Action action)
+        {
+            return self.StartCoroutine(ExecuteDelayed_Routine(waitUntil, action));
+        }
+
+        private static IEnumerator ExecuteDelayed_Routine(Func<bool> waitUntil, Action action)
+        {
+            yield return new WaitUntil(waitUntil);
+            action();
+        }
+    }
+
+    internal static class ReflectionExtensions
+    {
+
         private struct MemberKey
         {
             public readonly Type type;
@@ -191,6 +366,7 @@ namespace ToolBox
                 }
             }
 
+#if HONEYSELECT
             foreach (UI_OnEnableEvent b in Resources.FindObjectsOfTypeAll<UI_OnEnableEvent>())
             {
                 for (int i = 0; i < b._event.GetPersistentEventCount(); ++i)
@@ -202,6 +378,7 @@ namespace ToolBox
                     }
                 }
             }
+#endif
 
             foreach (EventTrigger b in Resources.FindObjectsOfTypeAll<EventTrigger>())
             {
@@ -218,6 +395,28 @@ namespace ToolBox
                 }
             }
         }
+
+        public static MethodInfo GetCoroutineMethod(this Type objectType, string name)
+        {
+            Type t = null;
+            name = "+<" + name + ">";
+            foreach (Type type in objectType.GetNestedTypes(BindingFlags.NonPublic))
+            {
+                if (type.FullName.Contains(name))
+                {
+                    t = type;
+                    break;
+                }
+            }
+
+            if (t != null)
+                return t.GetMethod("MoveNext", BindingFlags.Public | BindingFlags.Instance);
+            return null;
+        }
+    }
+
+    internal static class TransformExtensions
+    {
         public static string GetPathFrom(this Transform self, Transform root, bool includeRoot = false)
         {
             if (self == root)
@@ -292,54 +491,6 @@ namespace ToolBox
             return self2;
         }
 
-        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
-        {
-            return self.StartCoroutine(ExecuteDelayed_Routine(action));
-        }
-
-        private static IEnumerator ExecuteDelayed_Routine(Action action, int frameCount = 1)
-        {
-            for (int i = 0; i < frameCount; i++)
-                yield return null;
-            action();
-        }
-
-        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, float delay, bool timeScaled = true)
-        {
-            return self.StartCoroutine(ExecuteDelayed_Routine(action, delay, timeScaled));
-        }
-
-        private static IEnumerator ExecuteDelayed_Routine(Action action, float delay, bool timeScaled)
-        {
-            if (timeScaled)
-                yield return new WaitForSeconds(delay);
-            else
-                yield return new WaitForSecondsRealtime(delay);
-            action();
-        }
-
-        public static Coroutine ExecuteDelayedFixed(this MonoBehaviour self, Action action)
-        {
-            return self.StartCoroutine(ExecuteDelayedFixed_Routine(action));
-        }
-
-        private static IEnumerator ExecuteDelayedFixed_Routine(Action action)
-        {
-            yield return new WaitForFixedUpdate();
-            action();
-        }
-
-        public static Coroutine ExecuteDelayed(this MonoBehaviour self, Func<bool> waitUntil, Action action)
-        {
-            return self.StartCoroutine(ExecuteDelayed_Routine(waitUntil, action));
-        }
-
-        private static IEnumerator ExecuteDelayed_Routine(Func<bool> waitUntil, Action action)
-        {
-            yield return new WaitUntil(waitUntil);
-            action();
-        }
-
         public static Transform FindDescendant(this Transform self, string name)
         {
             if (self.name.Equals(name))
@@ -351,27 +502,6 @@ namespace ToolBox
                     return res;
             }
             return null;
-        }
-
-        public static XmlNode FindChildNode(this XmlNode self, string name)
-        {
-            if (self.HasChildNodes == false)
-                return null;
-            foreach (XmlNode chilNode in self.ChildNodes)
-                if (chilNode.Name.Equals(name))
-                    return chilNode;
-            return null;
-        }
-
-        public static void Resize<T>(this List<T> self, int newSize)
-        {
-            int diff = self.Count - newSize;
-            if (diff < 0)
-                while (self.Count != newSize)
-                    self.Add(default(T));
-            else if (diff > 0)
-                while (self.Count != newSize)
-                    self.RemoveRange(newSize, diff);
         }
 
         public static Transform GetFirstLeaf(this Transform self)
@@ -420,6 +550,126 @@ namespace ToolBox
             resultDepth = d;
             return res;
         }
+    }
+
+    internal static class XmlExtensions
+    {
+        public static XmlNode FindChildNode(this XmlNode self, string name)
+        {
+            if (self.HasChildNodes == false)
+                return null;
+            foreach (XmlNode childNode in self.ChildNodes)
+                if (childNode.Name.Equals(name))
+                    return childNode;
+            return null;
+        }
+
+        public static int ReadInt(this XmlNode self, string label)
+        {
+            return XmlConvert.ToInt32(self.Attributes[label].Value);
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string label, int value)
+        {
+            self.WriteAttributeString(label, XmlConvert.ToString(value));
+        }
+
+        public static byte ReadByte(this XmlNode self, string label)
+        {
+            return XmlConvert.ToByte(self.Attributes[label].Value);
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string label, byte value)
+        {
+            self.WriteAttributeString(label, XmlConvert.ToString(value));
+        }
+
+        public static bool ReadBool(this XmlNode self, string label)
+        {
+            return XmlConvert.ToBoolean(self.Attributes[label].Value);
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string label, bool value)
+        {
+            self.WriteAttributeString(label, XmlConvert.ToString(value));
+        }
+
+        public static float ReadFloat(this XmlNode self, string label)
+        {
+            return XmlConvert.ToSingle(self.Attributes[label].Value);
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string label, float value)
+        {
+            self.WriteAttributeString(label, XmlConvert.ToString(value));
+        }
+
+        public static Vector3 ReadVector3(this XmlNode self, string prefix)
+        {
+            return new Vector3(
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}X"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Y"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Z"].Value)
+                    );
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string prefix, Vector3 value)
+        {
+            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.x));
+            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.y));
+            self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.z));
+        }
+
+        public static Quaternion ReadQuaternion(this XmlNode self, string prefix)
+        {
+            return new Quaternion(
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}X"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Y"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Z"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}W"].Value)
+                    );
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string prefix, Quaternion value)
+        {
+            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.x));
+            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.y));
+            self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.z));
+            self.WriteAttributeString($"{prefix}W", XmlConvert.ToString(value.w));
+        }
+
+        public static Color ReadColor(this XmlNode self, string prefix)
+        {
+            return new Color(
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}R"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}G"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}B"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}A"].Value)
+                    );
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string prefix, Color value)
+        {
+            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.r));
+            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.g));
+            self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.b));
+            self.WriteAttributeString($"{prefix}W", XmlConvert.ToString(value.a));
+        }
+
+    }
+
+    internal static class VariousExtensions
+    {
+        public static void Resize<T>(this List<T> self, int newSize)
+        {
+            int diff = self.Count - newSize;
+            if (diff < 0)
+                while (self.Count != newSize)
+                    self.Add(default(T));
+            else if (diff > 0)
+                while (self.Count != newSize)
+                    self.RemoveRange(newSize, diff);
+        }
 
         public static int IndexOf<T>(this T[] self, T obj)
         {
@@ -431,12 +681,14 @@ namespace ToolBox
             return -1;
         }
 
+#if HONEYSELECT || PLAYHOME || KOIKATSU
         public static bool IsVisible(this TreeNodeObject self)
         {
             if (self.parent != null)
                 return self.visible && self.parent.IsVisible();
             return self.visible;
         }
+#endif
 
         public static int LastIndexOf(this byte[] self, byte[] neddle)
         {
@@ -456,5 +708,23 @@ namespace ToolBox
             }
             return -1;
         }
+
+#if KOIKATSU || AISHOUJO
+        private static MethodInfo _initTransforms = null;
+        public static void InitTransforms(this DynamicBone self)
+        {
+            if (_initTransforms == null)
+                _initTransforms = self.GetType().GetMethod("InitTransforms", AccessTools.all);
+            _initTransforms.Invoke(self, null);
+        }
+
+        private static MethodInfo _setupParticles = null;
+        public static void SetupParticles(this DynamicBone self)
+        {
+            if (_setupParticles == null)
+                _setupParticles = self.GetType().GetMethod("SetupParticles", AccessTools.all);
+            _setupParticles.Invoke(self, null);
+        }
+#endif
     }
 }
