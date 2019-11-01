@@ -3,16 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using System.Security.Policy;
 using ChaCustom;
-using Harmony;
+using HarmonyLib;
 using Illusion.Extensions;
 using IllusionUtility.GetUtility;
 using Manager;
 using MessagePack;
 using TMPro;
-using ToolBox;
+using ToolBox.Extensions;
 using UniRx;
 using UniRx.Triggers;
 using UnityEngine;
@@ -111,7 +109,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsChangeSlot), "ChangeColorWindow", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(CustomAcsChangeSlot), "ChangeColorWindow", new[] { typeof(int) })]
     internal static class CustomAcsChangeSlot_ChangeColorWindow_Patches
     {
         private static CvsColor cvsColor;
@@ -167,7 +165,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeCoordinateType", new[] {typeof(ChaFileDefine.CoordinateType), typeof(bool)})]
+    [HarmonyPatch(typeof(ChaControl), "ChangeCoordinateType", new[] { typeof(ChaFileDefine.CoordinateType), typeof(bool) })]
     internal static class ChaControl_ChangeCoordinateType_Patches
     {
         private static void Prefix(ChaControl __instance, ChaFileDefine.CoordinateType type, bool changeBackCoordinateType)
@@ -265,7 +263,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "GetAccessoryCategoryCount", new []{typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "GetAccessoryCategoryCount", new[] { typeof(int) })]
     internal static class ChaControl_GetAccessoryCategoryCount_Patches
     {
         private static void Postfix(ChaControl __instance, int cateNo, ref int __result)
@@ -297,7 +295,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeShakeAccessory", new []{typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "ChangeShakeAccessory", new[] { typeof(int) })]
     internal static class ChaControl_ChangeShakeAccessory_Patches
     {
         private static bool Prepare()
@@ -340,7 +338,7 @@ namespace MoreAccessoriesKOI
                 foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> pair in destinationData.rawAccessoriesInfos)
                 {
                     if (pair.Value != null)
-                        pair.Value.Clear();                
+                        pair.Value.Clear();
                 }
             }
             else
@@ -418,7 +416,7 @@ namespace MoreAccessoriesKOI
                 index = (byte)idx
             }).ToList().ForEach(p =>
             {
-                p.toggle.OnValueChangedAsObservable().Subscribe(delegate(bool isOn)
+                p.toggle.OnValueChangedAsObservable().Subscribe(delegate (bool isOn)
                 {
                     if (!(bool)__instance.GetPrivate("updateWin") && isOn)
                     {
@@ -441,7 +439,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsParentWindow), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
+    [HarmonyPatch(typeof(CustomAcsParentWindow), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
     internal static class CustomAcsParentWindow_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsParentWindow __instance, int _no, bool open)
@@ -459,7 +457,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsParentWindow), "UpdateCustomUI", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(CustomAcsParentWindow), "UpdateCustomUI", new[] { typeof(int) })]
     internal static class CustomAcsParentWindow_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsParentWindow __instance, int param, ref int __result)
@@ -527,11 +525,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                    where isOn
-                    select isOn).Subscribe(delegate
-                {
-                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo] = p.index;
-                });
+                 where isOn
+                 select isOn).Subscribe(delegate
+             {
+                 Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo] = p.index;
+             });
             });
             ((Toggle[])__instance.GetPrivate("tglRotRate")).Select((p, idx) => new
             {
@@ -540,11 +538,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                    where isOn
-                    select isOn).Subscribe(delegate
-                {
-                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo] = p.index;
-                });
+                 where isOn
+                 select isOn).Subscribe(delegate
+             {
+                 Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo] = p.index;
+             });
             });
             ((Toggle[])__instance.GetPrivate("tglSclRate")).Select((p, idx) => new
             {
@@ -553,11 +551,11 @@ namespace MoreAccessoriesKOI
             }).ToList().ForEach(p =>
             {
                 (from isOn in p.toggle.OnValueChangedAsObservable()
-                    where isOn
-                    select isOn).Subscribe(delegate
-                {
-                    Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo] = p.index;
-                });
+                 where isOn
+                 select isOn).Subscribe(delegate
+             {
+                 Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo] = p.index;
+             });
             });
             float downTimeCnt = 0f;
             float loopTimeCnt = 0f;
@@ -632,7 +630,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(-100f, 100f, 1, value);
@@ -720,7 +718,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(0f, 360f, 0, value);
@@ -806,7 +804,7 @@ namespace MoreAccessoriesKOI
                 index = idx
             }).ToList().ForEach(p =>
             {
-                p.inp.onEndEdit.AsObservable().Subscribe(delegate(string value)
+                p.inp.onEndEdit.AsObservable().Subscribe(delegate (string value)
                 {
                     int xyz = p.index % 3;
                     float val = CustomBase.ConvertValueFromTextLimit(0.01f, 100f, 2, value);
@@ -873,7 +871,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
     internal static class CustomAcsMoveWindow_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int _no, bool open)
@@ -893,7 +891,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateCustomUI", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateCustomUI", new[] { typeof(int) })]
     internal static class CustomAcsMoveWindow_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int param)
@@ -910,7 +908,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateDragValue", new[] {typeof(int), typeof(int), typeof(float)})]
+    [HarmonyPatch(typeof(CustomAcsMoveWindow), "UpdateDragValue", new[] { typeof(int), typeof(int), typeof(float) })]
     internal static class CustomAcsMoveWindow_UpdateDragValue_Patches
     {
         private static bool Prefix(CustomAcsMoveWindow __instance, int type, int xyz, float move)
@@ -918,26 +916,26 @@ namespace MoreAccessoriesKOI
             switch (type)
             {
                 case 0:
-                {
-                    float val = move * ((float[])__instance.GetPrivate("movePosValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo]];
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, xyz, true, val);
-                    ((TMP_InputField[])__instance.GetPrivate("inpPos"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0][xyz].ToString();
-                    break;
-                }
+                    {
+                        float val = move * ((float[])__instance.GetPrivate("movePosValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectPosRate[__instance.correctNo]];
+                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsPosAdd(__instance.correctNo, xyz, true, val);
+                        ((TMP_InputField[])__instance.GetPrivate("inpPos"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 0][xyz].ToString();
+                        break;
+                    }
                 case 1:
-                {
-                    float val2 = move * ((float[])__instance.GetPrivate("moveRotValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo]];
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, xyz, true, val2);
-                    ((TMP_InputField[])__instance.GetPrivate("inpRot"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 1][xyz].ToString();
-                    break;
-                }
+                    {
+                        float val2 = move * ((float[])__instance.GetPrivate("moveRotValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectRotRate[__instance.correctNo]];
+                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsRotAdd(__instance.correctNo, xyz, true, val2);
+                        ((TMP_InputField[])__instance.GetPrivate("inpRot"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 1][xyz].ToString();
+                        break;
+                    }
                 case 2:
-                {
-                    float val3 = move * ((float[])__instance.GetPrivate("moveSclValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo]];
-                    MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, xyz, true, val3);
-                    ((TMP_InputField[])__instance.GetPrivate("inpScl"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 2][xyz].ToString();
-                    break;
-                }
+                    {
+                        float val3 = move * ((float[])__instance.GetPrivate("moveSclValue"))[Singleton<CustomBase>.Instance.customSettingSave.acsCorrectSclRate[__instance.correctNo]];
+                        MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).FuncUpdateAcsSclAdd(__instance.correctNo, xyz, true, val3);
+                        ((TMP_InputField[])__instance.GetPrivate("inpScl"))[xyz].text = MoreAccessories._self.GetPart(__instance.nSlotNo).addMove[__instance.correctNo, 2][xyz].ToString();
+                        break;
+                    }
             }
             MoreAccessories._self.GetCvsAccessory(__instance.nSlotNo).SetControllerTransform(__instance.correctNo);
             return false;
@@ -958,7 +956,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "ChangeSlot", new[] {typeof(int), typeof(bool)})]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "ChangeSlot", new[] { typeof(int), typeof(bool) })]
     internal static class CustomAcsSelectKind_ChangeSlot_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int _no, bool open)
@@ -974,7 +972,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "UpdateCustomUI", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "UpdateCustomUI", new[] { typeof(int) })]
     internal static class CustomAcsSelectKind_UpdateCustomUI_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int param)
@@ -984,7 +982,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(CustomAcsSelectKind), "OnSelect", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(CustomAcsSelectKind), "OnSelect", new[] { typeof(int) })]
     internal static class CustomAcsSelectKind_OnSelect_Patches
     {
         private static bool Prefix(CustomAcsSelectKind __instance, int index)
@@ -996,7 +994,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultParentStr", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultParentStr", new[] { typeof(int) })]
     internal static class ChaControl_GetAccessoryDefaultParentStr_Patches
     {
 
@@ -1018,7 +1016,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultColor", new[] {typeof(Color), typeof(int), typeof(int)}, new[] {0})]
+    [HarmonyPatch(typeof(ChaControl), "GetAccessoryDefaultColor", new[] { typeof(Color), typeof(int), typeof(int) }, new[] { ArgumentType.Out, ArgumentType.Normal, ArgumentType.Normal })]
     internal static class ChaControl_GetAccessoryDefaultColor_Patches
     {
         private static bool Prefix(ChaControl __instance, ref Color color, int slotNo, int no, ref bool __result)
@@ -1063,7 +1061,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "SetAccessoryPos", new[] {typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryPos", new[] { typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int) })]
     internal static class ChaControl_SetAccessoryPos_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, int correctNo, float value, bool add, int flags, ref bool __result)
@@ -1116,7 +1114,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "SetAccessoryRot", new[] {typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryRot", new[] { typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int) })]
     internal static class ChaControl_SetAccessoryRot_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, int correctNo, float value, bool add, int flags, ref bool __result)
@@ -1169,7 +1167,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "SetAccessoryScl", new[] {typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "SetAccessoryScl", new[] { typeof(int), typeof(int), typeof(float), typeof(bool), typeof(int) })]
     internal static class ChaControl_SetAccessoryScl_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, int correctNo, float value, bool add, int flags, ref bool __result)
@@ -1222,7 +1220,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "UpdateAccessoryMoveFromInfo", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "UpdateAccessoryMoveFromInfo", new[] { typeof(int) })]
     internal static class ChaControl_UpdateAccessoryMoveFromInfo_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, ref bool __result)
@@ -1277,7 +1275,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryColor", new[] {typeof(int)})]
+    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryColor", new[] { typeof(int) })]
     internal static class ChaControl_ChangeAccessoryColor_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, ref bool __result)
@@ -1340,7 +1338,7 @@ namespace MoreAccessoriesKOI
     }
 
 
-    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryParent", new[] {typeof(int), typeof(string)})]
+    [HarmonyPatch(typeof(ChaControl), "ChangeAccessoryParent", new[] { typeof(int), typeof(string) })]
     internal static class ChaControl_ChangeAccessoryParent_Patches
     {
         private static bool Prefix(ChaControl __instance, int slotNo, string parentStr, ref bool __result)
@@ -1409,7 +1407,7 @@ namespace MoreAccessoriesKOI
         private static MethodInfo _loadCharaFbxData;
         private static readonly object[] _params = new object[9];
 
-        internal static void ManualPatch(HarmonyInstance harmony)
+        internal static void ManualPatch(Harmony harmony)
         {
             foreach (MethodInfo info in typeof(ChaControl).GetMethods(BindingFlags.Instance | BindingFlags.Public))
             {
@@ -1550,7 +1548,7 @@ namespace MoreAccessoriesKOI
                     trfParent = instance.objTop.transform;
                 }
                 if (_loadCharaFbxData == null)
-                    _loadCharaFbxData = instance.GetType().GetMethod("LoadCharaFbxData", BindingFlags.NonPublic | BindingFlags.Instance);
+                    _loadCharaFbxData = instance.GetType().GetMethod("LoadCharaFbxData", AccessTools.all);
                 _params[0] = true;
                 _params[1] = type;
                 _params[2] = id;
@@ -1561,7 +1559,6 @@ namespace MoreAccessoriesKOI
                 _params[7] = -1;
                 _params[8] = false;
                 data.objAccessory[slotNo] = (GameObject)_loadCharaFbxData.Invoke(instance, _params); // I'm doing this the reflection way in order to be compatible with other plugins (like RimRemover)
-                //data.objAccessory[slotNo] = LoadCharaFbxData(instance, true, type, id, "ca_slot" + (slotNo + 20).ToString("00"), false, weight, trfParent, -1);
                 if (data.objAccessory[slotNo])
                 {
                     ListInfoComponent component = data.objAccessory[slotNo].GetComponent<ListInfoComponent>();
@@ -1596,7 +1593,7 @@ namespace MoreAccessoriesKOI
                     }
                 }
                 if (MoreAccessories._self._hasDarkness)
-                instance.CallPrivate("ChangeShakeAccessory", slotNo + 20);
+                    instance.CallPrivate("ChangeShakeAccessory", slotNo + 20);
             }
             instance.SetHideHairAccessory();
         }
@@ -1619,158 +1616,10 @@ namespace MoreAccessoriesKOI
                     data.objAcsMove[slotNo][i] = null;
                 }
                 if (MoreAccessories._self._hasDarkness)
-                instance.CallPrivate("ChangeShakeAccessory", slotNo);
+                    instance.CallPrivate("ChangeShakeAccessory", slotNo);
             }
             instance.SetHideHairAccessory();
         }
-
-        //private static GameObject LoadCharaFbxData(ChaControl instance, bool _hiPoly, int category, int id, string createName, bool copyDynamicBone, byte copyWeights, Transform trfParent, int defaultId, bool worldPositionStays = false)
-        //{
-        //    Dictionary<int, ListInfoBase> work = null;
-        //    work = instance.lstCtrl.GetCategoryInfo((ChaListDefine.CategoryNo)category);
-        //    if (work.Count == 0)
-        //    {
-        //        return null;
-        //    }
-        //    ListInfoBase lib = null;
-        //    if (!work.TryGetValue(id, out lib))
-        //    {
-        //        if (defaultId == -1)
-        //        {
-        //            return null;
-        //        }
-        //        if (id != defaultId)
-        //        {
-        //            work.TryGetValue(defaultId, out lib);
-        //        }
-        //        if (lib == null && !work.TryGetValue(0, out lib))
-        //        {
-        //            return null;
-        //        }
-        //    }
-        //    else if (category == 105 || category == 107)
-        //    {
-        //        int infoInt = lib.GetInfoInt(ChaListDefine.KeyType.Sex);
-        //        bool flag = false;
-        //        if (instance.sex == 0 && infoInt == 3)
-        //        {
-        //            flag = true;
-        //        }
-        //        else if (instance.sex == 1 && infoInt == 2)
-        //        {
-        //            flag = true;
-        //        }
-        //        if (flag)
-        //        {
-        //            if (id != defaultId)
-        //            {
-        //                work.TryGetValue(defaultId, out lib);
-        //            }
-        //            if (lib == null && !work.TryGetValue(0, out lib))
-        //            {
-        //                return null;
-        //            }
-        //        }
-        //    }
-        //    string assetName = lib.GetInfo(ChaListDefine.KeyType.MainData);
-        //    if (string.Empty == assetName)
-        //    {
-        //        return null;
-        //    }
-        //    if (!_hiPoly)
-        //    {
-        //        assetName += "_low";
-        //    }
-        //    string manifestName = lib.GetInfo(ChaListDefine.KeyType.MainManifest);
-        //    string assetBundleName = lib.GetInfo(ChaListDefine.KeyType.MainAB);
-        //    GameObject newObj = null;
-        //    newObj = CommonLib.LoadAsset<GameObject>(assetBundleName, assetName, true, manifestName);
-        //    Singleton<Character>.Instance.AddLoadAssetBundle(assetBundleName, manifestName);
-        //    if (null == newObj)
-        //    {
-        //        return null;
-        //    }
-        //    newObj.name = createName;
-        //    if (trfParent)
-        //    {
-        //        newObj.transform.SetParent(trfParent, worldPositionStays);
-        //    }
-        //    DynamicBoneCollider[] dbc = instance.objBodyBone.GetComponentsInChildren<DynamicBoneCollider>(true);
-        //    Dictionary<string, GameObject> dictBone = ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).dictBone;
-        //    DynamicBone[] db = newObj.GetComponentsInChildren<DynamicBone>(true);
-        //    foreach (DynamicBone dynamicBone in db)
-        //    {
-        //        if (copyDynamicBone)
-        //        {
-        //            if (dynamicBone.m_Root)
-        //            {
-        //                foreach (KeyValuePair<string, GameObject> keyValuePair in dictBone)
-        //                {
-        //                    if (keyValuePair.Key == dynamicBone.m_Root.name)
-        //                    {
-        //                        dynamicBone.m_Root = keyValuePair.Value.transform;
-        //                        break;
-        //                    }
-        //                }
-        //            }
-        //            if (dynamicBone.m_Exclusions != null && dynamicBone.m_Exclusions.Count != 0)
-        //            {
-        //                for (int j = 0; j < dynamicBone.m_Exclusions.Count; j++)
-        //                {
-        //                    if (!(null == dynamicBone.m_Exclusions[j]))
-        //                    {
-        //                        foreach (KeyValuePair<string, GameObject> keyValuePair2 in dictBone)
-        //                        {
-        //                            if (keyValuePair2.Key == dynamicBone.m_Exclusions[j].name)
-        //                            {
-        //                                dynamicBone.m_Exclusions[j] = keyValuePair2.Value.transform;
-        //                                break;
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //            if (dynamicBone.m_notRolls != null && dynamicBone.m_notRolls.Count != 0)
-        //            {
-        //                for (int k = 0; k < dynamicBone.m_notRolls.Count; k++)
-        //                {
-        //                    if (!(null == dynamicBone.m_notRolls[k]))
-        //                    {
-        //                        foreach (KeyValuePair<string, GameObject> keyValuePair3 in dictBone)
-        //                        {
-        //                            if (keyValuePair3.Key == dynamicBone.m_notRolls[k].name)
-        //                            {
-        //                                dynamicBone.m_notRolls[k] = keyValuePair3.Value.transform;
-        //                                break;
-        //                            }
-        //                        }
-        //                    }
-        //                }
-        //            }
-        //        }
-        //        if (dynamicBone.m_Colliders != null)
-        //        {
-        //            dynamicBone.m_Colliders.Clear();
-        //            for (int l = 0; l < dbc.Length; l++)
-        //            {
-        //                dynamicBone.m_Colliders.Add(dbc[l]);
-        //            }
-        //        }
-        //    }
-        //    GameObject objRootBone = instance.GetReferenceInfo(ChaReference.RefObjKey.A_ROOTBONE);
-        //    Transform trfRootBone = (!objRootBone) ? null : objRootBone.transform;
-        //    if (copyWeights == 1)
-        //    {
-        //        ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsBody")).AssignedWeightsAndSetBounds(newObj, "cf_j_root", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
-        //    }
-        //    else if (copyWeights == 2)
-        //    {
-        //        ((AssignedAnotherWeights)instance.GetPrivate("aaWeightsHead")).AssignedWeightsAndSetBounds(newObj, "cf_J_N_FaceRoot", (Bounds)instance.GetPrivate("bounds"), trfRootBone);
-        //    }
-        //    ListInfoComponent libComponent = newObj.AddComponent<ListInfoComponent>();
-        //    libComponent.data = lib.Clone();
-        //    return newObj;
-        //}
 
         private static void SetAccessoryDefaultColor(ChaControl instance, int slotNo)
         {

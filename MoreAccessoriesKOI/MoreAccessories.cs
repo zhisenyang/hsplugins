@@ -4,18 +4,17 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Xml;
 using BepInEx;
 using ChaCustom;
 using ExtensibleSaveFormat;
-using Harmony;
+using HarmonyLib;
 using Illusion.Extensions;
 using Illusion.Game;
 using Manager;
 using Studio;
 using TMPro;
-using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -28,7 +27,7 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.extendedsave")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.5";
+        public const string versionNum = "1.0.6";
 
         #region Events
         /// <summary>
@@ -140,7 +139,7 @@ namespace MoreAccessoriesKOI
         #endregion
 
         #region Accessors
-        internal 
+        internal
         #endregion
 
         #region Unity Methods
@@ -164,7 +163,7 @@ namespace MoreAccessoriesKOI
             ExtendedSave.CardBeingSaved += this.OnCharaSave;
             ExtendedSave.CoordinateBeingLoaded += this.OnCoordLoad;
             ExtendedSave.CoordinateBeingSaved += this.OnCoordSave;
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.kkplugins.moreaccessories");
+            Harmony harmony = new Harmony("com.joan6694.kkplugins.moreaccessories");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
             ChaControl_ChangeAccessory_Patches.ManualPatch(harmony);
         }
@@ -380,7 +379,7 @@ namespace MoreAccessoriesKOI
                 container.GetChild(0).SetParent(this._charaMakerScrollView.content);
             this._charaMakerScrollView.transform.SetAsFirstSibling();
             Toggle toggleCopy = GameObject.Find("CustomScene/CustomRoot/FrontUIGroup/CustomUIGroup/CvsMenuTree/04_AccessoryTop/tglCopy").GetComponent<Toggle>();
-            this._addButtonsGroup = UIUtility.CreateNewUIObject(this._charaMakerScrollView.content, "Add Buttons Group");
+            this._addButtonsGroup = UIUtility.CreateNewUIObject("Add Buttons Group", this._charaMakerScrollView.content);
             element = this._addButtonsGroup.gameObject.AddComponent<LayoutElement>();
             element.preferredWidth = 224f;
             element.preferredHeight = 32f;
@@ -993,19 +992,17 @@ namespace MoreAccessoriesKOI
 
         #region Sideloader
         [HarmonyPatch]
-        private static class SideloaderAutoresolverHooks_IterateCardPrefixes_Patches
+        private static class SideloaderAutoresolverHooks_IterateCoordinatePrefixes_Patches
         {
-            private static PropertyInfo _resolveInfoProperty;
-            private static CharAdditionalData _currentAdditionalData;
             private static object _sideLoaderChaFileAccessoryPartsInfoProperties;
+            private static PropertyInfo _resolveInfoProperty;
 
             private static bool Prepare()
             {
-                Type t = Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader");
+                Type t = Type.GetType("Sideloader.AutoResolver.UniversalAutoResolver,Sideloader");
                 if (t != null)
                 {
                     _resolveInfoProperty = Type.GetType("Sideloader.AutoResolver.ResolveInfo,Sideloader").GetProperty("Property", BindingFlags.Public | BindingFlags.Instance);
-                    _self._usingSideloader = true;
                     return true;
                 }
                 return false;
@@ -1013,11 +1010,11 @@ namespace MoreAccessoriesKOI
 
             private static MethodInfo TargetMethod()
             {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("IterateCardPrefixes", BindingFlags.NonPublic | BindingFlags.Static);
+                return Type.GetType("Sideloader.AutoResolver.UniversalAutoResolver,Sideloader").GetMethod("IterateCoordinatePrefixes", BindingFlags.NonPublic | BindingFlags.Static);
             }
 
             [HarmonyBefore("com.deathweasel.bepinex.guidmigration")]
-            private static void Prefix(ChaFile file, object extInfo)
+            private static void Prefix(object extInfo)
             {
                 if (extInfo != null)
                 {
@@ -1035,88 +1032,39 @@ namespace MoreAccessoriesKOI
                         ++i;
                     }
                 }
-                if (_self._overrideCharaLoadingFile != null)
-                {
-                    file = _self._overrideCharaLoadingFile;
-                }
-
-                _self._accessoriesByChar.TryGetValue(file, out _currentAdditionalData);
-
-                if (_sideLoaderChaFileAccessoryPartsInfoProperties == null)
-                {
-                    _sideLoaderChaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
-                }
             }
 
-            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-            {
-                bool set = false;
-                List<CodeInstruction> instructionsList = instructions.ToList();
-                for (int i = 0; i < instructionsList.Count; i++)
-                {
-                    CodeInstruction inst = instructionsList[i];
-                    yield return inst;
-                    if (set == false &&
-                        (instructionsList[i + 1].opcode == OpCodes.Blt || instructionsList[i + 1].opcode == OpCodes.Brtrue) &&
-                        instructionsList[i + 2].opcode == OpCodes.Ret)
-                    {
-                        yield return new CodeInstruction(OpCodes.Ldloc_0); //i
-                        yield return new CodeInstruction(OpCodes.Ldarg_0); //action
-                        yield return new CodeInstruction(OpCodes.Ldarg_2); //extInfo
-                        yield return new CodeInstruction(OpCodes.Call, typeof(SideloaderAutoresolverHooks_IterateCardPrefixes_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
-                        set = true;
-                    }
-                }
-            }
-
-            private static void Injected(int i, object action, object extInfo)
-            {
-                if (_currentAdditionalData == null || _currentAdditionalData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)i, out List<ChaFileAccessory.PartsInfo> parts) == false)
-                    return;
-                for (int j = 0; j < parts.Count; j++)
-                    ((Delegate)action).DynamicInvoke(_sideLoaderChaFileAccessoryPartsInfoProperties, parts[j], extInfo, $"outfit{i}.accessory{(j + 20)}.");
-            }
-        }
-
-        [HarmonyPatch]
-        private static class SideloaderAutoresolverHooks_IterateCoordinatePrefixes_Patches
-        {
-            private static object _sideLoaderChaFileAccessoryPartsInfoProperties;
-
-            private static bool Prepare()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
-            }
-
-            private static MethodInfo TargetMethod()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("IterateCoordinatePrefixes", BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            private static void Postfix(object action, ChaFileCoordinate coordinate, object extInfo)
+            private static void Postfix(object action, ChaFileCoordinate coordinate, object extInfo, string prefix)
             {
                 if (_sideLoaderChaFileAccessoryPartsInfoProperties == null)
                 {
                     _sideLoaderChaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
                 }
+
                 ChaFile owner = null;
-                foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
+                if (_self._overrideCharaLoadingFile != null)
+                    owner = _self._overrideCharaLoadingFile;
+                else
                 {
-                    if (pair.Value.nowCoordinate == coordinate)
+                    foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
                     {
-                        owner = pair.Value.chaFile;
-                        break;
-                    }
-                    foreach (ChaFileCoordinate c in pair.Value.chaFile.coordinate)
-                    {
-                        if (c == coordinate)
+                        if (pair.Value.nowCoordinate == coordinate)
                         {
                             owner = pair.Value.chaFile;
-                            goto DOUBLEBREAK;
+                            break;
+                        }
+                        foreach (ChaFileCoordinate c in pair.Value.chaFile.coordinate)
+                        {
+                            if (c == coordinate)
+                            {
+                                owner = pair.Value.chaFile;
+                                goto DOUBLEBREAK;
+                            }
                         }
                     }
                 }
                 DOUBLEBREAK:
+
                 if (owner == null)
                     return;
 
@@ -1124,8 +1072,22 @@ namespace MoreAccessoriesKOI
                 if (_self._accessoriesByChar.TryGetValue(owner, out additionalData) == false)
                     return;
 
-                for (int j = 0; j < additionalData.nowAccessories.Count; j++)
-                    ((Delegate)action).DynamicInvoke(_sideLoaderChaFileAccessoryPartsInfoProperties, additionalData.nowAccessories[j], extInfo, $"accessory{(j + 20)}.");
+                if (string.IsNullOrEmpty(prefix))
+                {
+                    for (int j = 0; j < additionalData.nowAccessories.Count; j++)
+                        ((Delegate)action).DynamicInvoke(_sideLoaderChaFileAccessoryPartsInfoProperties, additionalData.nowAccessories[j], extInfo, $"{prefix}accessory{j + 20}.");
+                }
+                else
+                {
+                    string coordId = prefix.Replace("outfit", "").Replace(".", "");
+                    if (int.TryParse(coordId, out int result) == false)
+                        return;
+                    List<ChaFileAccessory.PartsInfo> parts;
+                    if (additionalData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)result, out parts) == false)
+                        return;
+                    for (int j = 0; j < parts.Count; j++)
+                        ((Delegate)action).DynamicInvoke(_sideLoaderChaFileAccessoryPartsInfoProperties, parts[j], extInfo, $"{prefix}accessory{j + 20}.");
+                }
             }
         }
 
@@ -1206,7 +1168,7 @@ namespace MoreAccessoriesKOI
         }
         #endregion
 
-        [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new[] {typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool)})]
+        [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", new[] { typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
         private static class ChaFileControl_LoadFileLimited_Patches
         {
             private static void Prefix(ChaFileControl __instance, bool coordinate = true)
