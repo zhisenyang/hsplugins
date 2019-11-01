@@ -49,7 +49,13 @@ namespace UILib
             if (_initCalled)
                 return;
             _initCalled = true;
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.DefaultResources);
+#if HONEYSELECT || PLAYHOME
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.HS.Resources.DefaultResources);
+#elif KOIKATSU
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.KOI.Resources.DefaultResources);
+#elif AISHOUJO
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.AI.Resources.DefaultResources);
+#endif
             foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
             {
                 switch (sprite.name)
@@ -78,9 +84,26 @@ namespace UILib
                 }
             }
             defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            resources = new DefaultControls.Resources {background = backgroundSprite, checkmark = checkMark, dropdown = dropdownArrow, inputField = inputFieldBackground, knob = knob, mask = mask, standard = standardSprite};
+            resources = new DefaultControls.Resources
+            {
+                background = backgroundSprite,
+                checkmark = checkMark,
+                dropdown = dropdownArrow,
+                inputField = inputFieldBackground,
+                knob = knob,
+                mask = mask,
+                standard = standardSprite
+            };
             defaultFontSize = 16;
             bundle.Unload(false);
+            
+#if HONEYSELECT
+            SetCustomFont("mplus-1c-medium");
+#elif KOIKATSU
+            SetCustomFont("SourceHanSansJP-Medium");
+#elif AISHOUJO
+            SetCustomFont("Yu Gothic UI");
+#endif
         }
 
         public static Canvas CreateNewUISystem(string name = "NewUISystem")
@@ -111,30 +134,17 @@ namespace UILib
             }
         }
 
-        public static RectTransform CreateNewUIObject()
+        public static RectTransform CreateNewUIObject(string objectName = "UIObject", Transform parent = null)
         {
-            return CreateNewUIObject(null, "UIObject");
-        }
-
-        public static RectTransform CreateNewUIObject(string name)
-        {
-            return CreateNewUIObject(null, name);
-        }
-
-        public static RectTransform CreateNewUIObject(Transform parent)
-        {
-            return CreateNewUIObject(parent, "UIObject");
-        }
-
-        public static RectTransform CreateNewUIObject(Transform parent, string name)
-        {
-            RectTransform t = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
+            RectTransform t = new GameObject(objectName, typeof(RectTransform)).GetComponent<RectTransform>();
             if (parent != null)
             {
                 t.SetParent(parent, false);
                 t.localPosition = Vector3.zero;
                 t.localScale = Vector3.one;
             }
+
+            t.gameObject.layer = 5;
             return t;
         }
 
@@ -313,10 +323,10 @@ namespace UILib
         {
             Toggle t = tr.gameObject.AddComponent<Toggle>();
 
-            RectTransform bg = CreateNewUIObject(tr.transform, "Background");
+            RectTransform bg = CreateNewUIObject("Background", tr.transform);
             t.targetGraphic = AddImageToObject(bg, standardSprite);
 
-            RectTransform check = CreateNewUIObject(bg, "CheckMark");
+            RectTransform check = CreateNewUIObject("CheckMark", bg);
             Image checkM = AddImageToObject(check, checkMark);
             checkM.color = Color.black;
             t.graphic = checkM;
@@ -336,11 +346,10 @@ namespace UILib
             return i;
         }
 
-        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject, bool preventCameraControl = true)
+        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject)
         {
             MovableWindow mv = clickableDragZone.gameObject.AddComponent<MovableWindow>();
             mv.toDrag = draggableObject;
-            mv.preventCameraControl = preventCameraControl;
             return mv;
         }
     }
@@ -402,7 +411,7 @@ namespace UILib
         }
         public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
         {
-            RectTransform rt = self as RectTransform;
+            RectTransform rt = (RectTransform)self;
             rt.anchorMin = anchorMin;
             rt.anchorMax = anchorMax;
             rt.offsetMin = offsetMin;
@@ -411,7 +420,7 @@ namespace UILib
 
         public static void SetRect(this Transform self, float anchorLeft = 0f, float anchorBottom = 0f, float anchorRight = 1f, float anchorTop = 1f, float offsetLeft = 0f, float offsetBottom = 0f, float offsetRight = 0f, float offsetTop = 0f)
         {
-            RectTransform rt = self as RectTransform;
+            RectTransform rt = (RectTransform)self;
             rt.anchorMin = new Vector2(anchorLeft, anchorBottom);
             rt.anchorMax = new Vector2(anchorRight, anchorTop);
             rt.offsetMin = new Vector2(offsetLeft, offsetBottom);
@@ -480,6 +489,15 @@ namespace UILib
                 b.onValueChanged.AddListener(onValueChanged);
             return b;
 
+        }
+
+        private static readonly Slider.SliderEvent _emptySliderEvent = new Slider.SliderEvent();
+        public static void SetValueNoCallback(this Slider self, float value)
+        {
+            Slider.SliderEvent cachedEvent = self.onValueChanged;
+            self.onValueChanged = _emptySliderEvent;
+            self.value = value;
+            self.onValueChanged = cachedEvent;
         }
     }
 }
