@@ -11,6 +11,7 @@ using UnityEngine.UI;
 using Vectrosity;
 using ToolBox;
 using UnityEngine.Events;
+using ToolBox.Extensions;
 
 namespace MoreAccessories
 {
@@ -445,7 +446,7 @@ namespace MoreAccessories
             RectTransform scalingmenu = ((RectTransform)this.transform.FindChild("TabControl/TabItem03/Correct/Scaling"));
             scalingmenu.anchoredPosition += new Vector2(0f, 18f);
 
-            RectTransform modes = UIUtility.CreateNewUIObject(this.transform.FindChild("TabControl/TabItem03/Correct"), "GuideObject Modes");
+            RectTransform modes = UIUtility.CreateNewUIObject("GuideObject Modes", this.transform.FindChild("TabControl/TabItem03/Correct"));
             modes.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(scalingmenu.offsetMin.x, scalingmenu.offsetMin.y - 24f), new Vector2(scalingmenu.offsetMax.x, scalingmenu.offsetMin.y - 2));
             ToggleGroup toggleGroup = modes.gameObject.AddComponent<ToggleGroup>();
 
@@ -529,7 +530,7 @@ namespace MoreAccessories
 
             {
                 RectTransform parentCategory = this.transform.Find("TabControl/TabItem02/ParentCategory") as RectTransform;
-                RectTransform defaultContainer = UIUtility.CreateNewUIObject(parentCategory, "Default Container");
+                RectTransform defaultContainer = UIUtility.CreateNewUIObject("Default Container", parentCategory);
                 defaultContainer.SetRect(0f, 1f, 1f, 1f, 0f, -196f, -4f, 0f);
                 defaultContainer.gameObject.AddComponent<LayoutElement>().preferredHeight = 196f;
                 int i = 0;

@@ -11,7 +11,7 @@ using Harmony;
 using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;

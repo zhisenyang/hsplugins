@@ -12,6 +12,7 @@ using IllusionPlugin;
 using IllusionUtility.GetUtility;
 using Manager;
 using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -335,7 +336,6 @@ namespace MoreAccessories
         private bool _ready = false;
         private int _level;
         private RectTransform _addButtons;
-        private RoutinesComponent _routines;
         private Studio.OCIChar _selectedStudioCharacter;
         private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
         private StudioSlotData _toggleAll;
@@ -385,7 +385,7 @@ namespace MoreAccessories
                     break;
                 case "StudioNEO_32":
                 case "StudioNEO_64":
-                    this._binary = Binary.Neo;
+                    this._binary = Binary.Studio;
                     break;
             }
 
@@ -411,7 +411,6 @@ namespace MoreAccessories
 
         public void OnLevelWasLoaded(int level)
         {
-            this._routines = new GameObject("Routines", typeof(RoutinesComponent)).GetComponent<RoutinesComponent>();
             this._level = level;
             switch (this._binary)
             {
@@ -419,7 +418,7 @@ namespace MoreAccessories
                     if (level == 21)
                         this.SpawnMakerGUI();
                     break;
-                case Binary.Neo:
+                case Binary.Studio:
                     if (level == 3)
                         this.SpawnStudioGUI();
                     break;
@@ -437,7 +436,7 @@ namespace MoreAccessories
 
         public void OnUpdate()
         {
-            if (this._binary == Binary.Neo && this._level == 3)
+            if (this._binary == Binary.Studio && this._level == 3)
             {
                 Studio.TreeNodeObject treeNodeObject = Studio.Studio.Instance.treeNodeCtrl.selectNode;
                 if (treeNodeObject != null)
@@ -478,7 +477,7 @@ namespace MoreAccessories
 
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.MoreAccessoriesResources);
             this._charaMakerGuideObject = GameObject.Instantiate(bundle.LoadAsset<GameObject>("M Root")).AddComponent<GuideObject>();
-            bundle.Unload(true);
+            bundle.Unload(false);
 
             this._guideObjectCamera = new GameObject("GuideObjectCamera").AddComponent<Camera>();
             this._guideObjectCamera.transform.SetParent(Camera.main.transform);
@@ -530,7 +529,7 @@ namespace MoreAccessories
 
             Selectable template = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/FemaleControl/TabMenu/Tab01").GetComponent<Selectable>();
 
-            this._addButtons = UIUtility.CreateNewUIObject(this._prefab.parent, "AddAccessories");
+            this._addButtons = UIUtility.CreateNewUIObject("AddAccessories", this._prefab.parent);
             this._addButtons.SetRect(this._prefab.anchorMin, this._prefab.anchorMax, this._prefab.offsetMin + new Vector2(0f, -this._prefab.rect.height * 1.2f), this._prefab.offsetMax + new Vector2(0f, -this._prefab.rect.height));
             this._addButtons.pivot = new Vector2(0.5f, 1f);
             this._addButtons.gameObject.AddComponent<UI_TreeView>();
@@ -570,7 +569,7 @@ namespace MoreAccessories
             _self._charaMakerCopyScrollView.content.offsetMin = new Vector2(0f, -158f);
 
             container = (RectTransform)GameObject.Find($"CustomScene/CustomControl/CustomUI/CustomSubMenu/W_SubMenu/SubItemTop/ClothesColorCtrl_{(Game.Instance.customSceneInfo.isFemale ? "F" : "M")}/Menu/Top/ScrollView/ControlPanel/select").transform;
-            this._charaMakerBulkColorContainer = UIUtility.CreateNewUIObject(container, "Toggles").gameObject.AddComponent<LayoutElement>();
+            this._charaMakerBulkColorContainer = UIUtility.CreateNewUIObject("Toggles", container).gameObject.AddComponent<LayoutElement>();
             VerticalLayoutGroup group = container.parent.gameObject.AddComponent<VerticalLayoutGroup>();
             group.childForceExpandHeight = false;
             group.childForceExpandWidth = true;
@@ -602,7 +601,7 @@ namespace MoreAccessories
             this._charaMakerBulkColorContainer.transform.SetAsFirstSibling();
 
 
-            RectTransform buttonsContainer = UIUtility.CreateNewUIObject(container, "Buttons");
+            RectTransform buttonsContainer = UIUtility.CreateNewUIObject("Buttons", container);
             buttonsContainer.SetRect(new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(4f, -228f), new Vector2(304f, -184f));
             LayoutElement element = buttonsContainer.gameObject.AddComponent<LayoutElement>();
             element.preferredWidth = 300f;
@@ -826,7 +825,7 @@ namespace MoreAccessories
 
         internal void UpdateStudioUI()
         {
-            if (this._binary != Binary.Neo || this._selectedStudioCharacter == null || this._level != 3)
+            if (this._binary != Binary.Studio || this._selectedStudioCharacter == null || this._level != 3)
                 return;
             CharAdditionalData additionalData = this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
             int i;
@@ -1254,7 +1253,7 @@ namespace MoreAccessories
             if (n == null)
                 return;
             XmlNode node = n.CloneNode(true);
-            this._routines.ExecuteDelayed(() =>
+            this.ExecuteDelayed(() =>
             {
                 List<KeyValuePair<int, Studio.ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
                 int i = 0;
@@ -1283,7 +1282,7 @@ namespace MoreAccessories
                 if (pair.Key > max)
                     max = pair.Key;
             }
-            this._routines.ExecuteDelayed(() =>
+            this.ExecuteDelayed(() =>
             {
                 List<KeyValuePair<int, Studio.ObjectCtrlInfo>> dic = new SortedDictionary<int, Studio.ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).Where(p => p.Key > max).ToList();
 
@@ -1330,7 +1329,7 @@ namespace MoreAccessories
                             break;
                     }
                     break;
-                case Binary.Neo:
+                case Binary.Studio:
                     if (this._selectedStudioCharacter != null && clothesinfo == this._selectedStudioCharacter.charInfo.clothesInfo)
                         additionalData = this._accessoriesByChar[this._selectedStudioCharacter.charInfo.chaFile];
                     break;
