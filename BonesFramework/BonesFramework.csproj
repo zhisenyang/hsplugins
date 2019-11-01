@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props')" />
+  <Import Project="..\packages\ILMerge.3.0.29\build\ILMerge.props" Condition="Exists('..\packages\ILMerge.3.0.29\build\ILMerge.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -10,71 +10,140 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>BonesFramework</RootNamespace>
     <AssemblyName>BonesFramework</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
-    <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'HS|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
+    <OutputPath>bin\HS\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <DefineConstants>HONEYSELECT</DefineConstants>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'AI|AnyCPU'">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\AI\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <DefineConstants>AISHOUJO</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <TargetFrameworkVersion>v4.6</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\toolbox\Extensions.cs">
+      <Link>ToolBox\Extensions.cs</Link>
+    </Compile>
+    <Compile Include="..\toolbox\GenericPlugin.cs">
+      <Link>ToolBox\GenericPlugin.cs</Link>
+    </Compile>
     <Compile Include="BonesFramework.cs" />
     <Compile Include="OnDestroyTrigger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Routines.cs" />
   </ItemGroup>
+  <Choose>
+    <When Condition=" '$(Configuration)|$(Platform)' == 'HS|AnyCPU' ">
+      <ItemGroup>
+        <None Include=".NET 3.5\ILMergeConfig.json" />
+      </ItemGroup>
+      <ItemGroup >
+        <Reference Include="0Harmony">
+          <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
+        </Reference>
+        <Reference Include="Assembly-CSharp">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="IllusionPlugin">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="System">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Xml">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+      </ItemGroup>
+    </When>  
+    <When Condition="'$(Configuration)|$(Platform)' == 'AI|AnyCPU'">
+      <ItemGroup>
+        <None Include=".NET 4\ILMergeConfig.json" />
+      </ItemGroup>
+      <ItemGroup >
+        <Reference Include="0Harmony">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\BepInEx\core\0Harmony.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="Assembly-CSharp">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\Assembly-CSharp.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="BepInEx">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\BepInEx\core\BepInEx.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="System">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\System.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="System.Xml">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\System.Xml.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\UnityEngine.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.IMGUIModule">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.UI">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\UnityEngine.UI.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.CoreModule">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.ClothModule">
+          <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\UnityEngine.ClothModule.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+      </ItemGroup>
+    </When>
+  </Choose>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="IllusionPlugin">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="System.Xml">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.Xml.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine">
-      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ILMerge.props" />
     <None Include="packages.config" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\ToolBox\ToolBox.csproj">
-      <Project>{d7e512b2-4e7a-4455-bd7d-97dacf5a039a}</Project>
-      <Name>ToolBox</Name>
-    </ProjectReference>
-  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy /Y "$(TargetDir)$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>
+  <PropertyGroup Condition=" '$(Configuration)' == 'HS' ">
+    <PostBuildEvent>copy /Y "$(TargetDir)ILMerge\$(TargetName)$(TargetExt)" "D:\Program Files (x86)\HoneySelect\Plugins"</PostBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'AI' ">
+    <PostBuildEvent>copy /Y "$(TargetDir)ILMerge\$(TargetName)$(TargetExt)" "D:\Program Files (x86)\AI-Syoujyo/BepInEx/plugins"</PostBuildEvent>
   </PropertyGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>Ce projet fait référence à des packages NuGet qui sont manquants sur cet ordinateur. Utilisez l'option de restauration des packages NuGet pour les télécharger. Pour plus d'informations, consultez http://go.microsoft.com/fwlink/?LinkID=322105. Le fichier manquant est : {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.props'))" />
-    <Error Condition="!Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets'))" />
+    <Error Condition="!Exists('..\packages\ILMerge.3.0.29\build\ILMerge.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\ILMerge.3.0.29\build\ILMerge.props'))" />
+    <Error Condition="!Exists('..\ILMerge.MSBuild.Task\build\ILMerge.MSBuild.Task.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\ILMerge.MSBuild.Task\build\ILMerge.MSBuild.Task.targets'))" />
   </Target>
-  <Import Project="..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets" Condition="Exists('..\packages\MSBuild.ILMerge.Task.1.0.5\build\MSBuild.ILMerge.Task.targets')" />
+  <Import Project="..\ILMerge.MSBuild.Task\build\ILMerge.MSBuild.Task.targets" Condition="Exists('..\ILMerge.MSBuild.Task\build\ILMerge.MSBuild.Task.targets')" />
 </Project>
