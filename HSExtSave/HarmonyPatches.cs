@@ -1,16 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text;
 using System.Xml;
 using Harmony;
+#if PLAYHOME
+using SEXY;
+#endif
 using Studio;
+using UnityEngine;
 
 namespace HSExtSave
 {
+#if HONEYSELECT
     [HarmonyPatch(typeof(CharFile))]
     [HarmonyPatch("SaveWithoutPNG")]
     [HarmonyPatch(new[] {typeof(BinaryWriter)})]
@@ -24,8 +29,8 @@ namespace HSExtSave
         public static void Postfix(CharFile __instance, BinaryWriter writer)
         {
 
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving extended data for character...");
-            using (XmlTextWriter xmlWriter = new XmlTextWriter(writer.BaseStream, System.Text.Encoding.UTF8))
+            Debug.Log(HSExtSave._logPrefix + "Saving extended data for character...");
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(writer.BaseStream, Encoding.UTF8))
             {
                 xmlWriter.Formatting = Formatting.None;
 
@@ -52,14 +57,14 @@ namespace HSExtSave
                             }
                             catch (Exception e)
                             {
-                                UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
+                                Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during character saving. The exception was: " + e);
                             }
                         }
                     }
                 }
                 xmlWriter.WriteEndElement();
             }
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving done.");
+            Debug.Log(HSExtSave._logPrefix + "Saving done.");
         }
     }
 
@@ -70,7 +75,7 @@ namespace HSExtSave
     {
         public static void Postfix(CharFile __instance, BinaryReader reader, Boolean noSetPNG, Boolean noLoadStatus)
         {
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for character...");
+            Debug.Log(HSExtSave._logPrefix + "Loading extended data for character...");
             long cachedPosition = reader.BaseStream.Position;
             try
             {
@@ -96,7 +101,7 @@ namespace HSExtSave
                                 }
                                 catch (Exception e)
                                 {
-                                    UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + child.Name + "\" during character loading. The exception was: " + e);
+                                    Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + child.Name + "\" during character loading. The exception was: " + e);
                                 }
                             }
                             break;
@@ -111,7 +116,7 @@ namespace HSExtSave
             }
             catch (XmlException)
             {
-                UnityEngine.Debug.Log(HSExtSave.logPrefix + "No ext data in reader.");
+                Debug.Log(HSExtSave._logPrefix + "No ext data in reader.");
                 foreach (KeyValuePair<string, HSExtSave.HandlerGroup> kvp in HSExtSave._handlers)
                     if (kvp.Value.onCharRead != null)
                         kvp.Value.onCharRead(__instance, null);
@@ -119,48 +124,42 @@ namespace HSExtSave
             }
         }
     }
+#endif
 
-    public class SceneInfo_Load_Patches
+    [HarmonyPatch]
+    public static class SceneInfo_Load_Patches
     {
-        public static void ManualPatch(HarmonyInstance instance)
+        private static MethodInfo TargetMethod()
         {
-            foreach (MethodInfo methodInfo in typeof(SceneInfo).GetMethods())
-            {
-                if (methodInfo.Name.Equals("Load") && methodInfo.GetParameters().Length == 2)
-                {
-                    instance.Patch(methodInfo, null, null, new HarmonyMethod(typeof(SceneInfo_Load_Patches).GetMethod(nameof(MyTranspiler))));
-                    break;
-                }
-            }
+            return typeof(SceneInfo).GetMethods(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault(m => m.Name == "Load" && m.GetParameters().Length == 2);
         }
 
-        public static IEnumerable<CodeInstruction> MyTranspiler(IEnumerable<CodeInstruction> instructions)
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
+            MethodInfo disposeMethod = typeof(IDisposable).GetMethod("Dispose", AccessTools.all);
             bool set = false;
             List<CodeInstruction> instructionsList = instructions.ToList();
-            for (int i = 0; i < instructionsList.Count; i++)
+            foreach (CodeInstruction inst in instructionsList)
             {
-                CodeInstruction inst = instructionsList[i];
-                yield return inst;
-                if (set == false && inst.opcode == OpCodes.Stind_Ref && instructionsList[i + 1].opcode == OpCodes.Leave)
+                if (set == false && inst.opcode == OpCodes.Callvirt && inst.operand == disposeMethod)
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_1);
-                    yield return new CodeInstruction(OpCodes.Ldloc_0);
-                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Load_Patches).GetMethod(nameof(Injected)));
+                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
                     set = true;
                 }
+                yield return inst;
             }
         }
 
-        public static void Injected(string path, FileStream stream)
+        private static BinaryReader Injected(BinaryReader reader, string path)
         {
-            stream.Read(new byte[12], 0, 12);
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for scene...");
-            long cachedPosition = stream.Position;
+            reader.ReadString();
+            UnityEngine.Debug.Log(HSExtSave._logPrefix + "Loading extended data for scene...");
+            long cachedPosition = reader.BaseStream.Position;
             try
             {
                 XmlDocument doc = new XmlDocument();
-                doc.Load(stream);
+                doc.Load(reader.BaseStream);
                 HashSet<HSExtSave.HandlerGroup> calledHandlers = new HashSet<HSExtSave.HandlerGroup>();
 
                 foreach (XmlNode node in doc.ChildNodes)
@@ -181,7 +180,7 @@ namespace HSExtSave
                                 }
                                 catch (Exception e)
                                 {
-                                    UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + child.Name + "\" during scene loading. The exception was: " + e);
+                                    UnityEngine.Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + child.Name + "\" during scene loading. The exception was: " + e);
                                 }
                             }
                             break;
@@ -195,41 +194,47 @@ namespace HSExtSave
             }
             catch (XmlException)
             {
-                UnityEngine.Debug.Log(HSExtSave.logPrefix + "No ext data in reader.");
+                UnityEngine.Debug.Log(HSExtSave._logPrefix + "No ext data in reader.");
                 foreach (KeyValuePair<string, HSExtSave.HandlerGroup> kvp in HSExtSave._handlers)
                     if (kvp.Value.onSceneReadLoad != null)
                         kvp.Value.onSceneReadLoad(path, null);
-                stream.Seek(cachedPosition, SeekOrigin.Begin);
+                reader.BaseStream.Seek(cachedPosition, SeekOrigin.Begin);
             }
+            return reader;
         }
     }
 
-    [HarmonyPatch(typeof(SceneInfo), "Import", new []{typeof(string)})]
-    public class SceneInfo_Import_Patches
+    [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(string) })]
+    public static class SceneInfo_Import_Patches
     {
 
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
+            MethodInfo disposeMethod = typeof(IDisposable).GetMethod("Dispose", AccessTools.all);
             bool set = false;
             List<CodeInstruction> instructionsList = instructions.ToList();
             for (int i = 0; i < instructionsList.Count; i++)
             {
                 CodeInstruction inst = instructionsList[i];
-                yield return inst;
-                if (set == false && inst.opcode == OpCodes.Call && instructionsList[i + 1].opcode == OpCodes.Leave)
+                if (set == false && inst.opcode == OpCodes.Callvirt && inst.operand == disposeMethod)
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_1);
-                    yield return new CodeInstruction(OpCodes.Ldloc_1);
+#if HONEYSELECT
                     yield return new CodeInstruction(OpCodes.Ldloc_3);
-                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Import_Patches).GetMethod(nameof(Injected)));
+#elif PLAYHOME
+                    yield return new CodeInstruction(OpCodes.Ldloc_2);
+#endif
+                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Import_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
                     set = true;
                 }
+                yield return inst;
             }
         }
 
-        public static void Injected(string path, BinaryReader binaryReader, Version version)
+        private static BinaryReader Injected(BinaryReader binaryReader, string path, Version version)
         {
             //Reading useless data
+#if HONEYSELECT
             binaryReader.ReadInt32();
             if (version.CompareTo(new Version(1, 0, 3)) >= 0)
             {
@@ -339,18 +344,110 @@ namespace HSExtSave
                 binaryReader.ReadString();
             }
 
-            binaryReader.BaseStream.Read(new byte[12], 0, 12);
+            binaryReader.ReadString();
 
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for scene (import)...");
+#elif PLAYHOME
+            binaryReader.ReadInt32();
+            binaryReader.ReadString();
+            binaryReader.ReadString();
+            binaryReader.ReadString();
+            if (version.CompareTo(new Version(0, 1, 3)) >= 0)
+            {
+                binaryReader.ReadInt32();
+            }
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadString();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadSingle();
+
+            int num = binaryReader.ReadInt32();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            if (num == 1)
+            {
+                binaryReader.ReadSingle();
+            }
+            else
+            {
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+            }
+            binaryReader.ReadSingle();
+            for (int j = 0; j < 10; j++)
+            {
+                num = binaryReader.ReadInt32();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                binaryReader.ReadSingle();
+                if (num == 1)
+                {
+                    binaryReader.ReadSingle();
+                }
+                else
+                {
+                    binaryReader.ReadSingle();
+                    binaryReader.ReadSingle();
+                    binaryReader.ReadSingle();
+                }
+                binaryReader.ReadSingle();
+            }
+            binaryReader.ReadString();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadSingle();
+            binaryReader.ReadBoolean();
+            if (version.CompareTo(new Version(1, 1, 0)) >= 0)
+            {
+                binaryReader.ReadInt32();
+            }
+            binaryReader.ReadInt32();
+            binaryReader.ReadInt32();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadInt32();
+            binaryReader.ReadInt32();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadInt32();
+            binaryReader.ReadString();
+            binaryReader.ReadBoolean();
+            binaryReader.ReadString();
+            if (version.CompareTo(new Version(1, 1, 0)) >= 0)
+            {
+                binaryReader.ReadInt32();
+            }
+            binaryReader.ReadString();
+#endif
+
+            UnityEngine.Debug.Log(HSExtSave._logPrefix + "Loading extended data for scene (import)...");
+
             long cachedPosition = binaryReader.BaseStream.Position;
             //byte[] buffer = new byte[4096];
-            //int count = stream.Read(buffer, 0, 4096);
+            //int count = binaryReader.BaseStream.Read(buffer, 0, 4096);
             //byte[] b = new byte[count];
-            //Array.Copy(buffer, b,count);
+            //Array.Copy(buffer, b, count);
             //UnityEngine.Debug.Log(System.Text.Encoding.UTF8.GetString(b));
             //UnityEngine.Debug.Log(count);
             //File.WriteAllBytes("./bite.txt", b);
-            //stream.Seek(cachedPosition, SeekOrigin.Begin);
+            //binaryReader.BaseStream.Seek(cachedPosition, SeekOrigin.Begin);
 
             try
             {
@@ -376,7 +473,7 @@ namespace HSExtSave
                                 }
                                 catch (Exception e)
                                 {
-                                    UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + child.Name + "\" during scene import. The exception was: " + e);
+                                    UnityEngine.Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + child.Name + "\" during scene import. The exception was: " + e);
                                 }
                             }
                             break;
@@ -391,42 +488,51 @@ namespace HSExtSave
             }
             catch (XmlException)
             {
-                UnityEngine.Debug.Log(HSExtSave.logPrefix + "No ext data in reader.");
+                UnityEngine.Debug.Log(HSExtSave._logPrefix + "No ext data in reader.");
                 foreach (KeyValuePair<string, HSExtSave.HandlerGroup> kvp in HSExtSave._handlers)
                     if (kvp.Value.onSceneReadImport != null)
                         kvp.Value.onSceneReadImport(path, null);
                 binaryReader.BaseStream.Seek(cachedPosition, SeekOrigin.Begin);
             }
+            return binaryReader;
         }
     }
 
-    [HarmonyPatch(typeof(SceneInfo), "Save", new[] { typeof(string) })]
-    public class SceneInfo_Save_Patches
+    [HarmonyPatch]
+    public static class SceneInfo_Save_Patches
     {
-
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        private static MethodInfo TargetMethod()
         {
+#if PLAYHOME
+            //Fuck you plasticmind.
+            Type phiblSaveClass = Type.GetType("PHIBL.Patch.SceneSavePatch,PHIBL");
+            if (phiblSaveClass != null)
+                return phiblSaveClass.GetMethod("Prefix", AccessTools.all);
+#endif
+            return AccessTools.Method(typeof(SceneInfo), "Save", new[] {typeof(string)});
+        }
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            MethodInfo disposeMethod = typeof(IDisposable).GetMethod("Dispose", AccessTools.all);
             bool set = false;
             List<CodeInstruction> instructionsList = instructions.ToList();
-            for (int i = 0; i < instructionsList.Count; i++)
+            foreach (CodeInstruction inst in instructionsList)
             {
-                CodeInstruction inst = instructionsList[i];
-                yield return inst;
-                if (set == false && inst.opcode == OpCodes.Callvirt && instructionsList[i + 1].opcode == OpCodes.Leave)
+                if (set == false && inst.opcode == OpCodes.Callvirt && inst.operand == disposeMethod)
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_1);
-                    yield return new CodeInstruction(OpCodes.Ldloc_0);
-                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Save_Patches).GetMethod(nameof(Injected)));
+                    yield return new CodeInstruction(OpCodes.Call, typeof(SceneInfo_Save_Patches).GetMethod(nameof(Injected), BindingFlags.Static | BindingFlags.NonPublic));
                     set = true;
                 }
+                yield return inst;
             }
         }
 
-        public static void Injected(string path, FileStream stream)
+        private static BinaryWriter Injected(BinaryWriter writer, string path)
         {
-
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving extended data for scene...");
-            using (XmlTextWriter xmlWriter = new XmlTextWriter(stream, System.Text.Encoding.UTF8))
+            UnityEngine.Debug.Log(HSExtSave._logPrefix + "Saving extended data for scene...");
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(writer.BaseStream, System.Text.Encoding.UTF8))
             {
                 xmlWriter.Formatting = Formatting.None;
 
@@ -453,18 +559,20 @@ namespace HSExtSave
                             }
                             catch (Exception e)
                             {
-                                UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during scene saving. The exception was: " + e);
+                                UnityEngine.Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during scene saving. The exception was: " + e);
                             }
                         }
                     }
                 }
                 xmlWriter.WriteEndElement();
             }
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving done.");
+            UnityEngine.Debug.Log(HSExtSave._logPrefix + "Saving done.");
+            return writer;
         }
     }
 
 
+#if HONEYSELECT
     [HarmonyPatch(typeof(CharFileInfoClothes), "Load", new[] { typeof(BinaryReader), typeof(bool) })]
     public class CharFileInfoClothesFemale_LoadSub_Patches
     {
@@ -510,7 +618,7 @@ namespace HSExtSave
     {
         public static void Load(CharFileInfoClothes __instance, BinaryReader br)
         {
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Loading extended data for coordinate...");
+            Debug.Log(HSExtSave._logPrefix + "Loading extended data for coordinate...");
             long cachedPosition = br.BaseStream.Position;
             //br.ReadInt64();
             try
@@ -537,7 +645,7 @@ namespace HSExtSave
                                 }
                                 catch (Exception e)
                                 {
-                                    UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + child.Name + "\" during coordinate loading. The exception was: " + e);
+                                    Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + child.Name + "\" during coordinate loading. The exception was: " + e);
                                 }
                             }
                             break;
@@ -552,7 +660,7 @@ namespace HSExtSave
             }
             catch (XmlException)
             {
-                UnityEngine.Debug.Log(HSExtSave.logPrefix + "No ext data in reader.");
+                Debug.Log(HSExtSave._logPrefix + "No ext data in reader.");
                 foreach (KeyValuePair<string, HSExtSave.HandlerGroup> kvp in HSExtSave._handlers)
                     if (kvp.Value.onClothesRead != null)
                         kvp.Value.onClothesRead(__instance, null);
@@ -562,8 +670,8 @@ namespace HSExtSave
 
         public static void Save(CharFileInfoClothes __instance, BinaryWriter bw)
         {
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving extended data for coordinates...");
-            using (XmlTextWriter xmlWriter = new XmlTextWriter(bw.BaseStream, System.Text.Encoding.UTF8))
+            Debug.Log(HSExtSave._logPrefix + "Saving extended data for coordinates...");
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(bw.BaseStream, Encoding.UTF8))
             {
                 xmlWriter.Formatting = Formatting.None;
 
@@ -590,15 +698,15 @@ namespace HSExtSave
                             }
                             catch (Exception e)
                             {
-                                UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during coordinates saving. The exception was: " + e);
+                                Debug.LogError(HSExtSave._logPrefix + "Exception happened in handler \"" + kvp.Key + "\" during coordinates saving. The exception was: " + e);
                             }
                         }
                     }
                 }
                 xmlWriter.WriteEndElement();
             }
-            UnityEngine.Debug.Log(HSExtSave.logPrefix + "Saving done.");
+            Debug.Log(HSExtSave._logPrefix + "Saving done.");
         }
     }
-
+#endif
 }

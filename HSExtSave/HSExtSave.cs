@@ -4,10 +4,13 @@ using System.Reflection;
 using System.Xml;
 using Harmony;
 using IllusionPlugin;
+#if PLAYHOME
+using SEXY;
+#endif
 
 namespace HSExtSave
 {
-    public class HSExtSave : IEnhancedPlugin
+    public class HSExtSave : IPlugin
     {
         #region Public Types
         public delegate void ExtSaveCharReadHandler(CharFile charFile, XmlNode node);
@@ -38,14 +41,22 @@ namespace HSExtSave
 
         #region Private Variables
         internal static Dictionary<string, HandlerGroup> _handlers = new Dictionary<string, HandlerGroup>();
-        internal static Binary _binary = Binary.Neo;
+        internal static Binary _binary = Binary.Studio;
+#if HONEYSELECT
+        internal const string _logPrefix = "HSExtSave: ";
+#elif PLAYHOME
+        internal const string _logPrefix = "PHExtSave: ";
+#endif
         #endregion
 
         #region Public Accessors
-        public static string logPrefix { get { return "HSExtSave: "; } }
+#if HONEYSELECT
         public string Name { get { return "HSExtSave"; } }
         public string Version { get { return "1.0.1"; } }
-        public string[] Filter { get { return new[] {"StudioNEO_64", "StudioNEO_32", "HoneySelect_64", "HoneySelect_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+#elif PLAYHOME
+        public string Name { get { return "PHExtSave"; } }
+        public string Version { get { return "1.0.1"; } }
+#endif
         #endregion
 
         #region Unity Methods
@@ -53,19 +64,22 @@ namespace HSExtSave
         {
             switch (Process.GetCurrentProcess().ProcessName)
             {
+                case "PlayHome32bit":
+                case "PlayHome64bit":
                 case "HoneySelect_32":
                 case "HoneySelect_64":
                     _binary = Binary.Game;
                     break;
+                case "PlayHomeStudio32bit":
+                case "PlayHomeStudio64bit":
                 case "StudioNEO_32":
                 case "StudioNEO_64":
-                    _binary = Binary.Neo;
+                    _binary = Binary.Studio;
                     break;
             }
 
             HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.charextsave");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
-            SceneInfo_Load_Patches.ManualPatch(harmony);
         }
 
         public void OnLevelWasInitialized(int level)
@@ -108,12 +122,12 @@ namespace HSExtSave
         {
             if (string.IsNullOrEmpty(name))
             {
-                UnityEngine.Debug.LogError(HSExtSave.logPrefix + "Name of the handler must not be null or empty...");
+                UnityEngine.Debug.LogError(HSExtSave._logPrefix + "Name of the handler must not be null or empty...");
                 return false;
             }
             HandlerGroup group;
             if (_handlers.TryGetValue(name, out group))
-                UnityEngine.Debug.LogWarning(HSExtSave.logPrefix + "Handler is already registered, updating callbacks...");
+                UnityEngine.Debug.LogWarning(HSExtSave._logPrefix + "Handler is already registered, updating callbacks...");
             else
             {
                 group = new HandlerGroup();
@@ -141,7 +155,7 @@ namespace HSExtSave
                 _handlers.Remove(name);
                 return true;
             }
-            UnityEngine.Debug.LogWarning(HSExtSave.logPrefix + "Handler is not registered, operation will be ignored...");
+            UnityEngine.Debug.LogWarning(HSExtSave._logPrefix + "Handler is not registered, operation will be ignored...");
             return false;
         }
         #endregion
