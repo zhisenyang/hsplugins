@@ -4,13 +4,21 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using RootMotion.FinalIK;
+#if HONEYSELECT || PLAYHOME
 using Harmony;
+#else
+using HarmonyLib;
+#endif
+#if PLAYHOME
+using SEXY;
+#endif
 using Studio;
 
 namespace HSPE
 {
     [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
-    public class Studio_Duplicate_Patches
+    internal class Studio_Duplicate_Patches
     {
         public static void Postfix(Studio.Studio __instance)
         {
@@ -33,17 +41,20 @@ namespace HSPE
     {
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            bool set = false;
+            int count = 0;
             List<CodeInstruction> instructionsList = instructions.ToList();
             for (int i = 0; i < instructionsList.Count; i++)
             {
                 CodeInstruction inst = instructionsList[i];
                 yield return inst;
-                if (set == false && instructionsList[i + 1].opcode == OpCodes.Pop)
+                if (count != 2 && inst.ToString().Contains("ReadInt32"))
                 {
-                    yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Call, typeof(ObjectInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
-                    set = true;
+                    ++count;
+                    if (count == 2)
+                    {
+                        yield return new CodeInstruction(OpCodes.Ldarg_0);
+                        yield return new CodeInstruction(OpCodes.Call, typeof(ObjectInfo_Load_Patches).GetMethod(nameof(Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                    }
                 }
             }
         }
@@ -90,6 +101,7 @@ namespace HSPE
         }
     }
 
+#if HONEYSELECT || KOIKATSU
 #if HONEYSELECT
     [HarmonyPatch(typeof(OCIChar), "SetCoordinateInfo", new[] { typeof(CharDefine.CoordinateType), typeof(bool) })]
 #elif KOIKATSU
@@ -109,5 +121,6 @@ namespace HSPE
                 onSetCoordinateInfo(__instance, _type, _force);
         }
     }
+#endif
 
 }

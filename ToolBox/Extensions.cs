@@ -29,8 +29,62 @@ using UnityEngine.UI;
 
 namespace ToolBox.Extensions
 {
+    public delegate void Action<T1, T2, T3, T4, T5>(T1 arg, T2 arg2, T3 arg3, T4 arg4, T5 arg5);
+    public delegate void Action<T1, T2, T3, T4, T5, T6>(T1 arg, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6);
+
     internal static class HarmonyExtensions
     {
+#if HONEYSELECT || PLAYHOME
+        public static HarmonyInstance PatchAll(string guid)
+#elif KOIKATSU || AISHOUJO
+        public static Harmony PatchAll(string guid)
+#endif
+        {
+#if HONEYSELECT || PLAYHOME
+            HarmonyInstance harmony = HarmonyInstance.Create(guid);
+#elif AISHOUJO || KOIKATSU
+            Harmony harmony = new Harmony(guid);
+#endif
+            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            return harmony;
+        }
+
+#if HONEYSELECT || PLAYHOME
+        public static HarmonyInstance PatchAllSafe(string guid)
+#elif KOIKATSU || AISHOUJO
+        public static Harmony PatchAllSafe(string guid)
+#endif
+        {
+#if HONEYSELECT || PLAYHOME
+            HarmonyInstance harmony = HarmonyInstance.Create(guid);
+#elif AISHOUJO || KOIKATSU
+            Harmony harmony = new Harmony(guid);
+#endif
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            foreach (Type type in assembly.GetTypes())
+            {
+                try
+                {
+#if HONEYSELECT || PLAYHOME
+                    List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
+#elif AISHOUJO || KOIKATSU
+                    List<HarmonyMethod> harmonyMethods = HarmonyMethodExtensions.GetFromType(type);
+#endif
+                    if (harmonyMethods == null || harmonyMethods.Count <= 0)
+                        continue;
+                    HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
+                    new PatchProcessor(harmony, type, attributes).Patch();
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(assembly.FullName + ": Exception occured when patching: " + e);
+                }
+            }
+            return harmony;
+        }
+
+
+
         public class Replacement
         {
             public CodeInstruction[] pattern = null;
@@ -107,7 +161,7 @@ namespace ToolBox.Extensions
 
     internal static class MonoBehaviourExtensions
     {
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
         private static PluginComponent _pluginComponent;
         private static void CheckPluginComponent()
         {
@@ -133,6 +187,43 @@ namespace ToolBox.Extensions
         {
             CheckPluginComponent();
             return _pluginComponent.ExecuteDelayed(waitUntil, action);
+        }
+
+        public static Coroutine StartCoroutine(this IPlugin self, IEnumerator routine)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.StartCoroutine(routine);
+        }
+        public static Coroutine StartCoroutine(this IPlugin self, string methodName)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.StartCoroutine(methodName);
+        }
+        public static Coroutine StartCoroutine(this IPlugin self, string methodName, object value)
+        {
+            CheckPluginComponent();
+            return _pluginComponent.StartCoroutine(methodName, value);
+        }
+
+        public static void StopCoroutine(this IPlugin self, Coroutine routine)
+        {
+            CheckPluginComponent();
+            _pluginComponent.StopCoroutine(routine);
+        }
+        public static void StopCoroutine(this IPlugin self, IEnumerator routine)
+        {
+            CheckPluginComponent();
+            _pluginComponent.StopCoroutine(routine);
+        }
+        public static void StopCoroutine(this IPlugin self, string methodName)
+        {
+            CheckPluginComponent();
+            _pluginComponent.StopCoroutine(methodName);
+        }
+        public static void StopAllCouroutines(this IPlugin self)
+        {
+            CheckPluginComponent();
+            _pluginComponent.StopAllCoroutines();
         }
 #endif
 
@@ -726,5 +817,31 @@ namespace ToolBox.Extensions
             _setupParticles.Invoke(self, null);
         }
 #endif
+    }
+
+    public class HashedPair<T, T2>
+    {
+        public readonly T key;
+        public readonly T2 value;
+
+        private readonly int _hashCode;
+
+        public HashedPair(T key, T2 value)
+        {
+            this.key = key;
+            this.value = value;
+
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + (this.key != null ? this.key.GetHashCode() : 0);
+                this._hashCode = hash * 31 + (this.value != null ? this.value.GetHashCode() : 0);
+            }
+        }
+
+        public override int GetHashCode()
+        {
+            return this._hashCode;
+        }
     }
 }

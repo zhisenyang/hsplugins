@@ -3,22 +3,32 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
+#if AISHOUJO
+using AIChara;
+#endif
+#if HONEYSELECT || PLAYHOME
 using Harmony;
+#else
+using HarmonyLib;
+#endif
 using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
 using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Vectrosity;
-#if KOIKATSU
+using Input = UnityEngine.Input;
+using Path = System.IO.Path;
+#if KOIKATSU || AISHOUJO
 using ExtensibleSaveFormat;
 using TMPro;
+using System.Runtime.CompilerServices;
 #endif
 
 namespace HSPE
@@ -43,24 +53,30 @@ namespace HSPE
         private const string _config = "configNEO.xml";
         internal const string _pluginDir = "Plugins\\HSPE\\";
         private const string _studioSavesDir = "StudioNEOScenes\\";
+#elif PLAYHOME
+        private const string _config = "config.xml";
+        internal const string _pluginDir = "Plugins\\PHPE\\";
 #elif KOIKATSU
         private const string _config = "config.xml";
-        internal const string _pluginDir = "BepInEx\\KKPE\\";
         private const string _extSaveKey = "kkpe";
+#elif AISHOUJO
+        private const string _config = "config.xml";
+        internal const string _pluginDir = "BepInEx\\AIPE\\";
+        private const string _extSaveKey = "aipe";
 #endif
-        internal static readonly GUIStyle _customBoxStyle = new GUIStyle {normal = new GUIStyleState {background = Texture2D.whiteTexture}};
+        internal static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
         #endregion
 
         #region Private Variables
         internal PoseController _poseTarget;
         internal CameraEventsDispatcher _cameraEventsDispatcher;
+        private string _assemblyLocation;
         private HashSet<TreeNodeObject> _selectedNodes;
         private readonly List<FullBodyBipedEffector> _ikBoneTargets = new List<FullBodyBipedEffector>();
         private readonly Vector3[] _lastIKBonesPositions = new Vector3[14];
         private readonly Quaternion[] _lastIKBonesRotations = new Quaternion[14];
         private readonly List<FullBodyBipedChain> _ikBendGoalTargets = new List<FullBodyBipedChain>();
         private readonly Vector3[] _lastIKBendGoalsPositions = new Vector3[4];
-        private readonly Dictionary<string, KeyCode> _nameToKeyCode = new Dictionary<string, KeyCode>();
         private KeyCode _mainWindowKeyCode = KeyCode.H;
         private int _lastObjectCount = 0;
         private int _lastIndex = 0;
@@ -139,93 +155,110 @@ namespace HSPE
             if (Resources.FindObjectsOfTypeAll<IKExecutionOrder>().Length == 0)
                 this.gameObject.AddComponent<IKExecutionOrder>().IKComponents = new IK[0];
 
-            string path = _pluginDir + _config;
-            if (File.Exists(path) == false)
-                return;
-            XmlDocument doc = new XmlDocument();
-            doc.Load(path);
+            this._assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-            string[] names = Enum.GetNames(typeof(KeyCode));
-            this._possibleKeyCodes = (KeyCode[])Enum.GetValues(typeof(KeyCode));
-
-            for (int i = 0; i < names.Length && i < this._possibleKeyCodes.Length; i++)
-                this._nameToKeyCode.Add(names[i], this._possibleKeyCodes[i]);
-
-            foreach (XmlNode node in doc.DocumentElement.ChildNodes)
+            string path = Path.Combine(Path.Combine(this._assemblyLocation, HSPE._name), _config);
+            if (File.Exists(path))
             {
-                switch (node.Name)
+                XmlDocument doc = new XmlDocument();
+                doc.Load(path);
+
+                this._possibleKeyCodes = (KeyCode[])Enum.GetValues(typeof(KeyCode));
+
+                foreach (XmlNode node in doc.FirstChild.ChildNodes)
                 {
-                    case "mainWindowSize":
-                        if (node.Attributes["value"] != null)
-                            this._mainWindowSize = XmlConvert.ToSingle(node.Attributes["value"].Value);
-                        break;
-                    case "mainWindowShortcut":
-                        if (node.Attributes["value"] != null && this._nameToKeyCode.ContainsKey(node.Attributes["value"].Value))
-                            this._mainWindowKeyCode = this._nameToKeyCode[node.Attributes["value"].Value];
-                        break;
-                    case "advancedModeWindowSize":
-                        if (node.Attributes["x"] != null && node.Attributes["y"] != null)
-                        {
-                            this._advancedModeRect.xMin = this._advancedModeRect.xMax - XmlConvert.ToInt32(node.Attributes["x"].Value);                            
-                            this._advancedModeRect.yMin = this._advancedModeRect.yMax - XmlConvert.ToInt32(node.Attributes["y"].Value);                            
-                        }
-                        break;
-                    case "femaleShortcuts":
-                        foreach (XmlNode shortcut in node.ChildNodes)
-                            if (shortcut.Attributes["path"] != null)
-                                BonesEditor._femaleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
-                        break;
-                    case "maleShortcuts":
-                        foreach (XmlNode shortcut in node.ChildNodes)
-                            if (shortcut.Attributes["path"] != null)
-                                BonesEditor._maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
-                        break;
-                    case "itemShortcuts":
-                        foreach (XmlNode shortcut in node.ChildNodes)
-                            if (shortcut.Attributes["path"] != null)
-                                BonesEditor._itemShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
-                        break;
-                    case "boneAliases":
-                        foreach (XmlNode alias in node.ChildNodes)
-                            if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
-                                BonesEditor._boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
-                        break;
-                    case "blendShapeAliases":
-                        foreach (XmlNode alias in node.ChildNodes)
-                            if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
-                                BlendShapesEditor._blendShapeAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
-                        break;
-                    case "crotchCorrectionByDefault":
-                        if (node.Attributes["value"] != null)
-                            this._crotchCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
-                        break;
-                    case "anklesCorrectionByDefault":
-                        if (node.Attributes["value"] != null)
-                            this._anklesCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
-                        break;
+                    switch (node.Name)
+                    {
+                        case "mainWindowSize":
+                            if (node.Attributes["value"] != null)
+                                this._mainWindowSize = XmlConvert.ToSingle(node.Attributes["value"].Value);
+                            break;
+                        case "mainWindowShortcut":
+                            if (node.Attributes["value"] != null)
+                            {
+                                try
+                                {
+                                    this._mainWindowKeyCode = (KeyCode)Enum.Parse(typeof(KeyCode), node.Attributes["value"].Value);
+                                }
+                                catch { }
+                            }
+                            break;
+                        case "advancedModeWindowSize":
+                            if (node.Attributes["x"] != null && node.Attributes["y"] != null)
+                            {
+                                this._advancedModeRect.xMin = this._advancedModeRect.xMax - XmlConvert.ToInt32(node.Attributes["x"].Value);
+                                this._advancedModeRect.yMin = this._advancedModeRect.yMax - XmlConvert.ToInt32(node.Attributes["y"].Value);
+                            }
+                            break;
+                        case "femaleShortcuts":
+                            foreach (XmlNode shortcut in node.ChildNodes)
+                                if (shortcut.Attributes["path"] != null)
+                                    BonesEditor._femaleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                            break;
+                        case "maleShortcuts":
+                            foreach (XmlNode shortcut in node.ChildNodes)
+                                if (shortcut.Attributes["path"] != null)
+                                    BonesEditor._maleShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                            break;
+                        case "itemShortcuts":
+                            foreach (XmlNode shortcut in node.ChildNodes)
+                                if (shortcut.Attributes["path"] != null)
+                                    BonesEditor._itemShortcuts.Add(shortcut.Attributes["path"].Value, shortcut.Attributes["path"].Value.Split('/').Last());
+                            break;
+                        case "boneAliases":
+                            foreach (XmlNode alias in node.ChildNodes)
+                                if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
+                                    BonesEditor._boneAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
+                            break;
+                        case "blendShapeAliases":
+                            foreach (XmlNode alias in node.ChildNodes)
+                                if (alias.Attributes["key"] != null && alias.Attributes["value"] != null)
+                                    BlendShapesEditor._blendShapeAliases.Add(alias.Attributes["key"].Value, alias.Attributes["value"].Value);
+                            break;
+                        case "crotchCorrectionByDefault":
+                            if (node.Attributes["value"] != null)
+                                this._crotchCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
+                            break;
+                        case "anklesCorrectionByDefault":
+                            if (node.Attributes["value"] != null)
+                                this._anklesCorrectionByDefault = XmlConvert.ToBoolean(node.Attributes["value"].Value);
+                            break;
+                    }
                 }
             }
             PoseController.InstallOnParentageEvent();
             OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
-            OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
-            this._cameraEventsDispatcher = Studio.Studio.Instance.cameraCtrl.mainCmaera.gameObject.AddComponent<CameraEventsDispatcher>();
-            this._dicGuideObject = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
 #if HONEYSELECT
+            OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
+#endif
+            this._dicGuideObject = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
+#if HONEYSELECT || PLAYHOME
             HSExtSave.HSExtSave.RegisterHandler("hspe", null, null, this.OnSceneLoad, this.OnSceneImport, this.OnSceneSave, null, null);
-#elif KOIKATSU
+#elif KOIKATSU || AISHOUJO
             ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
             ExtendedSave.CardBeingSaved += this.OnCharaSave;
             ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
             ExtendedSave.SceneBeingImported += this.OnSceneImport;
             ExtendedSave.SceneBeingSaved += this.OnSceneSave;
 #endif
-            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
-
+            this._randomId = (int)(UnityEngine.Random.value * uint.MaxValue);
+            this.ExecuteDelayed(() =>
+            {
+                TimelineCompatibility.Init(() =>
+                {
+                    BonesEditor.TimelineCompatibility.Populate();
+                    CollidersEditor.TimelineCompatibility.Populate();
+                    DynamicBonesEditor.TimelineCompatibility.Populate();
+                    BlendShapesEditor.TimelineCompatibility.Populate();
+                    BoobsEditor.TimelineCompatibility.Populate();
+                });
+            }, 3);
         }
 
-        void Start()
+        private void Start()
         {
+            this._cameraEventsDispatcher = Camera.main.gameObject.AddComponent<CameraEventsDispatcher>();
             this.SpawnGUI();
             this._crotchCorrectionByDefaultToggle.isOn = this._crotchCorrectionByDefault;
             this._anklesCorrectionByDefaultToggle.isOn = this._anklesCorrectionByDefault;
@@ -313,21 +346,17 @@ namespace HSPE
         }
         protected virtual void OnDestroy()
         {
-            if (Directory.Exists(_pluginDir) == false)
-                Directory.CreateDirectory(_pluginDir);
-            string path = _pluginDir + _config;
+            string folder = Path.Combine(this._assemblyLocation, HSPE._name);
+            if (Directory.Exists(folder) == false)
+                Directory.CreateDirectory(folder);
+            string path = Path.Combine(folder, _config);
             using (FileStream fileStream = new FileStream(path, FileMode.Create, FileAccess.Write))
             {
                 using (XmlTextWriter xmlWriter = new XmlTextWriter(fileStream, Encoding.UTF8))
                 {
                     xmlWriter.Formatting = Formatting.Indented;
                     xmlWriter.WriteStartElement("root");
-#if HONEYSELECT
-                    xmlWriter.WriteAttributeString("version", HSPE.versionNum.ToString());
-#elif KOIKATSU
-                    xmlWriter.WriteAttributeString("version", KKPE.versionNum.ToString());
-#endif
-
+                    xmlWriter.WriteAttributeString("version", HSPE._versionNum.ToString());
                     xmlWriter.WriteStartElement("mainWindowSize");
                     xmlWriter.WriteAttributeString("value", XmlConvert.ToString(this._mainWindowSize));
                     xmlWriter.WriteEndElement();
@@ -405,16 +434,14 @@ namespace HSPE
         #region GUI
         private void SpawnGUI()
         {
-#if HONEYSELECT
-            string oldResourcesDir = _pluginDir + "Resources\\";
-            if (Directory.Exists(oldResourcesDir))
-                Directory.Delete(oldResourcesDir, true);
-#endif
+            UIUtility.Init();
 
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSPEResources);
 #elif KOIKATSU
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.ResourcesKOI.KKPEResources);
+#elif AISHOUJO
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.ResourcesAI.AIPEResources);
 #endif
             Texture2D texture = bundle.LoadAsset<Texture2D>("Icon");
             this.vectorEndCap = bundle.LoadAsset<Texture2D>("VectorEndCap");
@@ -429,9 +456,9 @@ namespace HSPE
                 hspeButton.transform.SetParent(original.parent, true);
                 hspeButton.transform.localScale = original.localScale;
                 hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
                 hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
-#elif KOIKATSU
+#elif KOIKATSU || AISHOUJO
                 hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 80f);
 #endif
                 this._hspeButtonImage = hspeButton.targetGraphic as Image;
@@ -443,7 +470,7 @@ namespace HSPE
                     this._ui.gameObject.SetActive(this._isVisible);
                     this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
                 });
-                EventTrigger.Entry entry = new EventTrigger.Entry() {eventID = EventTriggerType.PointerClick, callback = new EventTrigger.TriggerEvent()};
+                EventTrigger.Entry entry = new EventTrigger.Entry() { eventID = EventTriggerType.PointerClick, callback = new EventTrigger.TriggerEvent() };
                 entry.callback.AddListener(eventData =>
                 {
                     PointerEventData pointerEventData = eventData as PointerEventData;
@@ -457,20 +484,22 @@ namespace HSPE
                 this._hspeButtonImage.color = Color.white;
             }
 
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
             this._ui = Instantiate(bundle.LoadAsset<GameObject>("HSPECanvas")).GetComponent<Canvas>();
 #elif KOIKATSU
             this._ui = Instantiate(bundle.LoadAsset<GameObject>("KKPECanvas")).GetComponent<Canvas>();
+#elif AISHOUJO
+            this._ui = Instantiate(bundle.LoadAsset<GameObject>("AIPECanvas")).GetComponent<Canvas>();
 #endif
             this._fkBoneTogglePrefab = bundle.LoadAsset<GameObject>("FKBoneTogglePrefab");
             bundle.Unload(false);
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
             Transform topContainer = bg.Find("Top Container");
-            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, (RectTransform)bg, false);
-            mw.onPointerDown += this.OnWindowStartDrag;
-            mw.onDrag += this.OnWindowDrag;
-            mw.onPointerUp += this.OnWindowEndDrag;
+            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, (RectTransform)bg);
+            //mw.onPointerDown += this.OnWindowStartDrag;
+            //mw.onDrag += this.OnWindowDrag;
+            //mw.onPointerUp += this.OnWindowEndDrag;
 
             Toggle ikToggle = this._ui.transform.Find("BG/Top Container/Buttons/IK").GetComponent<Toggle>();
             ikToggle.onValueChanged.AddListener((b) =>
@@ -749,10 +778,10 @@ namespace HSPE
             this._optionsWindow = (RectTransform)this._ui.transform.Find("Options Window");
 
             topContainer = this._optionsWindow.Find("Top Container");
-            mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, this._optionsWindow, false);
-            mw.onPointerDown += this.OnWindowStartDrag;
-            mw.onDrag += this.OnWindowDrag;
-            mw.onPointerUp += this.OnWindowEndDrag;
+            mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, this._optionsWindow);
+            //mw.onPointerDown += this.OnWindowStartDrag;
+            //mw.onDrag += this.OnWindowDrag;
+            //mw.onPointerUp += this.OnWindowEndDrag;
 
             Vector2 sizeDelta = bg.sizeDelta;
 #if HONEYSELECT
@@ -853,7 +882,7 @@ namespace HSPE
             LayoutRebuilder.ForceRebuildLayoutImmediate(this._ui.transform.GetChild(0).transform as RectTransform);
 
             // Additional UI
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
             {
                 RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
                 RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
@@ -937,7 +966,7 @@ namespace HSPE
                         ((CharaPoseController)this._poseTarget).rightFootJointCorrection = this._rightFootCorrectionToggle.isOn;
                 });
             }
-#elif KOIKATSU
+#elif KOIKATSU || AISHOUJO
             {
                 RectTransform parent = GameObject.Find("StudioScene").transform.Find("Canvas Main Menu/02_Manipulate/00_Chara/06_Joint") as RectTransform;
                 RawImage container = UIUtility.CreateRawImage("Additional Container", parent);
@@ -994,6 +1023,8 @@ namespace HSPE
                 });
             }
 #endif
+            foreach (Text childText in this._ui.GetComponentsInChildren<Text>())
+                childText.font = UIUtility.defaultFont;
         }
 
         private void OnWindowStartDrag(PointerEventData data)
@@ -1109,15 +1140,18 @@ namespace HSPE
         {
             if (this._shortcutRegisterMode)
             {
-                foreach (KeyCode kc in this._possibleKeyCodes)
+                if (Input.inputString.Length != 0)
                 {
-                    if (Input.GetKeyDown(kc))
+                    try
                     {
+                        KeyCode kc = (KeyCode)Enum.Parse(typeof(KeyCode), Input.inputString);
                         if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0 && kc != KeyCode.Mouse1 && kc != KeyCode.Mouse2 && kc != KeyCode.Mouse3 && kc != KeyCode.Mouse4 && kc != KeyCode.Mouse5 && kc != KeyCode.Mouse6)
+                        {
                             this._mainWindowKeyCode = kc;
-                        this._shortcutKeyButton.onClick.Invoke();
-                        break;
+                            this._shortcutKeyButton.onClick.Invoke();
+                        }
                     }
+                    catch { }
                 }
             }
             else if (Input.GetKeyDown(this._mainWindowKeyCode))
@@ -1144,10 +1178,7 @@ namespace HSPE
                 this._blockCamera = false;
             }
 
-            if (this._isVisible == false)
-                return;
-
-            if (this._poseTarget == null)
+            if (this._isVisible == false || this._poseTarget == null)
                 return;
             CharaPoseController charaPoseTarget = this._poseTarget as CharaPoseController;
             bool isCharacter = charaPoseTarget != null;
@@ -1385,6 +1416,7 @@ namespace HSPE
                 this.ExecuteDelayed(this.RefreshFKBonesList);
         }
 
+#if HONEYSELECT || KOIKATSU
 #if HONEYSELECT
         private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType coord, bool force)
 #elif KOIKATSU
@@ -1394,6 +1426,7 @@ namespace HSPE
             if (this._poseTarget != null && this._poseTarget.target.oci == chara)
                 this.ExecuteDelayed(this.RefreshFKBonesList);
         }
+#endif
 
         private void RefreshFKBonesList()
         {
@@ -1415,6 +1448,7 @@ namespace HSPE
                     entry.toggle.transform.SetParent(this._fkScrollRect.content);
                     entry.toggle.transform.localScale = Vector3.one;
                     entry.toggle.group = this._fkToggleGroup;
+                    entry.text.font = UIUtility.defaultFont;
                     this._fkBoneEntries.Add(entry);
                 }
                 if (pair.Key == null)
@@ -1471,7 +1505,7 @@ namespace HSPE
             return entry;
         }
 
-        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", new []{ typeof(PointerEventData) })]
+        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", new[] { typeof(PointerEventData) })]
         private static class GuideSelect_OnPointerClick_Patches
         {
             private static void Postfix()
@@ -1496,11 +1530,12 @@ namespace HSPE
         #endregion
 
         #region Saves
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
         private void OnSceneLoad(string scenePath, XmlNode node)
         {
             this._lastObjectCount = 0;
             scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
+#if HONEYSELECT
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
             if (File.Exists(path))
@@ -1509,6 +1544,7 @@ namespace HSPE
                 doc.Load(path);
                 node = doc;
             }
+#endif
             if (node != null)
                 node = node.FirstChild;
             this.ExecuteDelayed(() =>
@@ -1520,6 +1556,7 @@ namespace HSPE
         private void OnSceneImport(string scenePath, XmlNode node)
         {
             scenePath = Path.GetFileNameWithoutExtension(scenePath) + ".sav";
+#if HONEYSELECT
             string dir = _pluginDir + _studioSavesDir;
             string path = dir + scenePath;
             if (File.Exists(path))
@@ -1528,6 +1565,7 @@ namespace HSPE
                 doc.Load(path);
                 node = doc;
             }
+#endif
             if (node != null)
                 node = node.FirstChild;
             Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
@@ -1540,14 +1578,18 @@ namespace HSPE
         private void OnSceneSave(string scenePath, XmlTextWriter xmlWriter)
         {
             xmlWriter.WriteStartElement("root");
-            xmlWriter.WriteAttributeString("version", HSPE.versionNum);
+            xmlWriter.WriteAttributeString("version", HSPE._versionNum);
             SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
             foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
             {
                 if (kvp.Value is OCIChar)
                 {
                     xmlWriter.WriteStartElement("characterInfo");
+#if PLAYHOME
+                    xmlWriter.WriteAttributeString("name", ((OCIChar)kvp.Value).charInfo.fileStatus.name);
+#else
                     xmlWriter.WriteAttributeString("name", ((OCIChar)kvp.Value).charInfo.customInfo.name);
+#endif
                     xmlWriter.WriteAttributeString("index", XmlConvert.ToString(kvp.Key));
 
                     this.SaveElement(kvp.Value, xmlWriter);
@@ -1602,7 +1644,7 @@ namespace HSPE
                 }
             }
         }
-#elif KOIKATSU
+#elif KOIKATSU || AISHOUJO
         private void OnCharaLoad(ChaFile file)
         {
             PluginData data = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
@@ -1637,7 +1679,7 @@ namespace HSPE
                     {
                         xmlWriter.WriteStartElement("characterInfo");
 
-                        xmlWriter.WriteAttributeString("version", KKPE.versionNum);
+                        xmlWriter.WriteAttributeString("version", HSPE._versionNum);
                         xmlWriter.WriteAttributeString("name", ociChar.charInfo.chaFile.parameter.fullname);
 
                         this.SaveElement(ociChar, xmlWriter);
@@ -1645,7 +1687,7 @@ namespace HSPE
                         xmlWriter.WriteEndElement();
 
                         PluginData data = new PluginData();
-                        data.version = KKPE.saveVersion;
+                        data.version = HSPE.saveVersion;
                         data.data.Add("characterInfo", stringWriter.ToString());
                         ExtendedSave.SetExtendedDataById(file, _extSaveKey, data);
                     }
@@ -1716,7 +1758,7 @@ namespace HSPE
             {
 
                 xmlWriter.WriteStartElement("root");
-                xmlWriter.WriteAttributeString("version", KKPE.versionNum);
+                xmlWriter.WriteAttributeString("version", HSPE._versionNum);
                 SortedDictionary<int, ObjectCtrlInfo> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
                 foreach (KeyValuePair<int, ObjectCtrlInfo> kvp in dic)
                 {
@@ -1735,7 +1777,7 @@ namespace HSPE
                 xmlWriter.WriteEndElement();
 
                 PluginData data = new PluginData();
-                data.version = KKPE.saveVersion;
+                data.version = HSPE.saveVersion;
                 data.data.Add("sceneInfo", stringWriter.ToString());
                 ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
             }

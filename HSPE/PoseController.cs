@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Xml;
 using HSPE.AMModules;
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 
 namespace HSPE

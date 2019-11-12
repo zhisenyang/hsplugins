@@ -1,11 +1,12 @@
 ﻿#if HONEYSELECT || PLAYHOME
 using IllusionInjector;
-using UnityEngine;
 #else
 using BepInEx;
 using UnityEngine.SceneManagement;
 #endif
+using System;
 using UnityEngine;
+using System.Reflection;
 
 namespace ToolBox
 {
@@ -17,6 +18,7 @@ namespace ToolBox
         internal Binary _binary;
 #if HONEYSELECT || PLAYHOME
         private static PluginComponent _pluginComponent;
+        private Component _onGUIDispatcher = null;
 
         public abstract string Name { get; }
         public abstract string Version { get; }
@@ -26,7 +28,7 @@ namespace ToolBox
             get
             {
                 if (_pluginComponent == null)
-                    _pluginComponent = Object.FindObjectOfType<PluginComponent>();
+                    _pluginComponent = UnityEngine.Object.FindObjectOfType<PluginComponent>();
                 return _pluginComponent.gameObject;
             }
         }
@@ -75,7 +77,7 @@ namespace ToolBox
             {
 #if HONEYSELECT
                 case "HoneySelect":
-                case "Honey Select Unlimited":                    
+                case "Honey Select Unlimited":
 #elif KOIKATSU
                 case "Koikatsu Party":
                 case "Koikatu":
@@ -94,11 +96,29 @@ namespace ToolBox
                     this._binary = Binary.Studio;
                     break;
             }
+#if HONEYSELECT || PLAYHOME
+
+            Component[] components = this.gameObject.GetComponents<Component>();
+            foreach (Component c in components)
+            {
+                if (c.GetType().Name == nameof(OnGUIDispatcher))
+                {
+                    this._onGUIDispatcher = c;
+                    break;
+                }
+            }
+            if (this._onGUIDispatcher == null)
+                this._onGUIDispatcher = this.gameObject.gameObject.AddComponent<OnGUIDispatcher>();
+            this._onGUIDispatcher.GetType().GetMethod(nameof(OnGUIDispatcher.AddListener), BindingFlags.Instance | BindingFlags.Public).Invoke(this._onGUIDispatcher, new object[]{new Action(this.OnGUI)});
+#endif
         }
 
         protected virtual void OnDestroy()
         {
-
+#if HONEYSELECT || PLAYHOME
+            if (this._onGUIDispatcher != null)
+            this._onGUIDispatcher.GetType().GetMethod(nameof(OnGUIDispatcher.RemoveListener), BindingFlags.Instance | BindingFlags.Public).Invoke(this._onGUIDispatcher, new object[]{new Action(this.OnGUI)});
+#endif
         }
 
         protected virtual void LevelLoaded(int level)
@@ -126,6 +146,32 @@ namespace ToolBox
         protected virtual void FixedUpdate()
         {
 
+        }
+
+        protected virtual void OnGUI()
+        {
+
+        }
+    }
+
+    internal class OnGUIDispatcher : MonoBehaviour
+    {
+        private event Action _onGUI;
+
+        public void AddListener(Action listener)
+        {
+            this._onGUI += listener;
+        }
+
+        public void RemoveListener(Action listener)
+        {
+            this._onGUI -= listener;
+        }
+
+        private void OnGUI()
+        {
+            if (this._onGUI != null)
+                this._onGUI();
         }
     }
 

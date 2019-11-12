@@ -5,13 +5,6 @@ namespace HSPE
 {
     public class CameraEventsDispatcher : MonoBehaviour
     {
-        //public event Action onPreCull;
-        //private void OnPreCull()
-        //{
-        //    if (this.onPreCull != null)
-        //        this.onPreCull();
-        //}
-
         public event Action onPreRender;
         private void OnPreRender()
         {

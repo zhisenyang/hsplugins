@@ -102,7 +102,7 @@ namespace UILib
 #elif KOIKATSU
             SetCustomFont("SourceHanSansJP-Medium");
 #elif AISHOUJO
-            SetCustomFont("Yu Gothic UI");
+            SetCustomFont("Yu Gothic UI Semibold");
 #endif
         }
 
@@ -394,20 +394,20 @@ namespace UILib
 
         public static void SetRect(this Transform self, Transform other)
         {
-            SetRect(self as RectTransform, other as RectTransform);
+            SetRect((RectTransform)self, other as RectTransform);
         }
 
         public static void SetRect(this Transform self, Vector2 anchorMin)
         {
-            SetRect(self as RectTransform, anchorMin, Vector2.one, Vector2.zero, Vector2.zero);
+            SetRect((RectTransform)self, anchorMin, Vector2.one, Vector2.zero, Vector2.zero);
         }
         public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax)
         {
-            SetRect(self as RectTransform, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
+            SetRect((RectTransform)self, anchorMin, anchorMax, Vector2.zero, Vector2.zero);
         }
         public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin)
         {
-            SetRect(self as RectTransform, anchorMin, anchorMax, offsetMin, Vector2.zero);
+            SetRect((RectTransform)self, anchorMin, anchorMax, offsetMin, Vector2.zero);
         }
         public static void SetRect(this Transform self, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
         {

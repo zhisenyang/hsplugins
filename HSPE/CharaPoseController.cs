@@ -2,13 +2,17 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Xml;
+#if HONEYSELECT || PLAYHOME
 using Harmony;
+#else
+using HarmonyLib;
+#endif
 using HSPE.AMModules;
 using RootMotion.FinalIK;
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
-#if KOIKATSU
+#if KOIKATSU || AISHOUJO
 using Manager;
 #endif
 
@@ -69,7 +73,26 @@ namespace HSPE
                     onPostLateUpdate(__instance);
             }
         }
-#elif KOIKATSU
+#elif PLAYHOME
+        [HarmonyPatch(typeof(Expression), "LateUpdate")]
+        private class Expression_Patches
+        {
+            public static event Action<Expression> onPreLateUpdate;
+            public static event Action<Expression> onPostLateUpdate;
+
+            public static void Prefix(Expression __instance)
+            {
+                if (onPreLateUpdate != null)
+                    onPreLateUpdate(__instance);
+
+            }
+            public static void Postfix(Expression __instance)
+            {
+                if (onPostLateUpdate != null)
+                    onPostLateUpdate(__instance);
+            }
+        }
+#elif KOIKATSU || AISHOUJO
         [HarmonyPatch(typeof(Character), "LateUpdate")]
         private class Character_Patches
         {
@@ -89,6 +112,17 @@ namespace HSPE
             }
         }
 #endif
+        [HarmonyPatch(typeof(IKExecutionOrder), "LateUpdate")]
+        private class IKExecutionOrder_Patches
+        {
+            public static event Action onPostLateUpdate;
+            public static void Postfix()
+            {
+                if (onPostLateUpdate != null)
+                    onPostLateUpdate();
+            }
+        }
+
         [HarmonyPatch(typeof(IKSolver), "Update")]
         private class IKSolver_Patches
         {
@@ -100,16 +134,7 @@ namespace HSPE
                     onPostUpdate(__instance);
             }
         }
-        [HarmonyPatch(typeof(IKExecutionOrder), "LateUpdate")]
-        private class IKExecutionOrder_Patches
-        {
-            public static event Action onPostLateUpdate;
-            public static void Postfix()
-            {
-                if (onPostLateUpdate != null)
-                    onPostLateUpdate();
-            }
-        }        
+
         [HarmonyPatch(typeof(FKCtrl), "LateUpdate")]
         private class FKCtrl_Patches
         {
@@ -198,7 +223,9 @@ namespace HSPE
             _charaPoseControllers.Add(this);
 #if HONEYSELECT
             this._body = this._target.ociChar.animeIKCtrl.IK;
-#elif KOIKATSU
+#elif PLAYHOME
+            this._body = this._target.ociChar.fullBodyIK;
+#elif KOIKATSU || AISHOUJO
             this._body = this._target.ociChar.finalIK;
 #endif
             if (this._target.isFemale)
@@ -219,18 +246,47 @@ namespace HSPE
                 this._siriDamR = this.transform.Find("BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_R");
                 this._kosi = this.transform.Find("BodyTop/p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kosi02_s");
             }
+#elif PLAYHOME
+            if (this._target.isFemale)
+            {
+                this._siriDamL = this.transform.Find("p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_L");
+                this._siriDamR = this.transform.Find("p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_R");
+                this._kosi =     this.transform.Find("p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s");
+            }
+            else
+            {
+                this._siriDamL = this.transform.Find("p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_L");
+                this._siriDamR = this.transform.Find("p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_SiriDam_R");
+                this._kosi =     this.transform.Find("p_cm_anim/cm_J_Root/cm_N_height/cm_J_Hips/cm_J_Kosi01/cm_J_Kosi02/cm_J_Kosi02_s");
+            }
 #elif KOIKATSU
             this._siriDamL = this.transform.FindDescendant("cf_d_siri_L");
             this._siriDamR = this.transform.FindDescendant("cf_d_siri_R");
-            this._kosi = this.transform.FindDescendant("cf_s_waist02");
+            this._kosi =     this.transform.FindDescendant("cf_s_waist02");
+#elif AISHOUJO
+            this._siriDamL = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_L");
+            this._siriDamR = this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_SiriDam_R");
+            this._kosi =     this.transform.Find("BodyTop/p_cf_anim/cf_J_Root/cf_N_height/cf_J_Hips/cf_J_Kosi01/cf_J_Kosi02/cf_J_Kosi02_s");
 #endif
             this._leftFoot2 = this._body.solver.leftLegMapping.bone3.GetChild(0);
             this._leftFoot2OriginalRotation = this._leftFoot2.localRotation;
+#if HONEYSELECT || PLAYHOME
             this._leftFoot2ParentOriginalRotation = 357.7f;
+#elif KOIKATSU
+            this._leftFoot2ParentOriginalRotation = 358f;
+#elif AISHOUJO
+            this._leftFoot2ParentOriginalRotation = 357.62f;
+#endif
 
             this._rightFoot2 = this._body.solver.rightLegMapping.bone3.GetChild(0);
             this._rightFoot2OriginalRotation = this._rightFoot2.localRotation;
+#if HONEYSELECT || PLAYHOME
             this._rightFoot2ParentOriginalRotation = 357.7f;
+#elif KOIKATSU
+            this._rightFoot2ParentOriginalRotation = 358f;
+#elif AISHOUJO
+            this._rightFoot2ParentOriginalRotation = 357.62f;
+#endif
 
             this._siriDamLOriginalRotation = this._siriDamL.localRotation;
             this._siriDamROriginalRotation = this._siriDamR.localRotation;
@@ -239,17 +295,18 @@ namespace HSPE
             IKSolver_Patches.onPostUpdate += this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate += this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate += this.FKCtrlOnPreLateUpdate;
-            //FKCtrl_Patches.onPostLateUpdate += this.FKCtrlOnPostLateUpdate;
 #if HONEYSELECT
-            //CharBody_Patches.onPreLateUpdate += this.CharBodyOnPreLateUpdate;
             CharBody_Patches.onPostLateUpdate += this.CharBodyOnPostLateUpdate;
-#elif KOIKATSU
-            //Character_Patches.onPreLateUpdate += this.CharacterOnPreLateUpdate;
+#elif PLAYHOME
+            Expression_Patches.onPostLateUpdate += this.ExpressionOnPostLateUpdate;
+#elif KOIKATSU || AISHOUJO
             Character_Patches.onPostLateUpdate += this.CharacterOnPostLateUpdate;
 #endif
             OCIChar_ChangeChara_Patches.onChangeChara += this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile += this.OnLoadClothesFile;
+#if HONEYSELECT || KOIKATSU
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo += this.OnCoordinateReplaced;
+#endif
 
             this.crotchJointCorrection = MainWindow._self.crotchCorrectionByDefault;
             this.leftFootJointCorrection = MainWindow._self.anklesCorrectionByDefault;
@@ -272,7 +329,6 @@ namespace HSPE
                 this._body.solver.spineStiffness = this._cachedSpineStiffness;
                 this._body.solver.pullBodyVertical = this._cachedPullBodyVertical;
             }
-            //this._body.solver.OnPreRead = this.IKSolverOnPreRead;
         }
 
         protected override void Update()
@@ -298,17 +354,18 @@ namespace HSPE
             IKSolver_Patches.onPostUpdate -= this.IKSolverOnPostUpdate;
             IKExecutionOrder_Patches.onPostLateUpdate -= this.IKExecutionOrderOnPostLateUpdate;
             FKCtrl_Patches.onPreLateUpdate -= this.FKCtrlOnPreLateUpdate;
-            //FKCtrl_Patches.onPostLateUpdate -= this.FKCtrlOnPostLateUpdate;
 #if HONEYSELECT
-            //CharBody_Patches.onPreLateUpdate -= this.CharBodyOnPreLateUpdate;
             CharBody_Patches.onPostLateUpdate -= this.CharBodyOnPostLateUpdate;
-#elif KOIKATSU
-            //Character_Patches.onPreLateUpdate -= this.CharacterOnPreLateUpdate;
+#elif PLAYHOME
+            Expression_Patches.onPostLateUpdate -= this.ExpressionOnPostLateUpdate;
+#elif KOIKATSU || AISHOUJO
             Character_Patches.onPostLateUpdate -= this.CharacterOnPostLateUpdate;
 #endif
             OCIChar_ChangeChara_Patches.onChangeChara -= this.OnCharacterReplaced;
             OCIChar_LoadClothesFile_Patches.onLoadClothesFile -= this.OnLoadClothesFile;
+#if HONEYSELECT || KOIKATSU
             OCIChar_SetCoordinateInfo_Patches.onSetCoordinateInfo -= this.OnCoordinateReplaced;
+#endif
             base.OnDestroy();
             _charaPoseControllers.Remove(this);
         }
@@ -430,12 +487,6 @@ namespace HSPE
         #endregion
 
         #region Private Methods
-        //private void IKSolverOnPreRead()
-        //{
-        //    foreach (AdvancedModeModule module in this._modules)
-        //        module.IKSolverOnPreRead();
-        //}
-
         private void IKSolverOnPostUpdate(IKSolver solver)
         {
             if (this.enabled == false || this._body.solver != solver)
@@ -467,47 +518,24 @@ namespace HSPE
                 module.FKCtrlOnPreLateUpdate();
         }
 
-        //private void FKCtrlOnPostLateUpdate(FKCtrl ctrl)
-        //{
-        //    if (_target.ociChar.fkCtrl != ctrl)
-        //        return;
-        //    foreach (AdvancedModeModule module in this._modules)
-        //        module.FKCtrlOnPostLateUpdate();
-        //}
-
 #if HONEYSELECT
-        //private void CharBodyOnPreLateUpdate(CharBody charBody)
-        //{
-        //    if (_target.ociChar.charBody != charBody)
-        //        return;
-
-
-        //    foreach (AdvancedModeModule module in this._modules)
-        //        module.CharBodyPreLateUpdate();
-        //}
-
-        private void CharBodyOnPostLateUpdate(CharBody charBody)
+        private void CharBodyOnPostLateUpdate(CharBody human)
         {
-            if (this._target.ociChar.charBody != charBody)
+            if (this._target.ociChar.charBody != human)
                 return;
             this.ApplyJointCorrection();
-
-            //foreach (AdvancedModeModule module in this._modules)
-            //    module.CharBodyPostLateUpdate();
         }
-#elif KOIKATSU
-        //private void CharacterOnPreLateUpdate()
-        //{
-        //    foreach (AdvancedModeModule module in this._modules)
-        //        module.CharacterPreLateUpdate();
-        //}
-
+#elif PLAYHOME
+        private void ExpressionOnPostLateUpdate(Expression expression)
+        {
+            if (this._target.ociChar.charInfo.expression != expression)
+                return;
+            this.ApplyJointCorrection();
+        }
+#elif KOIKATSU || AISHOUJO
         private void CharacterOnPostLateUpdate()
         {
             this.ApplyJointCorrection();
-
-            //foreach (AdvancedModeModule module in this._modules)
-            //    module.CharacterPostLateUpdate();
         }
 #endif
         private void OnCharacterReplaced(OCIChar chara)
@@ -527,6 +555,7 @@ namespace HSPE
                 module.OnLoadClothesFile();
         }
 
+#if HONEYSELECT || KOIKATSU
 #if HONEYSELECT
         private void OnCoordinateReplaced(OCIChar chara, CharDefine.CoordinateType type, bool force)
 #elif KOIKATSU
@@ -539,6 +568,7 @@ namespace HSPE
             foreach (AdvancedModeModule module in this._modules)
                 module.OnCoordinateReplaced(type, force);
         }
+#endif
 
         private FullBodyBipedEffector GetTwinEffector(FullBodyBipedEffector effector)
         {
@@ -737,7 +767,7 @@ namespace HSPE
                     fkTwinLimb.Add((OIBoneInfo.BoneGroup)33);
                     break;
             }
-             
+
             //TODO Delete that disgusting duplicated code
             this._additionalRotationEqualsCommands = new List<GuideCommand.EqualsInfo>();
             foreach (OCIChar.BoneInfo bone in this._target.ociChar.listBones)
@@ -942,42 +972,42 @@ namespace HSPE
 
         private Transform GetSkirtTwinBone(Transform bone)
         {
-            int id = int.Parse(bone.name.Substring(8, 2));
-            string path = "";
+            int id = int.Parse(bone.name.Substring(bone.name.Length - 5, 2));
+            string newName = "";
             switch (id)
             {
                 case 00:
                 case 04:
                     return bone;
-                    
+
                 case 01:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_01", "cf_J_sk_07");
+                    newName = bone.name.Replace("sk_01", "sk_07");
                     break;
                 case 07:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_07", "cf_J_sk_01");
+                    newName = bone.name.Replace("sk_07", "sk_01");
                     break;
                 case 02:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_02", "cf_J_sk_06");
+                    newName = bone.name.Replace("sk_02", "sk_06");
                     break;
                 case 06:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_06", "cf_J_sk_02");
+                    newName = bone.name.Replace("sk_06", "sk_02");
                     break;
                 case 03:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_03", "cf_J_sk_05");
+                    newName = bone.name.Replace("sk_03", "sk_05");
                     break;
                 case 05:
-                    path = bone.GetPathFrom(this.transform).Replace("cf_J_sk_05", "cf_J_sk_03");
+                    newName = bone.name.Replace("sk_05", "sk_03");
                     break;
             }
-            return this.transform.Find(path);
+            return this.transform.FindDescendant(newName);
         }
 
         private void InitJointCorrection()
         {
             if (this.crotchJointCorrection)
             {
-                this._siriDamLRotation = Quaternion.Lerp(Quaternion.identity, this._body.solver.leftLegMapping.bone1.rotation, 0.4f);
-                this._siriDamRRotation = Quaternion.Lerp(Quaternion.identity, this._body.solver.rightLegMapping.bone1.rotation, 0.4f);
+                this._siriDamLRotation = Quaternion.Lerp(Quaternion.identity, this._body.solver.leftLegMapping.bone1.localRotation, 0.4f);
+                this._siriDamRRotation = Quaternion.Lerp(Quaternion.identity, this._body.solver.rightLegMapping.bone1.localRotation, 0.4f);
                 this._kosiRotation = Quaternion.Lerp(Quaternion.identity, Quaternion.Lerp(this._body.solver.leftLegMapping.bone1.localRotation, this._body.solver.rightLegMapping.bone1.localRotation, 0.5f), 0.25f);
             }
 

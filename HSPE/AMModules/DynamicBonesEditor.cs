@@ -4,16 +4,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 using Vectrosity;
+#if HONEYSELECT || PLAYHOME || KOIKATSU
+using DynamicBoneColliderBase = DynamicBoneCollider;
+#endif
 
 namespace HSPE.AMModules
 {
     public class DynamicBonesEditor : AdvancedModeModule
     {
         #region Constants
+#if HONEYSELECT || KOIKATSU || PLAYHOME
         private const float _dynamicBonesDragRadius = 0.025f;
+#elif AISHOUJO
+        private const float _dynamicBonesDragRadius = 0.25f;
+#endif
         #endregion
 
         #region Private Types
@@ -23,6 +30,10 @@ namespace HSPE.AMModules
             public Vector3 currentGravity;
             public EditableValue<Vector3> originalForce;
             public Vector3 currentForce;
+#if AISHOUJO
+            public EditableValue<DynamicBone.UpdateMode> originalUpdateMode;
+            public DynamicBone.UpdateMode currentUpdateMode;
+#endif
             public EditableValue<DynamicBone.FreezeAxis> originalFreezeAxis;
             public DynamicBone.FreezeAxis currentFreezeAxis;
             public EditableValue<float> originalWeight;
@@ -47,6 +58,9 @@ namespace HSPE.AMModules
                 this.originalWeight = other.originalWeight;
                 this.originalGravity = other.originalGravity;
                 this.originalForce = other.originalForce;
+#if AISHOUJO
+                this.originalUpdateMode = other.originalUpdateMode;
+#endif
                 this.originalFreezeAxis = other.originalFreezeAxis;
                 this.originalDamping = other.originalDamping;
                 this.originalElasticity = other.originalElasticity;
@@ -57,6 +71,9 @@ namespace HSPE.AMModules
                 this.currentWeight = other.currentWeight;
                 this.currentGravity = other.currentGravity;
                 this.currentForce = other.currentForce;
+#if AISHOUJO
+                this.currentUpdateMode= other.currentUpdateMode;
+#endif
                 this.currentFreezeAxis = other.currentFreezeAxis;
                 this.currentDamping = other.currentDamping;
                 this.currentElasticity = other.currentElasticity;
@@ -155,7 +172,7 @@ namespace HSPE.AMModules
 
                 this.circle = VectorLine.SetLine(_greenColor, new Vector3[37]);
                 this.circle.lineWidth = 4f;
-                this.circle.MakeCircle(end.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dynamicBonesDragRadius);
+                this.circle.MakeCircle(end.position, Camera.main.transform.forward, _dynamicBonesDragRadius);
             }
 
             public void Draw(DynamicBone db, bool isTarget, bool isDirty)
@@ -188,9 +205,9 @@ namespace HSPE.AMModules
                 this.both.points3[0] = origin;
                 this.both.points3[1] = final;
 
-                this.circle.MakeCircle(end.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward, _dynamicBonesDragRadius);
+                this.circle.MakeCircle(end.position, Camera.main.transform.forward, _dynamicBonesDragRadius);
 
-                float distance = 1 - (Mathf.Clamp((end.position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude, 5, 20) - 5) / 15;
+                float distance = 1 - (Mathf.Clamp((end.position - Camera.main.transform.position).sqrMagnitude, 5, 20) - 5) / 15;
                 if (distance < 0.3f)
                     distance = 0.3f;
                 c.a = distance;
@@ -250,6 +267,9 @@ namespace HSPE.AMModules
         private readonly Dictionary<Transform, DynamicBoneData> _headlessDirtyDynamicBones = new Dictionary<Transform, DynamicBoneData>();
         private int _headlessReconstructionTimeout;
         private static readonly string[] _freezeAxisNames;
+#if AISHOUJO
+        private static readonly string[] _updateModeNames;
+#endif
         private HashSet<DynamicBone> _toUpdate = new HashSet<DynamicBone>();
         #endregion
 
@@ -272,6 +292,9 @@ namespace HSPE.AMModules
         static DynamicBonesEditor()
         {
             _freezeAxisNames = Enum.GetNames(typeof(DynamicBone.FreezeAxis));
+#if AISHOUJO
+            _updateModeNames = Enum.GetNames(typeof(DynamicBone.UpdateMode));
+#endif
         }
 
         public DynamicBonesEditor(PoseController parent, GenericOCITarget target) : base(parent)
@@ -301,7 +324,7 @@ namespace HSPE.AMModules
                     leftButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
                     leftButtCheek.m_Radius = 0.0003f;
                     leftButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-                    leftButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                    leftButtCheek.m_Colliders = new List<DynamicBoneColliderBase>();
                     leftButtCheek.m_Exclusions = new List<Transform>();
                     leftButtCheek.m_notRolls = new List<Transform>();
 
@@ -317,7 +340,7 @@ namespace HSPE.AMModules
                     rightButtCheek.m_StiffnessDistrib = AnimationCurve.Linear(0, 1, 1, 1);
                     rightButtCheek.m_Radius = 0.0003f;
                     rightButtCheek.m_RadiusDistrib = AnimationCurve.Linear(0, 1, 1, 1);
-                    rightButtCheek.m_Colliders = new List<DynamicBoneCollider>();
+                    rightButtCheek.m_Colliders = new List<DynamicBoneColliderBase>();
                     rightButtCheek.m_Exclusions = new List<Transform>();
                     rightButtCheek.m_notRolls = new List<Transform>();
                 }, 2);
@@ -339,9 +362,8 @@ namespace HSPE.AMModules
                 this._firstRefresh = true;
             }
 
-            if (!this._isEnabled || !PoseController._drawAdvancedMode || MainWindow._self._poseTarget != this._parent)
-                return;
-            this.DynamicBoneDraggingLogic();
+            if (GizmosEnabled(this))
+                this.DynamicBoneDraggingLogic();
         }
 
         private void LateUpdate()
@@ -374,6 +396,13 @@ namespace HSPE.AMModules
                                 pair.Value.originalForce = db.m_Force;
                                 db.m_Force = pair.Value.currentForce;
                             }
+#if AISHOUJO
+                            if (pair.Value.originalUpdateMode.hasValue)
+                            {
+                                pair.Value.originalUpdateMode = db.m_UpdateMode;
+                                db.m_UpdateMode = pair.Value.currentUpdateMode;
+                            }
+#endif
                             if (pair.Value.originalFreezeAxis.hasValue)
                             {
                                 pair.Value.originalFreezeAxis = db.m_FreezeAxis;
@@ -439,6 +468,7 @@ namespace HSPE.AMModules
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
 
+#if HONEYSELECT || KOIKATSU
 #if HONEYSELECT
         public override void OnCoordinateReplaced(CharDefine.CoordinateType coordinateType, bool force)
 #elif KOIKATSU
@@ -449,6 +479,7 @@ namespace HSPE.AMModules
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList);
             MainWindow._self.ExecuteDelayed(this.RefreshDynamicBoneList, 2);
         }
+#endif
 
         //public override void OnParentage(TreeNodeObject parent, TreeNodeObject child)
         //{
@@ -527,17 +558,8 @@ namespace HSPE.AMModules
                 if (this._dynamicBoneTarget != null)
                     g = this._dynamicBoneTarget.m_Gravity;
                 g = this.Vector3Editor(g, _redColor);
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (this._dynamicBoneTarget.m_Gravity != g)
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalGravity.hasValue == false)
-                            data.originalGravity = this._dynamicBoneTarget.m_Gravity;
-                        data.currentGravity = g;
-                        this._dynamicBoneTarget.m_Gravity = g;
-                    }
-                }
+                if (this._dynamicBoneTarget != null && this._dynamicBoneTarget.m_Gravity != g)
+                    this.SetDynamicBoneGravity(this._dynamicBoneTarget, g);
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
                 c = GUI.color;
@@ -561,17 +583,8 @@ namespace HSPE.AMModules
                 if (this._dynamicBoneTarget != null)
                     f = this._dynamicBoneTarget.m_Force;
                 f = this.Vector3Editor(f, _blueColor);
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (this._dynamicBoneTarget.m_Force != f)
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalForce.hasValue == false)
-                            data.originalForce = this._dynamicBoneTarget.m_Force;
-                        data.currentForce = f;
-                        this._dynamicBoneTarget.m_Force = f;
-                    }
-                }
+                if (this._dynamicBoneTarget != null && this._dynamicBoneTarget.m_Force != f)
+                    this.SetDynamicBoneForce(this._dynamicBoneTarget, f);
 
                 GUILayout.BeginHorizontal();
                 GUILayout.FlexibleSpace();
@@ -590,6 +603,43 @@ namespace HSPE.AMModules
                 GUILayout.EndVertical();
             }
 
+#if AISHOUJO
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("UpdateMode\t", GUILayout.ExpandWidth(false));
+
+                DynamicBone.UpdateMode fa = DynamicBone.UpdateMode.Normal;
+                if (this._dynamicBoneTarget != null)
+                    fa = this._dynamicBoneTarget.m_UpdateMode;
+                fa = (DynamicBone.UpdateMode)GUILayout.SelectionGrid((int)fa, _updateModeNames, 2);
+
+                if (this._dynamicBoneTarget != null)
+                {
+                    if (this._dynamicBoneTarget.m_UpdateMode != fa)
+                    {
+                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
+                        if (data.originalUpdateMode.hasValue == false)
+                            data.originalUpdateMode = this._dynamicBoneTarget.m_UpdateMode;
+                        data.currentUpdateMode = fa;
+                        this._dynamicBoneTarget.m_UpdateMode= fa;
+                    }
+                }
+
+                c = GUI.color;
+                GUI.color = Color.red;
+                if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)) && this._dynamicBoneTarget != null && this.IsDynamicBoneDirty(this._dynamicBoneTarget))
+                {
+                    DynamicBoneData data = this._dirtyDynamicBones[this._dynamicBoneTarget];
+                    this._dynamicBoneTarget.m_UpdateMode = data.originalUpdateMode;
+                    data.currentUpdateMode = data.originalUpdateMode;
+                    data.originalUpdateMode.Reset();
+                }
+                GUI.color = c;
+
+                GUILayout.EndHorizontal();
+            }
+#endif
+
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("FreezeAxis\t", GUILayout.ExpandWidth(false));
@@ -599,17 +649,8 @@ namespace HSPE.AMModules
                     fa = this._dynamicBoneTarget.m_FreezeAxis;
                 fa = (DynamicBone.FreezeAxis)GUILayout.SelectionGrid((int)fa, _freezeAxisNames, 4);
 
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (this._dynamicBoneTarget.m_FreezeAxis != fa)
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalFreezeAxis.hasValue == false)
-                            data.originalFreezeAxis = this._dynamicBoneTarget.m_FreezeAxis;
-                        data.currentFreezeAxis = fa;
-                        this._dynamicBoneTarget.m_FreezeAxis = fa;
-                    }
-                }
+                if (this._dynamicBoneTarget != null && this._dynamicBoneTarget.m_FreezeAxis != fa)
+                    this.SetDynamicBoneFreezeAxis(this._dynamicBoneTarget, fa);
 
                 c = GUI.color;
                 GUI.color = Color.red;
@@ -643,17 +684,9 @@ namespace HSPE.AMModules
                     return value;
                 });
 
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.GetWeight(), w))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalWeight.hasValue == false)
-                            data.originalWeight = this._dynamicBoneTarget.GetWeight();
-                        data.currentWeight = w;
-                        this._dynamicBoneTarget.SetWeight(w);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.GetWeight(), w))
+                    this.SetDynamicBoneWeight(this._dynamicBoneTarget, w);
+
             }
 
             {
@@ -674,18 +707,8 @@ namespace HSPE.AMModules
                     }
                     return value;
                 });
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.m_Damping, v))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalDamping.hasValue == false)
-                            data.originalDamping = this._dynamicBoneTarget.m_Damping;
-                        data.currentDamping = v;
-                        this._dynamicBoneTarget.m_Damping = v;
-                        this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.m_Damping, v))
+                    this.SetDynamicBoneDamping(this._dynamicBoneTarget, v);
             }
 
             {
@@ -706,18 +729,8 @@ namespace HSPE.AMModules
                     }
                     return value;
                 });
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.m_Elasticity, v))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalElasticity.hasValue == false)
-                            data.originalElasticity = this._dynamicBoneTarget.m_Elasticity;
-                        data.currentElasticity = v;
-                        this._dynamicBoneTarget.m_Elasticity = v;
-                        this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.m_Elasticity, v))
+                    this.SetDynamicBoneElasticity(this._dynamicBoneTarget, v);
             }
 
             {
@@ -738,18 +751,8 @@ namespace HSPE.AMModules
                     }
                     return value;
                 });
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.m_Stiffness, v))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalStiffness.hasValue == false)
-                            data.originalStiffness = this._dynamicBoneTarget.m_Stiffness;
-                        data.currentStiffness = v;
-                        this._dynamicBoneTarget.m_Stiffness = v;
-                        this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.m_Stiffness, v))
+                    this.SetDynamicBoneStiffness(this._dynamicBoneTarget, v);
             }
 
             {
@@ -770,18 +773,8 @@ namespace HSPE.AMModules
                     }
                     return value;
                 });
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.m_Inert, v))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalInert.hasValue == false)
-                            data.originalInert = this._dynamicBoneTarget.m_Inert;
-                        data.currentInert = v;
-                        this._dynamicBoneTarget.m_Inert = v;
-                        this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.m_Inert, v))
+                    this.SetDynamicBoneInertia(this._dynamicBoneTarget, v);
             }
 
             {
@@ -802,18 +795,8 @@ namespace HSPE.AMModules
                     }
                     return value;
                 });
-                if (this._dynamicBoneTarget != null)
-                {
-                    if (!Mathf.Approximately(this._dynamicBoneTarget.m_Radius, v))
-                    {
-                        DynamicBoneData data = this.SetDynamicBoneDirty(this._dynamicBoneTarget);
-                        if (data.originalRadius.hasValue == false)
-                            data.originalRadius = this._dynamicBoneTarget.m_Radius;
-                        data.currentRadius = v;
-                        this._dynamicBoneTarget.m_Radius = v;
-                        this.NotifyDynamicBoneForUpdate(this._dynamicBoneTarget);
-                    }
-                }
+                if (this._dynamicBoneTarget != null && !Mathf.Approximately(this._dynamicBoneTarget.m_Radius, v))
+                    this.SetDynamicBoneRadius(this._dynamicBoneTarget, v);
             }
 
             GUILayout.EndScrollView();
@@ -851,6 +834,92 @@ namespace HSPE.AMModules
             GUILayout.EndHorizontal();
         }
 
+        private void SetDynamicBoneRadius(DynamicBone db, float v)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalRadius.hasValue == false)
+                data.originalRadius = db.m_Radius;
+            data.currentRadius = v;
+            db.m_Radius = v;
+            this.NotifyDynamicBoneForUpdate(db);
+        }
+
+        private void SetDynamicBoneInertia(DynamicBone db, float v)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalInert.hasValue == false)
+                data.originalInert = db.m_Inert;
+            data.currentInert = v;
+            db.m_Inert = v;
+            this.NotifyDynamicBoneForUpdate(db);
+        }
+
+        private void SetDynamicBoneStiffness(DynamicBone db, float v)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalStiffness.hasValue == false)
+                data.originalStiffness = db.m_Stiffness;
+            data.currentStiffness = v;
+            db.m_Stiffness = v;
+            this.NotifyDynamicBoneForUpdate(db);
+        }
+
+        private void SetDynamicBoneElasticity(DynamicBone db, float v)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalElasticity.hasValue == false)
+                data.originalElasticity = db.m_Elasticity;
+            data.currentElasticity = v;
+            db.m_Elasticity = v;
+            this.NotifyDynamicBoneForUpdate(db);
+        }
+
+        private void SetDynamicBoneDamping(DynamicBone db, float v)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalDamping.hasValue == false)
+                data.originalDamping = db.m_Damping;
+            data.currentDamping = v;
+            db.m_Damping = v;
+            this.NotifyDynamicBoneForUpdate(db);
+        }
+
+        private void SetDynamicBoneWeight(DynamicBone db, float w)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalWeight.hasValue == false)
+                data.originalWeight = db.GetWeight();
+            data.currentWeight = w;
+            db.SetWeight(w);
+        }
+
+        private void SetDynamicBoneFreezeAxis(DynamicBone db, DynamicBone.FreezeAxis fa)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalFreezeAxis.hasValue == false)
+                data.originalFreezeAxis = db.m_FreezeAxis;
+            data.currentFreezeAxis = fa;
+            db.m_FreezeAxis = fa;
+        }
+
+        private void SetDynamicBoneForce(DynamicBone db, Vector3 f)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalForce.hasValue == false)
+                data.originalForce = db.m_Force;
+            data.currentForce = f;
+            db.m_Force = f;
+        }
+
+        private void SetDynamicBoneGravity(DynamicBone db, Vector3 g)
+        {
+            DynamicBoneData data = this.SetDynamicBoneDirty(db);
+            if (data.originalGravity.hasValue == false)
+                data.originalGravity = db.m_Gravity;
+            data.currentGravity = g;
+            db.m_Gravity = g;
+        }
+
         public void LoadFrom(DynamicBonesEditor other)
         {
             MainWindow._self.ExecuteDelayed(() =>
@@ -881,6 +950,10 @@ namespace HSPE.AMModules
                     {
                         if (kvp.Value.originalForce.hasValue)
                             db.m_Force = kvp.Key.m_Force;
+#if AISHOUJO
+                        if (kvp.Value.originalUpdateMode.hasValue)
+                            db.m_UpdateMode = kvp.Key.m_UpdateMode;
+#endif
                         if (kvp.Value.originalFreezeAxis.hasValue)
                             db.m_FreezeAxis = kvp.Key.m_FreezeAxis;
                         if (kvp.Value.originalGravity.hasValue)
@@ -931,6 +1004,10 @@ namespace HSPE.AMModules
                         xmlWriter.WriteAttributeString("forceY", XmlConvert.ToString(kvp.Key.m_Force.y));
                         xmlWriter.WriteAttributeString("forceZ", XmlConvert.ToString(kvp.Key.m_Force.z));
                     }
+#if AISHOUJO
+                    if (kvp.Value.originalUpdateMode.hasValue)
+                        xmlWriter.WriteAttributeString("updateMode", XmlConvert.ToString((int)kvp.Key.m_UpdateMode));
+#endif
                     if (kvp.Value.originalFreezeAxis.hasValue)
                         xmlWriter.WriteAttributeString("freezeAxis", XmlConvert.ToString((int)kvp.Key.m_FreezeAxis));
                     if (kvp.Value.originalDamping.hasValue)
@@ -1071,7 +1148,7 @@ namespace HSPE.AMModules
         #region Private Methods
         private static void UpdateGizmosIf()
         {
-            if (PoseController._drawAdvancedMode && MainWindow._self._poseTarget != null && MainWindow._self._poseTarget._dynamicBonesEditor._isEnabled)
+            if (MainWindow._self._poseTarget != null && GizmosEnabled(MainWindow._self._poseTarget._dynamicBonesEditor))
                 MainWindow._self._poseTarget._dynamicBonesEditor.UpdateGizmos();
         }
 
@@ -1112,6 +1189,15 @@ namespace HSPE.AMModules
                 data.currentForce = force;
                 db.m_Force = force;
             }
+#if AISHOUJO
+            if (node.Attributes["updateMode"] != null)
+            {
+                DynamicBone.UpdateMode updateMode = (DynamicBone.UpdateMode)XmlConvert.ToInt32(node.Attributes["updateMode"].Value);
+                data.originalUpdateMode= db.m_UpdateMode;
+                data.currentUpdateMode = updateMode;
+                db.m_UpdateMode = updateMode;
+            }
+#endif
             if (node.Attributes["freezeAxis"] != null)
             {
                 DynamicBone.FreezeAxis axis = (DynamicBone.FreezeAxis)XmlConvert.ToInt32(node.Attributes["freezeAxis"].Value);
@@ -1155,11 +1241,22 @@ namespace HSPE.AMModules
                 data.currentRadius = radius;
                 db.m_Radius = radius;
             }
-            if (data.originalWeight.hasValue || data.originalGravity.hasValue || data.originalForce.hasValue || data.originalFreezeAxis.hasValue || data.originalDamping.hasValue || data.originalElasticity.hasValue || data.originalStiffness.hasValue || data.originalInert.hasValue || data.originalRadius.hasValue)
+            if (data.originalWeight.hasValue ||
+                data.originalGravity.hasValue ||
+                data.originalForce.hasValue ||
+#if AISHOUJO
+                data.originalUpdateMode.hasValue ||
+#endif
+                data.originalFreezeAxis.hasValue ||
+                data.originalDamping.hasValue ||
+                data.originalElasticity.hasValue ||
+                data.originalStiffness.hasValue ||
+                data.originalInert.hasValue ||
+                data.originalRadius.hasValue)
             {
                 loaded = true;
                 this.NotifyDynamicBoneForUpdate(db);
-                this._dirtyDynamicBones.Add(db, data);                
+                this._dirtyDynamicBones.Add(db, data);
             }
             return loaded;
         }
@@ -1220,6 +1317,14 @@ namespace HSPE.AMModules
                     data.currentGravity = data.originalGravity;
                     data.originalForce.Reset();
                 }
+#if AISHOUJO
+                if (data.originalUpdateMode.hasValue)
+                {
+                    bone.m_UpdateMode = data.originalUpdateMode;
+                    data.currentUpdateMode = data.originalUpdateMode;
+                    data.originalUpdateMode.Reset();
+                }
+#endif
                 if (data.originalFreezeAxis.hasValue)
                 {
                     bone.m_FreezeAxis = data.originalFreezeAxis;
@@ -1285,18 +1390,13 @@ namespace HSPE.AMModules
 
         private IEnumerator EndOfFrame()
         {
-            for (;;)
+            for (; ; )
             {
                 yield return new WaitForEndOfFrame();
                 foreach (DynamicBone dynamicBone in this._toUpdate)
                 {
-#if HONEYSELECT
                     dynamicBone.InitTransforms();
                     dynamicBone.SetupParticles();
-#elif KOIKATSU
-                    dynamicBone.CallPrivate("InitTransforms");
-                    dynamicBone.CallPrivate("SetupParticles");
-#endif
                 }
                 this._toUpdate.Clear();
             }
@@ -1312,12 +1412,12 @@ namespace HSPE.AMModules
                     {
                         DynamicBone db = this._dynamicBones[i];
                         Transform leaf = (db.m_Root ?? db.transform).GetFirstLeaf();
-                        Vector3 raycastPos = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(leaf.position - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
+                        Vector3 raycastPos = Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(leaf.position - Camera.main.transform.position, Camera.main.transform.forward).magnitude));
                         if ((raycastPos - leaf.position).sqrMagnitude < (_dynamicBonesDragRadius * _dynamicBonesDragRadius) &&
-                            (raycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude < distanceFromCamera)
+                            (raycastPos - Camera.main.transform.position).sqrMagnitude < distanceFromCamera)
                         {
                             this.isDraggingDynamicBone = true;
-                            distanceFromCamera = (raycastPos - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position).sqrMagnitude;
+                            distanceFromCamera = (raycastPos - Camera.main.transform.position).sqrMagnitude;
                             this._dragDynamicBoneStartPosition = raycastPos;
                             this._lastDynamicBoneGravity = db.m_Force;
                             this._draggedDynamicBone = db;
@@ -1329,7 +1429,7 @@ namespace HSPE.AMModules
             }
             else if (Input.GetMouseButton(0) && this.isDraggingDynamicBone)
             {
-                this._dragDynamicBoneEndPosition = Studio.Studio.Instance.cameraCtrl.mainCmaera.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position, Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.forward).magnitude));
+                this._dragDynamicBoneEndPosition = Camera.main.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, Vector3.Project(this._dragDynamicBoneStartPosition - Camera.main.transform.position, Camera.main.transform.forward).magnitude));
                 DynamicBoneData data = this.SetDynamicBoneDirty(this._draggedDynamicBone);
                 if (data.originalForce.hasValue == false)
                     data.originalForce = this._draggedDynamicBone.m_Force;
@@ -1383,7 +1483,7 @@ namespace HSPE.AMModules
                 this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
             foreach (DynamicBone bone in this._dynamicBones)
             {
-                foreach (DynamicBoneCollider collider in CollidersEditor._loneColliders)
+                foreach (DynamicBoneColliderBase collider in CollidersEditor._loneColliders)
                 {
                     if (bone.m_Colliders.Contains(collider) == false)
                         bone.m_Colliders.Add(collider);
@@ -1394,7 +1494,234 @@ namespace HSPE.AMModules
         private static void UpdateDebugLinesState(DynamicBonesEditor self)
         {
             if (_debugLines != null)
-                _debugLines.SetActive(self != null && self._isEnabled && PoseController._drawAdvancedMode);
+                _debugLines.SetActive(GizmosEnabled(self));
+        }
+
+        private static bool GizmosEnabled(DynamicBonesEditor self)
+        {
+            return self != null && self._isEnabled && PoseController._drawAdvancedMode;
+        }
+        #endregion
+
+        #region Timeline Compatibility
+        internal static class TimelineCompatibility
+        {
+            public static void Populate()
+            {
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneGravity",
+                        name: "DB Gravity",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneGravity(pair.value, Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Gravity,
+                        readValueFromXml: node => node.ReadVector3("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (Vector3)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Gravity ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneForce",
+                        name: "DB Force",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneForce(pair.value, Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Force,
+                        readValueFromXml: node => node.ReadVector3("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (Vector3)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Force ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneFreezeAxis",
+                        name: "DB FreezeAxis",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneFreezeAxis(pair.value, (DynamicBone.FreezeAxis)leftValue);
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_FreezeAxis,
+                        readValueFromXml: node => (DynamicBone.FreezeAxis)node.ReadInt("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (int)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB FreezeAxis ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneWeight",
+                        name: "DB Weight",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneWeight(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.GetWeight(),
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Weight ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneDamping",
+                        name: "DB Damping",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneDamping(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Damping,
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Damping ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneElasticity",
+                        name: "DB Elasticity",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneElasticity(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Elasticity,
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Elasticity ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneStiffness",
+                        name: "DB Stiffness",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneStiffness(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Stiffness,
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Stiffness ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneInertia",
+                        name: "DB Inertia",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneInertia(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Inert,
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Inertia ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+                ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
+                        owner: HSPE._name,
+                        id: "dynamicBoneRadius",
+                        name: "DB Radius",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                            pair.key.SetDynamicBoneRadius(pair.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: IsCompatibleWithTarget,
+                        getValue: (oci, parameter) => ((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Radius,
+                        readValueFromXml: node => node.ReadFloat("value"),
+                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        getParameter: GetParameter,
+                        readParameterFromXml: ReadParameterFromXml,
+                        writeParameterToXml: WriteParameterToXml,
+                        checkIntegrity: CheckIntegrity,
+                        getFinalName: (name, oci, parameter) => $"DB Radius ({((HashedPair<DynamicBonesEditor, DynamicBone>)parameter).value.m_Root.name})"
+                );
+            }
+
+            private static bool CheckIntegrity(ObjectCtrlInfo oci, object parameter)
+            {
+                if (parameter == null)
+                    return false;
+                HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)parameter;
+                if (pair.key == null || pair.value == null)
+                    return false;
+                return true;
+            }
+
+            private static bool IsCompatibleWithTarget(ObjectCtrlInfo oci)
+            {
+                return oci != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null;
+            }
+
+            private static object GetParameter(ObjectCtrlInfo oci)
+            {
+                PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
+                return new HashedPair<DynamicBonesEditor, DynamicBone>(controller._dynamicBonesEditor, controller._dynamicBonesEditor._dynamicBoneTarget);
+            }
+
+            private static object ReadParameterFromXml(ObjectCtrlInfo oci, XmlNode node)
+            {
+                PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
+                return new HashedPair<DynamicBonesEditor, DynamicBone>(controller._dynamicBonesEditor, controller._dynamicBonesEditor.GetDynamicBone(node.Attributes["parameter"].Value));
+            }
+
+            private static void WriteParameterToXml(ObjectCtrlInfo oci, XmlTextWriter writer, object o)
+            {
+                HashedPair<DynamicBonesEditor, DynamicBone> pair = (HashedPair<DynamicBonesEditor, DynamicBone>)o;
+                writer.WriteAttributeString("parameter", pair.key.GetRoot(pair.value));
+            }
         }
         #endregion
     }

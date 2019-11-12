@@ -1,91 +1,84 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+#if AISHOUJO || KOIKATSU
+using HarmonyLib;
+#else
 using Harmony;
-using UILib;
-using UnityEngine;
-#if HONEYSELECT
+#endif
+using HSPE.AMModules;
+#if HONEYSELECT || PLAYHOME
 using IllusionPlugin;
-#elif KOIKATSU
-using UnityEngine.SceneManagement;
+#endif
+using UILib;
+#if KOIKATSU || AISHOUJO
 using BepInEx;
 #endif
+using ToolBox;
+using ToolBox.Extensions;
 
 namespace HSPE
 {
-#if HONEYSELECT
-    public class HSPE : IEnhancedPlugin
-#elif KOIKATSU
-    [BepInPlugin(GUID: "com.joan6694.kkplugins.kkpe", Name: "KKPE", Version: KKPE.versionNum)]
+#if KOIKATSU || AISHOUJO
+    [BepInPlugin(_guid, _name, _versionNum)]
     [BepInDependency("com.bepis.bepinex.extendedsave")]
+#if KOIKATSU
     [BepInProcess("CharaStudio")]
-    public class KKPE : BaseUnityPlugin
+#elif AISHOUJO
+    [BepInProcess("StudioNEOV2")]
+#endif
+#endif
+    internal class HSPE : GenericPlugin
+#if HONEYSELECT || PLAYHOME
+    , IEnhancedPlugin
 #endif
     {
 #if HONEYSELECT
-        public const string versionNum = "2.9.0b2";
-        public string Name { get { return "HSPE"; } }
-        public string Version { get { return versionNum; } }
-        public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
+        internal const string _name = "HSPE";
+        internal const string _guid = "com.joan6694.illusionplugins.poseeditor";
+#elif PLAYHOME
+        internal const string _name = "PHPE";
+        internal const string _guid = "com.joan6694.illusionplugins.poseeditor";
 #elif KOIKATSU
-        public const string versionNum = "1.2.0";
-        public const int saveVersion = 0;
+        internal const string _name = "KKPE";
+        internal const string _guid = "com.joan6694.kkplugins.kkpe";
+        internal const int saveVersion = 0;
+#elif AISHOUJO
+        internal const string _name = "AIPE";
+        internal const string _guid = "com.joan6694.illusionplugins.poseeditor";
+        internal const int saveVersion = 0;
 #endif
+        internal const string _versionNum = "2.10.0";
 
+#if HONEYSELECT || PLAYHOME
+        public override string Name { get { return _name; } }
+        public override string Version { get { return _versionNum; } }
 #if HONEYSELECT
-        public void OnApplicationQuit(){}
-        public void OnApplicationStart()
-        {
-            this.Init();
-        }
-        public void OnFixedUpdate(){}
-        public void OnLateUpdate(){}
-        public void OnLevelWasInitialized(int level)
-        {
-            if (level == 3)
-                this.SceneLoaded(level);
-        }
-        public void OnLevelWasLoaded(int level){}
-        public void OnUpdate(){}
-#elif KOIKATSU
-        public void Awake()
-        {
-            SceneManager.sceneLoaded += this.SceneManagerOnSceneLoaded;
-            this.Init();
-        }
-
-        private void SceneManagerOnSceneLoaded(Scene scene, LoadSceneMode loadSceneMode)
-        {
-            if (scene.buildIndex == 1)
-                this.SceneLoaded(scene.buildIndex);            
-        }
+        public override string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64"}; } }
+#elif PLAYHOME
+        public override string[] Filter { get { return new[] { "PlayHomeStudio32bit", "PlayHomeStudio64bit" }; } }
 #endif
-        private void Init()
+#endif
+
+        protected override void Awake()
         {
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.poseeditor");
-            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
-            {
-                try
-                {
-                    List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
-                    if (harmonyMethods != null && harmonyMethods.Count > 0)
-                    {
-                        HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
-                        new PatchProcessor(harmony, type, attributes).Patch();
-                    }
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.Log("Pose Editor: Exception occured when patching: " + e.ToString());
-                }
-            }
-            UIUtility.Init();
+            base.Awake();
+            HarmonyExtensions.PatchAllSafe(_guid);
         }
 
-        private void SceneLoaded(int level)
+        protected override void LevelLoaded(int level)
         {
-            GameObject go = new GameObject("HSPEPlugin");
-            go.AddComponent<MainWindow>();
+#if HONEYSELECT
+            if (level == 3)
+#elif KOIKATSU
+            if (level == 1)
+#elif PLAYHOME
+            if (level == 1)
+#elif AISHOUJO
+            if (level == 2)
+#endif
+                this.gameObject.AddComponent<MainWindow>();
         }
+
     }
 }
