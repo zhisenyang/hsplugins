@@ -57,14 +57,11 @@ namespace BonesFramework
         protected override void Awake()
         {
             base.Awake();
-#if HONEYSELECT
-            HarmonyInstance harmony = HarmonyInstance.Create(_guid);
-#elif AISHOUJO
-            Harmony harmony = new Harmony(_guid);
-#endif
+
             UnityEngine.Debug.Log("BonesFramework: Trying to patch methods...");
             try
             {
+                var harmony = HarmonyExtensions.PatchAll(_guid);
 #if HONEYSELECT
                 harmony.Patch(typeof(CharBody).GetCoroutineMethod("LoadCharaFbxDataAsync"), 
 #elif AISHOUJO
@@ -73,7 +70,6 @@ namespace BonesFramework
                               null,
                               null,
                               new HarmonyMethod(typeof(BonesFramework), nameof(CharBody_LoadCharaFbxDataAsync_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
-                harmony.PatchAll(Assembly.GetExecutingAssembly());
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeights", new[] {typeof(GameObject), typeof(string), typeof(Transform)}),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));

@@ -32,6 +32,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -263,6 +264,8 @@ namespace ILMerge.MsBuild.Task
             if (!settings.General.TargetPlatform.HasValue())
             {
                 settings.General.TargetPlatform = FrameworkInfo.ToILmergeTargetPlatform(this.TargetFrameworkVersion, this.TargetArchitecture);
+                if (settings.General.TargetPlatform.Equals(@"v2,C:\Windows\Microsoft.NET\Framework\v3.5", StringComparison.OrdinalIgnoreCase))
+                    settings.General.TargetPlatform = @"v2,C:\Windows\Microsoft.NET\Framework\v2.0.50727";
                 Log.LogMessage($"Applying default value for TargetPlatform: {settings.General.TargetPlatform}");
             }
 
@@ -396,12 +399,17 @@ namespace ILMerge.MsBuild.Task
                     Log.LogMessage("Output directory created.");
                 }
 
-                Log.LogMessage(
-                    MessageImportance.Normal,
+                Log.LogMessage(MessageImportance.High,
                     "Merging {0} assembl{1} to '{2}'.",
                     settings.General.InputAssemblies.Count.ToString(),
                     (settings.General.InputAssemblies.Count != 1) ? "ies" : "y",
                     settings.General.OutputFile);
+
+                foreach (string assembly in settings.General.InputAssemblies)
+                {
+                    if (assembly != settings.General.OutputFile)
+                        Log.LogMessage(MessageImportance.High, assembly);
+                }
 
                 merger.Merge();
 

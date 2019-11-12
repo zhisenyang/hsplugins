@@ -48,18 +48,20 @@
     <Compile Include="BonesFramework.cs" />
     <Compile Include="OnDestroyTrigger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+        <None Include="ILMergeConfig.json" />
   </ItemGroup>
   <Choose>
     <When Condition=" '$(Configuration)|$(Platform)' == 'HS|AnyCPU' ">
-      <ItemGroup>
-        <None Include=".NET 3.5\ILMergeConfig.json" />
-      </ItemGroup>
       <ItemGroup >
         <Reference Include="0Harmony">
           <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
         </Reference>
         <Reference Include="Assembly-CSharp">
           <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\Assembly-CSharp.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="IllusionInjector">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionInjector.dll</HintPath>
           <Private>False</Private>
         </Reference>
         <Reference Include="IllusionPlugin">
@@ -78,12 +80,17 @@
           <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
           <Private>False</Private>
         </Reference>
+        <Reference Include="UnityEngine.UI">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
+        <Reference Include="UnityEngine.UI">
+          <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
       </ItemGroup>
     </When>  
     <When Condition="'$(Configuration)|$(Platform)' == 'AI|AnyCPU'">
-      <ItemGroup>
-        <None Include=".NET 4\ILMergeConfig.json" />
-      </ItemGroup>
       <ItemGroup >
         <Reference Include="0Harmony">
           <HintPath>D:\Program Files (x86)\AI-Syoujyo\BepInEx\core\0Harmony.dll</HintPath>
