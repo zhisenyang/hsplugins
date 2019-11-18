@@ -16,6 +16,13 @@ using Studio;
 using ToolBox;
 using ToolBox.Extensions;
 using UnityEngine;
+#if HONEYSELECT || KOIKATSU || AISHOUJO
+using InstanceDict = System.Collections.Generic.Dictionary<FaceBlendShape, HSPE.AMModules.BlendShapesEditor>;
+using InstancePair = System.Collections.Generic.KeyValuePair<FaceBlendShape, HSPE.AMModules.BlendShapesEditor>;
+#elif PLAYHOME
+using InstanceDict = System.Collections.Generic.Dictionary<Human, HSPE.AMModules.BlendShapesEditor>;
+using InstancePair = System.Collections.Generic.KeyValuePair<Human, HSPE.AMModules.BlendShapesEditor>;
+#endif
 
 namespace HSPE.AMModules
 {
@@ -63,7 +70,7 @@ namespace HSPE.AMModules
         #endregion
 
         #region Statics
-        private static Dictionary<object, BlendShapesEditor> _instanceByFaceBlendShape = new Dictionary<object, BlendShapesEditor>();
+        private static InstanceDict _instanceByFaceBlendShape = new InstanceDict();
         private static string[] _presets = new string[0];
         internal static readonly Dictionary<string, string> _blendShapeAliases = new Dictionary<string, string>();
         private static readonly Dictionary<int, string> _femaleSeparators = new Dictionary<int, string>();
@@ -262,25 +269,31 @@ namespace HSPE.AMModules
             base.OnDestroy();
             this._parent.onLateUpdate -= this.LateUpdate;
             this._parent.onDisable -= this.OnDisable;
-            _instanceByFaceBlendShape = new Dictionary<object, BlendShapesEditor>(_instanceByFaceBlendShape.Where(e => e.Key != null).ToDictionary(e => e.Key, e => e.Value));
+            InstanceDict newInstances = new InstanceDict();
+            foreach (InstancePair pair in _instanceByFaceBlendShape)
+            {
+                if (pair.Key != null)
+                    newInstances.Add(pair.Key, pair.Value);
+            }
+            _instanceByFaceBlendShape = newInstances;
         }
         #endregion
 
         #region Public Methods
         public override void OnCharacterReplaced()
         {
-            Dictionary<object, BlendShapesEditor> newInstanceByFBS = null;
-            foreach (KeyValuePair<object, BlendShapesEditor> pair in _instanceByFaceBlendShape)
+            InstanceDict newInstanceByFBS = null;
+            foreach (InstancePair pair in _instanceByFaceBlendShape)
             {
                 if (pair.Key == null)
                 {
-                    newInstanceByFBS = new Dictionary<object, BlendShapesEditor>();
+                    newInstanceByFBS = new InstanceDict();
                     break;
                 }
             }
             if (newInstanceByFBS != null)
             {
-                foreach (KeyValuePair<object, BlendShapesEditor> pair in _instanceByFaceBlendShape)
+                foreach (InstancePair pair in _instanceByFaceBlendShape)
                 {
                     if (pair.Key != null)
                         newInstanceByFBS.Add(pair.Key, pair.Value);

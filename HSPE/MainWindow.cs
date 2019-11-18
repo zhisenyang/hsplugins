@@ -72,6 +72,7 @@ namespace HSPE
         internal CameraEventsDispatcher _cameraEventsDispatcher;
         private string _assemblyLocation;
         private HashSet<TreeNodeObject> _selectedNodes;
+        private TreeNodeObject _lastSelectedNode;
         private readonly List<FullBodyBipedEffector> _ikBoneTargets = new List<FullBodyBipedEffector>();
         private readonly Vector3[] _lastIKBonesPositions = new Vector3[14];
         private readonly Quaternion[] _lastIKBonesRotations = new Quaternion[14];
@@ -87,9 +88,6 @@ namespace HSPE
         private bool _xRot;
         private bool _yRot;
         private bool _zRot;
-        private bool _mouseInAdvMode = false;
-        private bool _blockCamera = false;
-        private bool _isVisible = false;
         internal Rect _advancedModeRect = new Rect(Screen.width - 650, Screen.height - 370, 650, 370);
         private float _mainWindowSize = 1f;
         private Canvas _ui;
@@ -107,10 +105,8 @@ namespace HSPE
         private readonly Button[] _rotationButtons = new Button[3];
         private Button _shortcutKeyButton;
         private bool _shortcutRegisterMode = false;
-        private KeyCode[] _possibleKeyCodes;
         private bool _positionOperationWorld = false;
         private Toggle _optimizeIKToggle;
-        private bool _windowMoving;
         private Image _hspeButtonImage;
         private int _randomId;
         private Toggle _crotchCorrectionToggle;
@@ -162,8 +158,6 @@ namespace HSPE
             {
                 XmlDocument doc = new XmlDocument();
                 doc.Load(path);
-
-                this._possibleKeyCodes = (KeyCode[])Enum.GetValues(typeof(KeyCode));
 
                 foreach (XmlNode node in doc.FirstChild.ChildNodes)
                 {
@@ -284,34 +278,22 @@ namespace HSPE
 
             PoseController last = this._poseTarget;
             TreeNodeObject treeNodeObject = this._selectedNodes.FirstOrDefault();
-            if (treeNodeObject != null)
+            if (this._lastSelectedNode != treeNodeObject)
             {
-                ObjectCtrlInfo info;
-                if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
-                    this._poseTarget = info.guideObject.transformTarget.GetComponent<PoseController>();
+                if (treeNodeObject != null)
+                {
+                    ObjectCtrlInfo info;
+                    if (Studio.Studio.Instance.dicInfo.TryGetValue(treeNodeObject, out info))
+                        this._poseTarget = info.guideObject.transformTarget.GetComponent<PoseController>();
+                }
+                else
+                    this._poseTarget = null;
             }
-            else
-                this._poseTarget = null;
+            this._lastSelectedNode = treeNodeObject;
+
             if (last != this._poseTarget)
                 this.OnTargetChange(last);
             this.GUILogic();
-
-            //if (Input.GetKeyDown(KeyCode.A))
-            //{
-            //    PoseController[] controllers = GameObject.FindObjectsOfType<PoseController>();
-            //    string xml;
-            //    using (StringWriter stream = new StringWriter())
-            //    using (XmlTextWriter writer = new XmlTextWriter(stream))
-            //    {
-            //        writer.WriteStartElement("character");
-            //        controllers[1].SaveXml(writer);
-            //        writer.WriteEndElement();
-            //        xml = stream.ToString();
-            //    }
-            //    XmlDocument xmlDocument = new XmlDocument();
-            //    xmlDocument.LoadXml(xml);
-            //    controllers[0].ScheduleLoad(xmlDocument.FirstChild, (b) => {});
-            //}
 
             this.StaticUpdate();
         }
@@ -328,20 +310,16 @@ namespace HSPE
 
         protected virtual void OnGUI()
         {
-            if (this._poseTarget != null)
+            if (this._poseTarget != null && PoseController._drawAdvancedMode)
             {
-                if (PoseController._drawAdvancedMode)
-                {
-                    Color c = GUI.backgroundColor;
-                    GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
-                    for (int i = 0; i < 3; ++i)
-                        GUI.Box(this._advancedModeRect, "", _customBoxStyle);
-                    GUI.backgroundColor = c;
-                    this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
-                    this._mouseInAdvMode = this._advancedModeRect.Contains(Event.current.mousePosition);
-                }
-                else
-                    this._mouseInAdvMode = false;
+                Color c = GUI.backgroundColor;
+                GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
+                for (int i = 0; i < 3; ++i)
+                    GUI.Box(this._advancedModeRect, "", _customBoxStyle);
+                GUI.backgroundColor = c;
+                this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
+                if (this._advancedModeRect.Contains(Event.current.mousePosition))
+                    Input.ResetInputAxes();
             }
         }
         protected virtual void OnDestroy()
@@ -466,9 +444,8 @@ namespace HSPE
                 hspeButton.onClick = new Button.ButtonClickedEvent();
                 hspeButton.onClick.AddListener(() =>
                 {
-                    this._isVisible = !this._isVisible;
-                    this._ui.gameObject.SetActive(this._isVisible);
-                    this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
+                    this._ui.gameObject.SetActive(!this._ui.gameObject.activeSelf);
+                    this._hspeButtonImage.color = this._ui.gameObject.activeSelf ? Color.green : Color.white;
                 });
                 EventTrigger.Entry entry = new EventTrigger.Entry() { eventID = EventTriggerType.PointerClick, callback = new EventTrigger.TriggerEvent() };
                 entry.callback.AddListener(eventData =>
@@ -609,10 +586,7 @@ namespace HSPE
             xMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._xMove = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._positionButtons[0] = xMoveButton;
 
@@ -621,10 +595,7 @@ namespace HSPE
             yMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._yMove = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._positionButtons[1] = yMoveButton;
 
@@ -633,10 +604,7 @@ namespace HSPE
             zMoveButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._zMove = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._positionButtons[2] = zMoveButton;
 
@@ -645,10 +613,7 @@ namespace HSPE
             rotXButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._xRot = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._rotationButtons[0] = rotXButton;
 
@@ -657,10 +622,7 @@ namespace HSPE
             rotYButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._yRot = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._rotationButtons[1] = rotYButton;
 
@@ -669,10 +631,7 @@ namespace HSPE
             rotZButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
             {
                 if (eventData.button == PointerEventData.InputButton.Left)
-                {
                     this._zRot = true;
-                    this.SetNoControlCondition();
-                }
             };
             this._rotationButtons[2] = rotZButton;
 
@@ -740,11 +699,6 @@ namespace HSPE
                 this._intensityValue = Mathf.Pow(2, value);
                 this._intensityValueText.text = this._intensityValue >= 1f ? "x" + this._intensityValue.ToString("0.##") : "/" + (1f / this._intensityValue).ToString("0.##");
             });
-            this._movementIntensity.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (eventData) =>
-            {
-                this.SetNoControlCondition();
-                this._blockCamera = true;
-            };
 
             this._intensityValueText = this._ui.transform.Find("BG/Controls/Buttons/Simple Options/Intensity Container/Movement Intensity Value").GetComponent<Text>();
 
@@ -1027,22 +981,6 @@ namespace HSPE
                 childText.font = UIUtility.defaultFont;
         }
 
-        private void OnWindowStartDrag(PointerEventData data)
-        {
-            this.SetNoControlCondition();
-            this._windowMoving = true;
-        }
-
-        private void OnWindowDrag(PointerEventData data)
-        {
-            this._windowMoving = true;
-        }
-
-        private void OnWindowEndDrag(PointerEventData data)
-        {
-            this._windowMoving = false;
-        }
-
         private void OnWindowResize()
         {
             if (this._advancedModeRect.xMax > Screen.width)
@@ -1144,7 +1082,7 @@ namespace HSPE
                 {
                     try
                     {
-                        KeyCode kc = (KeyCode)Enum.Parse(typeof(KeyCode), Input.inputString);
+                        KeyCode kc = (KeyCode)Enum.Parse(typeof(KeyCode), Input.inputString.ToUpper());
                         if (kc != KeyCode.Escape && kc != KeyCode.Return && kc != KeyCode.Mouse0 && kc != KeyCode.Mouse1 && kc != KeyCode.Mouse2 && kc != KeyCode.Mouse3 && kc != KeyCode.Mouse4 && kc != KeyCode.Mouse5 && kc != KeyCode.Mouse6)
                         {
                             this._mainWindowKeyCode = kc;
@@ -1156,15 +1094,8 @@ namespace HSPE
             }
             else if (Input.GetKeyDown(this._mainWindowKeyCode))
             {
-                this._isVisible = !this._isVisible;
-                this._ui.gameObject.SetActive(this._isVisible);
-                this._hspeButtonImage.color = this._isVisible ? Color.green : Color.white;
-            }
-
-            if (Input.GetMouseButtonDown(0))
-            {
-                if (this._poseTarget != null && PoseController._drawAdvancedMode && this._mouseInAdvMode)
-                    this.SetNoControlCondition();
+                this._ui.gameObject.SetActive(!this._ui.gameObject.activeSelf);
+                this._hspeButtonImage.color = this._ui.gameObject.activeSelf ? Color.green : Color.white;
             }
 
             if (Input.GetMouseButtonUp(0))
@@ -1175,10 +1106,9 @@ namespace HSPE
                 this._xRot = false;
                 this._yRot = false;
                 this._zRot = false;
-                this._blockCamera = false;
             }
 
-            if (this._isVisible == false || this._poseTarget == null)
+            if (this._ui.gameObject.activeSelf == false || this._poseTarget == null)
                 return;
             CharaPoseController charaPoseTarget = this._poseTarget as CharaPoseController;
             bool isCharacter = charaPoseTarget != null;
@@ -1525,7 +1455,7 @@ namespace HSPE
 
         private bool CameraControllerCondition()
         {
-            return this._blockCamera || this._xMove || this._yMove || this._zMove || this._xRot || this._yRot || this._zRot || this._mouseInAdvMode || this._windowMoving || (this._poseTarget != null && this._poseTarget.isDraggingDynamicBone);
+            return this._poseTarget != null && this._poseTarget.isDraggingDynamicBone;
         }
         #endregion
 

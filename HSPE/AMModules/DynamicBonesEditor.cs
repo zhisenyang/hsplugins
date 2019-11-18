@@ -362,7 +362,7 @@ namespace HSPE.AMModules
                 this._firstRefresh = true;
             }
 
-            if (GizmosEnabled(this))
+            if (MainWindow._self._poseTarget == this._parent && GizmosEnabled(this))
                 this.DynamicBoneDraggingLogic();
         }
 

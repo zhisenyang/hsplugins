@@ -48,7 +48,7 @@ namespace HSPE
         internal const string _guid = "com.joan6694.illusionplugins.poseeditor";
         internal const int saveVersion = 0;
 #endif
-        internal const string _versionNum = "2.10.0";
+        internal const string _versionNum = "2.10.1";
 
 #if HONEYSELECT || PLAYHOME
         public override string Name { get { return _name; } }
