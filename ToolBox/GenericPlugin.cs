@@ -154,6 +154,7 @@ namespace ToolBox
         }
     }
 
+#if HONEYSELECT || PLAYHOME
     internal class OnGUIDispatcher : MonoBehaviour
     {
         private event Action _onGUI;
@@ -174,6 +175,7 @@ namespace ToolBox
                 this._onGUI();
         }
     }
+#endif
 
     public enum Binary
     {

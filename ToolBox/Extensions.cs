@@ -371,6 +371,30 @@ namespace ToolBox.Extensions
             return info.GetValue(self, null);
         }
 
+        public static void SetPrivateProperty(this Type self, string name, object value)
+        {
+            MemberKey key = new MemberKey(self, name);
+            PropertyInfo info;
+            if (_propertyCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetProperty(key.name, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _propertyCache.Add(key, info);
+            }
+            info.SetValue(null, value, null);
+        }
+
+        public static object GetPrivateProperty(this Type self, string name)
+        {
+            MemberKey key = new MemberKey(self, name);
+            PropertyInfo info;
+            if (_propertyCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetProperty(key.name, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _propertyCache.Add(key, info);
+            }
+            return info.GetValue(null, null);
+        }
+
         public static object CallPrivate(this object self, string name, params object[] p)
         {
             return self.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy).Invoke(self, p);
@@ -501,7 +525,7 @@ namespace ToolBox.Extensions
             }
 
             if (t != null)
-                return t.GetMethod("MoveNext", BindingFlags.Public | BindingFlags.Instance);
+                return t.GetMethod("MoveNext", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             return null;
         }
     }
