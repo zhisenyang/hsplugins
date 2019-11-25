@@ -44,7 +44,7 @@ namespace ToolBox
                                                       Action<XmlTextWriter, object> writeValueToXml,
                                                       Func<ObjectCtrlInfo, XmlNode, object> readParameterFromXml = null,
                                                       Action<ObjectCtrlInfo, XmlTextWriter, object> writeParameterToXml = null,
-                                                      Func<ObjectCtrlInfo, object, bool> checkIntegrity = null,
+                                                      Func<ObjectCtrlInfo, object, object, object, bool> checkIntegrity = null,
                                                       bool useOciInHash = true,
                                                       Func<string, ObjectCtrlInfo, object, string> getFinalName = null)
         {
@@ -89,7 +89,7 @@ namespace ToolBox
                                                        Func<ObjectCtrlInfo, object> getParameter,
                                                        Func<ObjectCtrlInfo, XmlNode, object> readParameterFromXml = null,
                                                        Action<ObjectCtrlInfo, XmlTextWriter, object> writeParameterToXml = null,
-                                                       Func<ObjectCtrlInfo, object, bool> checkIntegrity = null,
+                                                       Func<ObjectCtrlInfo, object, object, object, bool> checkIntegrity = null,
                                                        bool useOciInHash = true,
                                                        Func<string, ObjectCtrlInfo, object, string> getFinalName = null)
         {
