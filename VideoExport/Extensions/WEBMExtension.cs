@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using IllusionPlugin;
 using UnityEngine;
 
 namespace VideoExport.Extensions
@@ -30,9 +29,9 @@ namespace VideoExport.Extensions
 
         public WEBMExtension() : base()
         {
-            this._codec = (Codec)ModPrefs.GetInt("VideoExport", "webmCodec", (int)Codec.VP9, true);
-            this._quality = ModPrefs.GetInt("VideoExport", "webmQuality", 15, true);
-            this._deadline = (Deadline)ModPrefs.GetInt("VideoExport", "webmDeadline", (int)Deadline.Best, true);
+            this._codec = (Codec)VideoExport._configFile.AddInt("webmCodec", (int)Codec.VP9, true); 
+            this._quality = VideoExport._configFile.AddInt("webmQuality", 15, true);
+            this._deadline = (Deadline)VideoExport._configFile.AddInt("webmDeadline", (int)Deadline.Best, true);
 
             this._deadlineNames = Enum.GetNames(typeof(Deadline));
             this._deadlineCLIOptions = this._deadlineNames.Select(n => n.ToLowerInvariant()).ToArray();
@@ -85,9 +84,9 @@ namespace VideoExport.Extensions
 
         public override void SaveParams()
         {
-            //ModPrefs.SetInt("VideoExport", "webmCodec", (int)this._codec);
-            ModPrefs.SetInt("VideoExport", "webmQuality", this._quality);
-            ModPrefs.SetInt("VideoExport", "webmDeadline", (int)this._deadline);
+            //_configFile.SetInt("webmCodec", (int)this._codec);
+            VideoExport._configFile.SetInt("webmQuality", this._quality);
+            VideoExport._configFile.SetInt("webmDeadline", (int)this._deadline);
             base.SaveParams();
         }
     }

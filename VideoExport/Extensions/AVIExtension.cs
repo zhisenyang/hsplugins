@@ -1,5 +1,4 @@
-﻿using IllusionPlugin;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace VideoExport.Extensions
 {
@@ -9,7 +8,7 @@ namespace VideoExport.Extensions
 
         public AVIExtension() : base()
         {
-            this._quality = ModPrefs.GetInt("VideoExport", "aviQuality", 3, true);
+            this._quality = VideoExport._configFile.AddInt("aviQuality", 3, true);
         }
 
         public override string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
@@ -38,7 +37,7 @@ namespace VideoExport.Extensions
 
         public override void SaveParams()
         {
-            ModPrefs.SetInt("VideoExport", "aviQuality", this._quality);
+            VideoExport._configFile.SetInt("aviQuality", this._quality);
             base.SaveParams();
         }
     }

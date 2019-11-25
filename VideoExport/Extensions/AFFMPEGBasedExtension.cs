@@ -1,6 +1,6 @@
 ﻿using System;
+using System.IO;
 using System.Text;
-using IllusionPlugin;
 using UnityEngine;
 
 namespace VideoExport.Extensions
@@ -15,10 +15,9 @@ namespace VideoExport.Extensions
             CW270
         }
 
-        private const string _ffmpegFolder = VideoExport._pluginFolder + "ffmpeg/";
-        private static readonly string _ffmpegExe;
-        private static readonly string[] _rotationNames = new[] {"None", "90° CW", "180°", "90° CCW"};
-
+        private readonly string _ffmpegFolder;
+        private readonly string _ffmpegExe;
+        private readonly string[] _rotationNames = new[] {"None", "90° CW", "180°", "90° CCW"};
 
         protected static Rotation _rotation = Rotation.None;
         protected int _progress;
@@ -30,22 +29,19 @@ namespace VideoExport.Extensions
         public bool canProcessStandardOutput { get { return true; } }
         public bool canProcessStandardError { get{ return true; } }
 
-        static AFFMPEGBasedExtension()
-        {
-            if (IntPtr.Size == 8)
-                _ffmpegExe = _ffmpegFolder + "ffmpeg-64.exe";
-            else
-                _ffmpegExe = _ffmpegFolder + "ffmpeg.exe";
-        }
-
         protected AFFMPEGBasedExtension()
         {
-            _rotation = (Rotation)ModPrefs.GetInt("VideoExport", "ffmpegRotation", (int)Rotation.None, true);
+            this._ffmpegFolder = Path.Combine(VideoExport._pluginFolder, "ffmpeg");
+            if (IntPtr.Size == 8)
+                this._ffmpegExe = Path.Combine(this._ffmpegFolder, "ffmpeg-64.exe");
+            else
+                this._ffmpegExe = Path.Combine(this._ffmpegFolder, "ffmpeg.exe");
+            _rotation = (Rotation)VideoExport._configFile.AddInt("ffmpegRotation", (int)Rotation.None, true);
         }
 
         public virtual string GetExecutable()
         {
-            return _ffmpegExe;
+            return this._ffmpegExe;
         }
 
         public abstract string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName);
@@ -83,12 +79,12 @@ namespace VideoExport.Extensions
         public virtual void DisplayParams()
         {
             GUILayout.Label("Rotation", GUILayout.ExpandWidth(false));
-            _rotation = (Rotation)GUILayout.SelectionGrid((int)_rotation, _rotationNames, 4);
+            _rotation = (Rotation)GUILayout.SelectionGrid((int)_rotation, this._rotationNames, 4);
         }
 
         public virtual void SaveParams()
         {
-            ModPrefs.SetInt("VideoExport", "ffmpegRotation", (int)_rotation);
+            VideoExport._configFile.SetInt("ffmpegRotation", (int)_rotation);
         }
 
         protected string CompileFilters(bool resize, int resizeX, int resizeY)

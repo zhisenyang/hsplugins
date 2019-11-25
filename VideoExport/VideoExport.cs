@@ -1,55 +1,50 @@
-﻿#if HONEYSELECT
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
-using Harmony;
-using IllusionPlugin;
-using Studio;
-using UnityEngine;
-using VideoExport.ScreenshotPlugins;
+using ToolBox;
+using ToolBox.Extensions;
 using VideoExport.Extensions;
-#elif KOIKATSU
+using VideoExport.ScreenshotPlugins;
+using Studio;
+#if HONEYSELECT
+using IllusionPlugin;
+using UnityEngine;
+using Harmony;
+#elif KOIKATSU || AISHOUJO
+using HarmonyLib;
 using BepInEx;
-using UnityEngine.SceneManagement;
+using UnityEngine;
 #endif
 
 namespace VideoExport
 {
+#if KOIKATSU || AISHOUJO
+    [BepInPlugin(GUID: _guid, Name: _name, Version: _versionNum)]
 #if KOIKATSU
-    [BepInPlugin(GUID: "com.joan6694.illusionplugins.videoexport", Name: "VideoExport", Version: VideoExportPlugin.versionNum)]
     [BepInProcess("CharaStudio")]
+#elif AISHOUJO
+    [BepInProcess("StudioNEOV2")]
 #endif
+#endif
+    public class VideoExport : GenericPlugin
 #if HONEYSELECT
-    public class VideoExportPlugin : IEnhancedPlugin
-    {
-        public string Name { get { return "VideoExport"; } }
-        public string Version { get { return VideoExport.versionNum; } }
-        public string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
-
-        public void OnApplicationStart()
-        {
-            new GameObject("VideoExport", typeof(VideoExport));
-        }
-        public void OnApplicationQuit(){}
-        public void OnLevelWasLoaded(int level){}
-        public void OnLevelWasInitialized(int level){}
-        public void OnUpdate(){}
-        public void OnFixedUpdate(){}
-        public void OnLateUpdate(){}
-    }
-
-    public class VideoExport : MonoBehaviour
-#elif KOIKATSU
-    public class VideoExportPlugin : BaseUnityPlugin
+                               , IEnhancedPlugin
 #endif
     {
-        public const string versionNum = "1.0.0";
+        private const string _versionNum = "1.1.0";
+        private const string _guid = "com.joan6694.illusionplugins.videoexport";
+        private const string _name = "VideoExport";
+
+#if HONEYSELECT
+        public override string Name { get { return _name; } }
+        public override string Version { get { return _versionNum; } }
+        public override string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
+#endif
 
         #region Private Types
         private enum LimitDurationType
@@ -67,20 +62,22 @@ namespace VideoExport
         #endregion
 
         #region Private Variables
-        private static string _outputFolder = _pluginFolder + "Output/";
-        private static string _globalFramesFolder = _pluginFolder + "Frames/";
+        internal static string _pluginFolder;
+        private static string _outputFolder;
+        private static string _globalFramesFolder;
+        internal static GenericConfig _configFile;
         private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
 
         private string[] _limitDurationTypeNames;
         private string[] _extensionsNames;
-        private readonly string[] _updateDynamicBonesTypeNames = {"Default", "Every Frame"};
+        private readonly string[] _updateDynamicBonesTypeNames = { "Default", "Every Frame" };
 
         private bool _isRecording = false;
         private bool _breakRecording = false;
         private bool _generatingVideo = false;
         private readonly List<IScreenshotPlugin> _screenshotPlugins = new List<IScreenshotPlugin>();
         private int _randomId;
-        private Rect _windowRect = new Rect(Screen.width / 2 - 160, Screen.height / 2 - 100, 320, 10);
+        private Rect _windowRect = new Rect(Screen.width / 2 - 160, Screen.height / 2 - 150, 320, 10);
         private bool _showUi = false;
         private bool _mouseInWindow;
         private string _currentMessage;
@@ -112,10 +109,6 @@ namespace VideoExport
         private string _imagesPostfix = "";
         #endregion
 
-        #region Public Variables
-        public const string _pluginFolder = "Plugins/VideoExport/";
-        #endregion
-
         #region Public Accessors (for other plugins probably)
         public bool isRecording { get { return this._isRecording; } }
         public int currentRecordingFrame { get { return this._currentRecordingFrame; } }
@@ -124,33 +117,35 @@ namespace VideoExport
         #endregion
 
         #region Unity Methods
-        void Awake()
+        protected override void Awake()
         {
+            base.Awake();
 
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.videoexport");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            _pluginFolder = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), _name);
+            _outputFolder = Path.Combine(_pluginFolder, "Output");
+            _globalFramesFolder = Path.Combine(_pluginFolder, "Frames");
 
-            this._selectedPlugin = ModPrefs.GetInt("VideoExport", "selectedScreenshotPlugin", 0, true);
-            this._fps = ModPrefs.GetInt("VideoExport", "framerate", 60, true);
-            this._autoGenerateVideo = ModPrefs.GetBool("VideoExport", "autoGenerateVideo", true, true);
-            this._autoDeleteImages = ModPrefs.GetBool("VideoExport", "autoDeleteImages", true, true);
-            this._limitDuration = ModPrefs.GetBool("VideoExport", "limitDuration", false, true);
-            this._selectedLimitDuration = (LimitDurationType)ModPrefs.GetInt("VideoExport", "selectedLimitDurationType", (int)LimitDurationType.Frames, true);
-            this._limitDurationNumber = ModPrefs.GetFloat("VideoExport", "limitDurationNumber", 0, true);
-            this._selectedExtension = (ExtensionsType)ModPrefs.GetInt("VideoExport", "selectedExtension", (int)ExtensionsType.MP4, true);
-            this._resize = ModPrefs.GetBool("VideoExport", "resize", false, true);
-            this._resizeX = ModPrefs.GetInt("VideoExport", "resizeX", Screen.width, true);
-            this._resizeY = ModPrefs.GetInt("VideoExport", "resizeY", Screen.height, true);
-            this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)ModPrefs.GetInt("VideoExport", "selectedUpdateDynamicBonesMode", (int)UpdateDynamicBonesType.Default, true);
-            this._prewarmLoopCount = ModPrefs.GetInt("VideoExport", "prewarmLoopCount", 3, true);
-            this._imagesPrefix = ModPrefs.GetString("VideoExport", "imagesPrefix", "", true);
-            this._imagesPostfix = ModPrefs.GetString("VideoExport", "imagesPostfix", "", true);
-            _outputFolder = ModPrefs.GetString("VideoExport", "outputFolder", _outputFolder, true);
-            _globalFramesFolder = ModPrefs.GetString("VideoExport", "framesFolder", _globalFramesFolder, true);
-#if HONEYSELECT
-            DontDestroyOnLoad(this.gameObject);
-#elif KOIKATSU
-#endif
+            var harmony = HarmonyExtensions.CreateInstance(_guid);
+
+            _configFile = new GenericConfig(_name, this);
+            this._selectedPlugin = _configFile.AddInt("selectedScreenshotPlugin", 0, true);
+            this._fps = _configFile.AddInt("framerate", 60, true);
+            this._autoGenerateVideo = _configFile.AddBool("autoGenerateVideo", true, true);
+            this._autoDeleteImages = _configFile.AddBool("autoDeleteImages", true, true);
+            this._limitDuration = _configFile.AddBool("limitDuration", false, true);
+            this._selectedLimitDuration = (LimitDurationType)_configFile.AddInt("selectedLimitDurationType", (int)LimitDurationType.Frames, true);
+            this._limitDurationNumber = _configFile.AddFloat("limitDurationNumber", 0, true);
+            this._selectedExtension = (ExtensionsType)_configFile.AddInt("selectedExtension", (int)ExtensionsType.MP4, true);
+            this._resize = _configFile.AddBool("resize", false, true);
+            this._resizeX = _configFile.AddInt("resizeX", Screen.width, true);
+            this._resizeY = _configFile.AddInt("resizeY", Screen.height, true);
+            this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)_configFile.AddInt("selectedUpdateDynamicBonesMode", (int)UpdateDynamicBonesType.Default, true);
+            this._prewarmLoopCount = _configFile.AddInt("prewarmLoopCount", 3, true);
+            this._imagesPrefix = _configFile.AddString("imagesPrefix", "", true);
+            this._imagesPostfix = _configFile.AddString("imagesPostfix", "", true);
+            _outputFolder = _configFile.AddString("outputFolder", _outputFolder, true, "The folder where videos are stored");
+            _globalFramesFolder = _configFile.AddString("framesFolder", _globalFramesFolder, true, "The folder where frames are stored");
+
             this._extensions.Add(new MP4Extension());
             this._extensions.Add(new WEBMExtension());
             this._extensions.Add(new GIFExtension());
@@ -160,26 +155,21 @@ namespace VideoExport
 
             this._limitDurationTypeNames = Enum.GetNames(typeof(LimitDurationType));
             this._extensionsNames = Enum.GetNames(typeof(ExtensionsType));
-        }
 
-        void Start()
-        {
+            this.ExecuteDelayed(() =>
+            {
 #if HONEYSELECT
-            IScreenshotPlugin plugin = new HoneyShot();
-            if (plugin.Init())
-                this._screenshotPlugins.Add(plugin);
-            plugin = new PlayShot24ZHNeo();
-            if (plugin.Init())
-                this._screenshotPlugins.Add(plugin);
-            plugin = new Screencap();
-            if (plugin.Init())
-                this._screenshotPlugins.Add(plugin);
+                this.AddScreenshotPlugin(new HoneyShot(), harmony);
+                this.AddScreenshotPlugin(new PlayShot24ZHNeo(), harmony);
 #endif
-            if (this._screenshotPlugins.Count == 0)
-                UnityEngine.Debug.LogError("VideoExport: No compatible screenshot plugin found, please install one.");
+                this.AddScreenshotPlugin(new Screencap(), harmony);
+                this.AddScreenshotPlugin(new Bitmap(), harmony);
+                if (this._screenshotPlugins.Count == 0)
+                    UnityEngine.Debug.LogError("VideoExport: No compatible screenshot plugin found, please install one.");
+            }, 5);
         }
 
-        void Update()
+        protected override void Update()
         {
             if (Input.GetKey(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftShift) && Input.GetKeyDown(KeyCode.E))
             {
@@ -208,7 +198,7 @@ namespace VideoExport
                 this._selectedLimitDuration = LimitDurationType.Seconds;
         }
 
-        void LateUpdate()
+        protected override void LateUpdate()
         {
             if (this._currentAnimator != null)
             {
@@ -218,44 +208,49 @@ namespace VideoExport
                     this._animationIsPlaying = this._animationIsPlaying && stateInfo.normalizedTime < 1f;
                 this._lastAnimationNormalizedTime = stateInfo.normalizedTime;
             }
+            if (this._showUi)
+                this._windowRect.height = 10f;
         }
 
-        void OnGUI()
+        protected override void OnGUI()
         {
             if (this._showUi == false)
                 return;
             Color c = GUI.backgroundColor;
-            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.Window, "Video Export " + versionNum);
+            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.Window, "Video Export " + _versionNum);
             GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
             GUI.Box(this._windowRect, "", _customBoxStyle);
             GUI.backgroundColor = c;
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             if (this._mouseInWindow)
-                Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUi;
-            this._windowRect.height = 10f;
+                Input.ResetInputAxes();
+            //if (this._mouseInWindow)
+            //    Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUi;
         }
 
-        void OnDestroy()
+        protected override void OnDestroy()
         {
-            ModPrefs.SetInt("VideoExport", "selectedScreenshotPlugin", this._selectedPlugin);
-            ModPrefs.SetInt("VideoExport", "framerate", this._fps);
-            ModPrefs.SetBool("VideoExport", "autoGenerateVideo", this._autoGenerateVideo);
-            ModPrefs.SetBool("VideoExport", "autoDeleteImages", this._autoDeleteImages);
-            ModPrefs.SetBool("VideoExport", "limitDuration", this._limitDuration);
-            ModPrefs.SetInt("VideoExport", "selectedLimitDurationType", (int)this._selectedLimitDuration);
-            ModPrefs.SetFloat("VideoExport", "limitDurationNumber", this._limitDurationNumber);
-            ModPrefs.SetInt("VideoExport", "selectedExtension", (int)this._selectedExtension);
-            ModPrefs.SetBool("VideoExport", "resize", this._resize);
-            ModPrefs.SetInt("VideoExport", "resizeX", this._resizeX);
-            ModPrefs.SetInt("VideoExport", "resizeY", this._resizeY);
-            ModPrefs.SetInt("VideoExport", "selectedUpdateDynamicBonesMode", (int)this._selectedUpdateDynamicBones);
-            ModPrefs.SetInt("VideoExport", "prewarmLoopCount", this._prewarmLoopCount);
-            ModPrefs.SetString("VideoExport", "imagesPrefix", this._imagesPrefix);
-            ModPrefs.SetString("VideoExport", "imagesPostfix", this._imagesPostfix);
+            base.OnDestroy();
+            _configFile.SetInt("selectedScreenshotPlugin", this._selectedPlugin);
+            _configFile.SetInt("framerate", this._fps);
+            _configFile.SetBool("autoGenerateVideo", this._autoGenerateVideo);
+            _configFile.SetBool("autoDeleteImages", this._autoDeleteImages);
+            _configFile.SetBool("limitDuration", this._limitDuration);
+            _configFile.SetInt("selectedLimitDurationType", (int)this._selectedLimitDuration);
+            _configFile.SetFloat("limitDurationNumber", this._limitDurationNumber);
+            _configFile.SetInt("selectedExtension", (int)this._selectedExtension);
+            _configFile.SetBool("resize", this._resize);
+            _configFile.SetInt("resizeX", this._resizeX);
+            _configFile.SetInt("resizeY", this._resizeY);
+            _configFile.SetInt("selectedUpdateDynamicBonesMode", (int)this._selectedUpdateDynamicBones);
+            _configFile.SetInt("prewarmLoopCount", this._prewarmLoopCount);
+            _configFile.SetString("imagesPrefix", this._imagesPrefix);
+            _configFile.SetString("imagesPostfix", this._imagesPostfix);
             foreach (IScreenshotPlugin plugin in this._screenshotPlugins)
                 plugin.SaveParams();
             foreach (IExtension extension in this._extensions)
                 extension.SaveParams();
+            _configFile.Save();
         }
         #endregion
 
@@ -273,6 +268,24 @@ namespace VideoExport
         #endregion
 
         #region Private Methods
+#if HONEYSELECT
+        private void AddScreenshotPlugin(IScreenshotPlugin plugin, HarmonyInstance harmony)
+#elif KOIKATSU || AISHOUJO
+        private void AddScreenshotPlugin(IScreenshotPlugin plugin, Harmony harmony)
+#endif
+        {
+            try
+            {
+                if (plugin.Init(harmony))
+                    this._screenshotPlugins.Add(plugin);
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError(_name + ": Couldn't add screenshot plugin " + plugin + ".\n" + e);
+            }
+
+        }
+
         private void Window(int id)
         {
             GUILayout.BeginVertical();
@@ -332,77 +345,77 @@ namespace VideoExport
                     switch (this._selectedLimitDuration)
                     {
                         case LimitDurationType.Frames:
-                        {
-                            GUILayout.BeginHorizontal();
-
                             {
-                                GUILayout.Label("Limit Count", GUILayout.ExpandWidth(false));
-                                string s = GUILayout.TextField(this._limitDurationNumber.ToString("0"));
-                                int res;
-                                if (int.TryParse(s, out res) == false || res < 1)
-                                    res = 1;
-                                this._limitDurationNumber = res;
+                                GUILayout.BeginHorizontal();
 
+                                {
+                                    GUILayout.Label("Limit Count", GUILayout.ExpandWidth(false));
+                                    string s = GUILayout.TextField(this._limitDurationNumber.ToString("0"));
+                                    int res;
+                                    if (int.TryParse(s, out res) == false || res < 1)
+                                        res = 1;
+                                    this._limitDurationNumber = res;
+
+                                }
+                                GUILayout.EndHorizontal();
+
+                                float totalSeconds = this._limitDurationNumber / this._fps;
+                                GUILayout.Label($"Estimated {totalSeconds:0.0000} seconds, {Mathf.RoundToInt(this._limitDurationNumber)} frames");
+
+                                break;
                             }
-                            GUILayout.EndHorizontal();
-
-                            float totalSeconds = this._limitDurationNumber / this._fps;
-                            GUILayout.Label($"Estimated {totalSeconds:0.0000} seconds, {Mathf.RoundToInt(this._limitDurationNumber)} frames");
-
-                            break;
-                        }
                         case LimitDurationType.Seconds:
-                        {
-                            GUILayout.BeginHorizontal();
-
                             {
-                                GUILayout.Label("Limit Count", GUILayout.ExpandWidth(false));
-                                string s = GUILayout.TextField(this._limitDurationNumber.ToString("0.000"));
-                                float res;
-                                if (float.TryParse(s, out res) == false || res <= 0f)
-                                    res = 0.001f;
-                                this._limitDurationNumber = res;
+                                GUILayout.BeginHorizontal();
+
+                                {
+                                    GUILayout.Label("Limit Count", GUILayout.ExpandWidth(false));
+                                    string s = GUILayout.TextField(this._limitDurationNumber.ToString("0.000"));
+                                    float res;
+                                    if (float.TryParse(s, out res) == false || res <= 0f)
+                                        res = 0.001f;
+                                    this._limitDurationNumber = res;
+                                }
+                                GUILayout.EndHorizontal();
+
+                                float totalFrames = this._limitDurationNumber * this._fps;
+                                GUILayout.Label($"Estimated {this._limitDurationNumber:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
+
+                                break;
                             }
-                            GUILayout.EndHorizontal();
-
-                            float totalFrames = this._limitDurationNumber * this._fps;
-                            GUILayout.Label($"Estimated {this._limitDurationNumber:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
-
-                            break;
-                        }
                         case LimitDurationType.Animation:
-                        {
-                            GUILayout.BeginHorizontal();
                             {
-                                GUILayout.Label("Prewarm Loop Count", GUILayout.ExpandWidth(false));
-                                string s = GUILayout.TextField(this._prewarmLoopCount.ToString());
-                                int res;
-                                if (int.TryParse(s, out res) == false || res < 0)
-                                    res = 1;
-                                this._prewarmLoopCount = res;
-                            }
-                            GUILayout.EndHorizontal();
+                                GUILayout.BeginHorizontal();
+                                {
+                                    GUILayout.Label("Prewarm Loop Count", GUILayout.ExpandWidth(false));
+                                    string s = GUILayout.TextField(this._prewarmLoopCount.ToString());
+                                    int res;
+                                    if (int.TryParse(s, out res) == false || res < 0)
+                                        res = 1;
+                                    this._prewarmLoopCount = res;
+                                }
+                                GUILayout.EndHorizontal();
 
-                            GUILayout.BeginHorizontal();
-                            {
-                                GUILayout.Label("Loops To Record", GUILayout.ExpandWidth(false));
-                                string s = GUILayout.TextField(this._limitDurationNumber.ToString("0.000"));
-                                float res;
-                                if (float.TryParse(s, out res) == false || res <= 0)
-                                    res = 0.001f;
-                                this._limitDurationNumber = res;
-                            }
-                            GUILayout.EndHorizontal();
+                                GUILayout.BeginHorizontal();
+                                {
+                                    GUILayout.Label("Loops To Record", GUILayout.ExpandWidth(false));
+                                    string s = GUILayout.TextField(this._limitDurationNumber.ToString("0.000"));
+                                    float res;
+                                    if (float.TryParse(s, out res) == false || res <= 0)
+                                        res = 0.001f;
+                                    this._limitDurationNumber = res;
+                                }
+                                GUILayout.EndHorizontal();
 
-                            if (this._currentAnimator != null)
-                            {
-                                AnimatorStateInfo info = this._currentAnimator.GetCurrentAnimatorStateInfo(0);
+                                if (this._currentAnimator != null)
+                                {
+                                    AnimatorStateInfo info = this._currentAnimator.GetCurrentAnimatorStateInfo(0);
                                     float totalLength = info.length * this._limitDurationNumber;
                                     float totalFrames = totalLength * this._fps;
-                                GUILayout.Label($"Estimated {totalLength:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
+                                    GUILayout.Label($"Estimated {totalLength:0.0000} seconds, {Mathf.RoundToInt(totalFrames)} frames ({totalFrames:0.000})");
+                                }
+                                break;
                             }
-                            break;
-                        }
                     }
 
                     GUI.enabled = guiEnabled;
@@ -448,7 +461,7 @@ namespace VideoExport
                 extension.DisplayParams();
 
                 GUILayout.Label("Dynamic Bones Update Mode");
-                    this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)GUILayout.SelectionGrid((int)this._selectedUpdateDynamicBones, this._updateDynamicBonesTypeNames, 2);
+                this._selectedUpdateDynamicBones = (UpdateDynamicBonesType)GUILayout.SelectionGrid((int)this._selectedUpdateDynamicBones, this._updateDynamicBonesTypeNames, 2);
 
                 GUILayout.BeginHorizontal();
                 {
@@ -633,7 +646,7 @@ namespace VideoExport
                     GC.Collect();
                 }
                 byte[] frame = screenshotPlugin.Capture(forcePng);
-                File.WriteAllBytes($"{framesFolder}/{this._imagesPrefix}{i}{this._imagesPostfix}.{actualExtension}", frame);
+                File.WriteAllBytes(Path.Combine(framesFolder, $"{this._imagesPrefix}{i}{this._imagesPostfix}.{actualExtension}"), frame);
 
                 elapsed = DateTime.Now - startTime;
 

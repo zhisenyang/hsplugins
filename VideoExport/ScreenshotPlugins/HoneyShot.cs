@@ -1,8 +1,10 @@
-﻿using System;
+﻿#if HONEYSELECT
+using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Harmony;
 using IllusionPlugin;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 
 namespace VideoExport.ScreenshotPlugins
@@ -18,7 +20,7 @@ namespace VideoExport.ScreenshotPlugins
         public bool transparency { get { return false; } }
         public string extension { get { return ModPrefs.GetBool("HoneyShot", "use_jpeg") ? "jpg" : "png"; } }
 
-        public bool Init()
+        public bool Init(HarmonyInstance harmony)
         {
             Type honeyShotType = Type.GetType("HoneyShot.HoneyShotPlugin,HoneyShot");
             if (honeyShotType == null)
@@ -72,3 +74,4 @@ namespace VideoExport.ScreenshotPlugins
         }
     }
 }
+#endif

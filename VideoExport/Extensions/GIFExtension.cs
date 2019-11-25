@@ -1,12 +1,13 @@
-﻿using System.Text;
+﻿using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace VideoExport.Extensions
 {
     public class GIFExtension : IExtension
     {
-        private const string _gifskiFolder = VideoExport._pluginFolder + "gifski/";
-        private const string _gifskiExe = _gifskiFolder + "gifski.exe";
+        private readonly string _gifskiFolder;
+        private readonly string _gifskiExe;
 
         private StringBuilder _errorBuilder = new StringBuilder();
 
@@ -14,9 +15,15 @@ namespace VideoExport.Extensions
         public bool canProcessStandardOutput { get { return false; } }
         public bool canProcessStandardError { get { return true; } }
 
+        public GIFExtension()
+        {
+            this._gifskiFolder = Path.Combine(VideoExport._pluginFolder, "gifski");
+            this._gifskiExe = Path.Combine(this._gifskiFolder, "gifski.exe");
+        }
+
         public string GetExecutable()
         {
-            return _gifskiExe;
+            return this._gifskiExe;
         }
 
         public string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
@@ -48,6 +55,6 @@ namespace VideoExport.Extensions
             GUI.color = c;
         }
 
-        public void SaveParams() {}
+        public void SaveParams() { }
     }
 }

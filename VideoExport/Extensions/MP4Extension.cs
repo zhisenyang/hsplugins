@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using IllusionPlugin;
 using UnityEngine;
 
 namespace VideoExport.Extensions
@@ -37,9 +36,9 @@ namespace VideoExport.Extensions
 
         public MP4Extension() : base()
         {
-            this._codec = (Codec)ModPrefs.GetInt("VideoExport", "mp4Codec", (int)Codec.H264, true);
-            this._quality = ModPrefs.GetInt("VideoExport", "mp4Quality", 18, true);
-            this._preset = (Preset)ModPrefs.GetInt("VideoExport", "mp4Preset", (int)Preset.Slower, true);
+            this._codec = (Codec)VideoExport._configFile.AddInt("mp4Codec", (int)Codec.H264, true);
+            this._quality = VideoExport._configFile.AddInt("mp4Quality", 18, true);
+            this._preset = (Preset)VideoExport._configFile.AddInt("mp4Preset", (int)Preset.Slower, true);
 
             this._presetCLIOptions = Enum.GetNames(typeof(Preset)).Select(n => n.ToLowerInvariant()).ToArray();
         }
@@ -83,9 +82,9 @@ namespace VideoExport.Extensions
 
         public override void SaveParams()
         {
-            ModPrefs.SetInt("VideoExport", "mp4Codec", (int)this._codec);
-            ModPrefs.SetInt("VideoExport", "mp4Quality", this._quality);
-            ModPrefs.SetInt("VideoExport", "mp4Preset", (int)this._preset);
+            VideoExport._configFile.SetInt("mp4Codec", (int)this._codec);
+            VideoExport._configFile.SetInt("mp4Quality", this._quality);
+            VideoExport._configFile.SetInt("mp4Preset", (int)this._preset);
             base.SaveParams();
         }
     }
