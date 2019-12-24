@@ -11,6 +11,9 @@ namespace RendererEditor.Targets
             public string currentTexturePath;
         }
 
+        public ITarget parent;
+        public int index;
+
         public int originalRenderQueue;
         public bool hasRenderQueue = false;
         public string originalRenderType;

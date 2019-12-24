@@ -68,6 +68,7 @@ namespace RendererEditor.Targets
         {
             return new RendererData
             {
+                target = this,
                 currentEnabled = true,
                 originalShadowCastingMode = this._target.shadowCastingMode,
                 originalReceiveShadow = this._target.receiveShadows,
@@ -135,6 +136,7 @@ namespace RendererEditor.Targets
 
     public class RendererData : ITargetData
     {
+        public ITarget target { get; set; }
         public bool currentEnabled { get; set; }
         public IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
 

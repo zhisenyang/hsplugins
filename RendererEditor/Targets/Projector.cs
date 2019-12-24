@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Xml;
 using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 
 namespace RendererEditor.Targets
@@ -54,12 +55,12 @@ namespace RendererEditor.Targets
 
         public void DisplayParams(HashSet<ITarget> selectedTargets, SetDirtyDelegate setDirtyFunction)
         {
-            IMGUIExtensions.HorizontalSliderWithValue("Near Clip Plane\t", this._target.nearClipPlane, 0.01f, 10f, "0.00", newValue =>
+            IMGUIExtensions.HorizontalSliderWithValue("Near Clip Plane\t", this._target.nearClipPlane, 0.01f, 10f, "0.0000", newValue =>
             {
                 SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.nearClipPlane = newValue);
             });
 
-            IMGUIExtensions.HorizontalSliderWithValue("Far Clip Plane\t", this._target.farClipPlane, 0.02f, 100f, "0.00", newValue =>
+            IMGUIExtensions.HorizontalSliderWithValue("Far Clip Plane\t", this._target.farClipPlane, 0.02f, 100f, "0.0000", newValue =>
             {
                 SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.farClipPlane = newValue);
             });
@@ -79,7 +80,7 @@ namespace RendererEditor.Targets
                     SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.orthographicSize = newValue);
                 });
             else
-                IMGUIExtensions.HorizontalSliderWithValue("FOV\t", this._target.fieldOfView, 1f, 179f, "0", newValue =>
+                IMGUIExtensions.HorizontalSliderWithValue("FOV\t\t", this._target.fieldOfView, 1f, 179f, "0", newValue =>
                 {
                     SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.fieldOfView = newValue);
                 });
@@ -89,6 +90,7 @@ namespace RendererEditor.Targets
         {
             return new ProjectorData()
             {
+                target = this,
                 currentEnabled = true,
                 originalNearClipPlane = this._target.nearClipPlane,
                 originalFarClipPlane = this._target.farClipPlane,
@@ -167,6 +169,7 @@ namespace RendererEditor.Targets
 
     public class ProjectorData : ITargetData
     {
+        public ITarget target { get; set; }
         public bool currentEnabled { get; set; }
         public IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
 
