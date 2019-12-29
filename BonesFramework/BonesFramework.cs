@@ -34,46 +34,44 @@ namespace BonesFramework
         #endregion
 
         #region Private Variables
+        private static BonesFramework _self;
         private static GameObject _currentLoadingCloth;
         private static readonly HashSet<string> _currentAdditionalRootBones = new HashSet<string>();
         private static Transform _currentTransformParent;
         private static readonly Dictionary<GameObject, AdditionalObjectData> _currentAdditionalObjects = new Dictionary<GameObject, AdditionalObjectData>();
         private const string _name = "BonesFramework";
-#if HONEYSELECT
-        private const string _version = "1.1.0";
-#elif AISHOUJO
-        private const string _version = "1.0.0";
-#endif
+        private const string _version = "1.2.0";
         private const string _guid = "com.joan6694.illusionplugins.bonesframework";
         #endregion
 
 #if HONEYSELECT
         public override string Name { get { return _name; } }
         public override string Version { get { return _version; } }
-        public override string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+        public override string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
 #endif
 
         #region Unity Methods
         protected override void Awake()
         {
+            _self = this;
             base.Awake();
 
             UnityEngine.Debug.Log("BonesFramework: Trying to patch methods...");
             try
             {
-                var harmony = HarmonyExtensions.PatchAll(_guid);
+                var harmony = HarmonyExtensions.CreateInstance(_guid);
 #if HONEYSELECT
-                harmony.Patch(typeof(CharBody).GetCoroutineMethod("LoadCharaFbxDataAsync"), 
+                harmony.Patch(typeof(CharBody).GetCoroutineMethod("LoadCharaFbxDataAsync"),
 #elif AISHOUJO
                 harmony.Patch(typeof(ChaControl).GetCoroutineMethod("LoadCharaFbxDataAsync"),
 #endif
                               null,
                               null,
                               new HarmonyMethod(typeof(BonesFramework), nameof(CharBody_LoadCharaFbxDataAsync_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
-                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeights", new[] {typeof(GameObject), typeof(string), typeof(Transform)}),
+                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeights", new[] { typeof(GameObject), typeof(string), typeof(Transform) }),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
-                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] {typeof(Transform), typeof(Transform)}),
+                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] { typeof(Transform), typeof(Transform) }),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsLoop_Prefix)));
 
 #if AISHOUJO
@@ -227,10 +225,8 @@ namespace BonesFramework
         private static IEnumerable<CodeInstruction> CharBody_LoadCharaFbxDataAsync_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             bool set = false;
-            List<CodeInstruction> instructionsList = instructions.ToList();
-            for (int i = 0; i < instructionsList.Count; i++)
+            foreach (CodeInstruction inst in instructions)
             {
-                CodeInstruction inst = instructionsList[i];
                 yield return inst;
                 if (set == false && inst.ToString().Contains("AddLoadAssetBundle")) //There's probably something better but idk m8
                 {
@@ -251,7 +247,6 @@ namespace BonesFramework
             _currentAdditionalRootBones.Clear();
             if (_currentLoadingCloth == null)
                 return;
-
 #if HONEYSELECT
             ListTypeFbx ltf = (ListTypeFbx)self.GetPrivate("<ltf>__3");
             string assetBundlePath = ltf.ABPath;
@@ -267,42 +262,20 @@ namespace BonesFramework
                 return;
 
             UnityEngine.Debug.Log("BonesFramework: Loaded additional_bones TextAsset from " + assetBundlePath);
-            _currentAdditionalObjects.Add(_currentLoadingCloth, new AdditionalObjectData());
-            OnDestroyTrigger destroyTrigger = _currentLoadingCloth.AddComponent<OnDestroyTrigger>();
-            destroyTrigger.onDestroy = (go) =>
-            {
-                AdditionalObjectData data = _currentAdditionalObjects[go];
-                DynamicBone[] dbs = data.parent.GetComponentsInChildren<DynamicBone>();
-                foreach (GameObject o in data.objects)
-                {
-                    DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
-                    foreach (DynamicBoneCollider collider in colliders)
-                    {
-                        foreach (DynamicBone dynamicBone in dbs)
-                        {
-                            int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
-                            if (index != -1)
-                                dynamicBone.m_Colliders.RemoveAt(index);
-                        }
-                    }
-                    GameObject.Destroy(o);
-                }
-                _currentAdditionalObjects.Remove(go);
-            };
 
-            string[] lines = ta.text.Split(new[] {"\r\n", "\n"}, StringSplitOptions.RemoveEmptyEntries);
+            string[] lines = ta.text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (string line in lines)
             {
                 string[] cells = line.Split('\t');
                 if (!cells[0].Equals(assetName))
                     continue;
                 UnityEngine.Debug.Log("BonesFramework: Found matching line for asset " + assetName + "\n" + line);
-                for (int i = 1; i < cells.Length; i++)
-                    _currentAdditionalRootBones.Add(cells[i]);
 
+                _currentAdditionalObjects.Add(_currentLoadingCloth, new AdditionalObjectData());
+                OnDestroyTrigger destroyTrigger = _currentLoadingCloth.AddComponent<OnDestroyTrigger>();
                 destroyTrigger.onStart = (self2) =>
                 {
-                    self2.ExecuteDelayed(() =>
+                    _self.ExecuteDelayed(() =>
                     {
                         foreach (DynamicBone dynamicBone in self2.transform.parent.GetComponentsInChildren<DynamicBone>(true))
                         {
@@ -311,6 +284,37 @@ namespace BonesFramework
                         }
                     });
                 };
+                destroyTrigger.onDestroy = (go) =>
+                {
+                    AdditionalObjectData data = _currentAdditionalObjects[go];
+                    DynamicBone[] dbs = data.parent.GetComponentsInChildren<DynamicBone>(true);
+                    foreach (GameObject o in data.objects)
+                    {
+                        DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
+                        foreach (DynamicBoneCollider collider in colliders)
+                        {
+                            foreach (DynamicBone dynamicBone in dbs)
+                            {
+                                int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
+                                if (index != -1)
+                                    dynamicBone.m_Colliders.RemoveAt(index);
+                            }
+                        }
+                        GameObject.Destroy(o);
+                    }
+                    _currentAdditionalObjects.Remove(go);
+                    _self.ExecuteDelayed(() =>
+                    {
+                        foreach (DynamicBone dynamicBone in data.parent.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                        {
+                            dynamicBone.InitTransforms();
+                            dynamicBone.SetupParticles();
+                        }
+                    });
+                };
+
+                for (int i = 1; i < cells.Length; i++)
+                    _currentAdditionalRootBones.Add(cells[i]);
                 break;
             }
         }

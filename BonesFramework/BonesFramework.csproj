@@ -39,20 +39,32 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\toolbox\Extensions.cs">
-      <Link>ToolBox\Extensions.cs</Link>
-    </Compile>
     <Compile Include="..\toolbox\GenericPlugin.cs">
       <Link>ToolBox\GenericPlugin.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\HarmonyExtensions.cs">
+      <Link>ToolBox\HarmonyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\ReflectionExtensions.cs">
+      <Link>ToolBox\ReflectionExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\TransformExtensions.cs">
+      <Link>ToolBox\TransformExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\VariousExtensions.cs">
+      <Link>ToolBox\VariousExtensions.cs</Link>
     </Compile>
     <Compile Include="BonesFramework.cs" />
     <Compile Include="OnDestroyTrigger.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-        <None Include="ILMergeConfig.json" />
+    <None Include="ILMergeConfig.json" />
   </ItemGroup>
   <Choose>
     <When Condition=" '$(Configuration)|$(Platform)' == 'HS|AnyCPU' ">
-      <ItemGroup >
+      <ItemGroup>
         <Reference Include="0Harmony">
           <HintPath>..\Other Dependencies\0Harmony.dll</HintPath>
         </Reference>
@@ -89,9 +101,9 @@
           <Private>False</Private>
         </Reference>
       </ItemGroup>
-    </When>  
+    </When>
     <When Condition="'$(Configuration)|$(Platform)' == 'AI|AnyCPU'">
-      <ItemGroup >
+      <ItemGroup>
         <Reference Include="0Harmony">
           <HintPath>D:\Program Files (x86)\AI-Syoujyo\BepInEx\core\0Harmony.dll</HintPath>
           <Private>False</Private>
