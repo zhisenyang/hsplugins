@@ -77,7 +77,7 @@ namespace ToolBox.Extensions {
 
         public static Coroutine ExecuteDelayed(this MonoBehaviour self, Action action, int frameCount = 1)
         {
-            return self.StartCoroutine(ExecuteDelayed_Routine(action));
+            return self.StartCoroutine(ExecuteDelayed_Routine(action, frameCount));
         }
 
         private static IEnumerator ExecuteDelayed_Routine(Action action, int frameCount = 1)

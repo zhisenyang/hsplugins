@@ -53,7 +53,7 @@ namespace ToolBox
         public string AddString(string key, string defaultValue, bool autoSave, string description = null)
         {
 #if HONEYSELECT || PLAYHOME
-            return ModPrefs.GetString("VideoExport", key, defaultValue, autoSave);
+            return ModPrefs.GetString(this._name, key, defaultValue, autoSave);
 #elif KOIKATSU || AISHOUJO
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
@@ -62,7 +62,7 @@ namespace ToolBox
         public void SetString(string key, string value)
         {
 #if HONEYSELECT || PLAYHOME
-            ModPrefs.SetString("VideoExport", key, value);
+            ModPrefs.SetString(this._name, key, value);
 #elif KOIKATSU || AISHOUJO
             this.GetEntry<string>(key).Value = value;
 #endif
@@ -71,7 +71,7 @@ namespace ToolBox
         public int AddInt(string key, int defaultValue, bool autoSave, string description = null)
         {
 #if HONEYSELECT || PLAYHOME
-            return ModPrefs.GetInt("VideoExport", key, defaultValue, autoSave);
+            return ModPrefs.GetInt(this._name, key, defaultValue, autoSave);
 #elif KOIKATSU || AISHOUJO
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
@@ -80,7 +80,7 @@ namespace ToolBox
         public void SetInt(string key, int value)
         {
 #if HONEYSELECT || PLAYHOME
-            ModPrefs.SetInt("VideoExport", key, value);
+            ModPrefs.SetInt(this._name, key, value);
 #elif KOIKATSU || AISHOUJO
             this.GetEntry<int>(key).Value = value;
 #endif
@@ -89,7 +89,7 @@ namespace ToolBox
         public bool AddBool(string key, bool defaultValue, bool autoSave, string description = null)
         {
 #if HONEYSELECT || PLAYHOME
-            return ModPrefs.GetBool("VideoExport", key, defaultValue, autoSave);
+            return ModPrefs.GetBool(this._name, key, defaultValue, autoSave);
 #elif KOIKATSU || AISHOUJO
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
@@ -98,7 +98,7 @@ namespace ToolBox
         public void SetBool(string key, bool value)
         {
 #if HONEYSELECT || PLAYHOME
-            ModPrefs.SetBool("VideoExport", key, value);
+            ModPrefs.SetBool(this._name, key, value);
 #elif KOIKATSU || AISHOUJO
             this.GetEntry<bool>(key).Value = value;
 #endif
@@ -107,7 +107,7 @@ namespace ToolBox
         public float AddFloat(string key, float defaultValue, bool autoSave, string description = null)
         {
 #if HONEYSELECT || PLAYHOME
-            return ModPrefs.GetFloat("VideoExport", key, defaultValue, autoSave);
+            return ModPrefs.GetFloat(this._name, key, defaultValue, autoSave);
 #elif KOIKATSU || AISHOUJO
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
@@ -116,7 +116,7 @@ namespace ToolBox
         public void SetFloat(string key, float value)
         {
 #if HONEYSELECT || PLAYHOME
-            ModPrefs.SetFloat("VideoExport", key, value);
+            ModPrefs.SetFloat(this._name, key, value);
 #elif KOIKATSU || AISHOUJO
             this.GetEntry<float>(key).Value = value;
 #endif

@@ -7,15 +7,29 @@ namespace ToolBox.Extensions {
         public static void SetGlobalFontSize(int size)
         {
             foreach (GUIStyle style in GUI.skin)
-            {
                 style.fontSize = size;
-            }
             GUI.skin = GUI.skin;
         }
 
         public static void ResetFontSize()
         {
             SetGlobalFontSize(0);
+        }
+
+        private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
+#if HONEYSELECT || PLAYHOME || KOIKATSU
+        private static readonly Color _backgroundColor = new Color(1f, 1f, 1f, 0.5f);
+#elif AISHOUJO
+        private static readonly Color _backgroundColor = new Color(0f, 0f, 0f, 0.5f);
+#endif
+
+        public static void DrawBackground(Rect rect)
+        {
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = _backgroundColor;
+            GUI.Box(rect, "", _customBoxStyle);
+            GUI.backgroundColor = c;
+
         }
 
         public static void HorizontalSliderWithValue(string label, float value, float left, float right, string valueFormat = "", Action<float> onChanged = null)

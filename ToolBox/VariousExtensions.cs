@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
+using System.Reflection;
 using Studio;
+using UnityEngine;
 
 namespace ToolBox.Extensions {
     internal static class VariousExtensions
@@ -23,6 +25,12 @@ namespace ToolBox.Extensions {
                     return i;
             }
             return -1;
+        }
+
+        public static void AddRange<T, T2>(this IDictionary<T, T2> self, IDictionary<T, T2> toAdd)
+        {
+            foreach (KeyValuePair<T, T2> pair in toAdd)
+                self.Add(pair.Key, pair.Value);
         }
 
         public static bool IsVisible(this TreeNodeObject self)
@@ -51,12 +59,20 @@ namespace ToolBox.Extensions {
             return -1;
         }
 
+        public static Color GetContrastingColor(this Color self)
+        {
+            float luminance = 0.299f * self.r + 0.587f * self.g + 0.114f * self.b;
+            if (luminance > 0.5f)
+                return Color.black;
+            return Color.white;
+        }
+
 #if KOIKATSU || AISHOUJO
         private static MethodInfo _initTransforms = null;
         public static void InitTransforms(this DynamicBone self)
         {
             if (_initTransforms == null)
-                _initTransforms = self.GetType().GetMethod("InitTransforms", AccessTools.all);
+                _initTransforms = self.GetType().GetMethod("InitTransforms", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             _initTransforms.Invoke(self, null);
         }
 
@@ -64,7 +80,7 @@ namespace ToolBox.Extensions {
         public static void SetupParticles(this DynamicBone self)
         {
             if (_setupParticles == null)
-                _setupParticles = self.GetType().GetMethod("SetupParticles", AccessTools.all);
+                _setupParticles = self.GetType().GetMethod("SetupParticles", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             _setupParticles.Invoke(self, null);
         }
 #endif
