@@ -40,7 +40,7 @@ namespace VideoExport.Extensions
         public override string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
             this._progress = 1;
-            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/{prefix}%d{postfix}.{inputExtension}\" {this.CompileFilters(resize, resizeX, resizeY)} -c:v libvpx{(this._codec == Codec.VP9 ? "-vp9" : " -qmin 0")} -pix_fmt {(transparency ? "yuva420p -metadata:s:v:0 alpha_mode=\"1\"" : "yuv420p")} -auto-alt-ref 0 -crf {this._quality} {(this._codec == Codec.VP8 ? "-b:v 10M" : "-b:v 0")} -deadline {this._deadlineCLIOptions[(int)this._deadline]} -progress pipe:1 \"{fileName}.webm\"";
+            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/{prefix}%d{postfix}.{inputExtension}\" {this.CompileFilters(resize, resizeX, resizeY)} -c:v libvpx{(this._codec == Codec.VP9 ? "-vp9" : " -qmin 0")} -pix_fmt {(transparency ? "yuva420p -metadata:s:v:0 alpha_mode=\"1\"" : "yuv420p")} -auto-alt-ref 0 -crf {this._quality} {(this._codec == Codec.VP8 ? "-b:v 10M" : "-b:v 0")} -deadline {this._deadlineCLIOptions[(int)this._deadline]} -threads 0 -progress pipe:1 \"{fileName}.webm\"";
         }
 
         public override void DisplayParams()

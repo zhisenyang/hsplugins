@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define BETA
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -42,7 +43,17 @@ namespace VideoExport
 
 #if HONEYSELECT
         public override string Name { get { return _name; } }
-        public override string Version { get { return _versionNum; } }
+        public override string Version
+        {
+            get
+            {
+                return _versionNum
+#if BETA
+                    + "b2"
+#endif
+                    ;
+            }
+        }
         public override string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
 #endif
 
@@ -77,7 +88,7 @@ namespace VideoExport
         private bool _generatingVideo = false;
         private readonly List<IScreenshotPlugin> _screenshotPlugins = new List<IScreenshotPlugin>();
         private int _randomId;
-        private Rect _windowRect = new Rect(Screen.width / 2 - 160, Screen.height / 2 - 150, 320, 10);
+        private Rect _windowRect = new Rect(Screen.width / 2 - 160, 100, 320, 10);
         private bool _showUi = false;
         private bool _mouseInWindow;
         private string _currentMessage;
@@ -107,6 +118,8 @@ namespace VideoExport
         private int _prewarmLoopCount = 3;
         private string _imagesPrefix = "";
         private string _imagesPostfix = "";
+        private bool _clearSceneBeforeEncoding;
+        private bool _closeWhenDone;
         #endregion
 
         #region Public Accessors (for other plugins probably)
@@ -217,15 +230,15 @@ namespace VideoExport
             if (this._showUi == false)
                 return;
             Color c = GUI.backgroundColor;
-            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.Window, "Video Export " + _versionNum);
-            GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.5f);
-            GUI.Box(this._windowRect, "", _customBoxStyle);
-            GUI.backgroundColor = c;
+            this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.Window, "Video Export " + _versionNum
+#if BETA
+                                                                                               + "b2"
+#endif
+                                                                                               );
+            IMGUIExtensions.DrawBackground(this._windowRect);
             this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             if (this._mouseInWindow)
-                Input.ResetInputAxes();
-            //if (this._mouseInWindow)
-            //    Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUi;
+                Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUi;
         }
 
         protected override void OnDestroy()
@@ -445,6 +458,10 @@ namespace VideoExport
                         this._resizeX = Screen.width;
                         this._resizeY = Screen.height;
                     }
+                    if (this._resizeX > currentSize.x)
+                        this._resizeX = (int)currentSize.x;
+                    if (this._resizeY > currentSize.y)
+                        this._resizeY = (int)currentSize.y;
 
                     GUI.enabled = guiEnabled;
                 }
@@ -481,7 +498,7 @@ namespace VideoExport
 
                 GUILayout.BeginHorizontal();
                 {
-                    GUILayout.Label("Postfix", GUILayout.ExpandWidth(false));
+                    GUILayout.Label("Suffix", GUILayout.ExpandWidth(false));
                     string s = GUILayout.TextField(this._imagesPostfix);
                     if (s != this._imagesPostfix)
                     {
@@ -499,6 +516,17 @@ namespace VideoExport
                 string actualExtension = forcePng ? "png" : plugin.extension;
 
                 GUILayout.Label($"Example Result: {this._imagesPrefix}123{this._imagesPostfix}.{actualExtension}");
+
+                guiEnabled = GUI.enabled;
+                GUI.enabled = true;
+                Color c = GUI.color;
+                GUI.color = Color.red;
+
+                this._clearSceneBeforeEncoding = GUILayout.Toggle(this._clearSceneBeforeEncoding, "Empty Scene Before Encoding");
+                this._closeWhenDone = GUILayout.Toggle(this._closeWhenDone, "Close Studio When Done");
+
+                GUI.color = c;
+                GUI.enabled = guiEnabled;
 
                 this._startOnNextClick = GUILayout.Toggle(this._startOnNextClick, "Start Recording On Next Click");
 
@@ -521,8 +549,8 @@ namespace VideoExport
 
                 GUI.enabled = true;
 
-                GUILayout.EndHorizontal();
-                Color c = GUI.color;
+                GUILayout.EndHorizontal(); 
+                c = GUI.color;
                 GUI.color = this._messageColor;
 
                 GUIStyle customLabel = GUI.skin.label;
@@ -676,6 +704,10 @@ namespace VideoExport
             if (this._autoGenerateVideo)
             {
                 this._generatingVideo = true;
+
+                if (this._clearSceneBeforeEncoding)
+                    Studio.Studio.Instance.InitScene(false);
+
                 this._messageColor = Color.yellow;
                 if (Directory.Exists(_outputFolder) == false)
                     Directory.CreateDirectory(_outputFolder);
@@ -745,6 +777,9 @@ namespace VideoExport
             this._isRecording = false;
             Resources.UnloadUnusedAssets();
             GC.Collect();
+
+            if (this._closeWhenDone)
+                Manager.Scene.Instance.GameEnd(false);
         }
 
         private Process StartExternalProcess(string exe, string arguments, bool redirectStandardOutput, bool redirectStandardError)

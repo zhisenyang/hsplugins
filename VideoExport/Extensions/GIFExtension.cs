@@ -51,7 +51,7 @@ namespace VideoExport.Extensions
         {
             Color c = GUI.color;
             GUI.color = Color.yellow;
-            GUILayout.Label("It is recommended to downscale your images when using the GIF format (use Resize)");
+            GUILayout.Label("It is recommended to downscale your images when using the GIF format (use Resize). Also, GIF isn't a very good format, prefer using MP4 or WEBM. Plus, the encoder is only compatible with PNG images.");
             GUI.color = c;
         }
 

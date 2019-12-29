@@ -206,6 +206,9 @@
     <Compile Include="..\ToolBox\HarmonyExtensions.cs">
       <Link>ToolBox\HarmonyExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\ToolBox\IMGUIExtensions.cs">
+      <Link>ToolBox\IMGUIExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
       <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
     </Compile>

@@ -46,7 +46,7 @@ namespace VideoExport.Extensions
         public override string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
             this._progress = 1;
-            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/{prefix}%d{postfix}.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt yuv420p -crf {this._quality} -preset {this._presetCLIOptions[(int)this._preset]} -progress pipe:1 \"{fileName}.mp4\"";
+            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}/{prefix}%d{postfix}.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt yuv420p -crf {this._quality} -preset {this._presetCLIOptions[(int)this._preset]} -threads 0 -progress pipe:1 \"{fileName}.mp4\"";
         }
 
         public override void DisplayParams()

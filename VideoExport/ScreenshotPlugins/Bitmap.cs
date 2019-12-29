@@ -63,9 +63,6 @@ namespace VideoExport.ScreenshotPlugins
                 this._texture = new Texture2D(width, height, TextureFormat.RGB24, false, true);
             }
 
-            uint byteSize = (uint)(width * height * 3);
-            uint fileSize = (uint)(this._bmpHeader.Length + byteSize);
-
             RenderTexture cached = Camera.main.targetTexture;
             Camera.main.targetTexture = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
             Camera.main.Render();
@@ -76,8 +73,13 @@ namespace VideoExport.ScreenshotPlugins
             RenderTexture.ReleaseTemporary(RenderTexture.active);
             RenderTexture.active = cached2;
 
+            if (forcePng)
+                return this._texture.EncodeToPNG();
+
             unsafe
             {
+                uint byteSize = (uint)(width * height * 3);
+                uint fileSize = (uint)(this._bmpHeader.Length + byteSize);
                 if (this._fileBytes.Length != fileSize)
                 {
                     this._fileBytes = new byte[fileSize];

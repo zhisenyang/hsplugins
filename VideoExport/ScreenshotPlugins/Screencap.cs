@@ -288,14 +288,6 @@ namespace VideoExport.ScreenshotPlugins
 {
     public class Screencap : IScreenshotPlugin
     {
-        #region Private Types
-        private enum CaptureType
-        {
-            Normal,
-            Alpha
-        }
-        #endregion
-
         #region Accessors
         public string name { get { return "Screenshot Manager"; } }
         public Vector2 currentSize { get { return new Vector2(this._captureWidth.Value, this._captureHeight.Value); } }
@@ -308,10 +300,8 @@ namespace VideoExport.ScreenshotPlugins
         private static byte[] _imageBytes;
         private static Texture2D _texture = new Texture2D(Screen.width, Screen.height, TextureFormat.ARGB32, false, true);
 
-        private Action _opaque;
-        private Action _transparent;
+        private Action<bool> _capture;
 
-        private CaptureType _captureType = CaptureType.Normal;
         private ConfigEntry<int> _captureWidth;
         private ConfigEntry<int> _captureHeight;
         private ConfigEntry<bool> _alpha;
@@ -326,18 +316,15 @@ namespace VideoExport.ScreenshotPlugins
             object screenshotManager = GameObject.FindObjectOfType(screencapType);
             if (screenshotManager == null)
                 return false;
-            this._captureType = (CaptureType)VideoExport._configFile.AddInt("Screencap_captureType", 0, true);
             this._captureWidth = (ConfigEntry<int>)screenshotManager.GetPrivateProperty("CaptureWidth");
             this._captureHeight = (ConfigEntry<int>)screenshotManager.GetPrivateProperty("CaptureHeight");
             this._alpha = (ConfigEntry<bool>)screenshotManager.GetPrivateProperty("Alpha");
 
-            MethodInfo opaque = screencapType.GetMethod("Opaque", BindingFlags.NonPublic | BindingFlags.Instance);
-            MethodInfo transparent = screencapType.GetMethod("Transparent", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (opaque == null || transparent == null)
+            MethodInfo capture = screencapType.GetMethod("CaptureAndWrite", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (capture == null)
                 return false;
-            this._opaque = (Action)Delegate.CreateDelegate(typeof(Action), screenshotManager, opaque);
-            this._transparent = (Action)Delegate.CreateDelegate(typeof(Action), screenshotManager, transparent);
-            if (this._opaque == null || this._transparent == null)
+            this._capture = (Action<bool>)Delegate.CreateDelegate(typeof(Action<bool>), screenshotManager, capture);
+            if (this._capture == null)
                 return false;
             try
             {
@@ -354,32 +341,17 @@ namespace VideoExport.ScreenshotPlugins
         public byte[] Capture(bool forcePng = false)
         {
             _videoExportCapture = true;
-            switch (this._captureType)
-            {
-                case CaptureType.Normal:
-                    this._opaque();
-                    break;
-                case CaptureType.Alpha:
-                    this._transparent();
-                    break;
-            }
+            this._capture(this._alpha.Value);
             _videoExportCapture = false;
             return _imageBytes;
         }
 
         public void DisplayParams()
         {
-            GUILayout.BeginHorizontal();
-            {
-                GUILayout.Label("Capture Type", GUILayout.ExpandWidth(false));
-                this._captureType = (CaptureType)GUILayout.SelectionGrid((int)this._captureType, new[] { "Normal", "Transparent" }, 2);
-            }
-            GUILayout.EndHorizontal();
         }
 
         public void SaveParams()
         {
-            VideoExport._configFile.SetInt("Screencap_captureType", (int)this._captureType);
         }
         #endregion
 
