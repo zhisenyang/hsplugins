@@ -241,7 +241,6 @@ namespace RendererEditor
             new ShaderProperty() {name = "DstMode", type = Type.Float},
             new ShaderProperty() {name = "SrcMode", type = Type.Float},
             //Bools
-            new ShaderProperty() {name = "_SpecularHighlights", type = Type.Boolean},
             new ShaderProperty() {name = "_UseMainTex", type = Type.Boolean},
             new ShaderProperty() {name = "_WhiteOff", type = Type.Boolean},
             new ShaderProperty() {name = "_UseCutout", type = Type.Boolean},
