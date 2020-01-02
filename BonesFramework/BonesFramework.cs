@@ -40,7 +40,7 @@ namespace BonesFramework
         private static Transform _currentTransformParent;
         private static readonly Dictionary<GameObject, AdditionalObjectData> _currentAdditionalObjects = new Dictionary<GameObject, AdditionalObjectData>();
         private const string _name = "BonesFramework";
-        private const string _version = "1.2.0";
+        private const string _version = "1.2.1";
         private const string _guid = "com.joan6694.illusionplugins.bonesframework";
         #endregion
 
@@ -75,10 +75,10 @@ namespace BonesFramework
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsLoop_Prefix)));
 
 #if AISHOUJO
-                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBounds", new[] {typeof(GameObject), typeof(string), typeof(Bounds), typeof(Transform)}),
+                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBounds", new[] { typeof(GameObject), typeof(string), typeof(Bounds), typeof(Transform) }),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
-                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBoundsLoop", new[] {typeof(Transform), typeof(Bounds), typeof(Transform)}),
+                harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBoundsLoop", new[] { typeof(Transform), typeof(Bounds), typeof(Transform) }),
                               new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix)));
 #endif
                 UnityEngine.Debug.Log("BonesFramework: Patch successful!");
@@ -108,15 +108,18 @@ namespace BonesFramework
             if (_currentLoadingCloth != null && _currentAdditionalObjects.TryGetValue(_currentLoadingCloth, out data))
             {
                 data.parent = _currentLoadingCloth.transform.parent.gameObject;
-                IEnumerable<DynamicBoneCollider> colliders = data.objects.SelectMany(go => go.GetComponentsInChildren<DynamicBoneCollider>(true));
-                foreach (DynamicBone bone in data.parent.GetComponentsInChildren<DynamicBone>(true))
+                _self.ExecuteDelayed(() =>
                 {
-                    if (bone.m_Colliders != null)
+                    IEnumerable<DynamicBoneCollider> colliders = data.objects.SelectMany(go => go.GetComponentsInChildren<DynamicBoneCollider>(true));
+                    foreach (DynamicBone bone in data.parent.GetComponentsInChildren<DynamicBone>(true))
                     {
-                        foreach (DynamicBoneCollider collider in colliders)
-                            bone.m_Colliders.Add(collider);
+                        if (bone.m_Colliders != null)
+                        {
+                            foreach (DynamicBoneCollider collider in colliders)
+                                bone.m_Colliders.Add(collider);
+                        }
                     }
-                }
+                });
             }
 
             _currentLoadingCloth = null;
@@ -173,15 +176,15 @@ namespace BonesFramework
 #if AISHOUJO
         private static bool AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix(AssignedAnotherWeights __instance, Transform t, Bounds bounds, Transform rootBone)
         {
-            SkinnedMeshRenderer component = t.GetComponent<SkinnedMeshRenderer>();
-            if (component)
+            SkinnedMeshRenderer renderer = t.GetComponent<SkinnedMeshRenderer>();
+            if (renderer)
             {
-                int num = component.bones.Length;
-                Transform[] array = new Transform[num];
+                int length = renderer.bones.Length;
+                Transform[] array = new Transform[length];
                 GameObject gameObject = null;
-                for (int i = 0; i < num; i++)
+                for (int i = 0; i < length; i++)
                 {
-                    Transform bone = component.bones[i];
+                    Transform bone = renderer.bones[i];
                     if (__instance.dictBone.TryGetValue(bone.name, out gameObject))
                         array[i] = gameObject.transform;
                     else if (_currentAdditionalRootBones.Count != 0 &&
@@ -189,13 +192,13 @@ namespace BonesFramework
                         array[i] = bone;
                 }
 
-                component.bones = array;
-                component.localBounds = bounds;
-                Cloth component2 = component.gameObject.GetComponent<Cloth>();
-                if (rootBone && component2 != null)
-                    component.rootBone = rootBone;
-                else if (component.rootBone && __instance.dictBone.TryGetValue(component.rootBone.name, out gameObject))
-                    component.rootBone = gameObject.transform;
+                renderer.bones = array;
+                renderer.localBounds = bounds;
+                Cloth cloth = renderer.gameObject.GetComponent<Cloth>();
+                if (rootBone && cloth == null)
+                    renderer.rootBone = rootBone;
+                else if (renderer.rootBone && __instance.dictBone.TryGetValue(renderer.rootBone.name, out gameObject))
+                    renderer.rootBone = gameObject.transform;
             }
 
             for (int i = 0; i < t.childCount; i++)
@@ -257,6 +260,8 @@ namespace BonesFramework
             string assetName = (string)self.GetPrivate("<assetName>__0");
             string manifest = (string)self.GetPrivate("<manifestName>__0");
 #endif
+            if (AssetBundleCheck.IsFile(assetBundlePath, assetName) == false)
+                return;
             TextAsset ta = CommonLib.LoadAsset<TextAsset>(assetBundlePath, "additional_bones", true, manifest);
             if (ta == null)
                 return;
@@ -287,30 +292,38 @@ namespace BonesFramework
                 destroyTrigger.onDestroy = (go) =>
                 {
                     AdditionalObjectData data = _currentAdditionalObjects[go];
-                    DynamicBone[] dbs = data.parent.GetComponentsInChildren<DynamicBone>(true);
+                    DynamicBone[] dbs = null;
+                    if (data.parent != null)
+                        dbs = data.parent.GetComponentsInChildren<DynamicBone>(true);
                     foreach (GameObject o in data.objects)
                     {
-                        DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
-                        foreach (DynamicBoneCollider collider in colliders)
+                        if (dbs != null)
                         {
-                            foreach (DynamicBone dynamicBone in dbs)
+                            DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
+                            foreach (DynamicBoneCollider collider in colliders)
                             {
-                                int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
-                                if (index != -1)
-                                    dynamicBone.m_Colliders.RemoveAt(index);
+                                foreach (DynamicBone dynamicBone in dbs)
+                                {
+                                    int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
+                                    if (index != -1)
+                                        dynamicBone.m_Colliders.RemoveAt(index);
+                                }
                             }
                         }
                         GameObject.Destroy(o);
                     }
                     _currentAdditionalObjects.Remove(go);
-                    _self.ExecuteDelayed(() =>
+                    if (data.parent != null)
                     {
-                        foreach (DynamicBone dynamicBone in data.parent.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                        _self.ExecuteDelayed(() =>
                         {
-                            dynamicBone.InitTransforms();
-                            dynamicBone.SetupParticles();
-                        }
-                    });
+                            foreach (DynamicBone dynamicBone in data.parent.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                            {
+                                dynamicBone.InitTransforms();
+                                dynamicBone.SetupParticles();
+                            }
+                        });
+                    }
                 };
 
                 for (int i = 1; i < cells.Length; i++)
