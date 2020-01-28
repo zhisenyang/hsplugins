@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -7,14 +8,6 @@ namespace UILib
 {
     public static class UIUtility
     {
-        #region Public Types
-        public enum Binary
-        {
-            Neo,
-            Game,
-        }
-        #endregion
-
         public const RenderMode canvasRenderMode = RenderMode.ScreenSpaceOverlay;
         public const bool canvasPixelPerfect = false;
 
@@ -43,61 +36,67 @@ namespace UILib
         public static DefaultControls.Resources resources;
 
         private static bool _initCalled = false;
+        private static bool _resourcesLoaded = false;
 
         public static void Init()
         {
-            if (_initCalled)
-                return;
+            //if (_initCalled)
+            //    return;
             _initCalled = true;
+            if (_resourcesLoaded == false)
+            {
 #if HONEYSELECT || PLAYHOME
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.HS.Resources.DefaultResources);
+                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.HS.Resources.DefaultResources);
 #elif KOIKATSU
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.KOI.Resources.DefaultResources);
+                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.KOI.Resources.DefaultResources);
 #elif AISHOUJO
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.AI.Resources.DefaultResources);
 #endif
-            foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
-            {
-                switch (sprite.name)
+                foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
                 {
-                    case "Background":
-                        backgroundSprite = sprite;
-                        break;
-                    case "UISprite":
-                        standardSprite = sprite;
-                        break;
-                    case "InputFieldBackground":
-                        inputFieldBackground = sprite;
-                        break;
-                    case "Knob":
-                        knob = sprite;
-                        break;
-                    case "Checkmark":
-                        checkMark = sprite;
-                        break;
-                    case "DropdownArrow":
-                        dropdownArrow = sprite;
-                        break;
-                    case "UIMask":
-                        mask = sprite;
-                        break;
+                    switch (sprite.name)
+                    {
+                        case "Background":
+                            backgroundSprite = sprite;
+                            break;
+                        case "UISprite":
+                            standardSprite = sprite;
+                            break;
+                        case "InputFieldBackground":
+                            inputFieldBackground = sprite;
+                            break;
+                        case "Knob":
+                            knob = sprite;
+                            break;
+                        case "Checkmark":
+                            checkMark = sprite;
+                            break;
+                        case "DropdownArrow":
+                            dropdownArrow = sprite;
+                            break;
+                        case "UIMask":
+                            mask = sprite;
+                            break;
+                    }
                 }
+                defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                resources = new DefaultControls.Resources
+                {
+                    background = backgroundSprite,
+                    checkmark = checkMark,
+                    dropdown = dropdownArrow,
+                    inputField = inputFieldBackground,
+                    knob = knob,
+                    mask = mask,
+                    standard = standardSprite
+                };
+                defaultFontSize = 16;
+                bundle.Unload(false);
+                _resourcesLoaded = true;
             }
-            defaultFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            resources = new DefaultControls.Resources
-            {
-                background = backgroundSprite,
-                checkmark = checkMark,
-                dropdown = dropdownArrow,
-                inputField = inputFieldBackground,
-                knob = knob,
-                mask = mask,
-                standard = standardSprite
-            };
-            defaultFontSize = 16;
-            bundle.Unload(false);
-            
+
 #if HONEYSELECT
+            //if (Application.productName == "StudioNEO")
             SetCustomFont("mplus-1c-medium");
 #elif KOIKATSU
             SetCustomFont("SourceHanSansJP-Medium");
@@ -130,7 +129,10 @@ namespace UILib
             foreach (Font font in Resources.FindObjectsOfTypeAll<Font>())
             {
                 if (font.name.Equals(customFontName))
+                {
                     defaultFont = font;
+                    break;
+                }
             }
         }
 

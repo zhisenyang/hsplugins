@@ -16,23 +16,6 @@
     </NuGetPackageImportStamp>
     <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'HS|AnyCPU'">
     <OutputPath>bin\HS\</OutputPath>
     <DefineConstants>TRACE;HONEYSELECT</DefineConstants>
@@ -42,27 +25,30 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'KOI|AnyCPU'">
-    <OutputPath>bin\KOI\</OutputPath>
-    <DefineConstants>TRACE;KOIKATSU</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'AI|AnyCPU'">
-    <OutputPath>bin\AI\</OutputPath>
-  </PropertyGroup>
   <PropertyGroup>
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\toolbox\Extensions.cs">
-      <Link>ToolBox\Extensions.cs</Link>
-    </Compile>
     <Compile Include="..\toolbox\GenericPlugin.cs">
       <Link>ToolBox\GenericPlugin.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\HarmonyExtensions.cs">
+      <Link>ToolBox\HarmonyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\ReflectionExtensions.cs">
+      <Link>ToolBox\ReflectionExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\TransformExtensions.cs">
+      <Link>ToolBox\TransformExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\VariousExtensions.cs">
+      <Link>ToolBox\VariousExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\XmlExtensions.cs">
+      <Link>ToolBox\XmlExtensions.cs</Link>
     </Compile>
     <Compile Include="GuideObject.cs" />
     <Compile Include="HarmonyPatches.cs" />
@@ -85,6 +71,7 @@
     </Reference>
     <Reference Include="IllusionInjector">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionInjector.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="IllusionPlugin">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>

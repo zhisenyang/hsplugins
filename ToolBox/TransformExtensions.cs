@@ -138,5 +138,13 @@ namespace ToolBox.Extensions {
             resultDepth = d;
             return res;
         }
+
+#if !AISHOUJO
+        public static IEnumerable<Transform> Children(this Transform self)
+        {
+            foreach (Transform t in self)
+                yield return t;
+        }
+#endif
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -15,21 +16,16 @@ using ToolBox;
 using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace MoreAccessories
 {
-    public class MoreAccessories :
+    public class MoreAccessories : GenericPlugin,
         IEnhancedPlugin
     {
         #region Private Types
-        private enum Binary
-        {
-            Neo,
-            Game,
-        }
-
         private class StudioSlotData
         {
             public RectTransform slot;
@@ -328,13 +324,11 @@ namespace MoreAccessories
         internal List<string> _maleMoreAttachPointsPaths = new List<string>();
         internal bool _loadAdditionalAccessories = true;
         private RectTransform _prefab;
-        private Binary _binary;
         private SubMenuControl _smControl;
         internal SmMoreAccessories _smMoreAccessories;
         private CharInfo _charaMakerCharInfo;
         private MainMenuSelect _mainMenuSelect;
         private bool _ready = false;
-        private int _level;
         private RectTransform _addButtons;
         private Studio.OCIChar _selectedStudioCharacter;
         private readonly List<StudioSlotData> _displayedStudioSlots = new List<StudioSlotData>();
@@ -349,9 +343,9 @@ namespace MoreAccessories
         #endregion
 
         #region Public Accessors
-        public string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
-        public string Name { get { return "MoreAccessories"; } }
-        public string Version { get { return "1.3.1"; } }
+        public override string[] Filter { get { return new[] {"HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+        public override string Name { get { return "MoreAccessories"; } }
+        public override string Version { get { return "1.3.1"; } }
         public CharInfo charaMakerCharInfo
         {
             get { return this._charaMakerCharInfo; }
@@ -371,8 +365,9 @@ namespace MoreAccessories
         #endregion
 
         #region Unity Methods
-        public void OnApplicationStart()
+        protected override void Awake()
         {
+            base.Awake();
             _self = this;
 
             switch (Process.GetCurrentProcess().ProcessName)
@@ -409,9 +404,8 @@ namespace MoreAccessories
             this._maleMoreAttachPointsPaths = this._maleMoreAttachPointsAliases.Keys.ToList();
         }
 
-        public void OnLevelWasLoaded(int level)
+        protected override void LevelLoaded(int level)
         {
-            this._level = level;
             switch (this._binary)
             {
                 case Binary.Game:
@@ -426,15 +420,7 @@ namespace MoreAccessories
             this._ready = true;
         }
 
-        public void OnLevelWasInitialized(int level)
-        {
-        }
-
-        public void OnApplicationQuit()
-        {
-        }
-
-        public void OnUpdate()
+        protected override void Update()
         {
             if (this._binary == Binary.Studio && this._level == 3)
             {
@@ -455,14 +441,10 @@ namespace MoreAccessories
             }
         }
 
-        public void OnLateUpdate()
+        protected override void LateUpdate()
         {
             if (this._binary == Binary.Game && this._level == 21)
                 this._guideObjectCamera.fieldOfView = Camera.main.fieldOfView;
-        }
-
-        public void OnFixedUpdate()
-        {
         }
         #endregion
 
@@ -476,7 +458,9 @@ namespace MoreAccessories
                 this._prefab = GameObject.Find("CustomScene/CustomControl/CustomUI/CustomMainMenu/W_MainMenu/MainItemTop/MaleControl/ScrollView/CustomControlPanel/TreeViewRootClothes/TT_Clothes/Accessory/AcsSlot10").transform as RectTransform;
 
             AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.MoreAccessoriesResources);
-            this._charaMakerGuideObject = GameObject.Instantiate(bundle.LoadAsset<GameObject>("M Root")).AddComponent<GuideObject>();
+            GameObject guideObjectPrefab = bundle.LoadAsset<GameObject>("M Root");
+            this._charaMakerGuideObject = GameObject.Instantiate(guideObjectPrefab).AddComponent<GuideObject>();
+            guideObjectPrefab.hideFlags |= HideFlags.HideInHierarchy;
             bundle.Unload(false);
 
             this._guideObjectCamera = new GameObject("GuideObjectCamera").AddComponent<Camera>();
@@ -518,7 +502,7 @@ namespace MoreAccessories
                 (obj.transform as RectTransform).SetRect(smAccessory.transform as RectTransform);
                 SmAccessory original = obj.GetComponent<SmAccessory>();
                 this._smMoreAccessories = obj.AddComponent<SmMoreAccessories>();
-                this._smMoreAccessories.ReplaceEventsOf(original);
+                ReplaceEventsOf(this._smMoreAccessories, original);
                 this._smMoreAccessories.LoadWith<SubMenuBase>(smAccessory);
                 this._smMoreAccessories.PreInit(smAccessory);
                 GameObject.Destroy(original);
@@ -610,6 +594,95 @@ namespace MoreAccessories
             container.Find("all_off").SetParent(buttonsContainer);
             container.Find("clothes_on").SetParent(buttonsContainer);
             container.Find("accessory_on").SetParent(buttonsContainer);
+        }
+        
+        public static void ReplaceEventsOf(object self, object obj)
+        {
+            foreach (Button b in Resources.FindObjectsOfTypeAll<Button>())
+            {
+                for (int i = 0; i < b.onClick.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b.onClick.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b.onClick.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+            }
+            foreach (Slider b in Resources.FindObjectsOfTypeAll<Slider>())
+            {
+                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+            }
+            foreach (InputField b in Resources.FindObjectsOfTypeAll<InputField>())
+            {
+                for (int i = 0; i < b.onEndEdit.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b.onEndEdit.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b.onEndEdit.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+                if (b.onValidateInput != null && ReferenceEquals(b.onValidateInput.Target, obj))
+                {
+                    b.onValidateInput.SetPrivate("_target", obj);
+                }
+            }
+            foreach (Toggle b in Resources.FindObjectsOfTypeAll<Toggle>())
+            {
+                for (int i = 0; i < b.onValueChanged.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b.onValueChanged.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b.onValueChanged.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+            }
+
+#if HONEYSELECT
+            foreach (UI_OnEnableEvent b in Resources.FindObjectsOfTypeAll<UI_OnEnableEvent>())
+            {
+                for (int i = 0; i < b._event.GetPersistentEventCount(); ++i)
+                {
+                    if (ReferenceEquals(b._event.GetPersistentTarget(i), obj))
+                    {
+                        IList objects = b._event.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                        objects[i].SetPrivate("m_Target", self);
+                    }
+                }
+            }
+#endif
+
+            foreach (EventTrigger b in Resources.FindObjectsOfTypeAll<EventTrigger>())
+            {
+                foreach (EventTrigger.Entry et in b.triggers)
+                {
+                    for (int i = 0; i < et.callback.GetPersistentEventCount(); ++i)
+                    {
+                        if (ReferenceEquals(et.callback.GetPersistentTarget(i), obj))
+                        {
+                            IList objects = et.callback.GetPrivateExplicit<UnityEventBase>("m_PersistentCalls").GetPrivate("m_Calls") as IList;
+                            objects[i].SetPrivate("m_Target", self);
+                        }
+                    }
+                }
+            }
         }
 
         [HarmonyPatch(typeof(SmClothesCopy), "Init")]

@@ -16,6 +16,7 @@ namespace ToolBox
 #endif
     {
         internal Binary _binary;
+        internal int _level = -1;
 #if HONEYSELECT || PLAYHOME
         private static PluginComponent _pluginComponent;
         private Component _onGUIDispatcher = null;
@@ -49,6 +50,7 @@ namespace ToolBox
 
         public void OnLevelWasLoaded(int level)
         {
+            this._level = level;
             this.LevelLoaded(level);
         }
 
@@ -129,7 +131,10 @@ namespace ToolBox
         protected virtual void LevelLoaded(Scene scene, LoadSceneMode mode)
         {
             if (mode == LoadSceneMode.Single)
+            {
+                this._level = scene.buildIndex;
                 this.LevelLoaded(scene.buildIndex);
+            }
         }
 #endif
 

@@ -12,6 +12,7 @@ using HarmonyLib;
 using Illusion.Extensions;
 using Illusion.Game;
 using Manager;
+using Sideloader.AutoResolver;
 using Studio;
 using TMPro;
 using ToolBox.Extensions;
@@ -25,9 +26,10 @@ namespace MoreAccessoriesKOI
 {
     [BepInPlugin(GUID: "com.joan6694.illusionplugins.moreaccessories", Name: "MoreAccessories", Version: versionNum)]
     [BepInDependency("com.bepis.bepinex.extendedsave")]
+    [BepInDependency("com.bepis.bepinex.sideloader")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.6";
+        public const string versionNum = "1.0.8";
 
         #region Events
         /// <summary>
@@ -105,7 +107,6 @@ namespace MoreAccessoriesKOI
         internal Dictionary<ChaFile, CharAdditionalData> _accessoriesByChar = new Dictionary<ChaFile, CharAdditionalData>();
         public CharAdditionalData _charaMakerData = null;
         private float _slotUIPositionY;
-        private bool _usingSideloader = false;
         internal bool _hasDarkness;
         internal bool _isParty = false;
 
@@ -151,6 +152,7 @@ namespace MoreAccessoriesKOI
             {
                 case "Koikatsu Party":
                 case "Koikatu":
+                case "KoikatuVR":
                     this._binary = Binary.Game;
                     break;
                 case "CharaStudio":
@@ -159,20 +161,17 @@ namespace MoreAccessoriesKOI
             }
             this._hasDarkness = typeof(ChaControl).GetMethod("ChangeShakeAccessory", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance) != null;
             this._isParty = Application.productName == "Koikatsu Party";
-            ExtendedSave.CardBeingLoaded += this.OnCharaLoad;
-            ExtendedSave.CardBeingSaved += this.OnCharaSave;
-            ExtendedSave.CoordinateBeingLoaded += this.OnCoordLoad;
-            ExtendedSave.CoordinateBeingSaved += this.OnCoordSave;
+            
             Harmony harmony = new Harmony("com.joan6694.kkplugins.moreaccessories");
-            harmony.PatchAll(Assembly.GetExecutingAssembly());
+            harmony.PatchAllSafe();
+            Type uarHooks = typeof(UniversalAutoResolver).GetNestedType("Hooks", BindingFlags.NonPublic | BindingFlags.Static);
             ChaControl_ChangeAccessory_Patches.ManualPatch(harmony);
+            harmony.Patch(uarHooks.GetMethod("ExtendedCardLoad", AccessTools.all), new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCardLoad_Prefix)));
+            harmony.Patch(uarHooks.GetMethod("ExtendedCardSave", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCardSave_Postfix)));
+            harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateLoad", AccessTools.all), new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordLoad_Prefix)));
+            harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateSave", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordSave_Postfix)));
         }
-
-        public void OnApplicationQuit()
-        {
-
-        }
-
+        
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
             switch (loadMode)
@@ -236,7 +235,7 @@ namespace MoreAccessoriesKOI
                 {
                     if (CustomBase.Instance.updateCustomUI)
                     {
-                        for (int i = 0; i < this._additionalCharaMakerSlots.Count; i++)
+                        for (int i = 0; i < this._additionalCharaMakerSlots.Count && i < this._charaMakerData.nowAccessories.Count; i++)
                         {
                             CharaMakerSlotData slot = this._additionalCharaMakerSlots[i];
                             if (slot.toggle.gameObject.activeSelf == false)
@@ -593,13 +592,13 @@ namespace MoreAccessoriesKOI
 
         }
 
-        internal void SpawnHUI(HSceneProc hSceneProc)
+        internal void SpawnHUI(List<ChaControl> females, HSprite hSprite)
         {
-            this._hSceneFemales = (List<ChaControl>)hSceneProc.GetPrivate("lstFemale");
+            this._hSceneFemales = females;
             this._additionalHSceneSlots = new List<List<HSceneSlotData>>();
             for (int i = 0; i < 2; i++)
                 this._additionalHSceneSlots.Add(new List<HSceneSlotData>());
-            this._hSprite = hSceneProc.sprite;
+            this._hSprite = hSprite;
             this._hSceneMultipleFemaleButtons = this._hSprite.lstMultipleFemaleDressButton;
             this._hSceneSoloFemaleAccessoryButton = this._hSprite.categoryAccessory;
             this.UpdateHUI();
@@ -709,10 +708,6 @@ namespace MoreAccessoriesKOI
                 slot.toggle.isOn = false;
                 slot.transferSlotObject.SetActive(false);
             }
-            //foreach (UI_RaycastCtrl ctrl in this._raycastCtrls)
-            //{
-            //    ctrl.Reset();
-            //}
             this._addButtonsGroup.SetAsLastSibling();
         }
 
@@ -1091,80 +1086,24 @@ namespace MoreAccessoriesKOI
             }
         }
 
-        [HarmonyPatch]
-        private static class SideloaderAutoResolverHooks_ExtendedCardLoad_Patches
+        private static void UAR_ExtendedCardLoad_Prefix(ChaFile file)
         {
-            private static bool Prepare()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
-            }
-
-            private static MethodInfo TargetMethod()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCardLoad", BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            private static void Prefix(ChaFile file)
-            {
-                _self.OnActualCharaLoad(file);
-            }
+            _self.OnActualCharaLoad(file);
         }
 
-        [HarmonyPatch]
-        private static class SideloaderAutoResolverHooks_ExtendedCardSave_Patches
+        private static void UAR_ExtendedCardSave_Postfix(ChaFile file)
         {
-            private static bool Prepare()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
-            }
-
-            private static MethodInfo TargetMethod()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCardSave", BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            private static void Postfix(ChaFile file)
-            {
-                _self.OnActualCharaSave(file);
-            }
+            _self.OnActualCharaSave(file);
         }
 
-        [HarmonyPatch]
-        private static class SideloaderAutoResolverHooks_ExtendedCoordinateLoad_Patches
+        private static void UAR_ExtendedCoordLoad_Prefix(ChaFileCoordinate file)
         {
-            private static bool Prepare()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
-            }
-
-            private static MethodInfo TargetMethod()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCoordinateLoad", BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            private static void Prefix(ChaFileCoordinate file)
-            {
-                _self.OnActualCoordLoad(file);
-            }
+            _self.OnActualCoordLoad(file);
         }
 
-        [HarmonyPatch]
-        private static class SideloaderAutoResolverHooks_ExtendedCoordinateSave_Patches
+        private static void UAR_ExtendedCoordSave_Postfix(ChaFileCoordinate file)
         {
-            private static bool Prepare()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader") != null;
-            }
-
-            private static MethodInfo TargetMethod()
-            {
-                return Type.GetType("Sideloader.AutoResolver.Hooks,Sideloader").GetMethod("ExtendedCoordinateSave", BindingFlags.NonPublic | BindingFlags.Static);
-            }
-
-            private static void Postfix(ChaFileCoordinate file)
-            {
-                _self.OnActualCoordSave(file);
-            }
+            _self.OnActualCoordSave(file);
         }
         #endregion
 
@@ -1187,11 +1126,21 @@ namespace MoreAccessoriesKOI
             }
         }
 
-        private void OnCharaLoad(ChaFile file)
+        [HarmonyPatch(typeof(ChaFileControl), "LoadCharaFile", typeof(BinaryReader), typeof(bool), typeof(bool))]
+        private static class ChaFileControl_LoadCharaFile_Patches
         {
-            if (this._usingSideloader == false)
-                this.OnActualCharaLoad(file);
+            private static void Prefix(ChaFileControl __instance)
+            {
+                _self._overrideCharaLoadingFile = __instance;
+            }
+            private static void Postfix()
+            {
+                _self._overrideCharaLoadingFile = null;
+            }
         }
+
+
+
 
         private void OnActualCharaLoad(ChaFile file)
         {
@@ -1309,12 +1258,6 @@ namespace MoreAccessoriesKOI
                 this.UpdateUI();
         }
 
-        private void OnCharaSave(ChaFile file)
-        {
-            if (this._usingSideloader == false)
-                this.OnActualCharaSave(file);
-        }
-
         private void OnActualCharaSave(ChaFile file)
         {
             CharAdditionalData data;
@@ -1395,12 +1338,6 @@ namespace MoreAccessoriesKOI
                 pluginData.data.Add("additionalAccessories", stringWriter.ToString());
                 ExtendedSave.SetExtendedDataById(file, _extSaveKey, pluginData);
             }
-        }
-
-        private void OnCoordLoad(ChaFileCoordinate file)
-        {
-            if (this._usingSideloader == false)
-                this.OnActualCoordLoad(file);
         }
 
         private void OnActualCoordLoad(ChaFileCoordinate file)
@@ -1506,12 +1443,6 @@ namespace MoreAccessoriesKOI
                 this.ExecuteDelayed(this.UpdateUI);
             else
                 this.UpdateUI();
-        }
-
-        private void OnCoordSave(ChaFileCoordinate file)
-        {
-            if (this._usingSideloader == false)
-                this.OnActualCoordSave(file);
         }
 
         private void OnActualCoordSave(ChaFileCoordinate file)

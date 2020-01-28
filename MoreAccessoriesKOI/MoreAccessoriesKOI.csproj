@@ -55,6 +55,10 @@
       <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\plugins\KK_BepisPlugins\ExtensibleSaveFormat.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Sideloader">
+      <HintPath>D:\Program Files (x86)\Koikatu\BepInEx\plugins\KK_BepisPlugins\Sideloader.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System">
       <HintPath>D:\Program Files (x86)\Koikatu\CharaStudio_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
@@ -77,11 +81,20 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\toolbox\Extensions.cs">
-      <Link>ToolBox\Extensions.cs</Link>
-    </Compile>
     <Compile Include="..\toolbox\GenericPlugin.cs">
       <Link>ToolBox\GenericPlugin.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\HarmonyExtensions.cs">
+      <Link>ToolBox\HarmonyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\ReflectionExtensions.cs">
+      <Link>ToolBox\ReflectionExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\VariousExtensions.cs">
+      <Link>ToolBox\VariousExtensions.cs</Link>
     </Compile>
     <Compile Include="BackwardCompatibility.cs" />
     <Compile Include="CvsAccessory.cs" />

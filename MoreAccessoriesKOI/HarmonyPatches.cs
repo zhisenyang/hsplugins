@@ -19,12 +19,31 @@ using UnityEngine.UI;
 namespace MoreAccessoriesKOI
 {
     #region Patches
+    [HarmonyPatch]
+    internal static class VRHScene_Start_Patches
+    {
+        private static bool Prepare()
+        {
+            return Type.GetType("VRHScene,Assembly-CSharp.dll") != null;
+        }
+
+        private static MethodInfo TargetMethod()
+        {
+            return Type.GetType("VRHScene,Assembly-CSharp.dll").GetMethod("Start", AccessTools.all);
+        }
+
+        private static void Postfix(List<ChaControl> ___lstFemale, HSprite[] ___sprites)
+        {
+            MoreAccessories._self.SpawnHUI(___lstFemale, ___sprites[0]);
+        }
+    }
+
     [HarmonyPatch(typeof(HSceneProc), "Start")]
     internal static class HSceneProc_Start_Patches
     {
-        private static void Postfix(HSceneProc __instance)
+        private static void Postfix(List<ChaControl> ___lstFemale, HSprite ___sprite)
         {
-            MoreAccessories._self.SpawnHUI(__instance);
+            MoreAccessories._self.SpawnHUI(___lstFemale, ___sprite);
         }
     }
 
