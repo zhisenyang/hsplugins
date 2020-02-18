@@ -1,4 +1,7 @@
-﻿#if HONEYSELECT
+﻿
+using HSUS.Features;
+using ToolBox.Extensions;
+#if HONEYSELECT
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -76,7 +79,7 @@ namespace HSUS
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
-            if (HSUS._self._asyncLoading)
+            if (OptimizeCharaMaker._asyncLoading)
             {
                 originalComponent.SetPrivate("chaInfo", originalComponent.customControl.chainfo);
                 originalComponent.Init();
@@ -135,7 +138,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         internal static bool Prefix(SmCharaLoad __instance, ref bool ___initEnd, ref byte ___folderInfoSex, CharInfo ___chaInfo, List<SmCharaLoad.FileInfo> ___lstFileInfo)
@@ -151,7 +154,7 @@ namespace HSUS
             }
             global::FolderAssist folderAssist = new global::FolderAssist();
             string basePath = global::UserData.Path + ((___chaInfo.Sex != 0) ? "chara/female" : "chara/male");
-            string path = basePath + HSUS._self._currentCharaPathGame;
+            string path = basePath + OptimizeCharaMaker._currentCharaPathGame;
             folderAssist.CreateFolderInfoEx(path, new[] { "*.png" });
             CharFile charFile;
             if (___chaInfo.Sex == 0)
@@ -209,7 +212,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, CharInfo ___chaInfo)
@@ -244,7 +247,7 @@ namespace HSUS
             {
                 SmCharaLoad_Data.parentFolder = GameObject.Instantiate(__instance.objLineBase).GetComponent<Toggle>();
                 SmCharaLoad_Data.parentFolder.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                SmCharaLoad_Data.parentFolder.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                SmCharaLoad_Data.parentFolder.transform.FindLoop("Background").GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                 SmCharaLoad_Data.parentFolder.transform.SetParent(__instance.objListTop.transform, false);
                 SmCharaLoad_Data.parentFolder.transform.localScale = Vector3.one;
                 ((RectTransform)SmCharaLoad_Data.parentFolder.transform).sizeDelta = new Vector2(SmCharaLoad_Data.container.rect.width, 24f);
@@ -256,8 +259,8 @@ namespace HSUS
                         bool initEnd = false;
                         byte folderInfoSex = 0;
                         SmCharaLoad_Data.created = false;
-                        int index = HSUS._self._currentCharaPathGame.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
-                        HSUS._self._currentCharaPathGame = HSUS._self._currentCharaPathGame.Remove(index);
+                        int index = OptimizeCharaMaker._currentCharaPathGame.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
+                        OptimizeCharaMaker._currentCharaPathGame = OptimizeCharaMaker._currentCharaPathGame.Remove(index);
                         SmCharaLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, SmCharaLoad_Data.fileInfos);
                         Prefix(__instance, ___chaInfo);
                     }
@@ -268,7 +271,7 @@ namespace HSUS
 
             SmCharaLoad_Data.parentFolder.isOn = false;
             SmCharaLoad_Data.parentFolder.transform.SetAsLastSibling();
-            SmCharaLoad_Data.parentFolder.gameObject.SetActive(HSUS._self._currentCharaPathGame.Length > 1);
+            SmCharaLoad_Data.parentFolder.gameObject.SetActive(OptimizeCharaMaker._currentCharaPathGame.Length > 1);
 
             int i = 0;
             for (; i < SmCharaLoad_Data.folderInfos.Count; i++)
@@ -281,7 +284,7 @@ namespace HSUS
                 {
                     GameObject gameObject = GameObject.Instantiate(__instance.objLineBase);
                     gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                    gameObject.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                    gameObject.transform.FindLoop("Background").GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                     gameObject.transform.SetParent(__instance.objListTop.transform, false);
                     gameObject.transform.localScale = Vector3.one;
                     ((RectTransform)gameObject.transform).sizeDelta = new Vector2(SmCharaLoad_Data.container.rect.width, 24f);
@@ -306,7 +309,7 @@ namespace HSUS
                         bool initEnd = false;
                         byte folderInfoSex = 0;
                         SmCharaLoad_Data.created = false;
-                        HSUS._self._currentCharaPathGame += fi.path;
+                        OptimizeCharaMaker._currentCharaPathGame += fi.path;
                         SmCharaLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, SmCharaLoad_Data.fileInfos);
                         Prefix(__instance, ___chaInfo);
                     }
@@ -368,7 +371,7 @@ namespace HSUS
                 fileInfoComponent.gameObject.SetActive(true);
                 fileInfoComponent.info = fi;
 
-                if (HSUS._self._asyncLoading && SmCharaLoad_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmCharaLoad_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmCharaLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
                     string t = fileInfoComponent.info.CharaName;
@@ -391,7 +394,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo, List<SmCharaLoad.FileInfo> ___lstFileInfo)
@@ -418,7 +421,7 @@ namespace HSUS
                 global::Singleton<Info>.Instance.InitState(charFileInfoParameterFemale, ___chaInfo.customInfo.personality, true, false);
             }
             string fullPath = ___chaInfo.chaFile.ConvertCharaFilePath(text);
-            fullPath = Path.GetDirectoryName(fullPath) + HSUS._self._currentCharaPathGame + "/" + Path.GetFileName(fullPath);
+            fullPath = Path.GetDirectoryName(fullPath) + OptimizeCharaMaker._currentCharaPathGame + "/" + Path.GetFileName(fullPath);
             __instance.customControl.CustomSaveCharaAssist(fullPath);
             SmCharaLoad.FileInfo fileInfo = new SmCharaLoad.FileInfo();
             fileInfo.no = 0;
@@ -463,7 +466,7 @@ namespace HSUS
         internal static readonly Dictionary<CharFile, string> _fullPathByInstance = new Dictionary<CharFile, string>();
         private static bool Prepare()
         {
-            return (HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo);
+            return (OptimizeCharaMaker._optimizeCharaMaker && HSUS._self._binary == Binary.Game) || (OptimizeNEO._optimizeNeo && HSUS._self._binary == Binary.Studio);
         }
 
         private static void Prefix(CharFile __instance, string path)
@@ -480,13 +483,13 @@ namespace HSUS
     {
         private static MethodInfo TargetMethod()
         {
-            if (HSUS._self._binary == HSUS.Binary.Game)
+            if (HSUS._self._binary == Binary.Game)
                 return Type.GetType("AdditionalBoneModifier.BoneControllerMgr,AdditionalBoneModifier").GetMethod("OnLoadClick", BindingFlags.NonPublic | BindingFlags.Instance);
             return null;
         }
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return OptimizeCharaMaker._optimizeCharaMaker && HSUS._self._binary == Binary.Game && Type.GetType("AdditionalBoneModifier.BoneControllerMgr,AdditionalBoneModifier") != null;
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -500,14 +503,14 @@ namespace HSUS
     {
         private static MethodInfo TargetMethod()
         {
-            if (HSUS._self._binary == HSUS.Binary.Game)
+            if (HSUS._self._binary == Binary.Game)
                 return Type.GetType("AdditionalBoneModifier.BoneControllerMgr,AdditionalBoneModifier").GetMethod("OnSaveClick", BindingFlags.NonPublic | BindingFlags.Instance);
             return null;
         }
 
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return OptimizeCharaMaker._optimizeCharaMaker && HSUS._self._binary == Binary.Game && Type.GetType("AdditionalBoneModifier.BoneControllerMgr,AdditionalBoneModifier") != null;
         }
 
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -521,7 +524,7 @@ namespace HSUS
     {
         private static MethodInfo TargetMethod()
         {
-            if (HSUS._self._binary == HSUS.Binary.Game)
+            if (HSUS._self._binary == Binary.Game)
             {
                 return Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier").GetMethods(BindingFlags.Public | BindingFlags.Instance).First(m => m.Name.Equals("GetExtDataFilePath") && m.GetParameters().Length == 1);
             }
@@ -530,7 +533,7 @@ namespace HSUS
 
         private static bool Prepare()
         {
-            return (HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game) || (HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo) && (Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier") != null || Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifierStudioNEO") != null);
+            return (OptimizeCharaMaker._optimizeCharaMaker && HSUS._self._binary == Binary.Game && Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier") != null) || (OptimizeNEO._optimizeNeo && HSUS._self._binary == Binary.Studio && Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifierStudioNEO") != null);
         }
 
         private static void Postfix(CharInfo ___charInfo, ref string __result)
@@ -548,14 +551,14 @@ namespace HSUS
     {
         private static MethodInfo TargetMethod()
         {
-            if (HSUS._self._binary == HSUS.Binary.Game)
+            if (HSUS._self._binary == Binary.Game)
                 return Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier").GetMethod("IsEditingCharacter", BindingFlags.NonPublic | BindingFlags.Instance);
             return null;
         }
 
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker && HSUS._self._binary == HSUS.Binary.Game;
+            return OptimizeCharaMaker._optimizeCharaMaker && HSUS._self._binary == Binary.Game && Type.GetType("AdditionalBoneModifier.BoneController,AdditionalBoneModifier") != null;
         }
 
         private static void Postfix(CharInfo ___charInfo, ref bool __result)
@@ -571,7 +574,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static void Prefix()
@@ -585,7 +588,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static void Postfix(SmCharaLoad __instance)
@@ -599,7 +602,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static void Postfix(SmCharaLoad __instance)
@@ -614,7 +617,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, bool ascend)
@@ -654,7 +657,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmCharaLoad __instance, bool ascend)
@@ -694,7 +697,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         private static bool Prefix(SmCharaLoad __instance)
@@ -712,7 +715,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         private static bool Prefix(FusionCtrl __instance)
@@ -816,7 +819,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -844,7 +847,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)

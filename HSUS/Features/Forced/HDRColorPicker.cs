@@ -1,4 +1,6 @@
-﻿#if HONEYSELECT
+﻿
+using ToolBox.Extensions;
+#if HONEYSELECT
 using System;
 using System.Reflection;
 using Harmony;
@@ -7,7 +9,7 @@ using ToolBox;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace HSUS
+namespace HSUS.Features
 {
     public static class HDRColorPicker
     {
@@ -200,7 +202,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo;
+                return HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix(ColorPaletteCtrl __instance, bool value, UI_ColorMenu ___colorMenu)

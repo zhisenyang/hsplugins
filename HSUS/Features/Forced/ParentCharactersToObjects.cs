@@ -6,8 +6,9 @@ using System.Reflection.Emit;
 using Harmony;
 using Manager;
 using Studio;
+using ToolBox;
 
-namespace HSUS
+namespace HSUS.Features
 {
     public static class ParentCharactersToObjects
     {
@@ -17,7 +18,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo;
+                return HSUS._self._binary == Binary.Studio;
             }
 
             private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -57,7 +58,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo;
+                return HSUS._self._binary == Binary.Studio;
             }
 
             private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -97,7 +98,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo;
+                return HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix(OCIChar __instance)
@@ -117,7 +118,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo;
+                return HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix(OCIChar __instance)

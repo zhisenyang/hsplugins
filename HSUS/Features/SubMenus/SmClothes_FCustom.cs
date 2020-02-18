@@ -1,4 +1,7 @@
-﻿#if HONEYSELECT
+﻿
+using ToolBox.Extensions;
+using HSUS.Features;
+#if HONEYSELECT
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -72,7 +75,7 @@ namespace HSUS
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
             int[] keys = {57, 58, 59, 60, 61, 62, 63, 64, 76, 77};
-            if (HSUS._self._asyncLoading)
+            if (OptimizeCharaMaker._asyncLoading)
             {
                 CharInfo chaInfo = originalComponent.customControl.chainfo;
                 foreach (int key in keys)
@@ -90,8 +93,8 @@ namespace HSUS
 
             originalComponent.objLineBase.transform.Find("Label").GetComponent<Text>().raycastTarget = false;
             originalComponent.objLineBase.transform.Find("Background/Checkmark").GetComponent<Image>().raycastTarget = false;
-            if (HSUS._self._removeIsNew)
-                UnityEngine.Object.Destroy(originalComponent.objLineBase.transform.Find("imgNew").gameObject);
+            if (OptimizeCharaMaker._removeIsNew)
+                UnityEngine.GameObject.Destroy(originalComponent.objLineBase.transform.Find("imgNew").gameObject);
         }
 
         private static void Reset()
@@ -207,7 +210,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)
@@ -445,7 +448,7 @@ namespace HSUS
                 rectTransform.localScale = new Vector3(1f, 1f, 1f);
                 rectTransform.sizeDelta = new Vector2(SmClothes_F_Data.container.rect.width, 24f);
                 Text component = rectTransform.FindChild("Label").GetComponent<Text>();
-                if (HSUS._self._asyncLoading && SmClothes_F_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmClothes_F_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmClothes_F_Data._translateProperty.SetValue(component, false, null);
                     string t = fbxTypeInfo.typeName;
@@ -496,7 +499,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)
@@ -550,7 +553,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothes_F __instance, CharInfo ___chaInfo, CharFileInfoClothesFemale ___clothesInfoF)

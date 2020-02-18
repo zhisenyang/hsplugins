@@ -42,7 +42,7 @@ namespace HSUS
             rt = parent.FindChild("Scrollbar") as RectTransform;
             rt.offsetMax += new Vector2(0f, -20f);
 
-            RectTransform container = UIUtility.CreateNewUIObject(parent, "SortContainer");
+            RectTransform container = UIUtility.CreateNewUIObject("SortContainer", parent);
             container.SetRect(new Vector2(0f, 1f), Vector2.one, new Vector2(4f, newY), new Vector2(-4f, newY + 20f));
 
             Text label = UIUtility.CreateText("Label", container, "Sort");
@@ -98,7 +98,7 @@ namespace HSUS
             scrollView.offsetMax -= new Vector2(20f, 0f);
             RectTransform scrollbar = parent.Find("Scrollbar") as RectTransform;
             scrollbar.anchoredPosition -= new Vector2(20f, 0f);
-            RectTransform cycleButtons = UIUtility.CreateNewUIObject(parent, "CycleButtons");
+            RectTransform cycleButtons = UIUtility.CreateNewUIObject("CycleButtons", parent);
             cycleButtons.SetRect(Vector2.one, Vector2.one, new Vector2(scrollbar.offsetMax.x, scrollbar.offsetMin.y), new Vector2(scrollbar.offsetMax.x + 20f, scrollbar.offsetMax.y));
 
             Button upButton = UIUtility.CreateButton("UpButton", cycleButtons, "↑");

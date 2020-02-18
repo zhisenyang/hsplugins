@@ -6,21 +6,124 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Xml;
+#if HONEYSELECT
 using Config;
-using Harmony;
+using Studio;
 using ILSetUtility.TimeUtility;
 using kleberswf.tools.miniprofiler;
-using Studio;
+using Harmony;
+#elif KOIKATSU
+using HarmonyLib;
+#elif AISHOUJO
+using HarmonyLib;
+#endif
 using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace HSUS
+namespace HSUS.Features
 {
+    public class DebugFeature : IFeature
+    {
+#if HONEYSELECT
+        internal static bool _debugEnabled = true;
+#elif KOIKATSU || AISHOUJO
+        internal static bool _debugEnabled = false;
+#endif
+        internal static KeyCode _debugShortcut = KeyCode.RightControl;
+#if HONEYSELECT
+        internal static bool _miniProfilerEnabled = true;
+        internal static bool _miniProfilerStartCollapsed = true;
+#endif
+
+        public void Awake()
+        {
+        }
+
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("debug");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _debugEnabled = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+            if (node.Attributes["value"] != null)
+            {
+                string value = node.Attributes["value"].Value;
+                if (Enum.IsDefined(typeof(KeyCode), value))
+                    _debugShortcut = (KeyCode)Enum.Parse(typeof(KeyCode), value);
+            }
+#if HONEYSELECT
+            if (node.Attributes["miniProfilerEnabled"] != null)
+                _miniProfilerEnabled = XmlConvert.ToBoolean(node.Attributes["miniProfilerEnabled"].Value);
+            if (node.Attributes["miniProfilerStartCollapsed"] != null)
+                _miniProfilerStartCollapsed = XmlConvert.ToBoolean(node.Attributes["miniProfilerStartCollapsed"].Value);
+#endif
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("debug");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_debugEnabled));
+            writer.WriteAttributeString("value", _debugShortcut.ToString());
+#if HONEYSELECT
+            writer.WriteAttributeString("miniProfilerEnabled", XmlConvert.ToString(_miniProfilerEnabled));
+            writer.WriteAttributeString("miniProfilerStartCollapsed", XmlConvert.ToString(_miniProfilerStartCollapsed));
+#endif
+            writer.WriteEndElement();
+        }
+
+        public void LevelLoaded()
+        {
+            if (_debugEnabled && HSUS._self.gameObject.GetComponent<DebugConsole>() == null)
+                HSUS._self.gameObject.AddComponent<DebugConsole>();
+        }
+
+#if HONEYSELECT
+        [HarmonyPatch(typeof(TimeUtility), "Update")]
+        internal static class TimeUtility_Update_Patches
+        {
+            private static bool Prepare()
+            {
+                return _debugEnabled && _miniProfilerEnabled;
+            }
+
+            [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
+            private static bool Prefix()
+            {
+                if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
+                {
+                    DebugSystem debugStatus = Manager.Config.DebugStatus;
+                    debugStatus.FPS = !debugStatus.FPS;
+                    Singleton<Manager.Config>.Instance.Save();
+                }
+                return false;
+            }
+        }
+        [HarmonyPatch(typeof(TimeUtility), "OnGUI")]
+        internal static class TimeUtility_OnGUI_Patches
+        {
+            private static bool Prepare()
+            {
+                return _debugEnabled && _miniProfilerEnabled;
+            }
+
+            [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
+            private static bool Prefix()
+            {
+                return false;
+            }
+        }
+#endif
+    }
+
     public class DebugConsole : MonoBehaviour
     {
+        #region Types
         private struct ObjectPair
         {
             public readonly object parent;
@@ -58,9 +161,9 @@ namespace HSUS
             {
                 if (value == '\n')
                 {
-                    _lastlogs.AddLast(new KeyValuePair<LogType, string>(LogType.Log, DateTime.Now.ToString("[HH:mm:ss] ") + this._buffer.ToString()));
-                    if (_lastlogs.Count == 1001)
-                        _lastlogs.RemoveFirst();
+                    _lastLogs.AddLast(new KeyValuePair<LogType, string>(LogType.Log, DateTime.Now.ToString("[HH:mm:ss] ") + this._buffer.ToString()));
+                    if (_lastLogs.Count == 1001)
+                        _lastLogs.RemoveFirst();
                     _scroll3.y += 999999;
                     this._buffer.Length = 0;
                     this._buffer.Capacity = 0;
@@ -70,24 +173,26 @@ namespace HSUS
                 this._old.Write(value);
             }
         }
+        #endregion
 
-
+        #region Private Variables
         private Transform _target;
         private readonly HashSet<GameObject> _openedGameObjects = new HashSet<GameObject>();
         private Vector2 _scroll;
         private Vector2 _scroll2;
         private static Vector2 _scroll3;
-        private static readonly LinkedList<KeyValuePair<LogType, string>> _lastlogs = new LinkedList<KeyValuePair<LogType, string>>();
+        private static readonly LinkedList<KeyValuePair<LogType, string>> _lastLogs = new LinkedList<KeyValuePair<LogType, string>>();
         private static bool _debug;
-        private Rect _rect = new Rect(Screen.width / 4f, Screen.height / 4f, Screen.width / 2f, Screen.height / 2f);
-        private int _randomId;
+        private Rect _rect = new Rect(480f, 270f, 960, 540f);
+        private const int _uniqueId = ('H' << 24) | ('S' << 16) | ('U' << 8) | 'S';
         private static readonly Process _process;
         private static readonly byte _bits;
         private readonly HashSet<ObjectPair> _openedObjects = new HashSet<ObjectPair>();
         private static string _goSearch = "";
         private static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
         private bool _showHidden = false;
-
+        private static string _logsFilter = "";
+        #endregion
 
 #if HONEYSELECT
         private static readonly string _has630Patch;
@@ -116,18 +221,21 @@ namespace HSUS
                 _has630Patch = "No";
             UnityEngine.Debug.Log("HSUS " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits" + " | 630 patch: " + _has630Patch);
 #endif
+
+#if HONEYSELECT || PLAYHOME
             Console.SetOut(new FunctionTextWriter(Console.Out));
+#endif
         }
 
-        void Awake()
+        #region Unity Methods
+        private void Awake()
         {
-            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
         }
 
-        void Start()
+        private void Start()
         {
 #if HONEYSELECT
-            if (HSUS._self._miniProfilerEnabled)
+            if (DebugFeature._miniProfilerEnabled)
             {
                 AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.HSUSResources);
                 this._miniProfilerUI = Instantiate(bundle.LoadAsset<GameObject>("MiniProfilerCanvas"));
@@ -135,18 +243,19 @@ namespace HSUS
                 this._miniProfilerUI.gameObject.SetActive(Manager.Config.DebugStatus.FPS);
                 this._miniProfilerUI.transform.SetAsLastSibling();
                 foreach (MiniProfiler profiler in this._miniProfilerUI.GetComponentsInChildren<MiniProfiler>())
-                    profiler.Collapsed = HSUS._self._miniProfilerStartCollapsed;
+                    profiler.Collapsed = DebugFeature._miniProfilerStartCollapsed;
                 this._miniProfilerUI.GetComponent<Canvas>().sortingOrder = 1000;
+                DontDestroyOnLoad(this._miniProfilerUI);
             }
 #endif
         }
 
-        void Update()
+        private void Update()
         {
-            if (Input.GetKeyDown(HSUS._self._debugShortcut))
+            if (Input.GetKeyDown(DebugFeature._debugShortcut))
                 _debug = !_debug;
 #if HONEYSELECT
-            if (HSUS._self._miniProfilerEnabled)
+            if (DebugFeature._miniProfilerEnabled)
             {
                 if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
                     this._miniProfilerUI.gameObject.SetActive(Manager.Config.DebugStatus.FPS);
@@ -173,11 +282,28 @@ namespace HSUS
             //}
         }
 
+        private void OnGUI()
+        {
+            if (_debug == false)
+                return;
+            Color c = GUI.backgroundColor;
+            GUI.backgroundColor = new Color(1f, 1f, 1f, 0.6f);
+            GUI.Box(this._rect, "", _customBoxStyle);
+            GUI.backgroundColor = c;
+            this._rect = GUILayout.Window(_uniqueId, this._rect, this.WindowFunc, "Debug Console " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits"
+#if HONEYSELECT
+                                                                                       + " | 630 patch: " + _has630Patch
+#endif
+            );
+        }
+        #endregion
+
+        #region Private Methods
         private static void HandleLog(string condition, string stackTrace, LogType type)
         {
-            _lastlogs.AddLast(new KeyValuePair<LogType, string>(type, DateTime.Now.ToString("[HH:mm:ss] ") + condition));
-            if (_lastlogs.Count == 1001)
-                _lastlogs.RemoveFirst();
+            _lastLogs.AddLast(new KeyValuePair<LogType, string>(type, DateTime.Now.ToString("[HH:mm:ss] ") + condition + " " + stackTrace));
+            if (_lastLogs.Count == 1001)
+                _lastLogs.RemoveFirst();
             _scroll3.y += 999999;
         }
 
@@ -240,28 +366,13 @@ namespace HSUS
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
 
-        void OnGUI()
-        {
-            if (_debug == false)
-                return;
-            Color c = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(1f, 1f, 1f, 0.6f);
-            GUI.Box(this._rect, "", _customBoxStyle);
-            GUI.backgroundColor = c;
-            this._rect = GUILayout.Window(this._randomId, this._rect, this.WindowFunc, "Debug Console " + HSUS._version + ": " + _process.ProcessName + " | " + _bits + "bits"
-#if HONEYSELECT
-                                                                                       + " | 630 patch: " + _has630Patch
-#endif
-                                         );
-        }
-
         private void WindowFunc(int id)
         {
             GUILayout.BeginHorizontal();
 
-            GUILayout.BeginVertical();
+            GUILayout.BeginVertical(GUILayout.Width(300));
             _goSearch = GUILayout.TextField(_goSearch);
-            this._scroll = GUILayout.BeginScrollView(this._scroll, GUI.skin.box, GUILayout.ExpandHeight(true), GUILayout.MinWidth(300));
+            this._scroll = GUILayout.BeginScrollView(this._scroll, GUI.skin.box, GUILayout.ExpandHeight(true));
             foreach (Transform t in Resources.FindObjectsOfTypeAll<Transform>())
                 if (t.parent == null)
                     this.DisplayObjectTree(t.gameObject, 0);
@@ -287,6 +398,20 @@ namespace HSUS
                 GUILayout.EndHorizontal();
                 GUILayout.Label("Layer: " + LayerMask.LayerToName(this._target.gameObject.layer) + " " + this._target.gameObject.layer);
                 GUILayout.Label("Tag: " + this._target.gameObject.tag);
+                string hf = "";
+                if ((this._target.gameObject.hideFlags & HideFlags.HideInHierarchy) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "HideInHierarchy";
+                if ((this._target.gameObject.hideFlags & HideFlags.HideInInspector) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "HideInInspector";
+                if ((this._target.gameObject.hideFlags & HideFlags.DontSaveInEditor) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "DontSaveInEditor";
+                if ((this._target.gameObject.hideFlags & HideFlags.NotEditable) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "NotEditable";
+                if ((this._target.gameObject.hideFlags & HideFlags.DontSaveInBuild) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "DontSaveInBuild";
+                if ((this._target.gameObject.hideFlags & HideFlags.DontUnloadUnusedAsset) != 0)
+                    hf += (hf.Length != 0 ? " | " : "") + "DontUnloadUnusedAsset";
+                GUILayout.Label("HideFlags: " + hf);
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
                     if (c == null)
@@ -430,6 +555,7 @@ namespace HSUS
                         GUILayout.Label("localRotation " + tr.localEulerAngles);
                         GUILayout.Label("localScale " + tr.localScale);
                     }
+#if HONEYSELECT || KOIKATSU
                     else if (c is UI_OnEnableEvent)
                     {
                         UI_OnEnableEvent e = c as UI_OnEnableEvent;
@@ -446,16 +572,19 @@ namespace HSUS
 
                         }
                     }
+#endif
                     GUILayout.EndHorizontal();
                     this.RecurseObjects(pair, 1);
                 }
             }
             GUILayout.EndScrollView();
             _scroll3 = GUILayout.BeginScrollView(_scroll3, GUI.skin.box, GUILayout.Height(Screen.height / 5f));
-            foreach (KeyValuePair<LogType, string> lastlog in _lastlogs)
+            foreach (KeyValuePair<LogType, string> lastLog in _lastLogs)
             {
+                if (lastLog.Value.IndexOf(_logsFilter, StringComparison.OrdinalIgnoreCase) == -1)
+                    continue;
                 Color c = GUI.color;
-                switch (lastlog.Key)
+                switch (lastLog.Key)
                 {
                     case LogType.Error:
                     case LogType.Exception:
@@ -466,15 +595,15 @@ namespace HSUS
                         break;
                 }
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(lastlog.Value);
+                GUILayout.Label(lastLog.Value);
                 GUI.color = c;
                 if (GUILayout.Button("Copy to clipboard", GUILayout.ExpandWidth(false)))
-                    GUIUtility.systemCopyBuffer = lastlog.Value;
+                    GUIUtility.systemCopyBuffer = lastLog.Value;
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Clear AssetBundle Cache"))
+            if (GUILayout.Button("Clear AssetBundle Cache", GUILayout.ExpandWidth(false)))
             {
                 foreach (KeyValuePair<string, AssetBundleManager.BundlePack> pair in AssetBundleManager.ManifestBundlePack)
                 {
@@ -484,11 +613,18 @@ namespace HSUS
                     }
                 }
             }
-            GUILayout.FlexibleSpace();
+            GUILayout.Label("Filter Logs ", GUILayout.ExpandWidth(false));
+            _logsFilter = GUILayout.TextField(_logsFilter, GUILayout.ExpandWidth(true));
+            if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
+                _logsFilter = "";
             if (GUILayout.Button("Clear logs", GUILayout.ExpandWidth(false)))
-                _lastlogs.Clear();
+                _lastLogs.Clear();
             if (GUILayout.Button("Open log file", GUILayout.ExpandWidth(false)))
+#if AISHOUJO
+                Process.Start(Path.Combine(Application.persistentDataPath, "output_log.txt"));
+#else
                 Process.Start(Path.Combine(Application.dataPath, "output_log.txt"));
+#endif
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
@@ -537,7 +673,7 @@ namespace HSUS
                                 }
                             }
                         }
-
+                        this.SpecialObjectBehaviour(o);
                         GUILayout.EndHorizontal();
                         this.RecurseObjects(pair, indent + 1);
                         ++i;
@@ -601,11 +737,11 @@ namespace HSUS
                             }
                         }
                     }
-
+                    this.SpecialObjectBehaviour(o);
                     GUILayout.EndHorizontal();
                     this.RecurseObjects(pair, indent + 1);
                 }
-                PropertyInfo[] properties = t.GetProperties(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                PropertyInfo[] properties = t.GetProperties(AccessTools.all);
                 Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
                 foreach (PropertyInfo property in properties)
                 {
@@ -657,43 +793,21 @@ namespace HSUS
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
         }
-    }
 
-#if HONEYSELECT
-    [HarmonyPatch(typeof(TimeUtility), "Update")]
-    internal static class TimeUtility_Update_Patches
-    {
-        private static bool Prepare()
+        private void SpecialObjectBehaviour(object o)
         {
-            return HSUS._self._debugEnabled && HSUS._self._miniProfilerEnabled;
-        }
-
-        [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
-        private static bool Prefix()
-        {
-            if (Input.GetKey(KeyCode.RightShift) && Input.GetKeyDown(KeyCode.Delete))
+            if (o is GameObject)
             {
-                DebugSystem debugStatus = Manager.Config.DebugStatus;
-                debugStatus.FPS = !debugStatus.FPS;
-                Singleton<Manager.Config>.Instance.Save();
+                if (GUILayout.Button("Go to", GUILayout.ExpandWidth(false)))
+                    this._target = ((GameObject)o).transform;
             }
-            return false;
+            else if (o is Transform)
+            {
+                if (GUILayout.Button("Go to", GUILayout.ExpandWidth(false)))
+                    this._target = (Transform)o;
+            }
         }
     }
-    [HarmonyPatch(typeof(TimeUtility), "OnGUI")]
-    internal static class TimeUtility_OnGUI_Patches
-    {
-        private static bool Prepare()
-        {
-            return HSUS._self._debugEnabled && HSUS._self._miniProfilerEnabled;
-        }
-
-        [HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
-        private static bool Prefix()
-        {
-            return false;
-        }
-    }
-#endif
+    #endregion
 }
 

@@ -1,23 +1,57 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
-using Harmony;
+using System.Xml;
+#if HONEYSELECT || PLAYHOME
 using Studio;
-#if KOIKATSU
-using ToolBox;
+using Harmony;
+#elif KOIKATSU
+using HarmonyLib;
+using Studio;
+#elif AISHOUJO
+using HarmonyLib;
 #endif
+using Manager;
+using ToolBox.Extensions;
 using UnityEngine;
+using Input = UnityEngine.Input;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class CameraShortcuts
+    public class CameraShortcuts : IFeature
     {
+        private static bool _cameraSpeedShortcuts = true;
+
+        public void Awake()
+        {
+        }
+
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("cameraSpeedShortcuts");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _cameraSpeedShortcuts = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("cameraSpeedShortcuts");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_cameraSpeedShortcuts));
+            writer.WriteEndElement();
+        }
+
+        public void LevelLoaded()
+        {
+        }
+
         [HarmonyPatch(typeof(Studio.CameraControl), "InputMouseProc")]
         public static class CameraControl_InputMouseProc_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._cameraSpeedShortcuts;
+                return _cameraSpeedShortcuts;
             }
 
             public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -54,7 +88,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._cameraSpeedShortcuts;
+                return _cameraSpeedShortcuts;
             }
 
             public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -64,15 +98,13 @@ namespace HSUS
                 {
                     CodeInstruction inst = instructionsList[i];
                     yield return inst;
-                    if (inst.opcode == OpCodes.Ldstr &&
-                        instructionsList[i + 1].opcode == OpCodes.Call)
+                    if (inst.opcode == OpCodes.Ldstr && instructionsList[i + 1].opcode == OpCodes.Call)
                     {
                         ++i;
                         yield return instructionsList[i]; //Call
-                        yield return new CodeInstruction(OpCodes.Call, typeof(CameraControl_InputMouseProc_Patches).GetMethod(nameof(GetCameraMultiplier)));
+                        yield return new CodeInstruction(OpCodes.Call, typeof(BaseCameraControl_InputMouseProc_Patches).GetMethod(nameof(GetCameraMultiplier)));
                         yield return new CodeInstruction(OpCodes.Mul);
                     }
-
                 }
             }
 
@@ -91,7 +123,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._cameraSpeedShortcuts;
+                return _cameraSpeedShortcuts;
             }
 
             public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -121,31 +153,6 @@ namespace HSUS
                 if (Input.GetKey(KeyCode.LeftShift))
                     return 4f;
                 return 1f;
-            }
-        }
-
-        [HarmonyPatch(typeof(ShortcutKeyCtrl), "Update")]
-        public static class ShortcutKeyCtrl_Update_Patches
-        {
-            public static bool Prepare()
-            {
-                return HSUS._self._cameraSpeedShortcuts;
-            }
-
-#if HONEYSELECT
-            public static void Postfix(Studio.CameraControl ___cameraControl)
-            {
-#elif KOIKATSU
-        private static Studio.CameraControl ___cameraControl;
-        public static void Postfix(ShortcutKeyCtrl __instance)
-        {
-            if (___cameraControl == null)
-                ___cameraControl = (Studio.CameraControl)__instance.GetPrivate("cameraControl");
-#endif
-                if (!Studio.Studio.IsInstance() && Studio.Studio.Instance.isInputNow && !Manager.Scene.IsInstance() && Manager.Scene.Instance.AddSceneName != string.Empty)
-                    return;
-                if (!Studio.Studio.Instance.isVRMode && Input.GetKeyDown(KeyCode.F) && GuideObjectManager.Instance.selectObject != null)
-                    ___cameraControl.targetPos = GuideObjectManager.Instance.selectObject.transformTarget.position;
             }
         }
     }

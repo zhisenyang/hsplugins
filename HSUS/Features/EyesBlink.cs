@@ -1,33 +1,72 @@
 ﻿#if HONEYSELECT
+using Harmony;
+#elif KOIKATSU || AISHOUJO
+using HarmonyLib;
+#endif
+#if AISHOUJO
+using AIChara;
+#endif
 using System;
 using System.Reflection;
-#endif
-using Harmony;
+using System.Xml;
+using ToolBox;
+using ToolBox.Extensions;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class EyesBlink
+    public class EyesBlink : IFeature
     {
-#if HONEYSELECT
+        private static bool _eyesBlink = false;
+        public void Awake()
+        {
+        }
+
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("eyesBlink");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("eyesBlink");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_eyesBlink));
+            writer.WriteEndElement();
+        }
+
+        public void LevelLoaded()
+        {
+        }
+
         [HarmonyPatch]
-#elif KOIKATSU
-    [HarmonyPatch(typeof(ChaFileStatus))]
-#endif
         public static class CharFileInfoStatus_Ctor_Patches
         {
-#if HONEYSELECT
-            internal static MethodBase TargetMethod()
+            private static bool Prepare()
             {
-                return typeof(CharFileInfoStatus).GetConstructor(new Type[] { });
+                return HSUS._self._binary == Binary.Studio;
             }
 
-            public static void Postfix(CharFileInfoStatus __instance)
-#elif KOIKATSU
-        public static void Postfix(ChaFileStatus __instance)
+            private static MethodBase TargetMethod()
+            {
+#if HONEYSELECT
+                return typeof(CharFileInfoStatus).GetConstructor(new Type[] { });
+#elif AISHOUJO || KOIKATSU
+                return typeof(ChaFileStatus).GetConstructor(new Type[] { });
+#endif
+            }
+
+#if HONEYSELECT
+            private static void Postfix(CharFileInfoStatus __instance)
+#elif KOIKATSU || AISHOUJO
+            private static void Postfix(ChaFileStatus __instance)
 #endif
             {
-                __instance.eyesBlink = HSUS._self._eyesBlink;
+                __instance.eyesBlink = _eyesBlink;
             }
         }
+
     }
 }

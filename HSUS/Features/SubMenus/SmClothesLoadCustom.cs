@@ -1,4 +1,5 @@
-﻿#if HONEYSELECT
+﻿
+#if HONEYSELECT
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,9 +10,10 @@ using System.Threading;
 using CustomMenu;
 using Harmony;
 using IllusionUtility.GetUtility;
-using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 using UnityEngine.UI;
+using HSUS.Features;
 
 namespace HSUS
 {
@@ -72,7 +74,7 @@ namespace HSUS
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
-            if (HSUS._self._asyncLoading)
+            if (OptimizeCharaMaker._asyncLoading)
             {
                 bool initEnd = false;
                 byte folderInfoSex = 0;
@@ -128,16 +130,12 @@ namespace HSUS
         internal static void Prefix(SmClothesLoad __instance, ref bool ___initEnd, ref byte ___folderInfoSex, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo)
         {
             if (___initEnd && ___folderInfoSex == ___chaInfo.Sex)
-            {
                 return;
-            }
             if (null == ___chaInfo)
-            {
                 return;
-            }
             global::FolderAssist folderAssist = new global::FolderAssist();
 
-            string path = global::UserData.Path + (___chaInfo.Sex != 0 ? "coordinate/female" : "coordinate/male") + HSUS._self._currentClothesPathGame;
+            string path = global::UserData.Path + (___chaInfo.Sex != 0 ? "coordinate/female" : "coordinate/male") + OptimizeCharaMaker._currentClothesPathGame;
             folderAssist.CreateFolderInfoEx(path, new[] {"*.png"});
             CharFileInfoClothes charFileInfoClothes;
             if (___chaInfo.Sex == 0)
@@ -184,7 +182,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, CharInfo ___chaInfo, List<SmClothesLoad.FileInfo> ___lstFileInfo, List<RectTransform> ___lstRtfTgl)
@@ -227,7 +225,7 @@ namespace HSUS
             {
                 SmClothesLoad_Data.parentFolder = GameObject.Instantiate(__instance.objLineBase).GetComponent<Toggle>();
                 SmClothesLoad_Data.parentFolder.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                SmClothesLoad_Data.parentFolder.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                SmClothesLoad_Data.parentFolder.transform.FindLoop("Background").GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                 SmClothesLoad_Data.parentFolder.transform.SetParent(__instance.objListTop.transform, false);
                 SmClothesLoad_Data.parentFolder.transform.localScale = Vector3.one;
                 Text text = SmClothesLoad_Data.parentFolder.GetComponentInChildren<Text>();
@@ -238,8 +236,8 @@ namespace HSUS
                         bool initEnd = false;
                         byte folderInfoSex = 0;
                         SmClothesLoad_Data.created = false;
-                        int index = HSUS._self._currentClothesPathGame.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
-                        HSUS._self._currentClothesPathGame = HSUS._self._currentClothesPathGame.Remove(index);
+                        int index = OptimizeCharaMaker._currentClothesPathGame.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
+                        OptimizeCharaMaker._currentClothesPathGame = OptimizeCharaMaker._currentClothesPathGame.Remove(index);
                         SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
                         Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
                         __instance.UpdateSort();
@@ -251,7 +249,7 @@ namespace HSUS
 
             SmClothesLoad_Data.parentFolder.isOn = false;
             SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
-            SmClothesLoad_Data.parentFolder.gameObject.SetActive(HSUS._self._currentClothesPathGame.Length > 1);
+            SmClothesLoad_Data.parentFolder.gameObject.SetActive(OptimizeCharaMaker._currentClothesPathGame.Length > 1);
 
             int i = 0;
             for (; i < SmClothesLoad_Data.folderInfos.Count; i++)
@@ -267,7 +265,7 @@ namespace HSUS
                     display.toggle = display.gameObject.GetComponent<Toggle>();
                     display.text = display.gameObject.GetComponentInChildren<Text>();
                     display.gameObject.AddComponent<LayoutElement>().preferredHeight = 24f;
-                    display.gameObject.transform.FindLoop("Background").GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                    display.gameObject.transform.FindLoop("Background").GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                     display.gameObject.transform.SetParent(__instance.objListTop.transform, false);
                     display.gameObject.transform.localScale = Vector3.one;
                     ___lstRtfTgl.Add((RectTransform)display.gameObject.transform);
@@ -285,7 +283,7 @@ namespace HSUS
                         bool initEnd = false;
                         byte folderInfoSex = 0;
                         SmClothesLoad_Data.created = false;
-                        HSUS._self._currentClothesPathGame += fi.path;
+                        OptimizeCharaMaker._currentClothesPathGame += fi.path;
                         SmClothesLoad_Init_Patches.Prefix(__instance, ref initEnd, ref folderInfoSex, ___chaInfo, ___lstFileInfo);
                         Prefix(__instance, ___chaInfo, ___lstFileInfo, ___lstRtfTgl);
                         __instance.UpdateSort();
@@ -341,7 +339,7 @@ namespace HSUS
 
                 fileInfoComponent.info = fi;
                 fileInfoComponent.tgl.isOn = false;
-                if (HSUS._self._asyncLoading && SmClothesLoad_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmClothesLoad_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmClothesLoad_Data._translateProperty.SetValue(fileInfoComponent.text, false, null);
                     string t = fileInfoComponent.info.comment;
@@ -390,7 +388,7 @@ namespace HSUS
             else
                 filename = "coordF_" + DateTime.Now.ToString("yyyyMMddHHmmssfff");
             string fullPath = ___clothesInfo.ConvertClothesFilePath(filename);
-            fullPath = Path.GetDirectoryName(fullPath) + HSUS._self._currentClothesPathGame + "/" + Path.GetFileName(fullPath);
+            fullPath = Path.GetDirectoryName(fullPath) + OptimizeCharaMaker._currentClothesPathGame + "/" + Path.GetFileName(fullPath);
             __instance.customControl.CustomSaveClothesAssist(fullPath);
             SmClothesLoad.FileInfo fi = new SmClothesLoad.FileInfo();
             fi.no = 0;
@@ -420,7 +418,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static void Postfix(SmClothesLoad __instance)
@@ -434,7 +432,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static void Postfix(SmClothesLoad __instance)
@@ -448,7 +446,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
@@ -472,7 +470,10 @@ namespace HSUS
             Thread.CurrentThread.CurrentCulture = currentCulture;
             SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
             foreach (SmClothesLoad_Data.FolderInfo fi in SmClothesLoad_Data.folderInfos)
-                fi.display.gameObject.transform.SetAsLastSibling();
+            {
+                if (fi != null && fi.display != null && fi.display.gameObject != null)
+                    fi.display.gameObject.transform.SetAsLastSibling();
+            }
             int i = 0;
             foreach (SmClothesLoad.FileInfo fi in ___lstFileInfo)
             {
@@ -491,7 +492,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmClothesLoad __instance, bool ascend, List<SmClothesLoad.FileInfo> ___lstFileInfo)
@@ -515,7 +516,10 @@ namespace HSUS
             Thread.CurrentThread.CurrentCulture = currentCulture;
             SmClothesLoad_Data.parentFolder.transform.SetAsLastSibling();
             foreach (SmClothesLoad_Data.FolderInfo fi in SmClothesLoad_Data.folderInfos)
-                fi.display.gameObject.transform.SetAsLastSibling();
+            {
+                if (fi != null && fi.display != null && fi.display.gameObject != null)
+                    fi.display.gameObject.transform.SetAsLastSibling();
+            }
             int i = 0;
             foreach (SmClothesLoad.FileInfo fi in ___lstFileInfo)
             {
@@ -534,7 +538,7 @@ namespace HSUS
     {
         private static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         private static bool Prefix(SmClothesLoad __instance)

@@ -57,6 +57,6 @@ namespace kleberswf.tools.util {
 			_texture.Apply();
 		}
 
-		public void Destroy() { Object.DestroyImmediate(_texture); }
+		public void Destroy() { GameObject.DestroyImmediate(_texture); }
 	}
 }

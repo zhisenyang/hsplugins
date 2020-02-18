@@ -1,240 +1,145 @@
-﻿using System.Collections.Generic;
+﻿using System.Xml;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Harmony;
+using System.Reflection.Emit;
 using Studio;
+using ToolBox;
 #if HONEYSELECT
 using IllusionUtility.SetUtility;
+using Harmony;
 #elif KOIKATSU
 using TMPro;
+using HarmonyLib;
+#elif AISHOUJO
+using HarmonyLib;
 #endif
-using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class ImprovedTransformOperations
+    public class ImprovedTransformOperations : IFeature
     {
-        public static void Do()
+        private static bool _improvedTransformOperations = true;
+
+        public void Awake()
         {
-            GameObject.Find("StudioScene").transform.Find("Canvas Guide Input").gameObject.AddComponent<TransformOperations>();
         }
+
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("improvedTransformOperations");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _improvedTransformOperations = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("improvedTransformOperations");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_improvedTransformOperations));
+            writer.WriteEndElement();
+        }
+
+        public void LevelLoaded()
+        {
+            GameObject canvasGuideInput = GameObject.Find("StudioScene/Canvas Guide Input");
+            if (_improvedTransformOperations && HSUS._self._binary == Binary.Studio && canvasGuideInput != null)
+                canvasGuideInput.AddComponent<TransformOperations>();
+        }
+
 
         [HarmonyPatch(typeof(GuideInput), "OnEndEditScale", new[] { typeof(int) })]
-        public class GuideInput_OnEndEditScale_Patches
+        private static class GuideInput_OnEndEditScale_Patches
         {
-            private static FieldInfo _hashSelectObject;
-            private static FieldInfo _inputScale;
-
-            public static bool Prepare()
-            {
-                if (HSUS._self._improvedTransformOperations)
+            private static readonly HarmonyExtensions.Replacement[] _replacements = {
+                new HarmonyExtensions.Replacement
                 {
-                    _hashSelectObject = typeof(GuideInput).GetField("hashSelectObject", BindingFlags.Instance | BindingFlags.NonPublic);
-                    _inputScale = typeof(GuideInput).GetField("inputScale", BindingFlags.Instance | BindingFlags.NonPublic);
-                }
-                return HSUS._self._improvedTransformOperations;
-            }
-
-#if HONEYSELECT
-            public static bool Prefix(GuideInput __instance, int _target)
-            {
-                HashSet<GuideObject> hashSelectObject = (HashSet<GuideObject>)_hashSelectObject.GetValue(__instance);
-                InputField[] inputScale = (InputField[])_inputScale.GetValue(__instance);
-                if (hashSelectObject.Count == 0)
-                {
-                    return false;
-                }
-                float num = InputToFloat(inputScale[_target]);
-                List<GuideCommand.EqualsInfo> list = new List<GuideCommand.EqualsInfo>();
-                foreach (GuideObject guideObject in hashSelectObject)
-                {
-                    if (guideObject.enableScale)
+                    pattern = new[]
                     {
-                        Vector3 scale = guideObject.changeAmount.scale;
-                        if (scale[_target] != num)
-                        {
-                            scale[_target] = num;
-                            Vector3 scale2 = guideObject.changeAmount.scale;
-                            guideObject.changeAmount.scale = scale;
-                            list.Add(new GuideCommand.EqualsInfo
-                            {
-                                dicKey = guideObject.dicKey,
-                                oldValue = scale2,
-                                newValue = scale
-                            });
-                        }
+                        new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Mathf), "Max", new []{typeof(float), typeof(float)})),
+                    },
+                    replacer = new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, typeof(GuideInput_OnEndEditScale_Patches).GetMethod(nameof(DummyMax), BindingFlags.NonPublic | BindingFlags.Static)),
                     }
                 }
-                if (!list.IsNullOrEmpty())
-                {
-                    UndoRedoManager.Instance.Push(new GuideCommand.ScaleEqualsCommand(list.ToArray()));
-                }
-
-                GuideObject guideObj = hashSelectObject.ElementAtOrDefault(0);
-                Vector3 vector = !guideObj ? Vector3.zero : guideObj.changeAmount.scale;
-                bool[] array = new bool[]
-                {
-                true,
-                true,
-                true
-                };
-                foreach (GuideObject guideObject2 in hashSelectObject)
-                {
-                    Vector3 scale = guideObject2.changeAmount.scale;
-                    for (int i = 0; i < 3; i++)
-                    {
-                        array[i] = vector[i] == scale[i];
-                    }
-                }
-                for (int j = 0; j < 3; j++)
-                {
-                    inputScale[j].text = !array[j] ? "-" : vector[j].ToString("0.000");
-                }
-
-                return false;
-            }
-
-            private static float InputToFloat(InputField _input)
-            {
-                return !float.TryParse(_input.text, out float num) ? 0f : num;
-            }
-
-#elif KOIKATSU
-
-        public static bool Prefix(GuideInput __instance, int _target)
-        {
-            HashSet<GuideObject> hashSelectObject = (HashSet<GuideObject>)_hashSelectObject.GetValue(__instance);
-            TMP_InputField[] inputScale = (TMP_InputField[])_inputScale.GetValue(__instance);
-
-            if (hashSelectObject.Count == 0)
-            {
-                return false;
-            }
-            float num = InputToFloat(inputScale[_target]);
-            List<GuideCommand.EqualsInfo> list = new List<GuideCommand.EqualsInfo>();
-            foreach (GuideObject guideObject in hashSelectObject)
-            {
-                if (guideObject.enableScale)
-                {
-                    Vector3 scale = guideObject.changeAmount.scale;
-                    if (scale[_target] != num)
-                    {
-                        scale[_target] = num;
-                        Vector3 scale2 = guideObject.changeAmount.scale;
-                        guideObject.changeAmount.scale = scale;
-                        list.Add(new GuideCommand.EqualsInfo
-                        {
-                            dicKey = guideObject.dicKey,
-                            oldValue = scale2,
-                            newValue = scale
-                        });
-                    }
-                }
-            }
-            if (!list.IsNullOrEmpty<GuideCommand.EqualsInfo>())
-            {
-                Singleton<UndoRedoManager>.Instance.Push(new GuideCommand.ScaleEqualsCommand(list.ToArray()));
-            }
-
-            GuideObject guideObject2 = hashSelectObject.ElementAtOrDefault(0);
-            Vector3 vector = (!guideObject2) ? Vector3.zero : guideObject2.changeAmount.scale;
-            bool[] array = new bool[]
-            {
-                true,
-                true,
-                true
             };
-            foreach (GuideObject guideObject in hashSelectObject)
-            {
-                Vector3 scale = guideObject.changeAmount.scale;
-                for (int i = 0; i < 3; i++)
-                {
-                    array[i] = (vector[i] == scale[i]);
-                }
-            }
-            for (int j = 0; j < 3; j++)
-            {
-                inputScale[j].text = ((!array[j]) ? "-" : vector[j].ToString("0.000"));
-            }
-            return false;
-        }
 
-        private static float InputToFloat(TMP_InputField _input)
-        {
-            float num = 0f;
-            return (!float.TryParse(_input.text, out num)) ? 0f : num;
-        }
-#endif
+            private static bool Prepare()
+            {
+                return HSUS._self._binary == Binary.Studio && _improvedTransformOperations;
+            }
+
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                return HarmonyExtensions.ReplaceCodePattern(instructions, _replacements);
+            }
+
+            private static float DummyMax(float first, float second)
+            {
+                return first;
+            }
         }
 
         [HarmonyPatch(typeof(GuideScale), "OnDrag", new[] { typeof(PointerEventData) })]
-        public class GuideScale_OnDrag_Patches
+        private static class GuideScale_OnDrag_Patches
         {
-            private static FieldInfo _prevPos;
-            private static FieldInfo _speed;
-            private static FieldInfo _dicChangeAmount;
 
-            public static bool Prepare()
-            {
-                if (HSUS._self._improvedTransformOperations)
+            private static readonly HarmonyExtensions.Replacement[] _replacements = {
+#if HONEYSELECT || KOIKATSU
+                new HarmonyExtensions.Replacement
                 {
-                    _prevPos = typeof(GuideScale).GetField("prevPos", BindingFlags.Instance | BindingFlags.NonPublic);
-                    _speed = typeof(GuideScale).GetField("speed", BindingFlags.Instance | BindingFlags.NonPublic);
-                    _dicChangeAmount = typeof(GuideScale).GetField("dicChangeAmount", BindingFlags.Instance | BindingFlags.NonPublic);
+                    pattern = new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Mathf), "Max", new []{typeof(float), typeof(float)})),
+                    },
+                    replacer = new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, typeof(GuideScale_OnDrag_Patches).GetMethod(nameof(DummyMax), BindingFlags.NonPublic | BindingFlags.Static)),
+                    }
                 }
-                return HSUS._self._improvedTransformOperations;
+#elif AISHOUJO
+                new HarmonyExtensions.Replacement
+                {
+                    pattern = new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(Mathf), "Clamp", new []{typeof(float), typeof(float), typeof(float)})),
+                    },
+                    replacer = new[]
+                    {
+                        new CodeInstruction(OpCodes.Call, typeof(GuideScale_OnDrag_Patches).GetMethod(nameof(DummyClamp), BindingFlags.NonPublic | BindingFlags.Static)),
+                    }
+                }
+#endif
+            };
+
+            private static bool Prepare()
+            {
+                return HSUS._self._binary == Binary.Studio && _improvedTransformOperations;
             }
 
-            public static bool Prefix(GuideScale __instance, PointerEventData _eventData)
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
             {
-                Vector3 b = Vector3.zero;
-                if (__instance.axis == GuideScale.ScaleAxis.XYZ)
-                {
-                    Vector2 delta = _eventData.delta;
-                    float d = (delta.x + delta.y) * (float)_speed.GetValue(__instance);
-                    b = Vector3.one * d;
-                }
-                else
-                {
-                    b = AxisPos(__instance, _eventData.position) - AxisPos(__instance, (Vector2)_prevPos.GetValue(__instance));
-                    _prevPos.SetValue(__instance, _eventData.position);
-                }
-                foreach (KeyValuePair<int, ChangeAmount> keyValuePair in (Dictionary<int, ChangeAmount>)_dicChangeAmount.GetValue(__instance))
-                {
-                    Vector3 vector = keyValuePair.Value.scale;
-                    vector += b;
-                    keyValuePair.Value.scale = vector;
-                }
-                return false;
+                return HarmonyExtensions.ReplaceCodePattern(instructions, _replacements);
             }
 
-            private static Vector3 AxisPos(GuideScale __instance, Vector2 _screenPos)
+#if HONEYSELECT || KOIKATSU
+            private static float DummyMax(float first, float second)
             {
-                Vector3 position = __instance.transform.position;
-                Plane plane = new Plane(Camera.main.transform.forward * -1f, position);
-                Ray ray = RectTransformUtility.ScreenPointToRay(Camera.main, _screenPos);
-                float distance = 0f;
-                Vector3 a = !plane.Raycast(ray, out distance) ? position : ray.GetPoint(distance);
-                Vector3 vector = a - position;
-                Vector3 onNormal = __instance.transform.up;
-                switch (__instance.axis)
-                {
-                    case GuideScale.ScaleAxis.X:
-                        onNormal = Vector3.right;
-                        break;
-                    case GuideScale.ScaleAxis.Y:
-                        onNormal = Vector3.up;
-                        break;
-                    case GuideScale.ScaleAxis.Z:
-                        onNormal = Vector3.forward;
-                        break;
-                }
-                return Vector3.Project(vector, onNormal);
+                return first;
             }
+#elif AISHOUJO
+            private static float DummyClamp(float value, float min, float max)
+            {
+                return value;
+            }
+#endif
         }
 
 #if HONEYSELECT
@@ -243,7 +148,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._improvedTransformOperations;
+                return _improvedTransformOperations;
             }
 
             public static bool Prefix(CharClothes __instance, ref bool __result, int slotNo, float value, bool _add, int flags, CharInfo ___chaInfo, CharFileInfoClothes ___clothesInfo)
@@ -281,12 +186,13 @@ namespace HSUS
         }
 
 #endif
+#if HONEYSELECT
         [HarmonyPatch(typeof(TreeNodeCtrl), "CopyChangeAmount")]
         internal static class TreeNodeCtrl_CopyChangeAmount_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._improvedTransformOperations;
+                return HSUS._self._binary == Binary.Studio && _improvedTransformOperations;
             }
 
             private static bool Prefix(TreeNodeCtrl __instance)
@@ -311,13 +217,12 @@ namespace HSUS
             }
         }
 
-#if HONEYSELECT
         [HarmonyPatch(typeof(WorkspaceCtrl), "OnClickCopy")]
         internal static class WorkspaceCtrl_OnClickCopy_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._improvedTransformOperations;
+                return HSUS._self._binary == Binary.Studio && _improvedTransformOperations;
             }
 
             private static void Postfix(WorkspaceCtrl __instance)
@@ -330,14 +235,12 @@ namespace HSUS
 
         public class TransformOperations : MonoBehaviour
         {
-#if HONEYSELECT
             private class TransformData
             {
                 public Vector3 position;
                 public Vector3 rotation;
                 public Vector3 scale;
             }
-#endif
 
             private Button _copyTransform;
             private Button _pasteTransform;
@@ -348,7 +251,7 @@ namespace HSUS
             private Vector3 _savedPosition;
             private Vector3 _savedRotation;
             private Vector3 _savedScale;
-#if HONEYSELECT
+            
             private bool _draggingXPos = false;
             private bool _draggingYPos = false;
             private bool _draggingZPos = false;
@@ -358,8 +261,7 @@ namespace HSUS
             private bool _draggingXScale = false;
             private bool _draggingYScale = false;
             private bool _draggingZScale = false;
-            private Dictionary<GuideObject, TransformData> _originalTransforms = new Dictionary<GuideObject, TransformData>();
-#endif
+            private readonly Dictionary<GuideObject, TransformData> _originalTransforms = new Dictionary<GuideObject, TransformData>();
 
             void Awake()
             {
@@ -376,10 +278,10 @@ namespace HSUS
                     if (rt != guideInput && rt != container.rectTransform)
                         rt.anchoredPosition += new Vector2(105, 0f);
                 }
-#elif KOIKATSU
-            ((RectTransform)guideInput.Find("Button Move")).anchoredPosition += new Vector2(100f, 0f);
-            ((RectTransform)guideInput.Find("Button Rotation")).anchoredPosition += new Vector2(100f, 0f);
-            ((RectTransform)guideInput.Find("Button Scale")).anchoredPosition += new Vector2(100f, 0f);
+#elif KOIKATSU || AISHOUJO
+                ((RectTransform)guideInput.Find("Button Move")).anchoredPosition += new Vector2(100f, 0f);
+                ((RectTransform)guideInput.Find("Button Rotation")).anchoredPosition += new Vector2(100f, 0f);
+                ((RectTransform)guideInput.Find("Button Scale")).anchoredPosition += new Vector2(100f, 0f);
 #endif
                 Sprite background = null;
                 foreach (Sprite sprite in Resources.FindObjectsOfTypeAll<Sprite>())
@@ -397,12 +299,7 @@ namespace HSUS
                 ((Image)this._copyTransform.targetGraphic).sprite = background;
                 Text t = this._copyTransform.GetComponentInChildren<Text>();
                 t.color = Color.white;
-#if HONEYSELECT
-                t.resizeTextForBestFit = false;
-                t.fontSize = 10;
-#elif KOIKATSU
-            t.alignByGeometry = true;
-#endif
+                t.alignByGeometry = true;
                 t.rectTransform.SetRect();
                 this._copyTransform.onClick.AddListener(this.CopyTransform);
 
@@ -411,12 +308,7 @@ namespace HSUS
                 ((Image)this._pasteTransform.targetGraphic).sprite = background;
                 t = this._pasteTransform.GetComponentInChildren<Text>();
                 t.color = Color.white;
-#if HONEYSELECT
-                t.resizeTextForBestFit = false;
-                t.fontSize = 10;
-#elif KOIKATSU
-            t.alignByGeometry = true;
-#endif
+                t.alignByGeometry = true;
                 t.rectTransform.SetRect();
                 this._pasteTransform.onClick.AddListener(this.PasteTransform);
 
@@ -426,12 +318,7 @@ namespace HSUS
                 ((Image)this._resetTransform.targetGraphic).color = Color.Lerp(Color.red, Color.white, 0.3f);
                 t = this._resetTransform.GetComponentInChildren<Text>();
                 t.color = Color.white;
-#if HONEYSELECT
-                t.resizeTextForBestFit = false;
-                t.fontSize = 10;
-#elif KOIKATSU
-            t.alignByGeometry = true;
-#endif
+                t.alignByGeometry = true;
                 t.rectTransform.SetRect();
                 this._resetTransform.onClick.AddListener(this.ResetTransform);
 
@@ -439,6 +326,9 @@ namespace HSUS
 
 #if HONEYSELECT
                 RectTransform posX = (RectTransform)guideInput.Find("Pos/InputField X");
+#elif KOIKATSU || AISHOUJO
+                RectTransform posX = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField X");
+#endif
                 RawImage posXDrag = UIUtility.CreateRawImage("DragX", posX.parent);
                 posXDrag.color = new Color32(0, 0, 0, 1);
                 posXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posX.offsetMin.x - 24, posX.offsetMin.y), new Vector2(posX.offsetMin.x, posX.offsetMax.y));
@@ -448,7 +338,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform posY = (RectTransform)guideInput.Find("Pos/InputField Y");
+#elif KOIKATSU || AISHOUJO
+                RectTransform posY = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField Y");
+#endif
                 RawImage posYDrag = UIUtility.CreateRawImage("DragY", posY.parent);
                 posYDrag.color = new Color32(0, 0, 0, 1);
                 posYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posY.offsetMin.x - 24, posY.offsetMin.y), new Vector2(posY.offsetMin.x, posY.offsetMax.y));
@@ -458,7 +352,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform posZ = (RectTransform)guideInput.Find("Pos/InputField Z");
+#elif KOIKATSU || AISHOUJO
+                RectTransform posZ = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField Z");
+#endif
                 RawImage posZDrag = UIUtility.CreateRawImage("DragZ", posZ.parent);
                 posZDrag.color = new Color32(0, 0, 0, 1);
                 posZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(posZ.offsetMin.x - 24, posZ.offsetMin.y), new Vector2(posZ.offsetMin.x, posZ.offsetMax.y));
@@ -468,7 +366,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform rotX = (RectTransform)guideInput.Find("Rot/InputField X");
+#elif KOIKATSU || AISHOUJO
+                RectTransform rotX = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField X");
+#endif
                 RawImage rotXDrag = UIUtility.CreateRawImage("DragX", rotX.parent);
                 rotXDrag.color = new Color32(0, 0, 0, 1);
                 rotXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotX.offsetMin.x - 24, rotX.offsetMin.y), new Vector2(rotX.offsetMin.x, rotX.offsetMax.y));
@@ -478,7 +380,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform rotY = (RectTransform)guideInput.Find("Rot/InputField Y");
+#elif KOIKATSU || AISHOUJO
+                RectTransform rotY = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField Y");
+#endif
                 RawImage rotYDrag = UIUtility.CreateRawImage("DragY", rotY.parent);
                 rotYDrag.color = new Color32(0, 0, 0, 1);
                 rotYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotY.offsetMin.x - 24, rotY.offsetMin.y), new Vector2(rotY.offsetMin.x, rotY.offsetMax.y));
@@ -488,7 +394,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform rotZ = (RectTransform)guideInput.Find("Rot/InputField Z");
+#elif KOIKATSU || AISHOUJO
+                RectTransform rotZ = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField Z");
+#endif
                 RawImage rotZDrag = UIUtility.CreateRawImage("DragZ", rotZ.parent);
                 rotZDrag.color = new Color32(0, 0, 0, 1);
                 rotZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(rotZ.offsetMin.x - 24, rotZ.offsetMin.y), new Vector2(rotZ.offsetMin.x, rotZ.offsetMax.y));
@@ -498,7 +408,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform scaleX = (RectTransform)guideInput.Find("Scl/InputField X");
+#elif KOIKATSU || AISHOUJO
+                RectTransform scaleX = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField X");
+#endif
                 RawImage scaleXDrag = UIUtility.CreateRawImage("DragX", scaleX.parent);
                 scaleXDrag.color = new Color32(0, 0, 0, 1);
                 scaleXDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleX.offsetMin.x - 24, scaleX.offsetMin.y), new Vector2(scaleX.offsetMin.x, scaleX.offsetMax.y));
@@ -508,7 +422,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform scaleY = (RectTransform)guideInput.Find("Scl/InputField Y");
+#elif KOIKATSU || AISHOUJO
+                RectTransform scaleY = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField Y");
+#endif
                 RawImage scaleYDrag = UIUtility.CreateRawImage("DragY", scaleY.parent);
                 scaleYDrag.color = new Color32(0, 0, 0, 1);
                 scaleYDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleY.offsetMin.x - 24, scaleY.offsetMin.y), new Vector2(scaleY.offsetMin.x, scaleY.offsetMax.y));
@@ -518,7 +436,11 @@ namespace HSUS
                     this.InitOriginalTransforms();
                 };
 
+#if HONEYSELECT
                 RectTransform scaleZ = (RectTransform)guideInput.Find("Scl/InputField Z");
+#elif KOIKATSU || AISHOUJO
+                RectTransform scaleZ = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField Z");
+#endif
                 RawImage scaleZDrag = UIUtility.CreateRawImage("DragZ", scaleZ.parent);
                 scaleZDrag.color = new Color32(0, 0, 0, 1);
                 scaleZDrag.rectTransform.SetRect(new Vector2(0, 1), new Vector2(0, 1), new Vector2(scaleZ.offsetMin.x - 24, scaleZ.offsetMin.y), new Vector2(scaleZ.offsetMin.x, scaleZ.offsetMax.y));
@@ -527,7 +449,6 @@ namespace HSUS
                     this._draggingZScale = true;
                     this.InitOriginalTransforms();
                 };
-#endif
             }
 
             void Update()
@@ -536,7 +457,6 @@ namespace HSUS
                     this.UpdateButtonsVisibility();
                 this._lastObjectCount = this._hashSelectObject.Count;
 
-#if HONEYSELECT
                 if (Input.GetMouseButtonUp(0))
                 {
                     if (this._draggingXPos || this._draggingYPos || this._draggingZPos ||
@@ -595,7 +515,11 @@ namespace HSUS
                     this._draggingXRot || this._draggingYRot || this._draggingZRot ||
                     this._draggingXScale || this._draggingYScale || this._draggingZScale)
                 {
-                    float delta = Input.GetAxisRaw("Mouse X") * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 8f : 1f) / 10f;
+                    float delta = Input.GetAxisRaw("Mouse X") * (Input.GetKey(KeyCode.LeftShift) ? 4f : 1f) / (Input.GetKey(KeyCode.LeftControl) ? 8f : 1f)
+#if HONEYSELECT || KOIKATSU
+                                                                                                            / 10f
+#endif
+                            ;
 
                     foreach (GuideObject guideObject in this._hashSelectObject)
                     {
@@ -629,7 +553,6 @@ namespace HSUS
                         }
                     }
                 }
-#endif
             }
 
             private void UpdateButtonsVisibility()
@@ -706,17 +629,15 @@ namespace HSUS
                 UndoRedoManager.Instance.Push(new TransformEqualsCommand(moveChangeAmountInfo.ToArray(), rotateChangeAmountInfo.ToArray(), scaleChangeAmountInfo.ToArray()));
             }
 
-#if HONEYSELECT
             private void InitOriginalTransforms()
             {
                 this._originalTransforms.Clear();
                 foreach (GuideObject guideObject in this._hashSelectObject)
                     this._originalTransforms.Add(guideObject, new TransformData() { position = guideObject.changeAmount.pos, rotation = guideObject.changeAmount.rot, scale = guideObject.changeAmount.scale });
             }
-#endif
         }
 
-        public class TransformEqualsCommand : ICommand
+        public class TransformEqualsCommand : Studio.ICommand
         {
             private readonly Studio.GuideCommand.EqualsInfo[] _moveChangeAmountInfo;
             private readonly Studio.GuideCommand.EqualsInfo[] _rotateChangeAmountInfo;

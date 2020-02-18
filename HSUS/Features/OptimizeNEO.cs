@@ -1,31 +1,197 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Threading;
+using System.Xml;
+#if HONEYSELECT
 using FBSAssist;
 using Harmony;
+using System.Reflection.Emit;
+using System.IO;
+using System.Globalization;
+using System.Threading;
+using UniRx.Triggers;
 using Manager;
+#elif KOIKATSU || AISHOUJO
+using HarmonyLib;
+#endif
+using System.Linq;
 using Studio;
 using ToolBox;
+using ToolBox.Extensions;
 using UILib;
-using UniRx.Triggers;
 using UnityEngine;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class OptimizeNEO
+    public class OptimizeNEO : IFeature
     {
+        internal static bool _optimizeNeo = true;
+
+#if HONEYSELECT
+        private readonly List<MethodInfo> _patchedMethods = new List<MethodInfo>()
+        {
+            typeof(CharaListInfo).GetMethod("LoadListInfoAll", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharBody).GetMethod("OnDestroy", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleBody).GetCoroutineMethod("ChangeHairAsync"),
+            typeof(CharFemaleBody).GetCoroutineMethod("ChangeHeadAsync"),
+            typeof(CharFemaleBody).GetCoroutineMethod("LoadAsync"),
+            typeof(CharFemaleBody).GetMethod("Reload", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("ChangeBodyDetailTex", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("ChangeFaceDetailTex", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("CreateBodyTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("CreateFaceTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("ReleaseBodyCustomTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharFemaleCustom).GetMethod("ReleaseFaceCustomTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharMale).GetMethod("EndSavePlayerFile", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharMaleBody).GetCoroutineMethod("ChangeHairAsync"),
+            typeof(CharMaleBody).GetCoroutineMethod("ChangeHeadAsync"),
+            typeof(CharMaleBody).GetCoroutineMethod("LoadAsync"),
+            typeof(CharMaleBody).GetMethod("Reload", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharMaleCustom).GetMethod("ChangeFaceDetailTex", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharMaleCustom).GetMethod("CreateFaceTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(CharMaleCustom).GetMethod("ReleaseFaceCustomTexture", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(GameScene).GetMethod("LoadCharaImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(GameScene).GetMethod("LoadMaleImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(GameScene).GetMethod("LoadSelectCharaImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(HScene).GetMethod("ChangeAnimation", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(HSceneClothChange).GetMethod("LoadCharaImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(HSceneVR).GetMethod("ChangeAnimation", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(Manager.Character).GetMethod("EndLoadAssetBundle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(Manager.Map).GetMethod("LoadMap", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(Manager.Scene).GetCoroutineMethod("LoadMapScene"),
+            typeof(Manager.Scene).GetCoroutineMethod("LoadStart"),
+            typeof(Manager.Scene).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static).FirstOrDefault(m => m.GetParameters().Length == 0),
+            typeof(MapSelectScene).GetMethod("LoadCharaImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(MapSelectScene).GetMethod("SetMapImage", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(MorphBase).GetMethod("CreateCalcInfo", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+            typeof(VRScene).GetMethod("ChangeAnimation", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static),
+        };
+
+        private static readonly HarmonyExtensions.Replacement[] _replacements =
+        {
+            new HarmonyExtensions.Replacement()
+            {
+                pattern = new[]
+                {
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(GC), nameof(GC.Collect))),
+                },
+                replacer = new[]
+                {
+                    new CodeInstruction(OpCodes.Call, typeof(OptimizeNEO).GetMethod(nameof(ScheduleGCCollect), BindingFlags.NonPublic | BindingFlags.Static)),
+                }
+            },
+            new HarmonyExtensions.Replacement()
+            {
+                pattern = new[]
+                {
+                    new CodeInstruction(OpCodes.Call, typeof(Resources).GetMethod(nameof(Resources.UnloadUnusedAssets), AccessTools.all)),
+                },
+                replacer = new[]
+                {
+                    new CodeInstruction(OpCodes.Call, typeof(OptimizeNEO).GetMethod(nameof(ScheduleUnloadUnusedAssets), BindingFlags.NonPublic | BindingFlags.Static)),
+                }
+            },
+        };
+
+        private static int _gcCollectCountdown = -1;
+        private static int _unloadUnusedAssetsCountdown = -1;
+
+        internal static bool _isCleaningResources { get { return _gcCollectCountdown >= 0 || _unloadUnusedAssetsCountdown >= 0; } }
+#endif
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("optimizeNeo");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("optimizeNeo");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_optimizeNeo));
+            writer.WriteEndElement();
+        }
+
+        public void Awake()
+        {
+#if HONEYSELECT
+            HSUS._self._onUpdate += this.Update;
+
+            // Adding those manually because they might not exist depending on the context
+            this.AddMethodManually("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp.dll", "LoadImage");
+            this.AddMethodManually("SteamVR_LoadLevel,Assembly-CSharp.dll", "LoadLevel");
+            this.AddMethodManually("Studio.BackgroundCtrl,Assembly-CSharp.dll", "Load");
+            this.AddMethodManually("Studio.CharaList,Assembly-CSharp.dll", "LoadCharaImage");
+            this.AddMethodManually("Studio.SceneLoadScene,Assembly-CSharp.dll", "SetPage");
+#endif
+        }
+
+        public void LevelLoaded()
+        {
+#if HONEYSELECT
+            if (_optimizeNeo && HSUS._self._binary == Binary.Studio && HSUS._self._level == 3)
+            {
+                HarmonyMethod transpiler = new HarmonyMethod(typeof(OptimizeNEO), nameof(GeneralTranspiler), new[] { typeof(IEnumerable<CodeInstruction>) });
+                foreach (MethodInfo methodInfo in _patchedMethods)
+                {
+                    if (methodInfo.IsGenericMethod == false)
+                        HSUS._self._harmonyInstance.Patch(methodInfo, transpiler: transpiler);
+                }
+            }
+#endif
+        }
+
+#if HONEYSELECT
+        private void AddMethodManually(string type, string method)
+        {
+            Type t = Type.GetType(type);
+            if (t != null)
+            {
+                MethodInfo m = t.GetMethod(method, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
+                if (m != null)
+                    this._patchedMethods.Add(m);
+            }
+        }
+
+        private void Update()
+        {
+            if (_unloadUnusedAssetsCountdown != -1)
+                --_unloadUnusedAssetsCountdown;
+            if (_unloadUnusedAssetsCountdown == 0)
+                Resources.UnloadUnusedAssets();
+            if (_gcCollectCountdown != -1)
+                --_gcCollectCountdown;
+            if (_gcCollectCountdown == 0)
+                GC.Collect();
+        }
+
+        private static IEnumerable<CodeInstruction> GeneralTranspiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return HarmonyExtensions.ReplaceCodePattern(instructions, _replacements);
+        }
+
+        private static void ScheduleGCCollect()
+        {
+            _gcCollectCountdown = 8;
+        }
+
+        private static AsyncOperation ScheduleUnloadUnusedAssets()
+        {
+            _unloadUnusedAssetsCountdown = 8;
+            return null;
+        }
+#endif
+
+#if HONEYSELECT || KOIKATSU
         [HarmonyPatch(typeof(ItemList), "Awake")]
         public static class ItemList_Awake_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Prefix(ItemList __instance)
@@ -51,9 +217,9 @@ namespace HSUS
                 rt.localPosition = Vector3.zero;
                 rt.localScale = Vector3.one;
 #if HONEYSELECT
-                rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(HSUS._self._improveNeoUI ? 10f : 7f, 16f), new Vector2(HSUS._self._improveNeoUI ? -22f : -14f, newY));
-#elif KOIKATSU
-            rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 20f), new Vector2(-18f, newY));
+                rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(ImproveNeoUI._improveNeoUI ? 10f : 7f, 16f), new Vector2(ImproveNeoUI._improveNeoUI ? -22f : -14f, newY));
+#elif KOIKATSU || AISHOUJO
+                rt.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 20f), new Vector2(-18f, newY));
 #endif
                 data.searchBar.onValueChanged.AddListener(s => SearchChanged(__instance));
                 foreach (Text t in data.searchBar.GetComponentsInChildren<Text>())
@@ -86,8 +252,8 @@ namespace HSUS
                 string search = data.searchBar.text.Trim();
 #if HONEYSELECT
                 int currentGroup = (int)instance.GetPrivate("group");
-#elif KOIKATSU
-            int currentGroup = (int)instance.GetPrivate("category");
+#elif KOIKATSU || AISHOUJO
+                int currentGroup = (int)instance.GetPrivate("category");
 #endif
                 List<StudioNode> list;
                 if (data.objects.TryGetValue(currentGroup, out list) == false)
@@ -103,7 +269,7 @@ namespace HSUS
         {
             typeof(int),
 #if KOIKATSU
-        typeof(int),
+            typeof(int),
 #endif
         })]
         public static class ItemList_InitList_Patches
@@ -117,12 +283,12 @@ namespace HSUS
             public static readonly Dictionary<ItemList, ItemListData> _dataByInstance = new Dictionary<ItemList, ItemListData>();
 
 #if KOIKATSU
-        private static int _lastCategory = -1;
+            private static int _lastCategory = -1;
 #endif
 
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
 #if HONEYSELECT
@@ -160,7 +326,7 @@ namespace HSUS
                     {
                         if (item.Value.@group != _group)
                             continue;
-                        GameObject gameObject = Object.Instantiate(objectNode);
+                        GameObject gameObject = GameObject.Instantiate(objectNode);
                         gameObject.transform.SetParent(transformRoot, false);
                         StudioNode component = gameObject.GetComponent<StudioNode>();
                         component.active = true;
@@ -182,158 +348,151 @@ namespace HSUS
                 return false;
             }
 #elif KOIKATSU
-        public static bool Prefix(ItemList __instance, int _group, int _category)
-        {
-            if ((int)__instance.GetPrivate("group") == _group && (int)__instance.GetPrivate("category") == _category)
+            public static bool Prefix(ItemList __instance, int _group, int _category, ref int ___group, ref int ___category, ScrollRect ___scrollRect, Transform ___transformRoot, GameObject ___objectNode)
             {
+                if (___group == _group && ___category == _category)
+                {
+                    return false;
+                }
+
+                ItemListData data;
+                if (_dataByInstance.TryGetValue(__instance, out data) == false)
+                {
+                    data = new ItemListData();
+                    _dataByInstance.Add(__instance, data);
+                }
+
+                ___scrollRect.verticalNormalizedPosition = 1f;
+
+                List<StudioNode> list;
+                if (data.objects.TryGetValue(_lastCategory, out list))
+                    foreach (StudioNode studioNode in list)
+                        studioNode.active = false;
+                if (data.objects.TryGetValue(_category, out list))
+                    foreach (StudioNode studioNode in list)
+                        studioNode.active = true;
+                else
+                {
+                    list = new List<StudioNode>();
+                    data.objects.Add(_category, list);
+
+                    foreach (KeyValuePair<int, Info.ItemLoadInfo> keyValuePair in Singleton<Info>.Instance.dicItemLoadInfo[_group][_category])
+                    {
+                        GameObject gameObject = GameObject.Instantiate(___objectNode);
+                        gameObject.transform.SetParent(___transformRoot, false);
+                        StudioNode component = gameObject.GetComponent<StudioNode>();
+                        component.active = true;
+                        int no = keyValuePair.Key;
+                        component.addOnClick = () => __instance.CallPrivate("OnSelect", no);
+                        component.text = keyValuePair.Value.name;
+                        int num = keyValuePair.Value.color.Count(b => b) + (!keyValuePair.Value.isGlass ? 0 : 1);
+                        switch (num)
+                        {
+                            case 1:
+                                component.textColor = Color.red;
+                                break;
+                            case 2:
+                                component.textColor = Color.cyan;
+                                break;
+                            case 3:
+                                component.textColor = Color.green;
+                                break;
+                            case 4:
+                                component.textColor = Color.yellow;
+                                break;
+                            default:
+                                component.textColor = Color.white;
+                                break;
+                        }
+                        if (num != 0 && component.textUI)
+                        {
+                            Shadow shadow = component.textUI.gameObject.AddComponent<Shadow>();
+                            shadow.effectColor = Color.black;
+                        }
+                        list.Add(component);
+                    }
+                }
+                if (!__instance.gameObject.activeSelf)
+                    __instance.gameObject.SetActive(true);
+                ___group = _group;
+                ___category = _category;
+                _lastCategory = _category;
+                ItemList_Awake_Patches.ResetSearch(__instance);
                 return false;
             }
-
-            ItemListData data;
-            if (_dataByInstance.TryGetValue(__instance, out data) == false)
-            {
-                data = new ItemListData();
-                _dataByInstance.Add(__instance, data);
-            }
-
-
-            ((ScrollRect)__instance.GetPrivate("scrollRect")).verticalNormalizedPosition = 1f;
-
-            List<StudioNode> list;
-            UnityEngine.Debug.LogError("last category " + _lastCategory + " now category " + _category);
-            if (data.objects.TryGetValue(_lastCategory, out list))
-                foreach (StudioNode studioNode in list)
-                    studioNode.active = false;
-            if (data.objects.TryGetValue(_category, out list))
-                foreach (StudioNode studioNode in list)
-                    studioNode.active = true;
-            else
-            {
-                list = new List<StudioNode>();
-                data.objects.Add(_category, list);
-
-                foreach (KeyValuePair<int, Info.ItemLoadInfo> keyValuePair in Singleton<Info>.Instance.dicItemLoadInfo[_group][_category])
-                {
-                    GameObject gameObject = Object.Instantiate((GameObject)__instance.GetPrivate("objectNode"));
-                    gameObject.transform.SetParent((Transform)__instance.GetPrivate("transformRoot"), false);
-                    StudioNode component = gameObject.GetComponent<StudioNode>();
-                    component.active = true;
-                    int no = keyValuePair.Key;
-                    component.addOnClick = delegate
-                    {
-                        __instance.CallPrivate("OnSelect", no);
-                    };
-                    component.text = keyValuePair.Value.name;
-                    int num = keyValuePair.Value.color.Count((bool b) => b) + ((!keyValuePair.Value.isGlass) ? 0 : 1);
-                    switch (num)
-                    {
-                        case 1:
-                            component.textColor = Color.red;
-                            break;
-                        case 2:
-                            component.textColor = Color.cyan;
-                            break;
-                        case 3:
-                            component.textColor = Color.green;
-                            break;
-                        case 4:
-                            component.textColor = Color.yellow;
-                            break;
-                        default:
-                            component.textColor = Color.white;
-                            break;
-                    }
-                    if (num != 0 && component.textUI)
-                    {
-                        Shadow shadow = component.textUI.gameObject.AddComponent<Shadow>();
-                        shadow.effectColor = Color.black;
-                    }
-                    list.Add(component);
-                }
-            }
-            if (!__instance.gameObject.activeSelf)
-            {
-                __instance.gameObject.SetActive(true);
-            }
-            __instance.SetPrivate("group", _group);
-            __instance.SetPrivate("category", _category);
-            _lastCategory = _category;
-            ItemList_Awake_Patches.ResetSearch(__instance);
-            return false;
+#endif
         }
 #endif
 
-        }
-
-#if KOIKATSU
-    [HarmonyPatch(typeof(CharaList), "Awake")]
-    internal static class CharaList_Awake_Patches
-    {
-        private static bool Prepare()
+#if KOIKATSU || AISHOUJO
+        [HarmonyPatch(typeof(CharaList), "Awake")]
+        internal static class CharaList_Awake_Patches
         {
-            return HSUS._self._optimizeNeo;
+            private static bool Prepare()
+            {
+                return _optimizeNeo;
+            }
+
+            private static void Postfix(CharaList __instance)
+            {
+                Transform viewport = __instance.transform.Find("Scroll View/Viewport");
+
+                RectTransform rt = viewport as RectTransform;
+                rt.offsetMin += new Vector2(0f, 18f);
+                float newY = rt.offsetMin.y;
+
+                InputField searchBar = UIUtility.CreateInputField("Search Bar", viewport.parent, "Search...");
+                searchBar.image.color = UIUtility.grayColor;
+                searchBar.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 11f), new Vector2(-18f, newY));
+                List<CharaFileInfo> items = ((CharaFileSort)__instance.GetPrivate("charaFileSort")).cfiList;
+                searchBar.onValueChanged.AddListener(s => SearchUpdated(searchBar.text, items));
+                foreach (Text t in searchBar.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
+            }
+
+            private static void SearchUpdated(string text, List<CharaFileInfo> items)
+            {
+                foreach (CharaFileInfo info in items)
+                    info.node.gameObject.SetActive(info.node.text.IndexOf(text, StringComparison.OrdinalIgnoreCase) != -1);
+            }
         }
 
-        private static void Postfix(CharaList __instance)
+        [HarmonyPatch]
+        internal static class CostumeInfo_Init_Patches
         {
-            Transform viewport = __instance.transform.Find("Scroll View/Viewport");
-
-            RectTransform rt = viewport as RectTransform;
-            rt.offsetMin += new Vector2(0f, 18f);
-            float newY = rt.offsetMin.y;
-
-            InputField searchBar = UIUtility.CreateInputField("Search Bar", viewport.parent, "Search...");
-            searchBar.image.color = UIUtility.grayColor;
-            searchBar.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 11f), new Vector2(-18f, newY));
-            List<CharaFileInfo> items = ((CharaFileSort)__instance.GetPrivate("charaFileSort")).cfiList;
-            searchBar.onValueChanged.AddListener(s => SearchUpdated(searchBar.text, items));
-            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
-                t.color = Color.white;
-        }
-
-        private static void SearchUpdated(string text, List<CharaFileInfo> items)
-        {
-            foreach (CharaFileInfo info in items)
-                info.node.gameObject.SetActive(info.node.text.IndexOf(text, StringComparison.OrdinalIgnoreCase) != -1);
-        }
-    }
-
-    [HarmonyPatch]
-    internal static class CostumeInfo_Init_Patches
-    {
-        internal static bool Prepare()
-        {
-            return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
-        }
+            internal static bool Prepare()
+            {
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
+            }
         
-        internal static MethodInfo TargetMethod()
-        {
-            return typeof(MPCharCtrl).GetNestedType("CostumeInfo", BindingFlags.NonPublic).GetMethod("Init", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+            internal static MethodInfo TargetMethod()
+            {
+                return typeof(MPCharCtrl).GetNestedType("CostumeInfo", BindingFlags.NonPublic).GetMethod("Init", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+            }
+
+            private static void Postfix(object __instance)
+            {
+                CharaFileSort fileSort = (CharaFileSort)__instance.GetPrivate("fileSort");
+                Transform viewport = fileSort.root.parent;
+
+                RectTransform rt = viewport as RectTransform;
+                rt.offsetMin += new Vector2(0f, 18f);
+
+                InputField searchBar = UIUtility.CreateInputField("Search Bar", viewport.parent, "Search...");
+                searchBar.image.color = UIUtility.grayColor;
+                searchBar.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 11f), new Vector2(-18f, 33f));
+                List<CharaFileInfo> items = fileSort.cfiList;
+                searchBar.onValueChanged.AddListener(s => SearchUpdated(searchBar.text, items));
+                foreach (Text t in searchBar.GetComponentsInChildren<Text>())
+                    t.color = Color.white;
+            }
+
+            private static void SearchUpdated(string text, List<CharaFileInfo> items)
+            {
+                foreach (CharaFileInfo info in items)
+                    info.node.gameObject.SetActive(info.node.text.IndexOf(text, StringComparison.OrdinalIgnoreCase) != -1);
+            }
         }
-
-        private static void Postfix(object __instance)
-        {
-            CharaFileSort fileSort = (CharaFileSort)__instance.GetPrivate("fileSort");
-            Transform viewport = fileSort.root.parent;
-
-            RectTransform rt = viewport as RectTransform;
-            rt.offsetMin += new Vector2(0f, 18f);
-
-            InputField searchBar = UIUtility.CreateInputField("Search Bar", viewport.parent, "Search...");
-            searchBar.image.color = UIUtility.grayColor;
-            searchBar.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(8f, 11f), new Vector2(-18f, 33f));
-            List<CharaFileInfo> items = fileSort.cfiList;
-            searchBar.onValueChanged.AddListener(s => SearchUpdated(searchBar.text, items));
-            foreach (Text t in searchBar.GetComponentsInChildren<Text>())
-                t.color = Color.white;
-        }
-
-        private static void SearchUpdated(string text, List<CharaFileInfo> items)
-        {
-            foreach (CharaFileInfo info in items)
-                info.node.gameObject.SetActive(info.node.text.IndexOf(text, StringComparison.OrdinalIgnoreCase) != -1);
-        }
-    }
 
 #elif HONEYSELECT
         internal class EntryListData
@@ -369,7 +528,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static bool Prefix(CharaList __instance, bool _force, CharaFileSort ___charaFileSort, int ___sex, GameObject ___objectNode, RawImage ___imageChara, Button ___buttonLoad, Button ___buttonChange)
@@ -401,14 +560,14 @@ namespace HSUS
 
                 if (data.parentFolder == null)
                 {
-                    data.parentFolder = Object.Instantiate(___objectNode);
+                    data.parentFolder = GameObject.Instantiate(___objectNode);
                     data.parentFolder.transform.SetParent(___charaFileSort.root, false);
-                    Object.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
+                    GameObject.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
                     Text t = data.parentFolder.GetComponentInChildren<Text>();
                     t.text = "../ (Parent folder)";
                     t.alignment = TextAnchor.MiddleCenter;
                     t.fontStyle = FontStyle.BoldAndItalic;
-                    data.parentFolder.GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                    data.parentFolder.GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                     data.parentFolder.GetComponent<Button>().onClick.AddListener(() =>
                     {
                         int index = data.currentPath.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
@@ -430,16 +589,16 @@ namespace HSUS
                     else
                     {
                         folder = new EntryListData.FolderData();
-                        folder.displayObject = Object.Instantiate(___objectNode);
+                        folder.displayObject = GameObject.Instantiate(___objectNode);
                         folder.button = folder.displayObject.GetComponent<Button>();
                         folder.text = folder.displayObject.GetComponentInChildren<Text>();
 
                         folder.displayObject.SetActive(true);
                         folder.displayObject.transform.SetParent(___charaFileSort.root, false);
-                        Object.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
+                        GameObject.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
                         folder.text.alignment = TextAnchor.MiddleCenter;
                         folder.text.fontStyle = FontStyle.BoldAndItalic;
-                        folder.displayObject.GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                        folder.displayObject.GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
 
                         data.folders.Add(folder);
                     }
@@ -473,7 +632,7 @@ namespace HSUS
                     else
                     {
                         chara = new EntryListData.EntryData();
-                        chara.node = Object.Instantiate(___objectNode).GetComponent<GameSceneNode>();
+                        chara.node = GameObject.Instantiate(___objectNode).GetComponent<GameSceneNode>();
                         chara.button = chara.node.GetComponent<Button>();
 
                         chara.node.gameObject.transform.SetParent(___charaFileSort.root, false);
@@ -520,7 +679,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static bool Prefix(CharaList __instance, CharaFileSort ___charaFileSort)
@@ -555,7 +714,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static bool Prefix(CharaList __instance, CharaFileSort ___charaFileSort)
@@ -590,12 +749,12 @@ namespace HSUS
         {
             private static MethodInfo TargetMethod()
             {
-                return AccessTools.Method(Type.GetType("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp"), "UpdateInfo", new []{typeof(OCIChar)});
+                return AccessTools.Method(Type.GetType("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp"), "UpdateInfo", new[] { typeof(OCIChar) });
             }
 
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Prefix(object __instance, Button[] ___buttonSort)
@@ -619,12 +778,12 @@ namespace HSUS
         {
             private static MethodInfo TargetMethod()
             {
-                return AccessTools.Method(Type.GetType("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp"), "InitList", new[] {typeof(int)});
+                return AccessTools.Method(Type.GetType("Studio.MPCharCtrl+CostumeInfo,Assembly-CSharp"), "InitList", new[] { typeof(int) });
             }
 
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static bool Prefix(object __instance, int _sex, ref int ___sex, CharaFileSort ___fileSort, GameObject ___prefabNode, Button ___buttonLoad, RawImage ___imageThumbnail)
@@ -647,14 +806,14 @@ namespace HSUS
 
                 if (data.parentFolder == null)
                 {
-                    data.parentFolder = Object.Instantiate(___prefabNode);
+                    data.parentFolder = GameObject.Instantiate(___prefabNode);
                     data.parentFolder.transform.SetParent(___fileSort.root, false);
-                    Object.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
+                    GameObject.Destroy(data.parentFolder.GetComponent<GameSceneNode>());
                     Text t = data.parentFolder.GetComponentInChildren<Text>();
                     t.text = "../ (Parent folder)";
                     t.alignment = TextAnchor.MiddleCenter;
                     t.fontStyle = FontStyle.BoldAndItalic;
-                    data.parentFolder.GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                    data.parentFolder.GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                     data.parentFolder.GetComponent<Button>().onClick.AddListener(() =>
                     {
                         int index = data.currentPath.LastIndexOf("/", StringComparison.OrdinalIgnoreCase);
@@ -676,15 +835,15 @@ namespace HSUS
                     else
                     {
                         folder = new EntryListData.FolderData();
-                        folder.displayObject = Object.Instantiate(___prefabNode);
+                        folder.displayObject = GameObject.Instantiate(___prefabNode);
                         folder.text = folder.displayObject.GetComponentInChildren<Text>();
                         folder.button = folder.displayObject.GetComponent<Button>();
 
                         folder.text.alignment = TextAnchor.MiddleCenter;
                         folder.text.fontStyle = FontStyle.BoldAndItalic;
-                        folder.displayObject.GetComponent<Image>().color = HSUS._self._subFoldersColor;
+                        folder.displayObject.GetComponent<Image>().color = OptimizeCharaMaker._subFoldersColor;
                         folder.displayObject.transform.SetParent(___fileSort.root, false);
-                        Object.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
+                        GameObject.Destroy(folder.displayObject.GetComponent<GameSceneNode>());
                         data.folders.Add(folder);
                     }
                     folder.displayObject.SetActive(true);
@@ -717,7 +876,7 @@ namespace HSUS
                     else
                     {
                         coord = new EntryListData.EntryData();
-                        coord.node = Object.Instantiate(___prefabNode).GetComponent<GameSceneNode>();
+                        coord.node = GameObject.Instantiate(___prefabNode).GetComponent<GameSceneNode>();
                         coord.button = coord.node.GetComponent<Button>();
                         coord.node.transform.SetParent(___fileSort.root, false);
                         data.entries.Add(coord);
@@ -787,7 +946,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static bool Prefix(ref int ___m_Select)
@@ -802,7 +961,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static void Postfix(CharaFileSort __instance, bool _ascend, bool[] ___sortType)
@@ -836,7 +995,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static void Postfix(CharaFileSort __instance, bool _ascend, bool[] ___sortType)
@@ -870,7 +1029,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo && Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio && Type.GetType("HSStudioNEOAddon.StudioCharaListSortUtil,HSStudioNEOAddon") != null;
             }
 
             private static MethodInfo TargetMethod()
@@ -898,7 +1057,7 @@ namespace HSUS
 
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo && Type.GetType("Studio.TextSlideEffectCtrl,Assembly-CSharp") != null;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio && Type.GetType("Studio.TextSlideEffectCtrl,Assembly-CSharp") != null;
             }
 
             private static bool Prefix(object __instance, Text ___text, object ___textSlideEffect)
@@ -908,9 +1067,9 @@ namespace HSUS
                 {
                     ObservableLateUpdateTrigger component = ((Component)__instance).GetComponent<ObservableLateUpdateTrigger>();
                     if (component != null)
-                        Object.Destroy(component);
-                    Object.Destroy((Component)__instance);
-                    Object.Destroy((Component)___textSlideEffect);
+                        GameObject.Destroy(component);
+                    GameObject.Destroy((Component)__instance);
+                    GameObject.Destroy((Component)___textSlideEffect);
                     return false;
                 }
                 ___text.alignment = (TextAnchor)3;
@@ -933,7 +1092,7 @@ namespace HSUS
 
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             public static void Postfix(object __instance)
@@ -971,7 +1130,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static bool Prefix(System.Object __instance)
@@ -992,7 +1151,7 @@ namespace HSUS
         {
             public static bool Prepare(HarmonyInstance instance)
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(GuideObject __instance)
@@ -1015,7 +1174,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._binary == HSUS.Binary.Neo && HSUS._self._optimizeNeo && Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO") != null;
+                return HSUS._self._binary == Binary.Studio && _optimizeNeo && Type.GetType("AdditionalBoneModifier.ABMStudioNEOSaveLoadHandler,AdditionalBoneModifierStudioNEO") != null;
             }
 
             private static MethodInfo TargetMethod()
@@ -1040,7 +1199,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static readonly Dictionary<GuideObject, bool> _instanceData = new Dictionary<GuideObject, bool>(); //Apparently, doing this is faster than having a simple HashSet...
@@ -1089,7 +1248,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(Studio.Studio __instance)
@@ -1102,12 +1261,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(ChangeAmount), "set_scale", new[] {typeof(Vector3)})]
+        [HarmonyPatch(typeof(ChangeAmount), "set_scale", new[] { typeof(Vector3) })]
         public static class ChangeAmount_set_scale_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(ChangeAmount __instance)
@@ -1131,12 +1290,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(GuideObject), "set_calcScale", new[] {typeof(bool)})]
+        [HarmonyPatch(typeof(GuideObject), "set_calcScale", new[] { typeof(bool) })]
         public static class GuideObject_set_calcScale_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             public static void Postfix(GuideObject __instance)
@@ -1145,12 +1304,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(GuideObject), "set_enableScale", new[] {typeof(bool)})]
+        [HarmonyPatch(typeof(GuideObject), "set_enableScale", new[] { typeof(bool) })]
         public static class GuideObject_set_enableScale_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(GuideObject __instance)
@@ -1159,12 +1318,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(GuideObject), "set_enablePos", new[] {typeof(bool)})]
+        [HarmonyPatch(typeof(GuideObject), "set_enablePos", new[] { typeof(bool) })]
         public static class GuideObject_set_enablePos_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(GuideObject __instance)
@@ -1173,12 +1332,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(GuideObject), "set_enableRot", new[] {typeof(bool)})]
+        [HarmonyPatch(typeof(GuideObject), "set_enableRot", new[] { typeof(bool) })]
         public static class GuideObject_set_enableRot_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(GuideObject __instance)
@@ -1187,16 +1346,16 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(OCIChar), "OnAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIFolder), "OnAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIItem), "OnAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCILight), "OnAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIPathMove), "OnAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
+        [HarmonyPatch(typeof(OCIChar), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIFolder), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIItem), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCILight), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIPathMove), "OnAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
         public static class ObjectCtrlInfo_OnAttach_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
@@ -1205,16 +1364,16 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(OCIChar), "OnLoadAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIFolder), "OnLoadAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIItem), "OnLoadAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCILight), "OnLoadAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
-        [HarmonyPatch(typeof(OCIPathMove), "OnLoadAttach", new[] {typeof(TreeNodeObject), typeof(ObjectCtrlInfo)})]
+        [HarmonyPatch(typeof(OCIChar), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIFolder), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIItem), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCILight), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
+        [HarmonyPatch(typeof(OCIPathMove), "OnLoadAttach", new[] { typeof(TreeNodeObject), typeof(ObjectCtrlInfo) })]
         public static class ObjectCtrlInfo_OnLoadAttach_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(ObjectCtrlInfo __instance, TreeNodeObject _parent, ObjectCtrlInfo _child)
@@ -1232,7 +1391,7 @@ namespace HSUS
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(ObjectCtrlInfo __instance)
@@ -1241,12 +1400,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(TreeNodeCtrl), "SetSelectNode", new[] {typeof(TreeNodeObject)})]
+        [HarmonyPatch(typeof(TreeNodeCtrl), "SetSelectNode", new[] { typeof(TreeNodeObject) })]
         public static class TreeNodeCtrl_SetSelectNode_Patches
         {
             public static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             public static void Postfix(TreeNodeCtrl __instance, TreeNodeObject _node)
@@ -1265,6 +1424,7 @@ namespace HSUS
                 return TryGetLoop(_node.parent);
             }
         }
+#endif
 
         [HarmonyPatch(typeof(WorkspaceCtrl), "Awake")]
         internal static class WorkspaceCtrl_Awake_Patches
@@ -1275,15 +1435,20 @@ namespace HSUS
 
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static void Postfix(WorkspaceCtrl __instance, TreeNodeCtrl ___treeNodeCtrl)
             {
                 RectTransform viewport = __instance.transform.Find("Image Bar/Scroll View").GetComponent<ScrollRect>().viewport;
                 _search = UIUtility.CreateInputField("Search", viewport.parent, "Search...");
-                _search.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(viewport.offsetMin.x, viewport.offsetMin.y - 2f), new Vector2(viewport.offsetMax.x, viewport.offsetMin.y + 18));
-                viewport.offsetMin += new Vector2(0f, 18f);
+#if HONEYSELECT
+                float height = 18f;
+#elif KOIKATSU || AISHOUJO
+                float height = 22f;
+#endif
+                _search.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(viewport.offsetMin.x, viewport.offsetMin.y - 2f), new Vector2(viewport.offsetMax.x, viewport.offsetMin.y + height));
+                viewport.offsetMin += new Vector2(0f, height);
                 foreach (Text t in _search.GetComponentsInChildren<Text>())
                     t.color = Color.white;
                 Image image = _search.GetComponent<Image>();
@@ -1345,7 +1510,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1361,7 +1526,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1372,12 +1537,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(WorkspaceCtrl), "OnParentage", new[] {typeof(TreeNodeObject), typeof(TreeNodeObject)})]
+        [HarmonyPatch(typeof(WorkspaceCtrl), "OnParentage", new[] { typeof(TreeNodeObject), typeof(TreeNodeObject) })]
         internal static class WorkspaceCtrl_OnParentage_Patches
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1393,7 +1558,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1409,7 +1574,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1425,7 +1590,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1441,7 +1606,7 @@ namespace HSUS
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._binary == HSUS.Binary.Neo;
+                return _optimizeNeo && HSUS._self._binary == Binary.Studio;
             }
 
             private static void Postfix()
@@ -1450,13 +1615,13 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(TreeNodeObject), "SetTreeState", new[] {typeof(TreeNodeObject.TreeState)})]
-        [HarmonyPatch(typeof(TreeNodeObject), "set_treeState", new[] {typeof(TreeNodeObject.TreeState)})]
+        [HarmonyPatch(typeof(TreeNodeObject), "SetTreeState", new[] { typeof(TreeNodeObject.TreeState) })]
+        [HarmonyPatch(typeof(TreeNodeObject), "set_treeState", new[] { typeof(TreeNodeObject.TreeState) })]
         internal static class TreeNodeObject_SetTreeState_MultiPatch
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static void Postfix(TreeNodeObject __instance)
@@ -1467,12 +1632,12 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(Studio.Studio), "LoadScene", new[] {typeof(string)})]
+        [HarmonyPatch(typeof(Studio.Studio), "LoadScene", new[] { typeof(string) })]
         internal static class Studio_LoadScene_MultiPatch
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo;
+                return _optimizeNeo;
             }
 
             private static void Prefix()
@@ -1486,12 +1651,13 @@ namespace HSUS
             }
         }
 
-        [HarmonyPatch(typeof(TreeNodeCtrl), "AddNode", new[] {typeof(string), typeof(TreeNodeObject)})]
+#if HONEYSELECT
+        [HarmonyPatch(typeof(TreeNodeCtrl), "AddNode", new[] { typeof(string), typeof(TreeNodeObject) })]
         internal static class TreeNodeCtrl_AddNode_MultiPatch
         {
             private static bool Prepare()
             {
-                return HSUS._self._optimizeNeo && HSUS._self._translationMethod != null;
+                return _optimizeNeo && HSUS._self._translationMethod != null;
             }
 
             private static void Postfix(TreeNodeObject __result)
@@ -1501,23 +1667,6 @@ namespace HSUS
                 __result.textName = name;
             }
         }
-
-        //[HarmonyPatch(typeof(FBSBase), "ChangeFace", typeof(Dictionary<int, float>), typeof(bool))]
-        //internal static class FBSBase_ChangeFace_Patches
-        //{
-        //    private static void Postfix(FBSBase __instance)
-        //    {
-        //        foreach (FBSTargetInfo fbstargetInfo in __instance.FBSTarget)
-        //        {
-        //            SkinnedMeshRenderer skinnedMeshRenderer = fbstargetInfo.GetSkinnedMeshRenderer();
-        //            foreach (FBSTargetInfo.CloseOpen closeOpen in fbstargetInfo.PtnSet)
-        //            {
-        //                skinnedMeshRenderer.SetBlendShapeWeight(closeOpen.Close, 0);
-        //                skinnedMeshRenderer.SetBlendShapeWeight(closeOpen.Open, 0);
-        //            }
-        //        }
-        //    }
-        //}
 
         [HarmonyPatch(typeof(FBSBase), "CalculateBlendShape")]
         internal static class FaceBlendShape_LateUpdate_Patches

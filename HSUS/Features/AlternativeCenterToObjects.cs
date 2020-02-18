@@ -2,13 +2,47 @@
 using System;
 using System.Reflection;
 using Harmony;
+#else
+using HarmonyLib;
+#endif
+using System.Xml;
 using Manager;
 using Studio;
+using ToolBox;
+using ToolBox.Extensions;
+using UnityEngine;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class AlternativeCenterToObjects
+    public class AlternativeCenterToObjects : IFeature
     {
+        private static bool _alternativeCenterToObject = true;
+        
+        public void Awake()
+        {
+        }
+
+        public void LoadParams(XmlNode node)
+        {
+            node = node.FindChildNode("alternativeCenterToObject");
+            if (node == null)
+                return;
+            if (node.Attributes["enabled"] != null)
+                _alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("alternativeCenterToObject");
+            writer.WriteAttributeString("enabled", XmlConvert.ToString(_alternativeCenterToObject));
+            writer.WriteEndElement();
+        }
+
+        public void LevelLoaded()
+        {
+        }
+
+#if HONEYSELECT
         [HarmonyPatch]
         public static class HSSNAShortcutKeyCtrlOverride_Update_Patches
         {
@@ -18,7 +52,7 @@ namespace HSUS
             private static bool Prepare()
             {
                 Type t = Type.GetType("HSStudioNEOAddon.ShortcutKey.HSSNAShortcutKeyCtrlOverride,HSStudioNEOAddon");
-                if (HSUS._self._binary == HSUS.Binary.Neo && HSUS._self._alternativeCenterToObject && t != null)
+                if (HSUS._self._binary == Binary.Studio && _alternativeCenterToObject && t != null)
                 {
                     _getKeyDownMethod = t.GetMethod("GetKeyDown", BindingFlags.NonPublic | BindingFlags.Instance);
                     return true;
@@ -39,6 +73,26 @@ namespace HSUS
                     ___cameraControl.targetPos = GuideObjectManager.Instance.selectObject.transformTarget.position;
             }
         }
+#else
+        [HarmonyPatch(typeof(ShortcutKeyCtrl), "Update")]
+        public static class ShortcutKeyCtrl_Update_Patches
+        {
+            private static bool Prepare()
+            {
+                return HSUS._self._binary == Binary.Studio && _alternativeCenterToObject;
+            }
+
+            private static void Postfix(Studio.CameraControl ___cameraControl)
+            {
+                if (UnityEngine.Input.GetKeyDown(KeyCode.F))
+                {
+                    GuideObject selectedObject = GuideObjectManager.Instance.selectObject;
+                    if (selectedObject != null)
+                        ___cameraControl.targetPos = selectedObject.transformTarget.position;
+                }
+
+            }
+        }
+#endif
     }
 }
-#endif

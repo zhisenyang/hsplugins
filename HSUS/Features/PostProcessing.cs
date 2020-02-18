@@ -1,17 +1,158 @@
-﻿#if HONEYSELECT
+﻿using System.Xml;
+#if HONEYSELECT
 using System;
 using System.Reflection;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
-#endif
 using Harmony;
+#elif KOIKATSU
+using HarmonyLib;
+#endif
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class PostProcessing
+    public class PostProcessing : IFeature
     {
+#if HONEYSELECT
+        private static bool _ssaoEnabled = true;
+        private static bool _bloomEnabled = true;
+        private static bool _ssrEnabled = true;
+        private static bool _dofEnabled = true;
+        private static bool _vignetteEnabled = true;
+        private static bool _fogEnabled = true;
+        private static bool _sunShaftsEnabled = false;
+#elif KOIKATSU
+        private static bool _ssaoEnabled = true;
+        private static bool _bloomEnabled = true;
+        private static bool _selfShadowEnabled = true;
+        private static bool _dofEnabled = false;
+        private static bool _vignetteEnabled = true;
+        private static bool _fogEnabled = false;
+        private static bool _sunShaftsEnabled = false;
+#endif
+
+        public void Awake()
+        {
+
+        }
+
+        public void LoadParams(XmlNode node)
+        {
+#if HONEYSELECT || KOIKATSU
+            node = node.FindChildNode("postProcessing");
+            if (node == null)
+                return;
+            foreach (XmlNode childNode in node.ChildNodes)
+            {
+                switch (childNode.Name)
+                {
+                    case "depthOfField":
+                        if (childNode.Attributes["enabled"] != null)
+                            _dofEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "ssao":
+                        if (childNode.Attributes["enabled"] != null)
+                            _ssaoEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "bloom":
+                        if (childNode.Attributes["enabled"] != null)
+                            _bloomEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+#if HONEYSELECT
+                    case "ssr":
+                        if (childNode.Attributes["enabled"] != null)
+                            _ssrEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+#elif KOIKATSU
+                    case "selfShadow":
+                        if (childNode.Attributes["enabled"] != null)
+                            _selfShadowEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+#endif
+                    case "vignette":
+                        if (childNode.Attributes["enabled"] != null)
+                            _vignetteEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "fog":
+                        if (childNode.Attributes["enabled"] != null)
+                            _fogEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                    case "sunShafts":
+                        if (childNode.Attributes["enabled"] != null)
+                            _sunShaftsEnabled = XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value);
+                        break;
+                }
+            }
+#endif
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+#if HONEYSELECT || KOIKATSU
+            writer.WriteStartElement("postProcessing");
+
+            {
+                writer.WriteStartElement("depthOfField");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_dofEnabled));
+                writer.WriteEndElement();
+            }
+
+            {
+                writer.WriteStartElement("ssao");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_ssaoEnabled));
+                writer.WriteEndElement();
+            }
+
+            {
+                writer.WriteStartElement("bloom");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_bloomEnabled));
+                writer.WriteEndElement();
+            }
+
+#if HONEYSELECT
+            {
+                writer.WriteStartElement("ssr");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_ssrEnabled));
+                writer.WriteEndElement();
+            }
+#elif KOIKATSU || AISHOUJO
+            {
+                writer.WriteStartElement("selfShadow");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_selfShadowEnabled));
+                writer.WriteEndElement();
+            }
+#endif
+
+            {
+                writer.WriteStartElement("vignette");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_vignetteEnabled));
+                writer.WriteEndElement();
+            }
+
+            {
+                writer.WriteStartElement("fog");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_fogEnabled));
+                writer.WriteEndElement();
+            }
+
+            {
+                writer.WriteStartElement("sunShafts");
+                writer.WriteAttributeString("enabled", XmlConvert.ToString(_sunShaftsEnabled));
+                writer.WriteEndElement();
+            }
+
+            writer.WriteEndElement();
+
+#endif
+        }
+
+        public void LevelLoaded()
+        {
+        }
+
+#if HONEYSELECT || KOIKATSU
         [HarmonyPatch(typeof(SystemButtonCtrl), "Init")]
         public class SystemButtonCtrl_Init_Patches
         {
@@ -23,26 +164,26 @@ namespace HSUS
             internal static void ResetPostProcessing(SystemButtonCtrl __instance)
             {
 #if HONEYSELECT
-                __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
-                __instance.GetPrivate("ssrInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssrEnabled);
+                __instance.GetPrivate("ssaoInfo").CallPrivate("OnValueChangedEnable", _ssaoEnabled);
+                __instance.GetPrivate("ssrInfo").CallPrivate("OnValueChangedEnable", _ssrEnabled);
 #elif KOIKATSU
-            __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("OnValueChangedEnable", HSUS._self._ssaoEnabled);
-            __instance.GetPrivate("selfShadowInfo").CallPrivate("OnValueChangedEnable", HSUS._self._selfShadowEnabled);
+                __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("OnValueChangedEnable", _ssaoEnabled);
+                __instance.GetPrivate("selfShadowInfo").CallPrivate("OnValueChangedEnable", _selfShadowEnabled);
 #endif
-                __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", HSUS._self._sunShaftsEnabled);
-                __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", HSUS._self._fogEnabled);
-                __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", HSUS._self._dofEnabled);
-                __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", HSUS._self._bloomEnabled);
-                __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", HSUS._self._vignetteEnabled);
+                __instance.GetPrivate("sunShaftsInfo").CallPrivate("OnValueChangedEnable", _sunShaftsEnabled);
+                __instance.GetPrivate("fogInfo").CallPrivate("OnValueChangedEnable", _fogEnabled);
+                __instance.GetPrivate("dofInfo").CallPrivate("OnValueChangedEnable", _dofEnabled);
+                __instance.GetPrivate("bloomInfo").CallPrivate("OnValueChangedEnable", _bloomEnabled);
+                __instance.GetPrivate("vignetteInfo").CallPrivate("OnValueChangedEnable", _vignetteEnabled);
 
 #if KOIKATSU
-            __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("UpdateInfo"); //No I don't care about caching the results the first time, it's annoying.
-            __instance.GetPrivate("selfShadowInfo").CallPrivate("UpdateInfo");
-            __instance.GetPrivate("sunShaftsInfo").CallPrivate("UpdateInfo");
-            __instance.GetPrivate("fogInfo").CallPrivate("UpdateInfo");
-            __instance.GetPrivate("dofInfo").CallPrivate("UpdateInfo");
-            __instance.GetPrivate("bloomInfo").CallPrivate("UpdateInfo");
-            __instance.GetPrivate("vignetteInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("amplifyOcculusionEffectInfo").CallPrivate("UpdateInfo"); //No I don't care about caching the results the first time, it's annoying.
+                __instance.GetPrivate("selfShadowInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("sunShaftsInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("fogInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("dofInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("bloomInfo").CallPrivate("UpdateInfo");
+                __instance.GetPrivate("vignetteInfo").CallPrivate("UpdateInfo");
 #endif
             }
         }
@@ -55,57 +196,6 @@ namespace HSUS
                 SystemButtonCtrl_Init_Patches.ResetPostProcessing(__instance);
             }
         }
-
-#if HONEYSELECT
-        //[HarmonyPatch(typeof(ColorCorrectionCurves), "OnRenderImage", new[] { typeof(RenderTexture), typeof(RenderTexture) }), HarmonyAfter("com.joan6694.hsplugins.instrumentation")]
-        //public class ColorCorrectionCurves_OnRenderImage_Patches
-        //{
-        //    private static MethodInfo _smaaMethod;
-        //    private static MethodInfo _bloomMethod;
-        //    private static MethodInfo _tonemappingMethod;
-        //    private static MethodInfo _aberrationMethod;
-
-        //    public static bool Prepare()
-        //    {
-        //        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
-        //        {
-        //            if (assembly.FullName.StartsWith("4KManager"))
-        //            {
-        //                _smaaMethod = assembly.GetType("UnityStandardAssets.CinematicEffects.SMAA").GetMethod("OnRenderImage", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-        //                _bloomMethod = assembly.GetType("UnityStandardAssets.CinematicEffects.Bloom").GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-        //                _tonemappingMethod = assembly.GetType("UnityStandardAssets.CinematicEffects.TonemappingColorGrading").GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-        //                _aberrationMethod = assembly.GetType("UnityStandardAssets.CinematicEffects.LensAberrations").GetMethod("Render", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public | BindingFlags.FlattenHierarchy);
-        //                return true;
-
-        //            }
-        //        }
-        //        return false;
-        //    }
-
-        //    public static bool Prefix(ColorCorrectionCurves __instance, RenderTexture source, RenderTexture destination, object ___m_SMAA, object ___CinematicBloom, object ___Tonemapping, object ___LensAberrations)
-        //    {
-        //        RenderTexture temporary1 = RenderTexture.GetTemporary(source.width, source.height, source.depth, source.format);
-        //        RenderTexture temporary2 = RenderTexture.GetTemporary(source.width, source.height, source.depth, source.format);
-        //        RenderTexture temporary3 = RenderTexture.GetTemporary(source.width, source.height, source.depth, source.format);
-        //        _smaaMethod.Invoke(___m_SMAA, new object[] {__instance.cameraComponent, source, temporary1});
-        //        if (___CinematicBloom != null)
-        //            _bloomMethod.Invoke(___CinematicBloom, new object[]{ temporary1, temporary2 });
-        //        else
-        //            Graphics.Blit(temporary1, temporary2);
-        //        if (___Tonemapping != null)
-        //            _tonemappingMethod.Invoke(___Tonemapping, new object[] { temporary2, temporary3 });
-        //        else
-        //            Graphics.Blit(temporary2, temporary3);
-        //        if (___LensAberrations != null)
-        //            _aberrationMethod.Invoke(___LensAberrations, new object[] { temporary3, destination });
-        //        else
-        //            Graphics.Blit(temporary3, destination);
-        //        RenderTexture.ReleaseTemporary(temporary1);
-        //        RenderTexture.ReleaseTemporary(temporary2);
-        //        RenderTexture.ReleaseTemporary(temporary3);
-        //        return false;
-        //    }
-        //}
 #endif
     }
 }

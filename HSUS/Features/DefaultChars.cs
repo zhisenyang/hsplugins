@@ -1,37 +1,94 @@
-﻿using System.IO;
-using UnityEngine;
-#if  KOIKATSU    
-using ChaCustom;
+﻿using System.Xml;
 using ToolBox;
+using ToolBox.Extensions;
+#if HONEYSELECT
+using System.IO;
+using UnityEngine;
+#elif KOIKATSU
+using ChaCustom;
+#elif AISHOUJO
+using CharaCustom;
 #endif
 
-namespace HSUS
+namespace HSUS.Features
 {
-    public static class DefaultChars
+    public class DefaultChars : IFeature
     {
-        public static void Do(int level)
+        private string _defaultFemaleChar;
+        private string _defaultMaleChar;
+
+        public void Awake()
         {
+        }
+
+        public void LevelLoaded()
+        {
+            if (HSUS._self._binary == Binary.Game &&
 #if HONEYSELECT
-            if (level == 21 && string.IsNullOrEmpty(HSUS._self._defaultFemaleChar) == false)
-                LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), HSUS._self._defaultFemaleChar).Replace("\\", "/"));
+                   HSUS._self._level == 21
 #elif KOIKATSU
-            if (level == 2)
+                   HSUS._self._level == 2
+#elif AISHOUJO
+                HSUS._self._level == 4
+#endif
+            )
             {
+
                 HSUS._self.ExecuteDelayed(() =>
                 {
+#if HONEYSELECT
+                if (string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+                        LoadCustomDefault(Path.Combine(Path.Combine(Path.Combine(UserData.Path, "chara"), "female"), this._defaultFemaleChar).Replace("\\", "/"));
+#elif KOIKATSU
+                switch (CustomBase.Instance.modeSex)
+                {
+                    case 0:
+                        if (string.IsNullOrEmpty(this._defaultMaleChar) == false)
+                            LoadCustomDefault(UserData.Path + "chara/male/" + this._defaultMaleChar);
+                        break;
+                    case 1:
+                        if (string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+                            LoadCustomDefault(UserData.Path + "chara/female/" + this._defaultFemaleChar);
+                        break;
+                }
+#elif AISHOUJO
                     switch (CustomBase.Instance.modeSex)
                     {
                         case 0:
-                            if (string.IsNullOrEmpty(HSUS._self._defaultMaleChar) == false)
-                                LoadCustomDefault(UserData.Path + "chara/male/" + HSUS._self._defaultMaleChar);
+                            if (string.IsNullOrEmpty(this._defaultMaleChar) == false)
+                                LoadCustomDefault(UserData.Path + "chara/male/" + this._defaultMaleChar);
                             break;
                         case 1:
-                            if (string.IsNullOrEmpty(HSUS._self._defaultFemaleChar) == false)
-                                LoadCustomDefault(UserData.Path + "chara/female/" + HSUS._self._defaultFemaleChar);
+                            if (string.IsNullOrEmpty(this._defaultFemaleChar) == false)
+                                LoadCustomDefault(UserData.Path + "chara/female/" + this._defaultFemaleChar);
                             break;
                     }
+#endif
                 });
             }
+        }
+
+
+        public void LoadParams(XmlNode node)
+        {
+            XmlNode femaleNode = node.FindChildNode("defaultFemaleChar");
+            if (femaleNode != null && femaleNode.Attributes["path"] != null)
+                this._defaultFemaleChar = femaleNode.Attributes["path"].Value;
+            XmlNode maleNode = node.FindChildNode("defaultMaleChar");
+            if (maleNode != null && maleNode.Attributes["path"] != null)
+                this._defaultMaleChar = maleNode.Attributes["path"].Value;
+        }
+
+        public void SaveParams(XmlTextWriter writer)
+        {
+            writer.WriteStartElement("defaultFemaleChar");
+            writer.WriteAttributeString("path", this._defaultFemaleChar);
+            writer.WriteEndElement();
+
+#if KOIKATSU || AISHOUJO
+            writer.WriteStartElement("defaultMaleChar");
+            writer.WriteAttributeString("path", this._defaultMaleChar);
+            writer.WriteEndElement();
 #endif
         }
 
@@ -101,6 +158,21 @@ namespace HSUS
             CustomBase.Instance.updateCustomUI = true;
             //CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
         }
+#elif AISHOUJO
+        private static void LoadCustomDefault(string path)
+        {
+            Singleton<CustomBase>.Instance.chaCtrl.chaFile.LoadFileLimited(path, Singleton<CustomBase>.Instance.chaCtrl.sex);
+            Singleton<CustomBase>.Instance.chaCtrl.ChangeNowCoordinate();
+            Singleton<CustomBase>.Instance.chaCtrl.Reload();
+            Singleton<CustomBase>.Instance.updateCustomUI = true;
+            for (int i = 0; i < 20; i++)
+            {
+                Singleton<CustomBase>.Instance.ChangeAcsSlotName(i);
+            }
+            Singleton<CustomBase>.Instance.SetUpdateToggleSetting();
+        }
+
 #endif
+
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
@@ -37,6 +38,7 @@ namespace UILib
 
         private static bool _initCalled = false;
         private static bool _resourcesLoaded = false;
+        private static Action<Action<bool>, string> _displayConfirmationDialog;
 
         public static void Init()
         {
@@ -96,13 +98,13 @@ namespace UILib
             }
 
 #if HONEYSELECT
-            //if (Application.productName == "StudioNEO")
             SetCustomFont("mplus-1c-medium");
 #elif KOIKATSU
             SetCustomFont("SourceHanSansJP-Medium");
 #elif AISHOUJO
             SetCustomFont("Yu Gothic UI Semibold");
 #endif
+            _displayConfirmationDialog = ConfirmationDialog.SpawnUI();
         }
 
         public static Canvas CreateNewUISystem(string name = "NewUISystem")
@@ -296,6 +298,11 @@ namespace UILib
             go.name = objectName;
             go.transform.SetParent(parent, false);
             return go.GetComponent<Image>();
+        }
+
+        public static void DisplayConfirmationDialog(Action<bool> callback, string message = "Are you sure?")
+        {
+            _displayConfirmationDialog(callback, message);
         }
 
         public static Outline AddOutlineToObject(Transform t)

@@ -7,7 +7,8 @@ using System.Reflection;
 using System.Reflection.Emit;
 using CustomMenu;
 using Harmony;
-using ToolBox;
+using HSUS.Features;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
 using UnityEngine.UI;
@@ -118,7 +119,7 @@ namespace HSUS
 
             _translateProperty = typeof(Text).GetProperty("Translate", BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
 
-            if (HSUS._self._asyncLoading)
+            if (OptimizeCharaMaker._asyncLoading)
             {
                 _createListObject = SmFaceSkin_SetCharaInfoSub_Patches.SetCharaInfoSub(originalComponent, originalComponent.customControl.chainfo);
                 HSUS._self._asyncMethods.Add(_createListObject);
@@ -126,8 +127,8 @@ namespace HSUS
 
             originalComponent.objLineBase.transform.Find("Label").GetComponent<Text>().raycastTarget = false;
             originalComponent.objLineBase.transform.Find("Background/Checkmark").GetComponent<Image>().raycastTarget = false;
-            if (HSUS._self._removeIsNew)
-                UnityEngine.Object.Destroy(originalComponent.objLineBase.transform.Find("imgNew").gameObject);
+            if (OptimizeCharaMaker._removeIsNew)
+                UnityEngine.GameObject.Destroy(originalComponent.objLineBase.transform.Find("imgNew").gameObject);
         }
 
         private static void Reset()
@@ -218,7 +219,7 @@ namespace HSUS
     {
         public static bool Prepare()
         {
-            return HSUS._self._optimizeCharaMaker;
+            return OptimizeCharaMaker._optimizeCharaMaker;
         }
 
         public static bool Prefix(SmFaceSkin __instance, CharInfo ___chaInfo, CharFileInfoCustom ___customInfo)
@@ -303,7 +304,7 @@ namespace HSUS
                 rectTransform.localScale = Vector3.one;
                 rectTransform.sizeDelta = new Vector2(SmFaceSkin_Data.containerHead.rect.width, 24f);
                 Text component = rectTransform.FindChild("Label").GetComponent<Text>();
-                if (HSUS._self._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmFaceSkin_Data._translateProperty.SetValue(component, false, null);
                     string t = fbxTypeInfo.typeName;
@@ -350,7 +351,7 @@ namespace HSUS
                 rectTransform2.localScale = new Vector3(1f, 1f, 1f);
                 rectTransform2.sizeDelta = new Vector2(SmFaceSkin_Data.containerSkin.rect.width, 24f);
                 Text component4 = rectTransform2.FindChild("Label").GetComponent<Text>();
-                if (HSUS._self._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmFaceSkin_Data._translateProperty.SetValue(component4, false, null);
                     string t = texTypeInfo.typeName;
@@ -392,7 +393,7 @@ namespace HSUS
                 rectTransform3.localScale = new Vector3(1f, 1f, 1f);
                 rectTransform3.sizeDelta = new Vector2(SmFaceSkin_Data.containerDetail.rect.width, 24f);
                 Text component7 = rectTransform3.FindChild("Label").GetComponent<Text>();
-                if (HSUS._self._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
+                if (OptimizeCharaMaker._asyncLoading && SmFaceSkin_Data._translateProperty != null) // Fuck you translation plugin
                 {
                     SmFaceSkin_Data._translateProperty.SetValue(component7, false, null);
                     string t = texTypeInfo2.typeName;
