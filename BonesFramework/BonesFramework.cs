@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 #if HONEYSELECT
 using Harmony;
 using IllusionPlugin;
@@ -35,12 +36,12 @@ namespace BonesFramework
 
         #region Private Variables
         private static BonesFramework _self;
-        private static GameObject _currentLoadingCloth;
+        private static GameObject _currentLoadingObject;
         private static readonly HashSet<string> _currentAdditionalRootBones = new HashSet<string>();
         private static Transform _currentTransformParent;
         private static readonly Dictionary<GameObject, AdditionalObjectData> _currentAdditionalObjects = new Dictionary<GameObject, AdditionalObjectData>();
         private const string _name = "BonesFramework";
-        private const string _version = "1.2.1";
+        private const string _version = "1.3.0";
         private const string _guid = "com.joan6694.illusionplugins.bonesframework";
         #endregion
 
@@ -65,21 +66,29 @@ namespace BonesFramework
 #elif AISHOUJO
                 harmony.Patch(typeof(ChaControl).GetCoroutineMethod("LoadCharaFbxDataAsync"),
 #endif
-                              null,
-                              null,
-                              new HarmonyMethod(typeof(BonesFramework), nameof(CharBody_LoadCharaFbxDataAsync_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
+                        transpiler: new HarmonyMethod(typeof(BonesFramework), nameof(CharBody_LoadCharaFbxDataAsync_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeights", new[] { typeof(GameObject), typeof(string), typeof(Transform) }),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] { typeof(Transform), typeof(Transform) }),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsLoop_Prefix)));
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsLoop_Prefix)));
 
 #if AISHOUJO
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBounds", new[] { typeof(GameObject), typeof(string), typeof(Bounds), typeof(Transform) }),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBoundsLoop", new[] { typeof(Transform), typeof(Bounds), typeof(Transform) }),
-                              new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix)));
+                        new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix)));
+
+                Type uncensorSelectorType = Type.GetType("KK_Plugins.UncensorSelector+UncensorSelectorController,AI_UncensorSelector");
+                if (uncensorSelectorType != null)
+                {
+                    MethodInfo uncensorSelectorReloadCharacterBody = AccessTools.Method(uncensorSelectorType, "ReloadCharacterBody");
+                    if (uncensorSelectorReloadCharacterBody != null)
+                    {
+                        harmony.Patch(uncensorSelectorReloadCharacterBody, transpiler: new HarmonyMethod(typeof(BonesFramework), nameof(UncensorSelector_ReloadCharacterBody_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
+                    }
+                }
 #endif
                 UnityEngine.Debug.Log("BonesFramework: Patch successful!");
             }
@@ -90,7 +99,114 @@ namespace BonesFramework
         }
         #endregion
 
+        #region Private Methods
+        private static void LoadAdditionalBonesForCurrent(string assetBundlePath, string assetName, string manifest)
+        {
+            TextAsset ta = CommonLib.LoadAsset<TextAsset>(assetBundlePath, "additional_bones", true, manifest);
+            if (ta == null)
+                return;
+            UnityEngine.Debug.Log("BonesFramework: Loaded additional_bones TextAsset from " + assetBundlePath);
+
+            string[] lines = ta.text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string line in lines)
+            {
+                string[] cells = line.Split('\t');
+                if (!cells[0].Equals(assetName))
+                    continue;
+                UnityEngine.Debug.Log("BonesFramework: Found matching line for asset " + assetName + "\n" + line);
+
+                _currentAdditionalObjects.Add(_currentLoadingObject, new AdditionalObjectData());
+
+                EventTrigger eventTrigger = _currentLoadingObject.AddComponent<EventTrigger>();
+                eventTrigger.onStart = (self2) => _self.ExecuteDelayed(() => ResetDynamicBones(self2.transform.parent.GetComponentsInChildren<DynamicBone>(true)));
+                eventTrigger.onDestroy = DeleteBonesForObject;
+
+                for (int i = 1; i < cells.Length; i++)
+                    _currentAdditionalRootBones.Add(cells[i]);
+                break;
+            }
+        }
+
+        private static void DeleteBonesForObject(GameObject go)
+        {
+            AdditionalObjectData data;
+            if (_currentAdditionalObjects.TryGetValue(go, out data) == false)
+                return;
+            DynamicBone[] dbs = null;
+            if (data.parent != null)
+                dbs = data.parent.GetComponentsInChildren<DynamicBone>(true);
+            foreach (GameObject o in data.objects)
+            {
+                if (dbs != null)
+                {
+                    DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
+                    foreach (DynamicBoneCollider collider in colliders)
+                    {
+                        foreach (DynamicBone dynamicBone in dbs)
+                        {
+                            int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
+                            if (index != -1)
+                                dynamicBone.m_Colliders.RemoveAt(index);
+                        }
+                    }
+                }
+                GameObject.DestroyImmediate(o);
+            }
+            _currentAdditionalObjects.Remove(go);
+            if (data.parent != null)
+                _self.ExecuteDelayed(() => ResetDynamicBones(data.parent.transform.parent.GetComponentsInChildren<DynamicBone>(true)));
+
+        }
+
+        private static void ResetDynamicBones(DynamicBone[] dbs)
+        {
+            foreach (DynamicBone dynamicBone in dbs)
+            {
+                dynamicBone.InitTransforms();
+                dynamicBone.SetupParticles();
+            }
+        }
+        #endregion
+
         #region Patches
+        private static IEnumerable<CodeInstruction> CharBody_LoadCharaFbxDataAsync_Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            bool set = false;
+            foreach (CodeInstruction inst in instructions)
+            {
+                yield return inst;
+                if (set == false && inst.ToString().Contains("AddLoadAssetBundle")) //There's probably something better but idk m8
+                {
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return new CodeInstruction(OpCodes.Call, typeof(BonesFramework).GetMethod(nameof(CharBody_LoadCharaFbxDataAsync_Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                    set = true;
+                }
+            }
+        }
+
+        private static void CharBody_LoadCharaFbxDataAsync_Injected(object self)
+        {
+#if HONEYSELECT
+            _currentLoadingObject = (GameObject)self.GetPrivate("<newObj>__6");
+#elif AISHOUJO
+            _currentLoadingObject = (GameObject)self.GetPrivate("$locvar2").GetPrivate("newObj");
+#endif
+            _currentAdditionalRootBones.Clear();
+            if (_currentLoadingObject == null)
+                return;
+#if HONEYSELECT
+            ListTypeFbx ltf = (ListTypeFbx)self.GetPrivate("<ltf>__3");
+            string assetBundlePath = ltf.ABPath;
+            string assetName = (string)self.GetPrivate("<assetName>__5");
+            string manifest = ltf.Manifest;
+#elif AISHOUJO
+            string assetBundlePath = (string)self.GetPrivate("<assetBundleName>__0");
+            string assetName = (string)self.GetPrivate("<assetName>__0");
+            string manifest = (string)self.GetPrivate("<manifestName>__0");
+#endif
+            LoadAdditionalBonesForCurrent(assetBundlePath, assetName, manifest);
+        }
+
         private static void AssignedAnotherWeights_AssignedWeights_Prefix(GameObject obj)
         {
             _currentTransformParent = obj.transform.parent.Find("p_cf_anim");
@@ -105,9 +221,9 @@ namespace BonesFramework
         private static void AssignedAnotherWeights_AssignedWeights_Postfix()
         {
             AdditionalObjectData data;
-            if (_currentLoadingCloth != null && _currentAdditionalObjects.TryGetValue(_currentLoadingCloth, out data))
+            if (_currentLoadingObject != null && _currentAdditionalObjects.TryGetValue(_currentLoadingObject, out data))
             {
-                data.parent = _currentLoadingCloth.transform.parent.gameObject;
+                data.parent = _currentLoadingObject.transform.parent.gameObject;
                 _self.ExecuteDelayed(() =>
                 {
                     IEnumerable<DynamicBoneCollider> colliders = data.objects.SelectMany(go => go.GetComponentsInChildren<DynamicBoneCollider>(true));
@@ -122,7 +238,7 @@ namespace BonesFramework
                 });
             }
 
-            _currentLoadingCloth = null;
+            _currentLoadingObject = null;
         }
 
         private static bool AssignedAnotherWeights_AssignedWeightsLoop_Prefix(AssignedAnotherWeights __instance, Transform t, Transform rootBone)
@@ -138,8 +254,7 @@ namespace BonesFramework
                     Transform bone = component.bones[i];
                     if (__instance.dictBone.TryGetValue(bone.name, out gameObject))
                         array[i] = gameObject.transform;
-                    else if (_currentAdditionalRootBones.Count != 0 &&
-                             _currentAdditionalRootBones.Any(bone.IsChildOf))
+                    else if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
                         array[i] = bone;
                 }
 
@@ -163,7 +278,7 @@ namespace BonesFramework
                     obj.localPosition = localPos;
                     obj.localRotation = localRot;
                     obj.localScale = localScale;
-                    _currentAdditionalObjects[_currentLoadingCloth].objects.Add(obj.gameObject);
+                    _currentAdditionalObjects[_currentLoadingObject].objects.Add(obj.gameObject);
                     --i;
                 }
                 else
@@ -187,8 +302,7 @@ namespace BonesFramework
                     Transform bone = renderer.bones[i];
                     if (__instance.dictBone.TryGetValue(bone.name, out gameObject))
                         array[i] = gameObject.transform;
-                    else if (_currentAdditionalRootBones.Count != 0 &&
-                             _currentAdditionalRootBones.Any(bone.IsChildOf))
+                    else if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
                         array[i] = bone;
                 }
 
@@ -214,7 +328,7 @@ namespace BonesFramework
                     obj.localPosition = localPos;
                     obj.localRotation = localRot;
                     obj.localScale = localScale;
-                    _currentAdditionalObjects[_currentLoadingCloth].objects.Add(obj.gameObject);
+                    _currentAdditionalObjects[_currentLoadingObject].objects.Add(obj.gameObject);
                     --i;
                 }
                 else
@@ -223,114 +337,101 @@ namespace BonesFramework
 
             return false;
         }
-#endif
 
-        private static IEnumerable<CodeInstruction> CharBody_LoadCharaFbxDataAsync_Transpiler(IEnumerable<CodeInstruction> instructions)
+        private static IEnumerable<CodeInstruction> UncensorSelector_ReloadCharacterBody_Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             bool set = false;
             foreach (CodeInstruction inst in instructions)
             {
                 yield return inst;
-                if (set == false && inst.ToString().Contains("AddLoadAssetBundle")) //There's probably something better but idk m8
+                if (set == false && inst.opcode == OpCodes.Call && inst.ToString().Contains("LoadAsset"))
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Call, typeof(BonesFramework).GetMethod(nameof(CharBody_LoadCharaFbxDataAsync_Injected), BindingFlags.NonPublic | BindingFlags.Static));
+                    yield return new CodeInstruction(OpCodes.Ldloc_0);
+                    yield return new CodeInstruction(OpCodes.Ldloc_1);
+                    yield return new CodeInstruction(OpCodes.Call, typeof(BonesFramework).GetMethod(nameof(UncensorSelector_ReloadCharacterBody_Injected), BindingFlags.NonPublic | BindingFlags.Static));
                     set = true;
                 }
             }
         }
 
-        private static void CharBody_LoadCharaFbxDataAsync_Injected(object self)
+        private static GameObject UncensorSelector_ReloadCharacterBody_Injected(GameObject loadedObject, object __instance, string ooBase, string asset)
         {
-#if HONEYSELECT
-            _currentLoadingCloth = (GameObject)self.GetPrivate("<newObj>__6");
-#elif AISHOUJO
-            _currentLoadingCloth = (GameObject)self.GetPrivate("$locvar2").GetPrivate("newObj");
-#endif
+            ChaControl chaControl = (ChaControl)__instance.GetPrivateProperty("ChaControl");
+            if (chaControl == null)
+                return loadedObject;
             _currentAdditionalRootBones.Clear();
-            if (_currentLoadingCloth == null)
-                return;
-#if HONEYSELECT
-            ListTypeFbx ltf = (ListTypeFbx)self.GetPrivate("<ltf>__3");
-            string assetBundlePath = ltf.ABPath;
-            string assetName = (string)self.GetPrivate("<assetName>__5");
-            string manifest = ltf.Manifest;
-#elif AISHOUJO
-            string assetBundlePath = (string)self.GetPrivate("<assetBundleName>__0");
-            string assetName = (string)self.GetPrivate("<assetName>__0");
-            string manifest = (string)self.GetPrivate("<manifestName>__0");
-#endif
-            if (AssetBundleCheck.IsFile(assetBundlePath, assetName) == false)
-                return;
-            TextAsset ta = CommonLib.LoadAsset<TextAsset>(assetBundlePath, "additional_bones", true, manifest);
-            if (ta == null)
-                return;
+            DeleteBonesForObject(chaControl.objBodyBone);
+            DestroyImmediate(chaControl.objBodyBone.GetComponent<EventTrigger>());
+            _currentLoadingObject = chaControl.objBodyBone;
+            LoadAdditionalBonesForCurrent(ooBase, asset, "");
 
-            UnityEngine.Debug.Log("BonesFramework: Loaded additional_bones TextAsset from " + assetBundlePath);
-
-            string[] lines = ta.text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
-            foreach (string line in lines)
+            if (_currentAdditionalRootBones.Count != 0)
             {
-                string[] cells = line.Split('\t');
-                if (!cells[0].Equals(assetName))
-                    continue;
-                UnityEngine.Debug.Log("BonesFramework: Found matching line for asset " + assetName + "\n" + line);
+                AdditionalObjectData additionalObjectData = _currentAdditionalObjects[_currentLoadingObject];
+                RecurseTransforms(loadedObject.transform, bone =>
+                {
+                    if (_currentAdditionalRootBones.Contains(bone.name))
+                    {
+                        Transform parent = chaControl.objBodyBone.transform.FindDescendant(bone.parent.name);
+                        Vector3 localPos = bone.localPosition;
+                        Quaternion localRot = bone.localRotation;
+                        Vector3 localScale = bone.localScale;
+                        //string cachedName = bone.name;
+                        //bone = Instantiate(bone);
+                        //bone.name = cachedName;
+                        bone.SetParent(parent);
+                        bone.localPosition = localPos;
+                        bone.localRotation = localRot;
+                        bone.localScale = localScale;
+                        additionalObjectData.objects.Add(bone.gameObject);
+                        return true;
+                    }
+                    return false;
+                });
+                foreach (SkinnedMeshRenderer newRenderer in loadedObject.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    HashSet<Transform> newBones = new HashSet<Transform>();
+                    SkinnedMeshRenderer oldRenderer = chaControl.objBodyBone.transform.parent.parent.FindDescendant(newRenderer.name)?.GetComponent<SkinnedMeshRenderer>();
+                    if (oldRenderer == null)
+                        continue;
 
-                _currentAdditionalObjects.Add(_currentLoadingCloth, new AdditionalObjectData());
-                OnDestroyTrigger destroyTrigger = _currentLoadingCloth.AddComponent<OnDestroyTrigger>();
-                destroyTrigger.onStart = (self2) =>
-                {
-                    _self.ExecuteDelayed(() =>
+                    foreach (Transform newRendererBone in newRenderer.bones)
                     {
-                        foreach (DynamicBone dynamicBone in self2.transform.parent.GetComponentsInChildren<DynamicBone>(true))
+                        foreach (GameObject additionalObject in additionalObjectData.objects)
                         {
-                            dynamicBone.InitTransforms();
-                            dynamicBone.SetupParticles();
-                        }
-                    });
-                };
-                destroyTrigger.onDestroy = (go) =>
-                {
-                    AdditionalObjectData data = _currentAdditionalObjects[go];
-                    DynamicBone[] dbs = null;
-                    if (data.parent != null)
-                        dbs = data.parent.GetComponentsInChildren<DynamicBone>(true);
-                    foreach (GameObject o in data.objects)
-                    {
-                        if (dbs != null)
-                        {
-                            DynamicBoneCollider[] colliders = o.GetComponentsInChildren<DynamicBoneCollider>(true);
-                            foreach (DynamicBoneCollider collider in colliders)
+                            if (newRendererBone.IsChildOf(additionalObject.transform))
                             {
-                                foreach (DynamicBone dynamicBone in dbs)
-                                {
-                                    int index = dynamicBone.m_Colliders.FindIndex(c => c == collider);
-                                    if (index != -1)
-                                        dynamicBone.m_Colliders.RemoveAt(index);
-                                }
+                                //Transform oldRendererBone = chaControl.objBodyBone.transform.FindDescendant(newRendererBone.name);
+                                //if (oldRendererBone != null && newBones.Contains(oldRendererBone) == false)
+                                //    newBones.Add(oldRendererBone);
+                                newBones.Add(newRendererBone);
                             }
                         }
-                        GameObject.Destroy(o);
                     }
-                    _currentAdditionalObjects.Remove(go);
-                    if (data.parent != null)
+                    foreach (Transform oldRendererBone in oldRenderer.bones)
                     {
-                        _self.ExecuteDelayed(() =>
-                        {
-                            foreach (DynamicBone dynamicBone in data.parent.transform.parent.GetComponentsInChildren<DynamicBone>(true))
-                            {
-                                dynamicBone.InitTransforms();
-                                dynamicBone.SetupParticles();
-                            }
-                        });
+                        if (oldRendererBone != null && newBones.Contains(oldRendererBone) == false)
+                            newBones.Add(oldRendererBone);
                     }
-                };
+                    oldRenderer.bones = newBones.ToArray();
+                }
+            }
+            return loadedObject;
+        }
 
-                for (int i = 1; i < cells.Length; i++)
-                    _currentAdditionalRootBones.Add(cells[i]);
-                break;
+        private static void RecurseTransforms(Transform t, Func<Transform, bool> onBone)
+        {
+            for (int i = 0; i < t.childCount; ++i)
+            {
+                Transform child = t.GetChild(i);
+                if (onBone(child))
+                    --i;
+                else
+                    RecurseTransforms(child, onBone);
             }
         }
+#endif
         #endregion
     }
 }

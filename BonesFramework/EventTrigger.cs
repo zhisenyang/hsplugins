@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace BonesFramework
 {
-    public class OnDestroyTrigger : MonoBehaviour
+    public class EventTrigger : MonoBehaviour
     {
-        public Action<OnDestroyTrigger> onStart;
+        public Action<EventTrigger> onStart;
 
         private void Start()
         {
