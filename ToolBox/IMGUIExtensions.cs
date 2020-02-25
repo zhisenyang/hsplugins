@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ToolBox.Extensions {
@@ -30,6 +31,19 @@ namespace ToolBox.Extensions {
             GUI.Box(rect, "", _customBoxStyle);
             GUI.backgroundColor = c;
 
+        }
+
+        private static readonly Stack<Color> _colorStack = new Stack<Color>(new[] {Color.white});
+        public static void PushColor(Color c)
+        {
+            _colorStack.Push(c);
+            GUI.color = c;
+        }
+
+        public static void PopColor()
+        {
+            _colorStack.Pop();
+            GUI.color = _colorStack.Peek();
         }
 
         public static void HorizontalSliderWithValue(string label, float value, float left, float right, string valueFormat = "", Action<float> onChanged = null)

@@ -54,6 +54,20 @@ namespace ToolBox.Extensions {
             self.WriteAttributeString(label, XmlConvert.ToString(value));
         }
 
+        public static Vector2 ReadVector2(this XmlNode self, string prefix)
+        {
+            return new Vector2(
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}X"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Y"].Value)
+            );
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string prefix, Vector2 value)
+        {
+            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.x));
+            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.y));
+        }
+
         public static Vector3 ReadVector3(this XmlNode self, string prefix)
         {
             return new Vector3(
@@ -68,6 +82,24 @@ namespace ToolBox.Extensions {
             self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.x));
             self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.y));
             self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.z));
+        }
+
+        public static Vector4 ReadVector4(this XmlNode self, string prefix)
+        {
+            return new Vector4(
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}X"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Y"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}Z"].Value),
+                    XmlConvert.ToSingle(self.Attributes[$"{prefix}W"].Value)
+            );
+        }
+
+        public static void WriteValue(this XmlTextWriter self, string prefix, Vector4 value)
+        {
+            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.x));
+            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.y));
+            self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.z));
+            self.WriteAttributeString($"{prefix}W", XmlConvert.ToString(value.w));
         }
 
         public static Quaternion ReadQuaternion(this XmlNode self, string prefix)
@@ -100,10 +132,10 @@ namespace ToolBox.Extensions {
 
         public static void WriteValue(this XmlTextWriter self, string prefix, Color value)
         {
-            self.WriteAttributeString($"{prefix}X", XmlConvert.ToString(value.r));
-            self.WriteAttributeString($"{prefix}Y", XmlConvert.ToString(value.g));
-            self.WriteAttributeString($"{prefix}Z", XmlConvert.ToString(value.b));
-            self.WriteAttributeString($"{prefix}W", XmlConvert.ToString(value.a));
+            self.WriteAttributeString($"{prefix}R", XmlConvert.ToString(value.r));
+            self.WriteAttributeString($"{prefix}G", XmlConvert.ToString(value.g));
+            self.WriteAttributeString($"{prefix}B", XmlConvert.ToString(value.b));
+            self.WriteAttributeString($"{prefix}A", XmlConvert.ToString(value.a));
         }
 
     }

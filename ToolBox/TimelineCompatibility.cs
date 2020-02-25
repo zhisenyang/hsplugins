@@ -14,6 +14,7 @@ namespace ToolBox
     {
         private static MethodInfo _addInterpolableModelStatic;
         private static MethodInfo _addInterpolableModelDynamic;
+        private static Action _refreshInterpolablesList;
         private static Type _interpolableDelegate;
 
         public static void Init(Action onTimelineFound)
@@ -23,6 +24,7 @@ namespace ToolBox
             {
                 _addInterpolableModelStatic = timelineType.GetMethod("AddInterpolableModelStatic", BindingFlags.Public | BindingFlags.Static);
                 _addInterpolableModelDynamic = timelineType.GetMethod("AddInterpolableModelDynamic", BindingFlags.Public | BindingFlags.Static);
+                _refreshInterpolablesList = (Action)Delegate.CreateDelegate(typeof(Action), timelineType.GetMethod("RefreshInterpolablesList", BindingFlags.Public | BindingFlags.Static));
                 _interpolableDelegate = Type.GetType("Timeline.InterpolableDelegate,Timeline");
                 if (onTimelineFound != null)
                     onTimelineFound();
@@ -46,7 +48,8 @@ namespace ToolBox
                                                       Action<ObjectCtrlInfo, XmlTextWriter, object> writeParameterToXml = null,
                                                       Func<ObjectCtrlInfo, object, object, object, bool> checkIntegrity = null,
                                                       bool useOciInHash = true,
-                                                      Func<string, ObjectCtrlInfo, object, string> getFinalName = null)
+                                                      Func<string, ObjectCtrlInfo, object, string> getFinalName = null,
+                                                      Func<ObjectCtrlInfo, object, bool> shouldShow = null)
         {
             Delegate ib = null;
             if (interpolateBefore != null)
@@ -70,7 +73,8 @@ namespace ToolBox
                 writeParameterToXml,
                 checkIntegrity,
                 useOciInHash,
-                getFinalName
+                getFinalName,
+                shouldShow
             });
         }
 
@@ -91,7 +95,8 @@ namespace ToolBox
                                                        Action<ObjectCtrlInfo, XmlTextWriter, object> writeParameterToXml = null,
                                                        Func<ObjectCtrlInfo, object, object, object, bool> checkIntegrity = null,
                                                        bool useOciInHash = true,
-                                                       Func<string, ObjectCtrlInfo, object, string> getFinalName = null)
+                                                       Func<string, ObjectCtrlInfo, object, string> getFinalName = null,
+                                                       Func<ObjectCtrlInfo, object, bool> shouldShow = null)
         {
             Delegate ib = null;
             if (interpolateBefore != null)
@@ -115,8 +120,15 @@ namespace ToolBox
                 writeParameterToXml,
                 checkIntegrity,
                 useOciInHash,
-                getFinalName
+                getFinalName,
+                shouldShow
             });
+        }
+
+        public static void RefreshInterpolablesList()
+        {
+            if (_refreshInterpolablesList != null)
+                _refreshInterpolablesList();
         }
     }
 }

@@ -18,13 +18,5 @@ namespace NodesConstraints
             if (this.onPreRender != null)
                 this.onPreRender();
         }
-#if HONEYSELECT
-        public event Action onGUI;
-        private void OnGUI()
-        {
-            if (this.onGUI != null)
-                this.onGUI();
-        }
-#endif
     }
 }
