@@ -7,13 +7,11 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Harmony;
 using IllusionPlugin;
-using IllusionUtility.GetUtility;
 using IllusionUtility.SetUtility;
 using Studio;
-using ToolBox;
+using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
@@ -69,15 +67,7 @@ namespace PoseViewer
         public void OnLevelWasLoaded(int level)
         {
             if (level == 3)
-            {
-                this.Init();
-                Studio.Studio.Instance.ExecuteDelayed(() =>
-                {
-                    HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.poseviewer");
-                    harmony.PatchAll();
-                });
-
-            }
+                this.ExecuteDelayed(this.Init, 10);
         }
 
         public void OnUpdate()
@@ -89,7 +79,7 @@ namespace PoseViewer
         private void Init()
         {
             foreach (Camera camera in Resources.FindObjectsOfTypeAll<Camera>())
-                camera.cullingMask = camera.cullingMask & ~(1 << 31);
+                camera.cullingMask &= ~(1 << 31);
             this._poseCamera = new GameObject("PoseCamera", typeof(Camera)).GetComponent<Camera>();
             this._poseCamera.cullingMask = 1 << 31;
             this._poseCamera.depth = -10;
@@ -108,11 +98,9 @@ namespace PoseViewer
             this._light.shadows = LightShadows.None;
             this._light.type = LightType.Directional;
 
-            this.CreateFemaleManequin();
-
-            this.CreateMaleMannequin();
-
             this.SpawnGUI();
+            var harmonyInstance = HarmonyExtensions.CreateInstance("com.joan6694.illusionplugins.poseviewer");
+            harmonyInstance.PatchAllSafe();
         }
 
         private void RecurseGameObject(GameObject obj, Action<GameObject> action)
@@ -187,9 +175,17 @@ namespace PoseViewer
             }
 
             if (this._original.ociChar.charInfo.Sex == 0)
+            {
+                if (this._maleMannequin == null)
+                    this.CreateMaleMannequin();
                 this._maleMannequin.charInfo.gameObject.SetActive(true);
+            }
             else
+            {
+                if (this._femaleMannequin == null)
+                    this.CreateFemaleMannequin();
                 this._femaleMannequin.charInfo.gameObject.SetActive(true);
+            }
 
             foreach (Light light in Resources.FindObjectsOfTypeAll<Light>())
             {
@@ -207,8 +203,10 @@ namespace PoseViewer
         private void OnPostGeneration()
         {
             this._poseCamera.gameObject.SetActive(false);
-            this._maleMannequin.charInfo.gameObject.SetActive(false);
-            this._femaleMannequin.charInfo.gameObject.SetActive(false);
+            if (this._maleMannequin != null)
+                this._maleMannequin.charInfo.gameObject.SetActive(false);
+            if (this._femaleMannequin != null)
+                this._femaleMannequin.charInfo.gameObject.SetActive(false);
             RenderSettings.ambientIntensity = this._cachedAmbientIntensity;
             RenderSettings.ambientMode = this._cachedAmbientMode;
             RenderSettings.ambientSkyColor = this._cachedAmbientColor;
@@ -228,7 +226,6 @@ namespace PoseViewer
             byte[] pngData = null;
             Texture2D screenshot = this.TakeScreenshot(ref pngData);
             File.WriteAllBytes(path + ".png", screenshot.EncodeToPNG());
-            //TODO stuff
             onGenerated(screenshot);
             this.OnPostGeneration();
         }
@@ -273,7 +270,7 @@ namespace PoseViewer
             return texture2D;
         }
 
-        private void CreateFemaleManequin()
+        private void CreateFemaleMannequin()
         {
             int num = -1;
             GameObject gameObject = new GameObject("mannequinFemale");
@@ -434,10 +431,8 @@ namespace PoseViewer
 
             foreach (OCIChar.IKInfo ikInfo in this._maleMannequin.listIKTarget)
                 GuideObjectManager.Instance.Delete(ikInfo.guideObject, false);
-
             foreach (OCIChar.BoneInfo boneInfo in this._maleMannequin.listBones)
                 GuideObjectManager.Instance.Delete(boneInfo.guideObject, false);
-
         }
         #endregion
 
@@ -460,9 +455,8 @@ namespace PoseViewer
             {
                 bool set = false;
                 List<CodeInstruction> instructionsList = instructions.ToList();
-                for (int i = 0; i < instructionsList.Count; i++)
+                foreach (CodeInstruction inst in instructionsList)
                 {
-                    CodeInstruction inst = instructionsList[i];
                     if (set == false && inst.opcode == OpCodes.Ret)
                     {
                         yield return new CodeInstruction(OpCodes.Ldloc_0);
