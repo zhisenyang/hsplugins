@@ -41,7 +41,7 @@ namespace HSExtSave
 
         #region Private Variables
         internal static Dictionary<string, HandlerGroup> _handlers = new Dictionary<string, HandlerGroup>();
-        internal static Binary _binary = Binary.Studio;
+        internal static Binary _binary = Binary.Neo;
 #if HONEYSELECT
         internal const string _logPrefix = "HSExtSave: ";
 #elif PLAYHOME
@@ -74,7 +74,7 @@ namespace HSExtSave
                 case "PlayHomeStudio64bit":
                 case "StudioNEO_32":
                 case "StudioNEO_64":
-                    _binary = Binary.Studio;
+                    _binary = Binary.Neo;
                     break;
             }
 
