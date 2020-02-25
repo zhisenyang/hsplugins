@@ -3,27 +3,32 @@ using System;
 using System.Collections.Generic;
 #if HONEYSELECT
 using IllusionPlugin;
+using Harmony;
 #elif KOIKATSU
 using BepInEx;
 using UnityEngine.SceneManagement;
+using HarmonyLib;
+#elif AISHOUJO
+using BepInEx;
+using HarmonyLib;
 #endif
-using Harmony;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 
 namespace Instrumentation
 {
-#if KOIKATSU
+#if KOIKATSU || AISHOUJO
     [BepInPlugin(GUID: "com.joan6694.illusionplugins.instrumentation", Name: "Instrumentation", Version: Instrumentation.versionNum)]
 #endif
-    public class Instrumentation :
+    public class Instrumentation : GenericPlugin
 #if HONEYSELECT
-        IEnhancedPlugin
-#elif KOIKATSU
-    BaseUnityPlugin
+            , IEnhancedPlugin
 #endif
     {
         public class SpecialMethodData
@@ -110,56 +115,22 @@ namespace Instrumentation
         public static bool patched = false;
 
 #if HONEYSELECT
-        public string Name { get { return "Instrumentation"; } }
-        public string Version { get { return versionNum; } }
-        public string[] Filter { get { return new[] {"StudioNEO_32", "StudioNEO_64", "HoneySelect_64", "HoneySelect_32"}; } }
-
-        public void OnLevelWasInitialized(int level)
-        {
-        }
-
-        public void OnFixedUpdate()
-        {
-        }
-
-        public void OnLateUpdate()
-        {
-        }
-#elif KOIKATSU
-        void Awake()
-        {
-            SceneManager.sceneLoaded += this.SceneLoaded;
-            this.OnApplicationStart();
-        }
-
-        private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
-        {
-            this.OnLevelWasLoaded(scene.buildIndex);
-        }
-
-        void Update()
-        {
-            this.OnUpdate();
-        }
+        public override string Name { get { return "Instrumentation"; } }
+        public override string Version { get { return versionNum; } }
+        public override string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64", "HoneySelect_64", "HoneySelect_32" }; } }
 #endif
-        public void OnApplicationStart()
+        protected override void LevelLoaded(int level)
         {
-
+            if (patched == false && level > 2)
+            {
+                Thread patchThread = new Thread(this.PatchAsync);
+                patchThread.Start();
+            }
         }
 
-        public void OnApplicationQuit()
+        private void PatchAsync()
         {
-
-        }
-
-        public void OnLevelWasLoaded(int level)
-        {
-#if HONEYSELECT
-            if (level != 3 || patched)
-#elif KOIKATSU
-            if (level != 1 || patched)
-#endif
-                return;
+            patched = true;
             times = new Dictionary<int, Dictionary<Type, ulong>>[this._methods.Length];
             for (int i = 0; i < this._methods.Length; i++)
                 times[i] = new Dictionary<int, Dictionary<Type, ulong>>();
@@ -168,7 +139,8 @@ namespace Instrumentation
             for (int i = 0; i < this._specialMethods.Length; i++)
                 specialTimes[i] = new Dictionary<int, ulong>();
 
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.hsplugins.instrumentation");
+            
+            var harmony = HarmonyExtensions.CreateInstance("com.joan6694.hsplugins.instrumentation");
             Type component = typeof(Component);
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
@@ -178,7 +150,7 @@ namespace Instrumentation
                     {
                         if (component.IsAssignableFrom(type) == false && type.Name.Equals("SMAA") == false)
                             continue;
-                       //UnityEngine.Debug.LogError(type.Name);
+                        //UnityEngine.Debug.LogError(type.Name);
                         if (type.Name.Equals("Singleton`1") ||
                             type.Name.StartsWith("PresenterBase") || type.Name.Equals("MonoBehaviourSingleton`1"))
                             continue;
@@ -187,19 +159,19 @@ namespace Instrumentation
                             MethodData methodData = this._methods[i];
                             try
                             {
-                                
+
                                 MethodInfo info = type.GetMethod(methodData.name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance, null, methodData.arguments, null);
 
                                 if (info != null)
                                 {
                                     harmony.Patch(
-                                                  info,
-                                                  new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.UpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
-                                                  new HarmonyMethod(typeof(Patches).GetMethod($"UpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
-                                                 );
+                                            info,
+                                            new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.UpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
+                                            new HarmonyMethod(typeof(Patches).GetMethod($"UpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
+                                    );
                                 }
                             }
-                            catch (Exception e)
+                            catch (Exception)
                             {
                                 //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                             }
@@ -214,28 +186,29 @@ namespace Instrumentation
                             if (info != null)
                             {
                                 harmony.Patch(
-                                              info,
-                                              new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.SpecialUpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
-                                              new HarmonyMethod(typeof(Patches).GetMethod($"SpecialUpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
-                                             );
+                                        info,
+                                        new HarmonyMethod(typeof(Patches).GetMethod(nameof(Patches.SpecialUpdatePrefixes), BindingFlags.Public | BindingFlags.Static)),
+                                        new HarmonyMethod(typeof(Patches).GetMethod($"SpecialUpdatePostfixes{i}", BindingFlags.Public | BindingFlags.Static))
+                                );
                             }
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                         }
                     }
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     //UnityEngine.Debug.LogError("Instrumentation: Exception occured when patching: " + e.ToString());
                 }
             }
-            patched = true;
         }
 
-        public void OnUpdate()
+        protected override void Update()
         {
+            if (patched == false)
+                return;
             if (Input.GetKeyDown(KeyCode.W))
             {
                 UnityEngine.Debug.Log((Time.frameCount - 1) + " " + (Time.frameCount - 60));
@@ -385,58 +358,58 @@ namespace Instrumentation
             InitStopwatch(t);
         }
 
-        public static void UpdatePostfixes0(object __instance){UpdatePostfixes(__instance, 0);}
-        public static void UpdatePostfixes1(object __instance){UpdatePostfixes(__instance, 1);}
-        public static void UpdatePostfixes2(object __instance){UpdatePostfixes(__instance, 2);}
-        public static void UpdatePostfixes3(object __instance){UpdatePostfixes(__instance, 3);}
-        public static void UpdatePostfixes4(object __instance){UpdatePostfixes(__instance, 4);}
-        public static void UpdatePostfixes5(object __instance){UpdatePostfixes(__instance, 5);}
-        public static void UpdatePostfixes6(object __instance){UpdatePostfixes(__instance, 6);}
-        public static void UpdatePostfixes7(object __instance){UpdatePostfixes(__instance, 7);}
-        public static void UpdatePostfixes8(object __instance){UpdatePostfixes(__instance, 8);}
-        public static void UpdatePostfixes9(object __instance){UpdatePostfixes(__instance, 9);}
-        public static void UpdatePostfixes10(object __instance){UpdatePostfixes(__instance, 10);}
-        public static void UpdatePostfixes11(object __instance){UpdatePostfixes(__instance, 11);}
-        public static void UpdatePostfixes12(object __instance){UpdatePostfixes(__instance, 12);}
-        public static void UpdatePostfixes13(object __instance){UpdatePostfixes(__instance, 13);}
-        public static void UpdatePostfixes14(object __instance){UpdatePostfixes(__instance, 14);}
-        public static void UpdatePostfixes15(object __instance){UpdatePostfixes(__instance, 15);}
-        public static void UpdatePostfixes16(object __instance){UpdatePostfixes(__instance, 16);}
-        public static void UpdatePostfixes17(object __instance){UpdatePostfixes(__instance, 17);}
-        public static void UpdatePostfixes18(object __instance){UpdatePostfixes(__instance, 18);}
-        public static void UpdatePostfixes19(object __instance){UpdatePostfixes(__instance, 19);}
-        public static void UpdatePostfixes20(object __instance){UpdatePostfixes(__instance, 20);}
-        public static void UpdatePostfixes21(object __instance){UpdatePostfixes(__instance, 21);}
-        public static void UpdatePostfixes22(object __instance){UpdatePostfixes(__instance, 22);}
-        public static void UpdatePostfixes23(object __instance){UpdatePostfixes(__instance, 23);}
-        public static void UpdatePostfixes24(object __instance){UpdatePostfixes(__instance, 24);}
-        public static void UpdatePostfixes25(object __instance){UpdatePostfixes(__instance, 25);}
-        public static void UpdatePostfixes26(object __instance){UpdatePostfixes(__instance, 26);}
-        public static void UpdatePostfixes27(object __instance){UpdatePostfixes(__instance, 27);}
-        public static void UpdatePostfixes28(object __instance){UpdatePostfixes(__instance, 28);}
-        public static void UpdatePostfixes29(object __instance){UpdatePostfixes(__instance, 29);}
-        public static void UpdatePostfixes30(object __instance){UpdatePostfixes(__instance, 30);}
-        public static void UpdatePostfixes31(object __instance){UpdatePostfixes(__instance, 31);}
-        public static void UpdatePostfixes32(object __instance){UpdatePostfixes(__instance, 32);}
-        public static void UpdatePostfixes33(object __instance){UpdatePostfixes(__instance, 33);}
-        public static void UpdatePostfixes34(object __instance){UpdatePostfixes(__instance, 34);}
-        public static void UpdatePostfixes35(object __instance){UpdatePostfixes(__instance, 35);}
-        public static void UpdatePostfixes36(object __instance){UpdatePostfixes(__instance, 36);}
-        public static void UpdatePostfixes37(object __instance){UpdatePostfixes(__instance, 37);}
-        public static void UpdatePostfixes38(object __instance){UpdatePostfixes(__instance, 38);}
-        public static void UpdatePostfixes39(object __instance){UpdatePostfixes(__instance, 39);}
-        public static void UpdatePostfixes40(object __instance){UpdatePostfixes(__instance, 40);}
-        public static void UpdatePostfixes41(object __instance){UpdatePostfixes(__instance, 41);}
-        public static void UpdatePostfixes42(object __instance){UpdatePostfixes(__instance, 42);}
-        public static void UpdatePostfixes43(object __instance){UpdatePostfixes(__instance, 43);}
-        public static void UpdatePostfixes44(object __instance){UpdatePostfixes(__instance, 44);}
-        public static void UpdatePostfixes45(object __instance){UpdatePostfixes(__instance, 45);}
-        public static void UpdatePostfixes46(object __instance){UpdatePostfixes(__instance, 46);}
-        public static void UpdatePostfixes47(object __instance){UpdatePostfixes(__instance, 47);}
-        public static void UpdatePostfixes48(object __instance){UpdatePostfixes(__instance, 48);}
-        public static void UpdatePostfixes49(object __instance){UpdatePostfixes(__instance, 49);}
-        public static void UpdatePostfixes50(object __instance){UpdatePostfixes(__instance, 50);}
-        public static void UpdatePostfixes51(object __instance){UpdatePostfixes(__instance, 51);}
+        public static void UpdatePostfixes0(object __instance) { UpdatePostfixes(__instance, 0); }
+        public static void UpdatePostfixes1(object __instance) { UpdatePostfixes(__instance, 1); }
+        public static void UpdatePostfixes2(object __instance) { UpdatePostfixes(__instance, 2); }
+        public static void UpdatePostfixes3(object __instance) { UpdatePostfixes(__instance, 3); }
+        public static void UpdatePostfixes4(object __instance) { UpdatePostfixes(__instance, 4); }
+        public static void UpdatePostfixes5(object __instance) { UpdatePostfixes(__instance, 5); }
+        public static void UpdatePostfixes6(object __instance) { UpdatePostfixes(__instance, 6); }
+        public static void UpdatePostfixes7(object __instance) { UpdatePostfixes(__instance, 7); }
+        public static void UpdatePostfixes8(object __instance) { UpdatePostfixes(__instance, 8); }
+        public static void UpdatePostfixes9(object __instance) { UpdatePostfixes(__instance, 9); }
+        public static void UpdatePostfixes10(object __instance) { UpdatePostfixes(__instance, 10); }
+        public static void UpdatePostfixes11(object __instance) { UpdatePostfixes(__instance, 11); }
+        public static void UpdatePostfixes12(object __instance) { UpdatePostfixes(__instance, 12); }
+        public static void UpdatePostfixes13(object __instance) { UpdatePostfixes(__instance, 13); }
+        public static void UpdatePostfixes14(object __instance) { UpdatePostfixes(__instance, 14); }
+        public static void UpdatePostfixes15(object __instance) { UpdatePostfixes(__instance, 15); }
+        public static void UpdatePostfixes16(object __instance) { UpdatePostfixes(__instance, 16); }
+        public static void UpdatePostfixes17(object __instance) { UpdatePostfixes(__instance, 17); }
+        public static void UpdatePostfixes18(object __instance) { UpdatePostfixes(__instance, 18); }
+        public static void UpdatePostfixes19(object __instance) { UpdatePostfixes(__instance, 19); }
+        public static void UpdatePostfixes20(object __instance) { UpdatePostfixes(__instance, 20); }
+        public static void UpdatePostfixes21(object __instance) { UpdatePostfixes(__instance, 21); }
+        public static void UpdatePostfixes22(object __instance) { UpdatePostfixes(__instance, 22); }
+        public static void UpdatePostfixes23(object __instance) { UpdatePostfixes(__instance, 23); }
+        public static void UpdatePostfixes24(object __instance) { UpdatePostfixes(__instance, 24); }
+        public static void UpdatePostfixes25(object __instance) { UpdatePostfixes(__instance, 25); }
+        public static void UpdatePostfixes26(object __instance) { UpdatePostfixes(__instance, 26); }
+        public static void UpdatePostfixes27(object __instance) { UpdatePostfixes(__instance, 27); }
+        public static void UpdatePostfixes28(object __instance) { UpdatePostfixes(__instance, 28); }
+        public static void UpdatePostfixes29(object __instance) { UpdatePostfixes(__instance, 29); }
+        public static void UpdatePostfixes30(object __instance) { UpdatePostfixes(__instance, 30); }
+        public static void UpdatePostfixes31(object __instance) { UpdatePostfixes(__instance, 31); }
+        public static void UpdatePostfixes32(object __instance) { UpdatePostfixes(__instance, 32); }
+        public static void UpdatePostfixes33(object __instance) { UpdatePostfixes(__instance, 33); }
+        public static void UpdatePostfixes34(object __instance) { UpdatePostfixes(__instance, 34); }
+        public static void UpdatePostfixes35(object __instance) { UpdatePostfixes(__instance, 35); }
+        public static void UpdatePostfixes36(object __instance) { UpdatePostfixes(__instance, 36); }
+        public static void UpdatePostfixes37(object __instance) { UpdatePostfixes(__instance, 37); }
+        public static void UpdatePostfixes38(object __instance) { UpdatePostfixes(__instance, 38); }
+        public static void UpdatePostfixes39(object __instance) { UpdatePostfixes(__instance, 39); }
+        public static void UpdatePostfixes40(object __instance) { UpdatePostfixes(__instance, 40); }
+        public static void UpdatePostfixes41(object __instance) { UpdatePostfixes(__instance, 41); }
+        public static void UpdatePostfixes42(object __instance) { UpdatePostfixes(__instance, 42); }
+        public static void UpdatePostfixes43(object __instance) { UpdatePostfixes(__instance, 43); }
+        public static void UpdatePostfixes44(object __instance) { UpdatePostfixes(__instance, 44); }
+        public static void UpdatePostfixes45(object __instance) { UpdatePostfixes(__instance, 45); }
+        public static void UpdatePostfixes46(object __instance) { UpdatePostfixes(__instance, 46); }
+        public static void UpdatePostfixes47(object __instance) { UpdatePostfixes(__instance, 47); }
+        public static void UpdatePostfixes48(object __instance) { UpdatePostfixes(__instance, 48); }
+        public static void UpdatePostfixes49(object __instance) { UpdatePostfixes(__instance, 49); }
+        public static void UpdatePostfixes50(object __instance) { UpdatePostfixes(__instance, 50); }
+        public static void UpdatePostfixes51(object __instance) { UpdatePostfixes(__instance, 51); }
 
         public static void UpdatePostfixes(object __instance, int i)
         {
