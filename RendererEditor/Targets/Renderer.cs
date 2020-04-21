@@ -21,7 +21,7 @@ namespace RendererEditor.Targets
         public Bounds bounds { get { return this._target.bounds; } }
         public Component target { get { return this._target; } }
 
-        private readonly Renderer _target;
+        internal readonly Renderer _target;
 
         static RendererTarget()
         {
@@ -43,7 +43,7 @@ namespace RendererEditor.Targets
             this._target.reflectionProbeUsage = rendererTarget._target.reflectionProbeUsage;
         }
 
-        public void DisplayParams(HashSet<ITarget> selectedTargets, SetDirtyDelegate setDirtyFunction)
+        public void DisplayParams(HashSet<ITarget> selectedTargets)
         {
             GUILayout.BeginHorizontal();
             GUILayout.Label("Cast Shadows");
@@ -51,17 +51,35 @@ namespace RendererEditor.Targets
 
             bool newReceiveShadows = GUILayout.Toggle(this._target.receiveShadows, "Receive Shadows");
             if (newReceiveShadows != this._target.receiveShadows)
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, r => r.receiveShadows = newReceiveShadows);
+                SetAllTargetsValue(selectedTargets, r => SetReceiveShadows(r, newReceiveShadows));
 
             GUILayout.EndHorizontal();
             ShadowCastingMode newMode = (ShadowCastingMode)GUILayout.SelectionGrid((int)this._target.shadowCastingMode, _shadowCastingModesNames, 4);
             if (newMode != this._target.shadowCastingMode)
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, r => r.shadowCastingMode = newMode);
+                SetAllTargetsValue(selectedTargets, r => SetShadowCastingMode(r, newMode));
 
             GUILayout.Label("Reflection Probe Usage");
             ReflectionProbeUsage newUsage = (ReflectionProbeUsage)GUILayout.SelectionGrid((int)this._target.reflectionProbeUsage, _reflectionProbeUsageNames, 2);
             if (newUsage != this._target.reflectionProbeUsage)
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, r => r.reflectionProbeUsage = newUsage);
+                SetAllTargetsValue(selectedTargets, r => SetReflectionProbeUsage(r, newUsage));
+        }
+
+        public static void SetReceiveShadows(RendererTarget target, bool receiveShadows)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            target._target.receiveShadows = receiveShadows;
+        }
+
+        public static void SetShadowCastingMode(RendererTarget target, ShadowCastingMode shadowCastingMode)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            target._target.shadowCastingMode = shadowCastingMode;
+        }
+
+        public static void SetReflectionProbeUsage(RendererTarget target, ReflectionProbeUsage reflectionProbeUsage)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            target._target.reflectionProbeUsage = reflectionProbeUsage;
         }
 
         public ITargetData GetNewData()
@@ -99,17 +117,11 @@ namespace RendererEditor.Targets
             writer.WriteAttributeString("reflectionProbeUsage", XmlConvert.ToString((int)this._target.reflectionProbeUsage));
         }
 
-        private static void SetAllTargetsValue(HashSet<ITarget> targets, SetDirtyDelegate setDirtyFunction, Action<Renderer> setValueFunction)
+        private static void SetAllTargetsValue(HashSet<ITarget> targets, Action<RendererTarget> setValueFunction)
         {
             foreach (ITarget target in targets)
-            {
-                Renderer renderer = target.target as Renderer;
-                if (renderer == null)
-                    continue;
-                ITargetData data;
-                setDirtyFunction(target, out data);
-                setValueFunction(renderer);
-            }
+                if (target.targetType == TargetType.Renderer)
+                    setValueFunction((RendererTarget)target);
         }
 
         public static implicit operator RendererTarget(Renderer r)

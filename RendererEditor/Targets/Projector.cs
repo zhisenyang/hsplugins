@@ -34,7 +34,7 @@ namespace RendererEditor.Targets
         public Bounds bounds { get { return default(Bounds); } }
         public Component target { get { return this._target; } }
 
-        private readonly Projector _target;
+        internal readonly Projector _target;
 
         public ProjectorTarget(Projector target)
         {
@@ -53,37 +53,73 @@ namespace RendererEditor.Targets
             this._target.fieldOfView = rendererTarget._target.fieldOfView;
         }
 
-        public void DisplayParams(HashSet<ITarget> selectedTargets, SetDirtyDelegate setDirtyFunction)
+        public void DisplayParams(HashSet<ITarget> selectedTargets)
         {
             IMGUIExtensions.HorizontalSliderWithValue("Near Clip Plane\t", this._target.nearClipPlane, 0.01f, 10f, "0.0000", newValue =>
             {
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.nearClipPlane = newValue);
+                SetAllTargetsValue(selectedTargets, t => SetNearClipPlane(t, newValue));
             });
 
             IMGUIExtensions.HorizontalSliderWithValue("Far Clip Plane\t", this._target.farClipPlane, 0.02f, 100f, "0.0000", newValue =>
             {
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.farClipPlane = newValue);
+                SetAllTargetsValue(selectedTargets, t => SetFarClipPlane(t, newValue));
             });
 
             IMGUIExtensions.HorizontalSliderWithValue("Aspect Ratio\t", this._target.aspectRatio, 0.1f, 10f, "0.00", newValue =>
             {
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.aspectRatio = newValue);
+                SetAllTargetsValue(selectedTargets, t => SetAspectRatio(t, newValue));
             });
 
             bool newOrthographic = GUILayout.Toggle(this._target.orthographic, "Orthographic");
             if (newOrthographic != this._target.orthographic)
-                SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.orthographic = newOrthographic);
+                SetAllTargetsValue(selectedTargets, t => SetOrthographic(t, newOrthographic));
 
             if (newOrthographic)
                 IMGUIExtensions.HorizontalSliderWithValue("Orthographic Size\t", this._target.orthographicSize, 0.01f, 10f, "0.00", newValue =>
                 {
-                    SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.orthographicSize = newValue);
+                    SetAllTargetsValue(selectedTargets, t => SetOrthographicSize(t, newValue));
                 });
             else
                 IMGUIExtensions.HorizontalSliderWithValue("FOV\t\t", this._target.fieldOfView, 1f, 179f, "0", newValue =>
                 {
-                    SetAllTargetsValue(selectedTargets, setDirtyFunction, t => t.fieldOfView = newValue);
+                    SetAllTargetsValue(selectedTargets, t => SetFieldOfView(t, newValue));
                 });
+        }
+
+        public static void SetNearClipPlane(ProjectorTarget target, float nearClipPlane)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.nearClipPlane = nearClipPlane;
+        }
+
+        public static void SetFarClipPlane(ProjectorTarget target, float farClipPlane)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.farClipPlane = farClipPlane;
+        }
+
+        public static void SetAspectRatio(ProjectorTarget target, float aspectRatio)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.aspectRatio = aspectRatio;
+        }
+
+        public static void SetOrthographic(ProjectorTarget target, bool orthographic)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.orthographic = orthographic;
+        }
+
+        public static void SetOrthographicSize(ProjectorTarget target, float orthographicSize)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.orthographicSize = orthographicSize;
+        }
+
+        public static void SetFieldOfView(ProjectorTarget target, float fieldOfView)
+        {
+            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            target._target.fieldOfView = fieldOfView;
         }
 
         public ITargetData GetNewData()
@@ -132,17 +168,11 @@ namespace RendererEditor.Targets
             writer.WriteAttributeString("fieldOfView", XmlConvert.ToString(this._target.fieldOfView));
         }
 
-        private static void SetAllTargetsValue(HashSet<ITarget> targets, SetDirtyDelegate setDirtyFunction, Action<Projector> setValueFunction)
+        private static void SetAllTargetsValue(HashSet<ITarget> targets, Action<ProjectorTarget> setValueFunction)
         {
             foreach (ITarget target in targets)
-            {
-                Projector projector = target.target as Projector;
-                if (projector == null)
-                    continue;
-                ITargetData data;
-                setDirtyFunction(target, out data);
-                setValueFunction(projector);
-            }
+                if (target.targetType == TargetType.Projector)
+                    setValueFunction((ProjectorTarget)target);
         }
 
         public static implicit operator ProjectorTarget(Projector r)

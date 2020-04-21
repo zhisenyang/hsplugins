@@ -19,7 +19,7 @@ namespace RendererEditor.Targets
         Component target { get; }
 
         void CopyFrom(ITarget target);
-        void DisplayParams(HashSet<ITarget> selectedTargets, SetDirtyDelegate setDirtyFunction);
+        void DisplayParams(HashSet<ITarget> selectedTargets);
         ITargetData GetNewData();
         void ResetData(ITargetData data);
         void LoadXml(XmlNode node);

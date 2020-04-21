@@ -170,11 +170,17 @@
     <Compile Include="..\ToolBox\ReflectionExtensions.cs">
       <Link>ToolBox\ReflectionExtensions.cs</Link>
     </Compile>
+    <Compile Include="..\ToolBox\TimelineCompatibility.cs">
+      <Link>ToolBox\TimelineCompatibility.cs</Link>
+    </Compile>
     <Compile Include="..\ToolBox\TransformExtensions.cs">
       <Link>ToolBox\TransformExtensions.cs</Link>
     </Compile>
     <Compile Include="..\ToolBox\VariousExtensions.cs">
       <Link>ToolBox\VariousExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\XmlExtensions.cs">
+      <Link>ToolBox\XmlExtensions.cs</Link>
     </Compile>
     <Compile Include="Extensions.cs" />
     <Compile Include="ShaderProperty.cs" />

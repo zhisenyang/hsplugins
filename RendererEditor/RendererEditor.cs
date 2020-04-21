@@ -22,8 +22,10 @@ using System.Xml;
 using System.Reflection.Emit;
 using System.Reflection;
 using System.Text;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 namespace RendererEditor
 {
@@ -153,8 +155,39 @@ namespace RendererEditor
 
         private class MaterialInfo
         {
-            public ITarget target;
-            public int index;
+            public readonly ITarget target;
+            public readonly int index;
+            private readonly int _hashCode;
+
+            public MaterialInfo(ITarget target, int index)
+            {
+                this.target = target;
+                this.index = index;
+
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + this.target.GetHashCode();
+                    this._hashCode = hash * 31 + this.index.GetHashCode();
+                }
+            }
+
+            public override int GetHashCode()
+            {
+                return this._hashCode;
+            }
+
+
+            public override bool Equals(object obj)
+            {
+                if (!(obj is MaterialInfo))
+                {
+                    return false;
+                }
+
+                MaterialInfo info = (MaterialInfo)obj;
+                return this.target.Equals(info.target) && this.index == info.index;
+            }
         }
 
         private class TreeNodeData
@@ -171,7 +204,7 @@ namespace RendererEditor
 
         #region Private Variables
         private const string _name = "RendererEditor";
-        private const string _version = "1.5.0";
+        private const string _version = "1.5.1";
         private const string _guid = "com.joan6694.hsplugins.renderereditor";
         private const int saveVersion = 1;
 
@@ -182,7 +215,7 @@ namespace RendererEditor
 #if AISHOUJO
         private const string _extSaveKey = "rendererEditor";
 #endif
-        private static RendererEditor _self;
+        internal static RendererEditor _self;
 
         private string _workingDirectory;
         private string _workingDirectoryParent;
@@ -190,7 +223,7 @@ namespace RendererEditor
         private float _height = 670;
         private static bool _compressTexturesByDefault;
         private Rect _windowRect;
-        private int _randomId;
+        private const int _uniqueId = ('R' << 24) | ('E' << 16) | ('N' << 8) | 'D';
         private bool _enabled;
         private bool _mouseInWindow;
         private Dictionary<TreeNodeObject, TreeNodeData> _treeNodeDatas = new Dictionary<TreeNodeObject, TreeNodeData>();
@@ -275,13 +308,15 @@ namespace RendererEditor
             ExtendedSave.SceneBeingImported += this.OnSceneImport;
             ExtendedSave.SceneBeingSaved += this.OnSceneSave;
 #endif
-            this._randomId = (int)(UnityEngine.Random.value * UInt32.MaxValue);
             this._filterModeNames = Enum.GetNames(typeof(FilterMode));
             this._wrapModeNames = Enum.GetNames(typeof(TextureWrapMode));
             this._transparentBorderColorNames = Enum.GetNames(typeof(TextureWrapper.TextureSettings.TransparentBorderColor));
 
             var harmonyInstance = HarmonyExtensions.CreateInstance(_guid);
             harmonyInstance.PatchAllSafe();
+
+            this.ExecuteDelayed(() => { TimelineCompatibility.Init(this.PopulateTimeline); }, 5);
+
         }
 
 #if AISHOUJO
@@ -429,7 +464,7 @@ namespace RendererEditor
 
         private IEnumerator EndOfFrame()
         {
-            for (; ; )
+            for (;;)
             {
                 yield return new WaitForEndOfFrame();
                 this.DrawGizmos();
@@ -448,23 +483,23 @@ namespace RendererEditor
             if (this._enabled && Studio.Studio.Instance.treeNodeCtrl.selectNode != null)
             {
                 IMGUIExtensions.DrawBackground(this._windowRect);
-                this._windowRect = GUILayout.Window(this._randomId, this._windowRect, this.WindowFunction, "Renderer Editor " + _version
+                this._windowRect = GUILayout.Window(_uniqueId, this._windowRect, this.WindowFunction, "Renderer Editor " + _version
 #if BETA
                                                                                                            + "b2"
 #endif
-                                                                                                           );
+                );
                 this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
                 if (this._selectTextureCallback != null)
                 {
                     Rect selectTextureRect = new Rect(this._windowRect.max.x + 4, this._windowRect.max.y - 440, 230, 440);
                     IMGUIExtensions.DrawBackground(selectTextureRect);
-                    selectTextureRect = GUILayout.Window(this._randomId + 1, selectTextureRect, this.SelectTextureWindow, "Select Texture");
+                    selectTextureRect = GUILayout.Window(_uniqueId + 1, selectTextureRect, this.SelectTextureWindow, "Select Texture");
                     this._mouseInWindow = this._mouseInWindow || selectTextureRect.Contains(Event.current.mousePosition);
                     if (this._changeTextureSettingsCallback != null)
                     {
                         Rect settingsRect = new Rect(selectTextureRect.max.x + 4, selectTextureRect.max.y - 335, 250, 335);
                         IMGUIExtensions.DrawBackground(settingsRect);
-                        settingsRect = GUILayout.Window(this._randomId + 2, settingsRect, this.ChangeTextureSettingsWindow, "Properties");
+                        settingsRect = GUILayout.Window(_uniqueId + 2, settingsRect, this.ChangeTextureSettingsWindow, "Properties");
                         this._mouseInWindow = this._mouseInWindow || settingsRect.Contains(Event.current.mousePosition);
                     }
                 }
@@ -472,9 +507,9 @@ namespace RendererEditor
                     Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._enabled && Studio.Studio.Instance.treeNodeCtrl.selectNode != null;
             }
         }
-#endregion
+        #endregion
 
-#region Private Methods
+        #region Private Methods
         private void Init()
         {
             if (this._init)
@@ -482,13 +517,13 @@ namespace RendererEditor
             this._init = true;
             float size = 0.012f;
             Vector3 topLeftForward = (Vector3.up + Vector3.left + Vector3.forward) * size,
-                topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
-                bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
-                bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
-                topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
-                topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
-                bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
-                bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
+                    topRightForward = (Vector3.up + Vector3.right + Vector3.forward) * size,
+                    bottomLeftForward = ((Vector3.down + Vector3.left + Vector3.forward) * size),
+                    bottomRightForward = ((Vector3.down + Vector3.right + Vector3.forward) * size),
+                    topLeftBack = (Vector3.up + Vector3.left + Vector3.back) * size,
+                    topRightBack = (Vector3.up + Vector3.right + Vector3.back) * size,
+                    bottomLeftBack = (Vector3.down + Vector3.left + Vector3.back) * size,
+                    bottomRightBack = (Vector3.down + Vector3.right + Vector3.back) * size;
             this._boundsDebugLines.Add(VectorLine.SetLine(Color.green, topLeftForward, topRightForward));
             this._boundsDebugLines.Add(VectorLine.SetLine(Color.green, topRightForward, bottomRightForward));
             this._boundsDebugLines.Add(VectorLine.SetLine(Color.green, bottomRightForward, bottomLeftForward));
@@ -519,8 +554,8 @@ namespace RendererEditor
 
         private void InitializeStyles()
         {
-            this._multiLineButton = new GUIStyle(GUI.skin.button) { wordWrap = true };
-            this._alignLeftButton = new GUIStyle(GUI.skin.button) { alignment = TextAnchor.MiddleLeft };
+            this._multiLineButton = new GUIStyle(GUI.skin.button) {wordWrap = true};
+            this._alignLeftButton = new GUIStyle(GUI.skin.button) {alignment = TextAnchor.MiddleLeft};
         }
 
         private void WindowFunction(int id)
@@ -552,6 +587,7 @@ namespace RendererEditor
                             while ((info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
                                 t = t.parent;
                             target.enabled = info.treeNodeObject.IsVisible() && newEnabled;
+
                         }
                     }
                 }
@@ -566,7 +602,7 @@ namespace RendererEditor
                 //    }
                 //}
 
-                firstTarget.DisplayParams(this._currentTreeNode.selectedTargets, this.SetTargetDirty);
+                firstTarget.DisplayParams(this._currentTreeNode.selectedTargets);
 
                 {
                     GUILayout.BeginHorizontal();
@@ -1356,26 +1392,30 @@ namespace RendererEditor
 
         private void SelectMaterial(Material material, ITarget target, int index)
         {
-            this._currentTreeNode.selectedMaterials.Add(material, new MaterialInfo { index = index, target = target });
+            this._currentTreeNode.selectedMaterials.Add(material, new MaterialInfo(target, index));
             this.CloseTextureWindow();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void UnselectMaterial(Material material)
         {
             this._currentTreeNode.selectedMaterials.Remove(material);
             this.CloseTextureWindow();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void ClearSelectedMaterials()
         {
             this._currentTreeNode.selectedMaterials.Clear();
             this.CloseTextureWindow();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void SelectTarget(ITarget target)
         {
             this._currentTreeNode.selectedTargets.Add(target);
             this.CloseTextureWindow();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void UnselectTarget(ITarget target)
@@ -1387,12 +1427,14 @@ namespace RendererEditor
                     this.UnselectMaterial(pair.Key);
             }
             this.CloseTextureWindow();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void ClearSelectedTargets()
         {
             this._currentTreeNode.selectedTargets.Clear();
             this.ClearSelectedMaterials();
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void UpdateSelectedBounds()
@@ -1401,7 +1443,7 @@ namespace RendererEditor
             Vector3 finalMax = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
             foreach (ITarget selectedTarget in this._currentTreeNode.selectedTargets)
             {
-                if (selectedTarget.hasBounds == false)
+                if (selectedTarget == null || selectedTarget.target == null || selectedTarget.hasBounds == false)
                     continue;
                 Bounds bounds = selectedTarget.bounds;
                 if (bounds.min.x < finalMin.x)
@@ -1486,7 +1528,7 @@ namespace RendererEditor
             targetData.dirtyMaterials.Remove(mat);
         }
 
-        private bool SetTargetDirty(ITarget target, out ITargetData data)
+        internal bool SetTargetDirty(ITarget target, out ITargetData data)
         {
             if (this._dirtyTargets.TryGetValue(target, out data) == false)
             {
@@ -1523,13 +1565,13 @@ namespace RendererEditor
                 return;
             this.UpdateSelectedBounds();
             Vector3 topLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.max.z),
-                topRightForward = this._selectedBounds.max,
-                bottomLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
-                bottomRightForward = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
-                topLeftBack = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.min.z),
-                topRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.max.y, this._selectedBounds.min.z),
-                bottomLeftBack = this._selectedBounds.min,
-                bottomRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.min.z);
+                    topRightForward = this._selectedBounds.max,
+                    bottomLeftForward = new Vector3(this._selectedBounds.min.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
+                    bottomRightForward = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.max.z),
+                    topLeftBack = new Vector3(this._selectedBounds.min.x, this._selectedBounds.max.y, this._selectedBounds.min.z),
+                    topRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.max.y, this._selectedBounds.min.z),
+                    bottomLeftBack = this._selectedBounds.min,
+                    bottomRightBack = new Vector3(this._selectedBounds.max.x, this._selectedBounds.min.y, this._selectedBounds.min.z);
             int i = 0;
             this._boundsDebugLines[i++].SetPoints(topLeftForward, topRightForward);
             this._boundsDebugLines[i++].SetPoints(topRightForward, bottomRightForward);
@@ -1681,9 +1723,9 @@ namespace RendererEditor
         {
             return objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Renderer>(true).Select(r => (ITarget)(RendererTarget)r).Concat(objectCtrlInfo.guideObject.transformTarget.GetComponentsInChildren<Projector>(true).Select(p => (ITarget)(ProjectorTarget)p)).ToList();
         }
-#endregion
+        #endregion
 
-#region Drawers
+        #region Drawers
         private bool IsColorPaletteVisible()
         {
 #if HONEYSELECT
@@ -1715,16 +1757,7 @@ namespace RendererEditor
             if (newRenderQueue != displayedMaterial.renderQueue)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
-                {
-                    MaterialData data;
-                    this.SetMaterialDirty(material.Key, out data);
-                    if (data.hasRenderQueue == false)
-                    {
-                        data.originalRenderQueue = material.Key.renderQueue;
-                        data.hasRenderQueue = true;
-                    }
-                    material.Key.renderQueue = newRenderQueue;
-                }
+                    this.SetRenderQueue(material.Key, newRenderQueue);
             }
             string res = GUILayout.TextField(newRenderQueue.ToString(), GUILayout.Width(40));
             if (int.TryParse(res, out newRenderQueue) == false)
@@ -1732,32 +1765,16 @@ namespace RendererEditor
             if (newRenderQueue != displayedMaterial.renderQueue)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
-                {
-                    MaterialData data;
-                    this.SetMaterialDirty(material.Key, out data);
-                    if (data.hasRenderQueue == false)
-                    {
-                        data.originalRenderQueue = material.Key.renderQueue;
-                        data.hasRenderQueue = true;
-                    }
-                    material.Key.renderQueue = newRenderQueue;
-                }
+                    this.SetRenderQueue(material.Key, newRenderQueue);
             }
             if (GUILayout.Button("-1000", GUILayout.ExpandWidth(false)))
             {
                 foreach (KeyValuePair<Material, MaterialInfo> material in this._currentTreeNode.selectedMaterials)
                 {
-                    MaterialData data;
-                    this.SetMaterialDirty(material.Key, out data);
-                    if (data.hasRenderQueue == false)
-                    {
-                        data.originalRenderQueue = material.Key.renderQueue;
-                        data.hasRenderQueue = true;
-                    }
                     int value = material.Key.renderQueue - 1000;
                     if (value < -1)
                         value = -1;
-                    material.Key.renderQueue = value;
+                    this.SetRenderQueue(material.Key, value);
                 }
             }
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
@@ -1865,10 +1882,7 @@ namespace RendererEditor
                     Studio.Studio.Instance.colorMenu.updateColorFunc = col =>
                     {
                         foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                        {
-                            this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                            this.SetColor(selectedMaterial.Key, materialData, property.name, col);
-                        }
+                            this.SetColor(selectedMaterial.Key, property.name, col);
                     };
                     try
                     {
@@ -1889,10 +1903,7 @@ namespace RendererEditor
                         Studio.Studio.Instance.colorPalette.Setup(property.name, c, (col) =>
                         {
                             foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                            {
-                                this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                                this.SetColor(selectedMaterial.Key, materialData, property.name, col);
-                            }
+                                this.SetColor(selectedMaterial.Key, property.name, col);
                         }, true);
                     }
                     catch (Exception)
@@ -1951,10 +1962,7 @@ namespace RendererEditor
                         this._selectTextureCallback = (path, newTexture) =>
                         {
                             foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                            {
-                                this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                                this.SetTexture(selectedMaterial.Key, materialData, property.name, newTexture, path);
-                            }
+                                this.SetTexture(selectedMaterial.Key, property.name, newTexture, path);
                         };
                 }
                 Rect r = GUILayoutUtility.GetLastRect();
@@ -2049,10 +2057,7 @@ namespace RendererEditor
                 if (offset != newOffset)
                 {
                     foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                    {
-                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                        this.SetTextureOffset(selectedMaterial.Key, materialData, property.name, newOffset);
-                    }
+                        this.SetTextureOffset(selectedMaterial.Key, property.name, newOffset);
                 }
                 if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 {
@@ -2113,10 +2118,7 @@ namespace RendererEditor
                 if (scale != newScale)
                 {
                     foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                    {
-                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                        this.SetTextureScale(selectedMaterial.Key, materialData, property.name, newScale);
-                    }
+                        this.SetTextureScale(selectedMaterial.Key, property.name, newScale);
                 }
                 if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
                 {
@@ -2163,10 +2165,7 @@ namespace RendererEditor
             if (Mathf.Approximately(value, newValue) == false)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                {
-                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                    this.SetFloat(selectedMaterial.Key, materialData, property.name, newValue);
-                }
+                    this.SetFloat(selectedMaterial.Key, property.name, newValue);
             }
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
@@ -2174,7 +2173,7 @@ namespace RendererEditor
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
                         targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
-                    materialData.dirtyFloatProperties.ContainsKey(property.name))
+                        materialData.dirtyFloatProperties.ContainsKey(property.name))
                     {
                         selectedMaterial.Key.SetFloat(property.name, materialData.dirtyFloatProperties[property.name]);
                         materialData.dirtyFloatProperties.Remove(property.name);
@@ -2200,10 +2199,7 @@ namespace RendererEditor
             if (value != newValue)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                {
-                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                    this.SetBoolean(selectedMaterial.Key, materialData, property.name, newValue);
-                }
+                    this.SetBoolean(selectedMaterial.Key, property.name, newValue);
             }
 
             GUILayout.FlexibleSpace();
@@ -2212,7 +2208,7 @@ namespace RendererEditor
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
                         targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
-                    materialData.dirtyBooleanProperties.ContainsKey(property.name))
+                        materialData.dirtyBooleanProperties.ContainsKey(property.name))
                     {
                         selectedMaterial.Key.SetFloat(property.name, materialData.dirtyBooleanProperties[property.name] ? 1f : 0f);
                         materialData.dirtyBooleanProperties.Remove(property.name);
@@ -2249,10 +2245,7 @@ namespace RendererEditor
             if (newKey != key)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                {
-                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                    this.SetEnum(selectedMaterial.Key, materialData, property.name, newKey);
-                }
+                    this.SetEnum(selectedMaterial.Key, property.name, newKey);
             }
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
@@ -2260,7 +2253,7 @@ namespace RendererEditor
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
                     if (this._dirtyTargets.TryGetValue(selectedMaterial.Value.target, out ITargetData targetData) &&
                         targetData.dirtyMaterials.TryGetValue(selectedMaterial.Key, out MaterialData materialData) &&
-                    materialData.dirtyEnumProperties.ContainsKey(property.name))
+                        materialData.dirtyEnumProperties.ContainsKey(property.name))
                     {
                         selectedMaterial.Key.SetInt(property.name, materialData.dirtyEnumProperties[property.name]);
                         materialData.dirtyEnumProperties.Remove(property.name);
@@ -2341,10 +2334,7 @@ namespace RendererEditor
             if (value != newValue)
             {
                 foreach (KeyValuePair<Material, MaterialInfo> selectedMaterial in this._currentTreeNode.selectedMaterials)
-                {
-                    this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                    this.SetVector4(selectedMaterial.Key, materialData, property.name, newValue);
-                }
+                    this.SetVector4(selectedMaterial.Key, property.name, newValue);
             }
 
             if (GUILayout.Button("Reset", GUILayout.ExpandWidth(false)))
@@ -2381,8 +2371,7 @@ namespace RendererEditor
                     {
                         if (selectedMaterial.Key.IsKeywordEnabled(keyword))
                         {
-                            this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                            this.DisableKeyword(selectedMaterial.Key, materialData, keyword);
+                            this.DisableKeyword(selectedMaterial.Key, keyword);
                         }
                     }
                 }
@@ -2413,8 +2402,7 @@ namespace RendererEditor
                 {
                     if (selectedMaterial.Key.IsKeywordEnabled(this._keywordInput) == false)
                     {
-                        this.SetMaterialDirty(selectedMaterial.Key, out MaterialData materialData);
-                        this.EnableKeyword(selectedMaterial.Key, materialData, this._keywordInput);
+                        this.EnableKeyword(selectedMaterial.Key, this._keywordInput);
                     }
                 }
                 this._keywordInput = "";
@@ -2422,14 +2410,58 @@ namespace RendererEditor
 
             GUILayout.EndHorizontal();
         }
-#endregion
+        #endregion
 
-#region Setters
+        #region Setters
+        private void SetCurrentEnabled(ITarget target, bool currentEnabled)
+        {
+            this.SetTargetDirty(target, out ITargetData targetData);
+            this.SetCurrentEnabled(target, targetData, currentEnabled);
+        }
+
+        private void SetCurrentEnabled(ITarget target, ITargetData targetData, bool currentEnabled)
+        {
+            targetData.currentEnabled = currentEnabled;
+            Transform t = target.transform;
+            ObjectCtrlInfo info;
+            while ((info = Studio.Studio.Instance.dicObjectCtrl.FirstOrDefault(e => e.Value.guideObject.transformTarget == t).Value) == null)
+                t = t.parent;
+            target.enabled = info.treeNodeObject.IsVisible() && currentEnabled;
+        }
+
+        private void SetRenderQueue(Material material, int value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetRenderQueue(material, materialData, value);
+        }
+
+        private void SetRenderQueue(Material material, MaterialData materialData, int value)
+        {
+            if (materialData.hasRenderQueue == false)
+            {
+                materialData.originalRenderQueue = material.renderQueue;
+                materialData.hasRenderQueue = true;
+            }
+            material.renderQueue = value;
+        }
+
+        private void SetColor(Material material, string propertyName, Color value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetColor(material, materialData, propertyName, value);
+        }
+
         private void SetColor(Material material, MaterialData materialData, string propertyName, Color value)
         {
             if (materialData.dirtyColorProperties.ContainsKey(propertyName) == false)
                 materialData.dirtyColorProperties.Add(propertyName, material.GetColor(propertyName));
             material.SetColor(propertyName, value);
+        }
+
+        private void SetTexture(Material material, string propertyName, Texture value, string path)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetTexture(material, materialData, propertyName, value, path);
         }
 
         private void SetTexture(Material material, MaterialData materialData, string propertyName, Texture value, string path)
@@ -2446,11 +2478,23 @@ namespace RendererEditor
             material.SetTexture(propertyName, value);
         }
 
+        private void SetTextureOffset(Material material, string propertyName, Vector2 value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetTextureOffset(material, materialData, propertyName, value);
+        }
+
         private void SetTextureOffset(Material material, MaterialData materialData, string propertyName, Vector2 value)
         {
             if (materialData.dirtyTextureOffsetProperties.ContainsKey(propertyName) == false)
                 materialData.dirtyTextureOffsetProperties.Add(propertyName, material.GetTextureOffset(propertyName));
             material.SetTextureOffset(propertyName, value);
+        }
+
+        private void SetTextureScale(Material material, string propertyName, Vector2 value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetTextureScale(material, materialData, propertyName, value);
         }
 
         private void SetTextureScale(Material material, MaterialData materialData, string propertyName, Vector2 value)
@@ -2460,11 +2504,23 @@ namespace RendererEditor
             material.SetTextureScale(propertyName, value);
         }
 
+        private void SetFloat(Material material, string propertyName, float value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetFloat(material, materialData, propertyName, value);
+        }
+
         private void SetFloat(Material material, MaterialData materialData, string propertyName, float value)
         {
             if (materialData.dirtyFloatProperties.ContainsKey(propertyName) == false)
                 materialData.dirtyFloatProperties.Add(propertyName, material.GetFloat(propertyName));
             material.SetFloat(propertyName, value);
+        }
+
+        private void SetBoolean(Material material, string propertyName, bool value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetBoolean(material, materialData, propertyName, value);
         }
 
         private void SetBoolean(Material material, MaterialData materialData, string propertyName, bool value)
@@ -2474,6 +2530,12 @@ namespace RendererEditor
             material.SetFloat(propertyName, value ? 1f : 0f);
         }
 
+        private void SetEnum(Material material, string propertyName, int value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetEnum(material, materialData, propertyName, value);
+        }
+
         private void SetEnum(Material material, MaterialData materialData, string propertyName, int value)
         {
             if (materialData.dirtyEnumProperties.ContainsKey(propertyName) == false)
@@ -2481,11 +2543,23 @@ namespace RendererEditor
             material.SetInt(propertyName, value);
         }
 
+        private void SetVector4(Material material, string propertyName, Vector4 value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.SetVector4(material, materialData, propertyName, value);
+        }
+
         private void SetVector4(Material material, MaterialData materialData, string propertyName, Vector4 value)
         {
             if (materialData.dirtyVector4Properties.ContainsKey(propertyName) == false)
                 materialData.dirtyVector4Properties.Add(propertyName, material.GetVector(propertyName));
             material.SetVector(propertyName, value);
+        }
+
+        private void EnableKeyword(Material material, string value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.EnableKeyword(material, materialData, value);
         }
 
         private void EnableKeyword(Material material, MaterialData materialData, string value)
@@ -2497,6 +2571,12 @@ namespace RendererEditor
             material.EnableKeyword(value);
         }
 
+        private void DisableKeyword(Material material, string value)
+        {
+            this.SetMaterialDirty(material, out MaterialData materialData);
+            this.DisableKeyword(material, materialData, value);
+        }
+
         private void DisableKeyword(Material material, MaterialData materialData, string value)
         {
             bool inEnabled = materialData.enabledKeywords.Contains(value);
@@ -2506,9 +2586,9 @@ namespace RendererEditor
                 materialData.disabledKeywords.Add(value);
             material.DisableKeyword(value);
         }
-#endregion
+        #endregion
 
-#region Saves
+        #region Saves
 #if AISHOUJO
         private void OnSceneLoad(string path)
         {
@@ -2533,39 +2613,33 @@ namespace RendererEditor
         private void OnSceneSave(string path)
         {
             using (StringWriter stringWriter = new StringWriter())
-            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
-            {
-                xmlWriter.WriteStartElement("root");
+                using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+                {
+                    xmlWriter.WriteStartElement("root");
 
-                xmlWriter.WriteAttributeString("version", _version);
+                    xmlWriter.WriteAttributeString("version", _version);
 
-                this.OnSceneSave(path, xmlWriter);
+                    this.OnSceneSave(path, xmlWriter);
 
-                xmlWriter.WriteEndElement();
+                    xmlWriter.WriteEndElement();
 
-                PluginData data = new PluginData();
-                data.version = saveVersion;
-                data.data.Add("xml", stringWriter.ToString());
-                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
-            }
+                    PluginData data = new PluginData();
+                    data.version = saveVersion;
+                    data.data.Add("xml", stringWriter.ToString());
+                    ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
+                }
         }
 #endif
 
         private void OnSceneLoad(string path, XmlNode node)
         {
-            this.ExecuteDelayed(() =>
-            {
-                this.OnSceneLoadGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
-            }, 16);
+            this.ExecuteDelayed(() => { this.OnSceneLoadGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList()); }, 16);
         }
 
         private void OnSceneImport(string path, XmlNode node)
         {
             Dictionary<int, ObjectCtrlInfo> toIgnore = new Dictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl);
-            this.ExecuteDelayed(() =>
-            {
-                this.OnSceneLoadGeneric(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
-            }, 16);
+            this.ExecuteDelayed(() => { this.OnSceneLoadGeneric(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList()); }, 16);
         }
 
         private void OnSceneLoadGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
@@ -2616,27 +2690,17 @@ namespace RendererEditor
                     if (objectIndex >= dic.Count)
                         continue;
                     ObjectCtrlInfo info = dic[objectIndex].Value;
-                    Transform t = info.guideObject.transformTarget;
                     string targetPath = "";
-                    ITarget target = null;
                     switch (type)
                     {
                         case TargetType.Renderer:
                             targetPath = childNode.Attributes["rendererPath"].Value;
-                            Transform child;
-                            child = string.IsNullOrEmpty(targetPath) ? t : t.Find(targetPath);
-                            if (child == null)
-                                continue;
-                            target = (RendererTarget)child.GetComponent<Renderer>();
                             break;
                         case TargetType.Projector:
                             targetPath = childNode.Attributes["projectorPath"].Value;
-                            child = string.IsNullOrEmpty(targetPath) ? t : t.Find(targetPath);
-                            if (child == null)
-                                continue;
-                            target = (ProjectorTarget)child.GetComponent<Projector>();
                             break;
                     }
+                    ITarget target = this.GetTarget(info.guideObject.transformTarget, targetPath, type);
                     if (target.target != null && this.SetTargetDirty(target, out ITargetData targetData))
                     {
                         switch (type)
@@ -2871,17 +2935,15 @@ namespace RendererEditor
                     {
                         case TargetType.Renderer:
                             writer.WriteStartElement("renderer");
-                            writer.WriteAttributeString("rendererPath", targetPair.Key.transform.GetPathFrom(t));
+                            writer.WriteAttributeString("rendererPath", this.GetPath(targetPair.Key, t));
                             //writer.WriteAttributeString("enabled", XmlConvert.ToString(rendererPair.Key.enabled));
                             writer.WriteAttributeString("rendererEnabled", XmlConvert.ToString(targetPair.Value.currentEnabled));
                             break;
                         case TargetType.Projector:
                             writer.WriteStartElement("projector");
-                            writer.WriteAttributeString("projectorPath", targetPair.Key.transform.GetPathFrom(t));
+                            writer.WriteAttributeString("projectorPath", this.GetPath(targetPair.Key, t));
                             writer.WriteAttributeString("projectorEnabled", XmlConvert.ToString(targetPair.Value.currentEnabled));
                             break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
                     }
                     writer.WriteAttributeString("objectIndex", XmlConvert.ToString(objectIndex));
 
@@ -3025,9 +3087,29 @@ namespace RendererEditor
                 }
             }
         }
-#endregion
 
-#region Patches
+        private ITarget GetTarget(Transform parentTransform, string path, TargetType type)
+        {
+            Transform child = string.IsNullOrEmpty(path) ? parentTransform : parentTransform.Find(path);
+            if (child == null)
+                return null;
+            switch (type)
+            {
+                case TargetType.Renderer:
+                    return (RendererTarget)child.GetComponent<Renderer>();
+                case TargetType.Projector:
+                    return (ProjectorTarget)child.GetComponent<Projector>();
+            }
+            return null;
+        }
+
+        private string GetPath(ITarget target, Transform parentTransform)
+        {
+            return target.transform.GetPathFrom(parentTransform);
+        }
+        #endregion
+
+        #region Patches
         [HarmonyPatch(typeof(Studio.Studio), "Duplicate")]
         private class Studio_Duplicate_Patches
         {
@@ -3046,7 +3128,7 @@ namespace RendererEditor
             }
         }
 
-        [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(BinaryReader), typeof(Version) })]
+        [HarmonyPatch(typeof(SceneInfo), "Import", new[] {typeof(BinaryReader), typeof(Version)})]
         private static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
         {
             internal static readonly Dictionary<int, int> _newToOldKeys = new Dictionary<int, int>();
@@ -3057,7 +3139,7 @@ namespace RendererEditor
             }
         }
 
-        [HarmonyPatch(typeof(ObjectInfo), "Load", new[] { typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool) })]
+        [HarmonyPatch(typeof(ObjectInfo), "Load", new[] {typeof(BinaryReader), typeof(Version), typeof(bool), typeof(bool)})]
         private static class ObjectInfo_Load_Patches
         {
             private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
@@ -3087,7 +3169,7 @@ namespace RendererEditor
             }
         }
 
-        [HarmonyPatch(typeof(TreeNodeObject), "SetVisible", new[] { typeof(bool) })]
+        [HarmonyPatch(typeof(TreeNodeObject), "SetVisible", new[] {typeof(bool)})]
         private static class TreeNodeObject_SetVisible_Patches
         {
             private static void Postfix(TreeNodeObject __instance)
@@ -3214,7 +3296,641 @@ namespace RendererEditor
                 }
             }
         }
-#endregion
+        #endregion
 
+        #region Timeline Compatibility
+        private void PopulateTimeline()
+        {
+            //Common
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "targetEnabled",
+                    name: "Enabled",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        ITarget target = (ITarget)parameter;
+                        bool newEnabled = (bool)leftValue;
+                        if (newEnabled != target.enabled)
+                        {
+                            this.SetTargetDirty(target, out ITargetData targetData);
+                            this.SetCurrentEnabled(target, targetData, newEnabled);
+                        }
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithTarget,
+                    getValue: (oci, parameter) => ((ITarget)parameter).enabled,
+                    readValueFromXml: (parameter, node) => node.ReadBool("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (bool)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: this.ReadTargetParameterFromXml,
+                    writeParameterToXml: this.WriteTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    getFinalName: (currentName, oci, parameter) => $"{currentName} ({((ITarget)parameter).targetType})",
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            //Renderer
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "rendererReceiveShadows",
+                    name: "Receive Shadows",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        RendererTarget target = (RendererTarget)parameter;
+                        bool newReceiveShadows = (bool)leftValue;
+                        if (newReceiveShadows != target._target.receiveShadows)
+                            RendererTarget.SetReceiveShadows(target, newReceiveShadows);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithRendererTarget,
+                    getValue: (oci, parameter) => ((RendererTarget)parameter)._target.receiveShadows,
+                    readValueFromXml: (parameter, node) => node.ReadBool("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (bool)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadRendererTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteRendererTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "rendererShadowCastingMode",
+                    name: "Shadow Casting",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        RendererTarget target = (RendererTarget)parameter;
+                        ShadowCastingMode newShadowCastingMode = (ShadowCastingMode)leftValue;
+                        if (newShadowCastingMode != target._target.shadowCastingMode)
+                            RendererTarget.SetShadowCastingMode(target, newShadowCastingMode);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithRendererTarget,
+                    getValue: (oci, parameter) => ((RendererTarget)parameter)._target.shadowCastingMode,
+                    readValueFromXml: (parameter, node) => (ShadowCastingMode)node.ReadInt("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (int)((ShadowCastingMode)value)),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadRendererTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteRendererTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "rendererReflectionProbeUsage",
+                    name: "Reflection Probe Usage",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        RendererTarget target = (RendererTarget)parameter;
+                        ReflectionProbeUsage newReflectionProbeUsage = (ReflectionProbeUsage)leftValue;
+                        if (newReflectionProbeUsage != target._target.reflectionProbeUsage)
+                            RendererTarget.SetReflectionProbeUsage(target, newReflectionProbeUsage);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithRendererTarget,
+                    getValue: (oci, parameter) => ((RendererTarget)parameter)._target.reflectionProbeUsage,
+                    readValueFromXml: (parameter, node) => (ReflectionProbeUsage)node.ReadInt("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (int)((ReflectionProbeUsage)value)),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadRendererTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteRendererTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            //Projector
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorNearClipPlane",
+                    name: "Near Clip Plane",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ProjectorTarget.SetNearClipPlane((ProjectorTarget)parameter, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.nearClipPlane,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (float)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorFarClipPlane",
+                    name: "Far Clip Plane",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ProjectorTarget.SetFarClipPlane((ProjectorTarget)parameter, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.farClipPlane,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (float)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorAspectRatio",
+                    name: "Aspect Ratio",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ProjectorTarget.SetAspectRatio((ProjectorTarget)parameter, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.aspectRatio,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (float)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorOrthographic",
+                    name: "Orthographic",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        ProjectorTarget target = (ProjectorTarget)parameter;
+                        bool newOrthographic = (bool)leftValue;
+                        if (target._target.orthographic != newOrthographic)
+                            ProjectorTarget.SetOrthographic(target, newOrthographic);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.aspectRatio,
+                    readValueFromXml: (parameter, node) => node.ReadBool("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (bool)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorOrthographicSize",
+                    name: "Orthographic Size",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ProjectorTarget.SetOrthographicSize((ProjectorTarget)parameter, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.orthographicSize,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (float)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "projectorFieldOfView",
+                    name: "Field Of View",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ProjectorTarget.SetOrthographicSize((ProjectorTarget)parameter, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: this.IsCompatibleWithProjectorTarget,
+                    getValue: (oci, parameter) => ((ProjectorTarget)parameter)._target.orthographicSize,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (float)value),
+                    getParameter: this.GetTargetParameter,
+                    readParameterFromXml: (oci, node) => this.ReadProjectorTargetParameterFromXml(oci, node),
+                    writeParameterToXml: this.WriteProjectorTargetParameterToXml,
+                    checkIntegrity: this.CheckTargetIntegrity,
+                    getFinalName: (currentName, oci, parameter) => "Projector FOV",
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            //Material
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "materialRenderQueue",
+                    name: "RenderQueue",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        MaterialInfo info = (MaterialInfo)parameter;
+                        Material material = info.target.materials[info.index];
+                        this.SetTargetDirty(info.target, out ITargetData targetData);
+                        this.SetMaterialDirty(material, out MaterialData materialData, targetData);
+                        this.SetRenderQueue(material, materialData, (int)Mathf.LerpUnclamped((int)leftValue, (int)rightValue, factor));
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: oci =>
+                    {
+                        if (this._currentTreeNode == null)
+                            return false;
+                        KeyValuePair<Material, MaterialInfo> material = this._currentTreeNode.selectedMaterials.FirstOrDefault();
+                        if (material.Value == null)
+                            return false;
+                        return true;
+                    },
+                    getValue: (oci, parameter) =>
+                    {
+                        MaterialInfo materialInfo = (MaterialInfo)parameter;
+                        return materialInfo.target.materials[materialInfo.index].renderQueue;
+                    },
+                    readValueFromXml: (parameter, node) => node.ReadInt("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (int)value),
+                    getParameter: this.GetMaterialParameter,
+                    readParameterFromXml: this.ReadMaterialParameterFromXml,
+                    writeParameterToXml: this.WriteMaterialParameterToXml,
+                    checkIntegrity: this.CheckMaterialIntegrity,
+                    shouldShow: this.ShouldShowTarget
+            );
+
+            foreach (ShaderProperty property in ShaderProperty.properties)
+            {
+                if (property.type == ShaderProperty.Type.Texture)
+                    this.HandleTextureProperties(property);
+                else
+                    this.HandleOtherProperties(property);
+            }
+        }
+
+        private void HandleTextureProperties(ShaderProperty property)
+        {
+            string propertyName = property.name;
+            string id = property.type + propertyName;
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: id + "Scale",
+                    name: propertyName + " Scale",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        MaterialInfo info = (MaterialInfo)parameter;
+                        Material material = info.target.materials[info.index];
+                        this.SetTargetDirty(info.target, out ITargetData targetData);
+                        this.SetMaterialDirty(material, out MaterialData materialData, targetData);
+                        this.SetTextureScale(material, materialData, propertyName, Vector2.LerpUnclamped((Vector2)leftValue, (Vector2)rightValue, factor));
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: oci => this.IsCompatibleWithMaterial(oci, propertyName),
+                    getValue: (oci, parameter) =>
+                    {
+                        MaterialInfo materialInfo = (MaterialInfo)parameter;
+                        return materialInfo.target.materials[materialInfo.index].GetTextureScale(propertyName);
+                    },
+                    readValueFromXml: (parameter, node) => node.ReadVector2("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (Vector2)value),
+                    getParameter: this.GetMaterialParameter,
+                    readParameterFromXml: this.ReadMaterialParameterFromXml,
+                    writeParameterToXml: this.WriteMaterialParameterToXml,
+                    checkIntegrity: this.CheckMaterialIntegrity,
+                    shouldShow: this.ShouldShowMaterial
+            );
+
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: id + "Offset",
+                    name: propertyName + " Offset",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        MaterialInfo info = (MaterialInfo)parameter;
+                        Material material = info.target.materials[info.index];
+                        this.SetTargetDirty(info.target, out ITargetData targetData);
+                        this.SetMaterialDirty(material, out MaterialData materialData, targetData);
+                        this.SetTextureOffset(material, materialData, propertyName, Vector2.LerpUnclamped((Vector2)leftValue, (Vector2)rightValue, factor));
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: oci => this.IsCompatibleWithMaterial(oci, propertyName),
+                    getValue: (oci, parameter) =>
+                    {
+                        MaterialInfo materialInfo = (MaterialInfo)parameter;
+                        return materialInfo.target.materials[materialInfo.index].GetTextureOffset(propertyName);
+                    },
+                    readValueFromXml: (parameter, node) => node.ReadVector2("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (Vector2)value),
+                    getParameter: this.GetMaterialParameter,
+                    readParameterFromXml: this.ReadMaterialParameterFromXml,
+                    writeParameterToXml: this.WriteMaterialParameterToXml,
+                    checkIntegrity: this.CheckMaterialIntegrity,
+                    shouldShow: this.ShouldShowMaterial
+            );
+        }
+
+        private void HandleOtherProperties(ShaderProperty property)
+        {
+            ToolBox.Extensions.Action<Material, MaterialData, string, object, object, float> interpolateAction = null;
+            Func<Material, string, object> getValueFunc = null;
+            Func<string, XmlNode, object> readValueFunc = null;
+            Action<string, XmlTextWriter, object> writeValueFunc = null;
+            switch (property.type)
+            {
+                case ShaderProperty.Type.Color:
+                    interpolateAction = this.InterpolateColor;
+                    getValueFunc = this.GetColorValue;
+                    readValueFunc = this.ReadColorValueFromXml;
+                    writeValueFunc = this.WriteColorValueToXml;
+                    break;
+                case ShaderProperty.Type.Float:
+                    interpolateAction = this.InterpolateFloat;
+                    getValueFunc = this.GetFloatValue;
+                    readValueFunc = this.ReadFloatValueFromXml;
+                    writeValueFunc = this.WriteFloatValueToXml;
+                    break;
+                case ShaderProperty.Type.Boolean:
+                    interpolateAction = this.InterpolateBoolean;
+                    getValueFunc = this.GetBooleanValue;
+                    readValueFunc = this.ReadBooleanValueFromXml;
+                    writeValueFunc = this.WriteBooleanValueToXml;
+                    break;
+                case ShaderProperty.Type.Enum:
+                    interpolateAction = this.InterpolateEnum;
+                    getValueFunc = this.GetEnumValue;
+                    readValueFunc = this.ReadEnumValueFromXml;
+                    writeValueFunc = this.WriteEnumValueToXml;
+                    break;
+                case ShaderProperty.Type.Vector4:
+                    interpolateAction = this.InterpolateVector4;
+                    getValueFunc = this.GetVector4Value;
+                    readValueFunc = this.ReadVector4ValueFromXml;
+                    writeValueFunc = this.WriteVector4ValueToXml;
+                    break;
+            }
+            string propertyName = property.name;
+            string id = property.type + propertyName;
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: id,
+                    name: propertyName,
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        MaterialInfo info = (MaterialInfo)parameter;
+                        Material material = info.target.materials[info.index];
+                        this.SetTargetDirty(info.target, out ITargetData targetData);
+                        this.SetMaterialDirty(material, out MaterialData materialData, targetData);
+                        interpolateAction(material, materialData, propertyName, leftValue, rightValue, factor);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: oci => this.IsCompatibleWithMaterial(oci, propertyName),
+                    getValue: (oci, parameter) =>
+                    {
+                        MaterialInfo materialInfo = (MaterialInfo)parameter;
+                        return getValueFunc(materialInfo.target.materials[materialInfo.index], propertyName);
+                    },
+                    readValueFromXml: (parameter, node) => readValueFunc("value", node),
+                    writeValueToXml: (parameter, writer, value) => writeValueFunc("value", writer, value),
+                    getParameter: this.GetMaterialParameter,
+                    readParameterFromXml: this.ReadMaterialParameterFromXml,
+                    writeParameterToXml: this.WriteMaterialParameterToXml,
+                    checkIntegrity: this.CheckMaterialIntegrity,
+                    shouldShow: this.ShouldShowMaterial
+            );
+        }
+
+        private bool IsCompatibleWithTarget(ObjectCtrlInfo oci)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            ITarget target = this._currentTreeNode.selectedTargets.FirstOrDefault();
+            if (target == null || target.target == null)
+                return false;
+            return true;
+        }
+
+        private bool IsCompatibleWithRendererTarget(ObjectCtrlInfo oci)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            ITarget target = this._currentTreeNode.selectedTargets.FirstOrDefault();
+            if (target == null || target.target == null || target.targetType != TargetType.Renderer)
+                return false;
+            return true;
+        }
+
+        private bool IsCompatibleWithProjectorTarget(ObjectCtrlInfo oci)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            ITarget target = this._currentTreeNode.selectedTargets.FirstOrDefault();
+            if (target == null || target.target == null || target.targetType != TargetType.Projector)
+                return false;
+            return true;
+        }
+
+        private bool ShouldShowTarget(ObjectCtrlInfo oci, object parameter)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            return ((ITarget)parameter).Equals(this._currentTreeNode.selectedTargets.FirstOrDefault());
+        }
+
+        private ITarget GetTargetParameter(ObjectCtrlInfo oci)
+        {
+            if (this._currentTreeNode == null)
+                return null;
+            return this._currentTreeNode.selectedTargets.FirstOrDefault();
+        }
+
+        private ITarget ReadTargetParameterFromXml(ObjectCtrlInfo oci, XmlNode node)
+        {
+            return this.GetTarget(oci.guideObject.transformTarget, node.Attributes["parameterPath"].Value, (TargetType)node.ReadInt("parameterType"));
+        }
+
+        private RendererTarget ReadRendererTargetParameterFromXml(ObjectCtrlInfo oci, XmlNode node)
+        {
+            return (RendererTarget)this.GetTarget(oci.guideObject.transformTarget, node.Attributes["parameterPath"].Value, TargetType.Renderer);
+        }
+
+        private ProjectorTarget ReadProjectorTargetParameterFromXml(ObjectCtrlInfo oci, XmlNode node)
+        {
+            return (ProjectorTarget)this.GetTarget(oci.guideObject.transformTarget, node.Attributes["parameterPath"].Value, TargetType.Projector);
+        }
+
+        private void WriteTargetParameterToXml(ObjectCtrlInfo oci, XmlTextWriter writer, object parameter)
+        {
+            ITarget target = (ITarget)parameter;
+            writer.WriteAttributeString("parameterPath", this.GetPath(target, oci.guideObject.transformTarget));
+            writer.WriteValue("parameterType", (int)target.targetType);
+        }
+
+        private void WriteRendererTargetParameterToXml(ObjectCtrlInfo oci, XmlTextWriter writer, object parameter)
+        {
+            RendererTarget target = (RendererTarget)parameter;
+            writer.WriteAttributeString("parameterPath", this.GetPath(target, oci.guideObject.transformTarget));
+        }
+
+        private void WriteProjectorTargetParameterToXml(ObjectCtrlInfo oci, XmlTextWriter writer, object parameter)
+        {
+            ProjectorTarget target = (ProjectorTarget)parameter;
+            writer.WriteAttributeString("parameterPath", this.GetPath(target, oci.guideObject.transformTarget));
+        }
+
+        private bool CheckTargetIntegrity(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue)
+        {
+            if (parameter == null)
+                return false;
+            ITarget target = (ITarget)parameter;
+            if (target.target == null)
+                return false;
+            return true;
+        }
+
+        private bool IsCompatibleWithMaterial(ObjectCtrlInfo oci, string propertyName)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            KeyValuePair<Material, MaterialInfo> material = this._currentTreeNode.selectedMaterials.FirstOrDefault();
+            if (material.Value == null)
+                return false;
+            if (material.Key.HasProperty(propertyName) == false)
+                return false;
+            return true;
+        }
+
+        private bool ShouldShowMaterial(ObjectCtrlInfo oci, object parameter)
+        {
+            if (this._currentTreeNode == null)
+                return false;
+            return ((MaterialInfo)parameter).Equals(this._currentTreeNode.selectedMaterials.FirstOrDefault().Value);
+        }
+
+        private MaterialInfo GetMaterialParameter(ObjectCtrlInfo oci)
+        {
+            if (this._currentTreeNode == null)
+                return null;
+            KeyValuePair<Material, MaterialInfo> material = this._currentTreeNode.selectedMaterials.FirstOrDefault();
+            return material.Value;
+        }
+
+        private MaterialInfo ReadMaterialParameterFromXml(ObjectCtrlInfo oci, XmlNode node)
+        {
+            return new MaterialInfo(
+                    this.GetTarget(
+                            oci.guideObject.transformTarget,
+                            node.Attributes["parameterTargetPath"].Value,
+                            (TargetType)node.ReadInt("parameterTargetType")
+                    ),
+                    node.ReadInt("parameterIndex")
+            );
+        }
+
+        private void WriteMaterialParameterToXml(ObjectCtrlInfo oci, XmlTextWriter writer, object parameter)
+        {
+            MaterialInfo materialInfo = (MaterialInfo)parameter;
+            writer.WriteAttributeString("parameterTargetPath", this.GetPath(materialInfo.target, oci.guideObject.transformTarget));
+            writer.WriteValue("parameterTargetType", (int)materialInfo.target.targetType);
+            writer.WriteValue("parameterIndex", materialInfo.index);
+        }
+
+        private bool CheckMaterialIntegrity(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue)
+        {
+            if (parameter == null)
+                return false;
+            MaterialInfo materialInfo = (MaterialInfo)parameter;
+            if (materialInfo.target == null || materialInfo.target.target == null || materialInfo.index >= materialInfo.target.sharedMaterials.Length)
+                return false;
+            return true;
+        }
+
+        private void InterpolateColor(Material material, MaterialData materialData, string propertyName, object leftValue, object rightValue, float factor)
+        {
+            this.SetColor(material, materialData, propertyName, Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor));
+        }
+
+        private object GetColorValue(Material material, string propertyName)
+        {
+            return material.GetColor(propertyName);
+        }
+
+        private object ReadColorValueFromXml(string prefix, XmlNode node)
+        {
+            return node.ReadColor(prefix);
+        }
+
+        private void WriteColorValueToXml(string prefix, XmlTextWriter writer, object value)
+        {
+            writer.WriteValue(prefix, (Color)value);
+        }
+
+        private void InterpolateFloat(Material material, MaterialData materialData, string propertyName, object leftValue, object rightValue, float factor)
+        {
+            this.SetFloat(material, materialData, propertyName, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+        }
+
+        private object GetFloatValue(Material material, string propertyName)
+        {
+            return material.GetFloat(propertyName);
+        }
+
+        private object ReadFloatValueFromXml(string prefix, XmlNode node)
+        {
+            return node.ReadFloat(prefix);
+        }
+
+        private void WriteFloatValueToXml(string prefix, XmlTextWriter writer, object value)
+        {
+            writer.WriteValue(prefix, (float)value);
+        }
+
+        private void InterpolateBoolean(Material material, MaterialData materialData, string propertyName, object leftValue, object rightValue, float factor)
+        {
+            this.SetBoolean(material, materialData, propertyName, (bool)leftValue);
+        }
+
+        private object GetBooleanValue(Material material, string propertyName)
+        {
+            return Mathf.Approximately(material.GetFloat(propertyName), 1f);
+        }
+
+        private object ReadBooleanValueFromXml(string prefix, XmlNode node)
+        {
+            return node.ReadBool(prefix);
+        }
+
+        private void WriteBooleanValueToXml(string prefix, XmlTextWriter writer, object value)
+        {
+            writer.WriteValue(prefix, (bool)value);
+        }
+
+        private void InterpolateEnum(Material material, MaterialData materialData, string propertyName, object leftValue, object rightValue, float factor)
+        {
+            this.SetEnum(material, materialData, propertyName, (int)leftValue);
+        }
+
+        private object GetEnumValue(Material material, string propertyName)
+        {
+            return material.GetInt(propertyName);
+        }
+
+        private object ReadEnumValueFromXml(string prefix, XmlNode node)
+        {
+            return node.ReadInt(prefix);
+        }
+
+        private void WriteEnumValueToXml(string prefix, XmlTextWriter writer, object value)
+        {
+            writer.WriteValue(prefix, (int)value);
+        }
+
+        private void InterpolateVector4(Material material, MaterialData materialData, string propertyName, object leftValue, object rightValue, float factor)
+        {
+            this.SetVector4(material, materialData, propertyName, Vector4.LerpUnclamped((Vector4)leftValue, (Vector4)rightValue, factor));
+        }
+
+        private object GetVector4Value(Material material, string propertyName)
+        {
+            return material.GetVector(propertyName);
+        }
+
+        private object ReadVector4ValueFromXml(string prefix, XmlNode node)
+        {
+            return node.ReadVector4(prefix);
+        }
+
+        private void WriteVector4ValueToXml(string prefix, XmlTextWriter writer, object value)
+        {
+            writer.WriteValue(prefix, (Vector4)value);
+        }
+        #endregion
     }
 }
