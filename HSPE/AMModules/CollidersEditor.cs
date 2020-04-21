@@ -16,7 +16,7 @@ namespace HSPE.AMModules
     public class CollidersEditor : AdvancedModeModule
     {
         #region Constants
-        internal static readonly Color _colliderColor = Color.Lerp(AdvancedModeModule._greenColor, Color.white, 0.5f);
+        internal static readonly Color _colliderColor = Color.Lerp(_greenColor, Color.white, 0.5f);
         private static readonly HashSet<string> _loneColliderNames = new HashSet<string>
         {
                 "Collider",
@@ -302,7 +302,7 @@ namespace HSPE.AMModules
         }
 #endif
 
-        private class ColliderDataBase
+        internal class ColliderDataBase
         {
             public EditableValue<Vector3> originalCenter;
             public EditableValue<DynamicBoneCollider.Direction> originalDirection;
@@ -430,7 +430,7 @@ namespace HSPE.AMModules
         #endregion
 
         #region Private Variables
-        internal static readonly HashSet<DynamicBoneColliderBase> _loneColliders = new HashSet<DynamicBoneColliderBase>();
+        internal static readonly Dictionary<DynamicBoneColliderBase, CollidersEditor> _loneColliders = new Dictionary<DynamicBoneColliderBase, CollidersEditor>();
         private static ColliderDebugLines _colliderDebugLines;
 #if AISHOUJO
         private static ColliderPlaneDebugLines _colliderPlaneDebugLines;
@@ -443,8 +443,10 @@ namespace HSPE.AMModules
         internal readonly Dictionary<Transform, DynamicBoneColliderBase> _colliders = new Dictionary<Transform, DynamicBoneColliderBase>();
         internal readonly bool _isLoneCollider = false;
         private DynamicBoneColliderBase _colliderTarget;
+#if AISHOUJO
         private bool _isTargetNormalCollider = true;
-        private readonly Dictionary<DynamicBoneColliderBase, ColliderDataBase> _dirtyColliders = new Dictionary<DynamicBoneColliderBase, ColliderDataBase>();
+#endif
+        internal readonly Dictionary<DynamicBoneColliderBase, ColliderDataBase> _dirtyColliders = new Dictionary<DynamicBoneColliderBase, ColliderDataBase>();
         private Vector2 _ignoredDynamicBonesScroll;
         #endregion
 
@@ -473,20 +475,17 @@ namespace HSPE.AMModules
         {
             this._target = target;
 
-            DynamicBoneColliderBase collider;
-
-            Transform colliderTransform;
             if (_loneColliderNames.Contains(this._parent.name))
             {
-                colliderTransform = this._parent.transform.Find("Collider");
+                Transform colliderTransform = this._parent.transform.Find("Collider");
                 if (colliderTransform != null)
                 {
-                    collider = colliderTransform.GetComponent<DynamicBoneColliderBase>();
+                    DynamicBoneColliderBase collider = colliderTransform.GetComponent<DynamicBoneColliderBase>();
                     if (collider != null)
                     {
                         this._parent.onUpdate += this.Update;
                         this._isLoneCollider = true;
-                        _loneColliders.Add(collider);
+                        _loneColliders.Add(collider, this);
                         foreach (DynamicBone bone in Resources.FindObjectsOfTypeAll<DynamicBone>())
                         {
                             if (bone.m_Colliders.Contains(collider) == false)
@@ -509,7 +508,9 @@ namespace HSPE.AMModules
                 if (this._colliders.ContainsKey(c.transform) == false)
                     this._colliders.Add(c.transform, c);
             this._colliderTarget = this._colliders.FirstOrDefault().Value;
+#if AISHOUJO
             this._isTargetNormalCollider = this._colliderTarget is DynamicBoneCollider;
+#endif
             if (_colliderDebugLines == null)
             {
                 _colliderDebugLines = new ColliderDebugLines();
@@ -645,8 +646,12 @@ namespace HSPE.AMModules
 
             GUILayout.BeginVertical(GUI.skin.box);
 
+#if AISHOUJO
             if (this._isTargetNormalCollider)
+#endif
+            {
                 this.DrawFields((DynamicBoneCollider)this._colliderTarget);
+            }
 #if AISHOUJO
             else
                 this.DrawFields((DynamicBonePlaneCollider)this._colliderTarget);
@@ -655,7 +660,14 @@ namespace HSPE.AMModules
             if (this._isLoneCollider)
             {
                 GUILayout.BeginVertical(GUI.skin.box);
-                GUILayout.Label("Affected Dynamic Bones");
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Affected Dynamic Bones", GUILayout.ExpandWidth(false));
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("All off", GUILayout.ExpandWidth(false)))
+                    this.SetIgnoreAllDynamicBones(this._colliderTarget, true);
+                if (GUILayout.Button("All on", GUILayout.ExpandWidth(false)))
+                    this.SetIgnoreAllDynamicBones(this._colliderTarget, false);
+                GUILayout.EndHorizontal();
                 {
                     ColliderDataBase cd;
                     if (this._dirtyColliders.TryGetValue(this._colliderTarget, out cd) == false)
@@ -701,7 +713,13 @@ namespace HSPE.AMModules
                             ++i;
                         }
 
-                        if (this._isTargetNormalCollider && charaPoseController != null && charaPoseController._boobsEditor != null)
+                        if (
+#if AISHOUJO
+                                this._isTargetNormalCollider && 
+#endif
+                                charaPoseController != null && 
+                                charaPoseController._boobsEditor != null
+                                )
                         {
                             foreach (DynamicBone_Ver02 dynamicBone in charaPoseController._boobsEditor._dynamicBones)
                             {
@@ -828,19 +846,22 @@ namespace HSPE.AMModules
                                 xmlWriter.WriteStartElement("ignoredDynamicBone");
 
                                 xmlWriter.WriteAttributeString("poseControllerId", XmlConvert.ToString(ignoredPair.Key.GetInstanceID()));
-                                xmlWriter.WriteAttributeString("root", ignoredPair.Key._dynamicBonesEditor.GetRoot(db));
+                                xmlWriter.WriteAttributeString("root", ignoredPair.Key._dynamicBonesEditor.CalculateRoot(db));
 
                                 xmlWriter.WriteEndElement();
                             }
                             else if (charaPoseController != null && charaPoseController._boobsEditor != null)
                             {
-                                DynamicBone_Ver02 db2 = (DynamicBone_Ver02)o;
-                                xmlWriter.WriteStartElement("ignoredDynamicBone2");
+                                DynamicBone_Ver02 db2 = o as DynamicBone_Ver02;
+                                if (db2 != null)
+                                {
+                                    xmlWriter.WriteStartElement("ignoredDynamicBone2");
 
-                                xmlWriter.WriteAttributeString("poseControllerId", XmlConvert.ToString(ignoredPair.Key.GetInstanceID()));
-                                xmlWriter.WriteAttributeString("id", charaPoseController._boobsEditor.GetID(db2));
+                                    xmlWriter.WriteAttributeString("poseControllerId", XmlConvert.ToString(ignoredPair.Key.GetInstanceID()));
+                                    xmlWriter.WriteAttributeString("id", charaPoseController._boobsEditor.GetID(db2));
 
-                                xmlWriter.WriteEndElement();
+                                    xmlWriter.WriteEndElement();
+                                }
                             }
                         }
                     }
@@ -936,7 +957,7 @@ namespace HSPE.AMModules
                                             PoseController controller = PoseController._poseControllers.FirstOrDefault(e => e._oldInstanceId == id);
                                             if (controller == null)
                                                 break;
-                                            DynamicBone db = controller._dynamicBonesEditor.GetDynamicBone(childNode.Attributes["root"].Value);
+                                            DynamicBone db = controller._dynamicBonesEditor.SearchDynamicBone(childNode.Attributes["root"].Value);
                                             if (db == null)
                                                 break;
                                             this.SetIgnoreDynamicBone(collider, controller, db, true);
@@ -1172,12 +1193,49 @@ namespace HSPE.AMModules
             }
         }
 
+        private void SetIgnoreAllDynamicBones(DynamicBoneColliderBase collider, bool ignore)
+        {
+#if AISHOUJO
+            bool isColliderNormalCollider = collider is DynamicBoneCollider;
+#endif
+
+            foreach (PoseController controller in PoseController._poseControllers)
+            {
+                CharaPoseController charaPoseController = null;
+                if (CharaPoseController._charaPoseControllers.Contains(controller))
+                    charaPoseController = (CharaPoseController)controller;
+
+                foreach (DynamicBone dynamicBone in controller._dynamicBonesEditor._dynamicBones)
+                {
+                    if (dynamicBone.m_Root == null)
+                        continue;
+                    this.SetIgnoreDynamicBone(collider, controller, dynamicBone, ignore);
+                }
+
+                if (
+#if AISHOUJO
+                        isColliderNormalCollider &&
+#endif
+                        charaPoseController != null && charaPoseController._boobsEditor != null
+                        )
+                {
+                    foreach (DynamicBone_Ver02 dynamicBone in charaPoseController._boobsEditor._dynamicBones)
+                        this.SetIgnoreDynamicBone(collider, controller, dynamicBone, ignore);
+                }
+            }
+
+        }
+
         private void UpdateGizmos()
         {
             if (MainWindow._self._poseTarget == this._parent)
             {
+#if AISHOUJO
                 if (this._isTargetNormalCollider)
+#endif
+                {
                     _colliderDebugLines.Update((DynamicBoneCollider)this._colliderTarget);
+                }
 #if AISHOUJO
                 else
                     _colliderPlaneDebugLines.Update((DynamicBonePlaneCollider)this._colliderTarget);
@@ -1187,8 +1245,12 @@ namespace HSPE.AMModules
 
         private void DrawGizmos()
         {
+#if AISHOUJO
             if (this._isTargetNormalCollider)
+#endif
+            {
                 _colliderDebugLines.Draw();
+            }
 #if AISHOUJO
             else
                 _colliderPlaneDebugLines.Draw();
@@ -1200,7 +1262,12 @@ namespace HSPE.AMModules
             if (_colliderDebugLines != null)
             {
                 bool enabled = GizmosEnabled(self);
-                _colliderDebugLines.SetActive(enabled && self._isTargetNormalCollider);
+                _colliderDebugLines.SetActive(
+                        enabled
+#if AISHOUJO
+                        && self._isTargetNormalCollider
+#endif
+                                              );
 #if AISHOUJO
                 _colliderPlaneDebugLines.SetActive(enabled && self._isTargetNormalCollider == false);
 #endif
@@ -1230,8 +1297,8 @@ namespace HSPE.AMModules
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
                         getValue: (oci, parameter) => ((HashedPair<CollidersEditor, DynamicBoneColliderBase>)parameter).value.m_Center,
-                        readValueFromXml: node => node.ReadVector3("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (Vector3)o),
+                        readValueFromXml: (parameter, node) => node.ReadVector3("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector3)o),
                         getParameter: GetParameterBase,
                         readParameterFromXml: ReadParameterFromXmlBase,
                         writeParameterToXml: WriteParameterToXmlBase,
@@ -1251,8 +1318,8 @@ namespace HSPE.AMModules
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
                         getValue: (oci, parameter) => ((HashedPair<CollidersEditor, DynamicBoneColliderBase>)parameter).value.m_Direction,
-                        readValueFromXml: node => (DynamicBoneColliderBase.Direction)node.ReadInt("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (int)o),
+                        readValueFromXml: (parameter, node) => (DynamicBoneColliderBase.Direction)node.ReadInt("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (int)o),
                         getParameter: GetParameterBase,
                         readParameterFromXml: ReadParameterFromXmlBase,
                         writeParameterToXml: WriteParameterToXmlBase,
@@ -1272,8 +1339,8 @@ namespace HSPE.AMModules
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
                         getValue: (oci, parameter) => ((HashedPair<CollidersEditor, DynamicBoneColliderBase>)parameter).value.m_Bound,
-                        readValueFromXml: node => (DynamicBoneColliderBase.Bound)node.ReadInt("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (int)o),
+                        readValueFromXml: (parameter, node) => (DynamicBoneColliderBase.Bound)node.ReadInt("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (int)o),
                         getParameter: GetParameterBase,
                         readParameterFromXml: ReadParameterFromXmlBase,
                         writeParameterToXml: WriteParameterToXmlBase,
@@ -1293,8 +1360,8 @@ namespace HSPE.AMModules
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
                         getValue: (oci, parameter) => ((HashedPair<CollidersEditor, DynamicBoneCollider>)parameter).value.m_Radius,
-                        readValueFromXml: node => node.ReadFloat("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
                         getParameter: GetParameter,
                         readParameterFromXml: ReadParameterFromXml,
                         writeParameterToXml: WriteParameterToXml,
@@ -1314,8 +1381,8 @@ namespace HSPE.AMModules
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
                         getValue: (oci, parameter) => ((HashedPair<CollidersEditor, DynamicBoneCollider>)parameter).value.m_Height,
-                        readValueFromXml: node => node.ReadFloat("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
                         getParameter: GetParameter,
                         readParameterFromXml: ReadParameterFromXml,
                         writeParameterToXml: WriteParameterToXml,
@@ -1325,7 +1392,7 @@ namespace HSPE.AMModules
 
             }
 
-            private static bool CheckIntegrityBase(ObjectCtrlInfo oci, object parameter)
+            private static bool CheckIntegrityBase(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue)
             {
                 if (parameter == null)
                     return false;
@@ -1335,7 +1402,7 @@ namespace HSPE.AMModules
                 return true;
             }
 
-            private static bool CheckIntegrity(ObjectCtrlInfo oci, object parameter)
+            private static bool CheckIntegrity(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue)
             {
                 if (parameter == null)
                     return false;
@@ -1347,7 +1414,7 @@ namespace HSPE.AMModules
 
             private static bool IsCompatibleWithTarget(ObjectCtrlInfo oci)
             {
-                return oci != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null;
+                return oci != null && oci.guideObject != null && oci.guideObject.transformTarget != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null;
             }
 
             private static object GetParameterBase(ObjectCtrlInfo oci)

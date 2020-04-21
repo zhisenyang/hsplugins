@@ -38,6 +38,7 @@ namespace HSPE
         internal DynamicBonesEditor _dynamicBonesEditor;
         internal BlendShapesEditor _blendShapesEditor;
         internal CollidersEditor _collidersEditor;
+        internal IKEditor _ikEditor;
         protected readonly List<AdvancedModeModule> _modules = new List<AdvancedModeModule>();
         protected AdvancedModeModule _currentModule;
         internal GenericOCITarget _target;
@@ -85,6 +86,9 @@ namespace HSPE
 
             this._blendShapesEditor = new BlendShapesEditor(this, this._target);
             this._modules.Add(this._blendShapesEditor);
+
+            this._ikEditor = new IKEditor(this, this._target);
+            this._modules.Add(this._ikEditor);
 
             if (this._collidersEditor._isLoneCollider)
                 this._currentModule = this._collidersEditor;
@@ -141,6 +145,7 @@ namespace HSPE
             this._collidersEditor.LoadFrom(other._collidersEditor);
             this._dynamicBonesEditor.LoadFrom(other._dynamicBonesEditor);
             this._blendShapesEditor.LoadFrom(other._blendShapesEditor);
+            this._ikEditor.LoadFrom(other._ikEditor);
             foreach (GameObject ignoredObject in other._childObjects)
             {
                 if (ignoredObject == null)

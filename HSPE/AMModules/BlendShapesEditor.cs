@@ -153,6 +153,7 @@ namespace HSPE.AMModules
         private Vector2 _skinnedMeshRenderersScroll;
         private Vector2 _blendShapesScroll;
         private readonly List<SkinnedMeshRenderer> _skinnedMeshRenderers = new List<SkinnedMeshRenderer>();
+        private readonly Dictionary<string, SkinnedMeshRenderer> _skinnedMeshRenderersByPath = new Dictionary<string, SkinnedMeshRenderer>();
         private readonly Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData> _dirtySkinnedMeshRenderers = new Dictionary<SkinnedMeshRenderer, SkinnedMeshRendererData>();
         private readonly Dictionary<string, SkinnedMeshRendererData> _headlessDirtySkinnedMeshRenderers = new Dictionary<string, SkinnedMeshRendererData>();
         private int _headlessReconstructionTimeout = 0;
@@ -170,6 +171,7 @@ namespace HSPE.AMModules
         private int _renameIndex = -1;
         private string _renameString = "";
         private int _lastEditedBlendShape = -1;
+        private bool _isBusy = false;
         #endregion
 
         #region Public Fields
@@ -247,13 +249,9 @@ namespace HSPE.AMModules
         {
             if (this._showSaveLoadWindow == false)
                 return;
-            Color c = GUI.backgroundColor;
-            GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
             Rect windowRect = Rect.MinMaxRect(MainWindow._self._advancedModeRect.xMin - 180, MainWindow._self._advancedModeRect.yMin, MainWindow._self._advancedModeRect.xMin, MainWindow._self._advancedModeRect.yMax);
-            for (int i = 0; i < 3; ++i)
-                GUI.Box(windowRect, "", MainWindow._customBoxStyle);
-            GUI.backgroundColor = c;
-            GUILayout.Window(3, windowRect, this.SaveLoadWindow, "Presets");
+            IMGUIExtensions.DrawBackground(windowRect);
+            GUILayout.Window(MainWindow._uniqueId + 1, windowRect, this.SaveLoadWindow, "Presets");
         }
 
         private void OnDisable()
@@ -282,6 +280,7 @@ namespace HSPE.AMModules
         #region Public Methods
         public override void OnCharacterReplaced()
         {
+            this._isBusy = true;
             InstanceDict newInstanceByFBS = null;
             foreach (InstancePair pair in _instanceByFaceBlendShape)
             {
@@ -307,6 +306,7 @@ namespace HSPE.AMModules
             {
                 this.RefreshSkinnedMeshRendererList();
                 this.Init();
+                this._isBusy = false;
             });
         }
 
@@ -322,8 +322,13 @@ namespace HSPE.AMModules
         public override void OnCoordinateReplaced(ChaFileDefine.CoordinateType coordinateType, bool force)
 #endif
         {
+            this._isBusy = true;
             this.RefreshSkinnedMeshRendererList();
-            MainWindow._self.ExecuteDelayed(this.RefreshSkinnedMeshRendererList);
+            MainWindow._self.ExecuteDelayed(() =>
+            {
+                this.RefreshSkinnedMeshRendererList();
+                this._isBusy = false;
+            });
         }
 #endif
 
@@ -813,6 +818,8 @@ namespace HSPE.AMModules
             GUI.enabled = true;
             GUI.color = c;
 
+            if (GUILayout.Button("Open folder"))
+                System.Diagnostics.Process.Start(_presetsPath);
             if (GUILayout.Button("Close"))
                 this._showSaveLoadWindow = false;
 
@@ -1026,6 +1033,13 @@ namespace HSPE.AMModules
                 foreach (SkinnedMeshRenderer r in toAdd)
                     this._skinnedMeshRenderers.Add(r);
             }
+            this._skinnedMeshRenderersByPath.Clear();
+            foreach (SkinnedMeshRenderer renderer in this._skinnedMeshRenderers)
+            {
+                string path = renderer.transform.GetPathFrom(this._parent.transform);
+                if (this._skinnedMeshRenderersByPath.ContainsKey(path) == false)
+                    this._skinnedMeshRenderersByPath.Add(path, renderer);
+            }
             if (this._skinnedMeshRenderers.Count != 0 && this._skinnedMeshTarget != null)
                 this._skinnedMeshTarget = this._skinnedMeshRenderers.FirstOrDefault(s => s.sharedMesh.blendShapeCount > 0);
         }
@@ -1034,6 +1048,83 @@ namespace HSPE.AMModules
         #region Timeline Compatibility
         internal static class TimelineCompatibility
         {
+            private class GroupParameter
+            {
+                public readonly BlendShapesEditor editor;
+                public readonly string rendererPath;
+
+                public SkinnedMeshRenderer renderer
+                {
+                    get
+                    {
+                        if (this._renderer == null)
+                            this.editor._skinnedMeshRenderersByPath.TryGetValue(this.rendererPath, out this._renderer);
+                        return this._renderer;
+                    }
+                }
+                private SkinnedMeshRenderer _renderer;
+                private readonly int _hashCode;
+
+                private GroupParameter()
+                {
+                    unchecked
+                    {
+                        int hash = 17;
+                        hash = hash * 31 + (this.editor != null ? this.editor.GetHashCode() : 0);
+                        this._hashCode = hash * 31 + (this.rendererPath != null ? this.rendererPath.GetHashCode() : 0);
+                    }
+                }
+
+                public GroupParameter(BlendShapesEditor editor, SkinnedMeshRenderer renderer) : this()
+                {
+                    this.editor = editor;
+                    this._renderer = renderer;
+                    this.rendererPath = this._renderer.transform.GetPathFrom(this.editor._parent.transform);
+                }
+
+                public GroupParameter(BlendShapesEditor editor, string rendererPath) : this()
+                {
+                    this.editor = editor;
+                    this.rendererPath = rendererPath;
+                }
+
+                public override int GetHashCode()
+                {
+                    return this._hashCode;
+                }
+            }
+
+            private class IndividualParameter : GroupParameter
+            {
+                public readonly int index;
+                private readonly int _hashCode;
+
+                public IndividualParameter(BlendShapesEditor editor, SkinnedMeshRenderer renderer, int index) : base(editor, renderer)
+                {
+                    this.index = index;
+
+                    unchecked
+                    {
+                        this._hashCode = base.GetHashCode() * 31 + this.index.GetHashCode();
+                    }
+                }
+
+                public IndividualParameter(BlendShapesEditor editor, string rendererPath, int index) : base(editor, rendererPath)
+                {
+                    this.index = index;
+
+                    unchecked
+                    {
+                        this._hashCode = base.GetHashCode() * 31 + this.index.GetHashCode();
+                    }
+                }
+
+                public override int GetHashCode()
+                {
+                    return this._hashCode;
+                }
+            }
+
             public static void Populate()
             {
                 ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
@@ -1042,51 +1133,51 @@ namespace HSPE.AMModules
                         name: "BlendShape (Last Modified)",
                         interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
                         {
-                            HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>> pair = ((HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>)parameter);
-                            pair.key.SetBlendShapeWeight(pair.value.key, pair.value.value, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            IndividualParameter p = (IndividualParameter)parameter;
+                            if (p.editor._isBusy == false)
+                                p.editor.SetBlendShapeWeight(p.renderer, p.index, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
                         },
                         interpolateAfter: null,
-                        isCompatibleWithTarget: oci => oci != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null,
+                        isCompatibleWithTarget: oci => oci != null && oci.guideObject != null && oci.guideObject.transformTarget != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null,
                         getValue: (oci, parameter) =>
                         {
-                            HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>> pair = (HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>)parameter;
-                            return pair.value.key.GetBlendShapeWeight(pair.value.value);
+                            IndividualParameter p = (IndividualParameter)parameter;
+                            return p.renderer.GetBlendShapeWeight(p.index);
                         },
-                        readValueFromXml: node => node.ReadFloat("value"),
-                        writeValueToXml: (writer, o) => writer.WriteValue("value", (float)o),
+                        readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o),
                         getParameter: oci =>
                         {
                             PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
-                            return new HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>(controller._blendShapesEditor, new HashedPair<SkinnedMeshRenderer, int>(controller._blendShapesEditor._skinnedMeshTarget, controller._blendShapesEditor._lastEditedBlendShape));
+                            return new IndividualParameter(controller._blendShapesEditor, controller._blendShapesEditor._skinnedMeshTarget, controller._blendShapesEditor._lastEditedBlendShape);
                         },
-                        readParameterFromXml: (oci, node) =>
-                        {
-                            SkinnedMeshRenderer renderer = oci.guideObject.transformTarget.Find(node.Attributes["parameter1"].Value).GetComponent<SkinnedMeshRenderer>();
-                            int index = node.ReadInt("parameter2");
-                            return new HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>(oci.guideObject.transformTarget.GetComponent<PoseController>()._blendShapesEditor, new HashedPair<SkinnedMeshRenderer, int>(renderer, index));
-                        },
+                        readParameterFromXml: (oci, node) => new IndividualParameter(oci.guideObject.transformTarget.GetComponent<PoseController>()._blendShapesEditor, node.Attributes["parameter1"].Value, node.ReadInt("parameter2")),
                         writeParameterToXml: (oci, writer, o) =>
                         {
-                            HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>> pair = (HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>)o;
-                            writer.WriteAttributeString("parameter1", pair.value.key.transform.GetPathFrom(oci.guideObject.transformTarget));
-                            writer.WriteValue("parameter2", pair.value.value);
+                            IndividualParameter p = (IndividualParameter)o;
+                            writer.WriteAttributeString("parameter1", p.rendererPath);
+                            writer.WriteValue("parameter2", p.index);
                         },
-                        checkIntegrity: (oci, parameter) =>
+                        checkIntegrity: (oci, parameter, leftValue, rightValue) =>
                         {
                             if (parameter == null)
                                 return false;
-                            HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>> pair = (HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>)parameter;
-                            if (pair.key == null || pair.value.key == null || pair.value.value >= pair.value.key.sharedMesh.blendShapeCount)
+                            IndividualParameter p = (IndividualParameter)parameter;
+                            if (p.editor == null)
+                                return false;
+                            if (p.editor._isBusy)
+                                return true;
+                            if (p.renderer == null || p.index >= p.renderer.sharedMesh.blendShapeCount)
                                 return false;
                             return true;
                         },
                         getFinalName: (name, oci, parameter) =>
                         {
-                            HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>> pair = (HashedPair<BlendShapesEditor, HashedPair<SkinnedMeshRenderer, int>>)parameter;
+                            IndividualParameter p = (IndividualParameter)parameter;
                             string skinnedMeshName;
-                            if (_skinnedMeshAliases.TryGetValue(pair.value.key.name, out skinnedMeshName) == false)
-                                skinnedMeshName = pair.value.key.name;
-                            return $"BS ({skinnedMeshName} {pair.value.value})";
+                            if (_skinnedMeshAliases.TryGetValue(p.renderer.name, out skinnedMeshName) == false)
+                                skinnedMeshName = p.renderer.name;
+                            return $"BS ({skinnedMeshName} {p.index})";
                         });
 
                 ToolBox.TimelineCompatibility.AddInterpolableModelDynamic(
@@ -1095,58 +1186,114 @@ namespace HSPE.AMModules
                         name: "BlendShape (Group)",
                         interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
                         {
-                            HashedPair<BlendShapesEditor, SkinnedMeshRenderer> pair = (HashedPair<BlendShapesEditor, SkinnedMeshRenderer>)parameter;
-                            float[] left = (float[])leftValue;
-                            float[] right = (float[])rightValue;
-                            for (int i = 0; i < left.Length; i++)
-                                pair.key.SetBlendShapeWeight(pair.value, i, Mathf.LerpUnclamped(left[i], right[i], factor));
+                            GroupParameter p = (GroupParameter)parameter;
+
+                            if (p.editor._isBusy == false)
+                            {
+                                SkinnedMeshRenderer renderer = p.renderer;
+                                float[] left = (float[])leftValue;
+                                float[] right = (float[])rightValue;
+                                for (int i = 0; i < left.Length; i++)
+                                    p.editor.SetBlendShapeWeight(renderer, i, Mathf.LerpUnclamped(left[i], right[i], factor));
+                            }
                         },
                         interpolateAfter: null,
-                        isCompatibleWithTarget: oci => oci != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null,
+                        isCompatibleWithTarget: oci => oci != null && oci.guideObject != null && oci.guideObject.transformTarget != null && oci.guideObject.transformTarget.GetComponent<PoseController>() != null,
                         getValue: (oci, parameter) =>
                         {
-                            HashedPair<BlendShapesEditor, SkinnedMeshRenderer> pair = (HashedPair<BlendShapesEditor, SkinnedMeshRenderer>)parameter;
-                            float[] value = new float[pair.value.sharedMesh.blendShapeCount];
+                            GroupParameter p = (GroupParameter)parameter;
+                            SkinnedMeshRenderer renderer = p.renderer;
+                            float[] value = new float[renderer.sharedMesh.blendShapeCount];
                             for (int i = 0; i < value.Length; ++i)
-                                value[i] = pair.value.GetBlendShapeWeight(i);
+                                value[i] = renderer.GetBlendShapeWeight(i);
                             return value;
                         },
-                        readValueFromXml: node =>
+                        readValueFromXml: (parameter, node) =>
                         {
-                            float[] value = new float[node.ReadInt("valueCount")];
-                            for (int i = 0; i < value.Length; i++)
-                                value[i] = node.ReadFloat($"value{i}");
-                            return value;
+                            GroupParameter p = (GroupParameter)parameter;
+                            SkinnedMeshRenderer renderer = p.renderer;
+                            int count = node.ReadInt("valueCount");
+                            if (renderer.sharedMesh.blendShapeCount != count)
+                            {
+                                Dictionary<int, float> tempValue = new Dictionary<int, float>();
+                                for (int i = 0; i < count; i++)
+                                {
+                                    string nameKey = $"name{i}";
+                                    if (node.Attributes[nameKey] != null)
+                                    {
+                                        string n = node.Attributes[nameKey].Value;
+                                        int index = renderer.sharedMesh.GetBlendShapeIndex(n);
+                                        if (index != -1)
+                                        {
+                                            if (tempValue.ContainsKey(index))
+                                                tempValue[index] = node.ReadFloat($"value{i}");
+                                            else
+                                                tempValue.Add(index, node.ReadFloat($"value{i}"));
+                                        }
+                                    }
+                                    else
+                                        tempValue.Add(i, node.ReadFloat($"value{i}"));
+                                }
+                                float[] value = new float[renderer.sharedMesh.blendShapeCount];
+                                for (int i = 0; i < value.Length; i++)
+                                {
+                                    float v;
+                                    if (tempValue.TryGetValue(i, out v))
+                                        value[i] = v;
+                                    else
+                                        value[i] = 0;
+                                }
+                                return value;
+                            }
+                            else
+                            {
+                                float[] value = new float[count];
+                                for (int i = 0; i < value.Length; i++)
+                                    value[i] = node.ReadFloat($"value{i}");
+                                return value;
+                            }
                         },
-                        writeValueToXml: (writer, o) =>
+                        writeValueToXml: (parameter, writer, o) =>
                         {
+                            GroupParameter p = (GroupParameter)parameter;
+                            SkinnedMeshRenderer renderer = p.renderer;
                             float[] value = (float[])o;
                             writer.WriteValue("valueCount", value.Length);
                             for (int i = 0; i < value.Length; i++)
+                            {
                                 writer.WriteValue($"value{i}", value[i]);
+                                writer.WriteAttributeString($"name{i}", renderer.sharedMesh.GetBlendShapeName(i));
+                            }
                         },
                         getParameter: oci =>
                         {
                             PoseController controller = oci.guideObject.transformTarget.GetComponent<PoseController>();
-                            return new HashedPair<BlendShapesEditor, SkinnedMeshRenderer>(controller._blendShapesEditor, controller._blendShapesEditor._skinnedMeshTarget);
+                            return new GroupParameter(controller._blendShapesEditor, controller._blendShapesEditor._skinnedMeshTarget);
                         },
-                        readParameterFromXml: (oci, node) => new HashedPair<BlendShapesEditor, SkinnedMeshRenderer>(oci.guideObject.transformTarget.GetComponent<PoseController>()._blendShapesEditor, oci.guideObject.transformTarget.Find(node.Attributes["parameter"].Value).GetComponent<SkinnedMeshRenderer>()),
-                        writeParameterToXml: (oci, writer, o) => writer.WriteAttributeString("parameter", ((HashedPair<BlendShapesEditor, SkinnedMeshRenderer>)o).value.transform.GetPathFrom(oci.guideObject.transformTarget)),
-                        checkIntegrity: (oci, parameter) =>
+                        readParameterFromXml: (oci, node) => new GroupParameter(oci.guideObject.transformTarget.GetComponent<PoseController>()._blendShapesEditor, node.Attributes["parameter"].Value),
+                        writeParameterToXml: (oci, writer, o) => writer.WriteAttributeString("parameter", ((GroupParameter)o).rendererPath),
+                        checkIntegrity: (oci, parameter, leftValue, rightValue) =>
                         {
-                            if (parameter == null)
+                            if (parameter == null || leftValue == null || rightValue == null)
                                 return false;
-                            HashedPair<BlendShapesEditor, SkinnedMeshRenderer> pair = (HashedPair<BlendShapesEditor, SkinnedMeshRenderer>)parameter;
-                            if (pair.key == null || pair.value == null)
+                            GroupParameter p = (GroupParameter)parameter;
+                            if (p.editor == null)
+                                return false;
+                            if (p.editor._isBusy)
+                                return true;
+                            SkinnedMeshRenderer renderer = p.renderer;
+                            if (renderer == null ||
+                                renderer.sharedMesh.blendShapeCount != ((float[])leftValue).Length ||
+                                renderer.sharedMesh.blendShapeCount != ((float[])rightValue).Length)
                                 return false;
                             return true;
                         },
                         getFinalName: (name, oci, parameter) =>
                         {
-                            HashedPair<BlendShapesEditor, SkinnedMeshRenderer> pair = (HashedPair<BlendShapesEditor, SkinnedMeshRenderer>)parameter;
+                            GroupParameter p = (GroupParameter)parameter;
                             string skinnedMeshName;
-                            if (_skinnedMeshAliases.TryGetValue(pair.value.name, out skinnedMeshName) == false)
-                                skinnedMeshName = pair.value.name;
+                            if (_skinnedMeshAliases.TryGetValue(p.renderer.name, out skinnedMeshName) == false)
+                                skinnedMeshName = p.renderer.name;
                             return $"BS ({skinnedMeshName})";
                         });
 

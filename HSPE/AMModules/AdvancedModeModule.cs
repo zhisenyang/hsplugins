@@ -415,6 +415,7 @@ namespace HSPE.AMModules
         CollidersEditor,
         BoobsEditor,
         DynamicBonesEditor,
-        BlendShapes
+        BlendShapes,
+        IK
     }
 }

@@ -16,6 +16,7 @@ using BepInEx;
 #endif
 using ToolBox;
 using ToolBox.Extensions;
+using UnityEngine.SceneManagement;
 
 namespace HSPE
 {
@@ -48,7 +49,7 @@ namespace HSPE
         internal const string _guid = "com.joan6694.illusionplugins.poseeditor";
         internal const int saveVersion = 0;
 #endif
-        internal const string _versionNum = "2.10.1";
+        internal const string _versionNum = "2.11.0";
 
 #if HONEYSELECT || PLAYHOME
         public override string Name { get { return _name; } }
@@ -63,22 +64,29 @@ namespace HSPE
         protected override void Awake()
         {
             base.Awake();
-            HarmonyExtensions.PatchAllSafe(_guid);
+            HarmonyExtensions.CreateInstance(_guid).PatchAllSafe();
         }
 
+#if AISHOUJO
+        protected override void LevelLoaded(Scene scene, LoadSceneMode mode)
+        {
+            base.LevelLoaded(scene, mode);
+            if (mode == LoadSceneMode.Single && scene.name.Equals("Studio"))
+                this.gameObject.AddComponent<MainWindow>();
+        }
+#else
         protected override void LevelLoaded(int level)
         {
+            base.LevelLoaded(level);
 #if HONEYSELECT
             if (level == 3)
 #elif KOIKATSU
             if (level == 1)
 #elif PLAYHOME
             if (level == 1)
-#elif AISHOUJO
-            if (level == 2)
 #endif
                 this.gameObject.AddComponent<MainWindow>();
         }
-
+#endif
     }
 }

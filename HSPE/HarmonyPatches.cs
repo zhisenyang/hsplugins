@@ -43,9 +43,8 @@ namespace HSPE
         {
             int count = 0;
             List<CodeInstruction> instructionsList = instructions.ToList();
-            for (int i = 0; i < instructionsList.Count; i++)
+            foreach (CodeInstruction inst in instructionsList)
             {
-                CodeInstruction inst = instructionsList[i];
                 yield return inst;
                 if (count != 2 && inst.ToString().Contains("ReadInt32"))
                 {

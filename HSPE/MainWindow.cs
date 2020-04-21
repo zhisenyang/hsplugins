@@ -7,6 +7,7 @@ using System.Text;
 using System.Xml;
 #if AISHOUJO
 using AIChara;
+using Illusion.Extensions;
 #endif
 #if HONEYSELECT || PLAYHOME
 using Harmony;
@@ -19,6 +20,7 @@ using Studio;
 using ToolBox;
 using ToolBox.Extensions;
 using UILib;
+using UILib.EventHandlers;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -61,15 +63,14 @@ namespace HSPE
         private const string _extSaveKey = "kkpe";
 #elif AISHOUJO
         private const string _config = "config.xml";
-        internal const string _pluginDir = "BepInEx\\AIPE\\";
         private const string _extSaveKey = "aipe";
 #endif
-        internal static readonly GUIStyle _customBoxStyle = new GUIStyle { normal = new GUIStyleState { background = Texture2D.whiteTexture } };
         #endregion
 
         #region Private Variables
         internal PoseController _poseTarget;
         internal CameraEventsDispatcher _cameraEventsDispatcher;
+        internal const int _uniqueId = ('H' << 24) | ('S' << 16) | ('P' << 8) | 'E';
         private string _assemblyLocation;
         private HashSet<TreeNodeObject> _selectedNodes;
         private TreeNodeObject _lastSelectedNode;
@@ -108,7 +109,6 @@ namespace HSPE
         private bool _positionOperationWorld = false;
         private Toggle _optimizeIKToggle;
         private Image _hspeButtonImage;
-        private int _randomId;
         private Toggle _crotchCorrectionToggle;
         private Toggle _leftFootCorrectionToggle;
         private Toggle _rightFootCorrectionToggle;
@@ -134,6 +134,7 @@ namespace HSPE
         private Quaternion _lastFKBonesRotation;
         private readonly List<FKBoneEntry> _fkBoneEntries = new List<FKBoneEntry>();
         private Dictionary<Transform, GuideObject> _dicGuideObject = new Dictionary<Transform, GuideObject>();
+        private bool _mouseInWindow;
         #endregion
 
         #region Public Accessors
@@ -236,7 +237,6 @@ namespace HSPE
             ExtendedSave.SceneBeingImported += this.OnSceneImport;
             ExtendedSave.SceneBeingSaved += this.OnSceneSave;
 #endif
-            this._randomId = (int)(UnityEngine.Random.value * uint.MaxValue);
             this.ExecuteDelayed(() =>
             {
                 TimelineCompatibility.Init(() =>
@@ -246,6 +246,7 @@ namespace HSPE
                     DynamicBonesEditor.TimelineCompatibility.Populate();
                     BlendShapesEditor.TimelineCompatibility.Populate();
                     BoobsEditor.TimelineCompatibility.Populate();
+                    IKEditor.TimelineCompatibility.Populate();
                 });
             }, 3);
         }
@@ -312,16 +313,16 @@ namespace HSPE
         {
             if (this._poseTarget != null && PoseController._drawAdvancedMode)
             {
-                Color c = GUI.backgroundColor;
-                GUI.backgroundColor = new Color(0.6f, 0.6f, 0.6f, 0.2f);
-                for (int i = 0; i < 3; ++i)
-                    GUI.Box(this._advancedModeRect, "", _customBoxStyle);
-                GUI.backgroundColor = c;
-                this._advancedModeRect = GUILayout.Window(this._randomId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
-                if (this._advancedModeRect.Contains(Event.current.mousePosition))
-                    Input.ResetInputAxes();
+                IMGUIExtensions.DrawBackground(this._advancedModeRect);
+                this._advancedModeRect = GUILayout.Window(_uniqueId, this._advancedModeRect, this._poseTarget.AdvancedModeWindow, "Advanced mode");
+                this._mouseInWindow = this._advancedModeRect.Contains(Event.current.mousePosition);
+                if (this._mouseInWindow)
+                    this.SetNoControlCondition();
             }
+            else
+                this._mouseInWindow = false;
         }
+
         protected virtual void OnDestroy()
         {
             string folder = Path.Combine(this._assemblyLocation, HSPE._name);
@@ -428,55 +429,58 @@ namespace HSPE
             VectorLine.canvas.sortingOrder -= 40;
 
             {
-                RectTransform original = GameObject.Find("StudioScene").transform.Find("Canvas System Menu/01_Button/Button Center").GetComponent<RectTransform>();
+                IEnumerable<Transform> children = GameObject.Find("StudioScene/Canvas System Menu/01_Button").transform.Children();
+                Vector2 anchoredPosition = new Vector2(0f, float.MaxValue);
+                foreach (Transform child in children)
+                {
+                    RectTransform rChild = (RectTransform)child;
+                    if (rChild.anchoredPosition.x >= anchoredPosition.x && rChild.anchoredPosition.y <= anchoredPosition.y)
+                        anchoredPosition = rChild.anchoredPosition;
+                }
+
+                while (children.FirstOrDefault(c => (((RectTransform)c).anchoredPosition - anchoredPosition).sqrMagnitude < 4f) != null)
+                    anchoredPosition.y += 40f;
+
+                RectTransform original = (RectTransform)children.First();
                 Button hspeButton = Instantiate(original.gameObject).GetComponent<Button>();
-                RectTransform hspeButtonRectTransform = hspeButton.transform as RectTransform;
+                hspeButton.name = "Button HSPE";
+                hspeButton.interactable = true;
                 hspeButton.transform.SetParent(original.parent, true);
                 hspeButton.transform.localScale = original.localScale;
-                hspeButtonRectTransform.SetRect(original.anchorMin, original.anchorMax, original.offsetMin, original.offsetMax);
-#if HONEYSELECT || PLAYHOME
-                hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 0f);
-#elif KOIKATSU || AISHOUJO
-                hspeButtonRectTransform.anchoredPosition = original.anchoredPosition + new Vector2(40f, 80f);
-#endif
-                this._hspeButtonImage = hspeButton.targetGraphic as Image;
-                this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
+                ((RectTransform)hspeButton.transform).anchoredPosition = anchoredPosition;
                 hspeButton.onClick = new Button.ButtonClickedEvent();
                 hspeButton.onClick.AddListener(() =>
                 {
                     this._ui.gameObject.SetActive(!this._ui.gameObject.activeSelf);
                     this._hspeButtonImage.color = this._ui.gameObject.activeSelf ? Color.green : Color.white;
                 });
-                EventTrigger.Entry entry = new EventTrigger.Entry() { eventID = EventTriggerType.PointerClick, callback = new EventTrigger.TriggerEvent() };
-                entry.callback.AddListener(eventData =>
+                hspeButton.gameObject.AddComponent<PointerDownHandler>().onPointerDown += eventData =>
                 {
-                    PointerEventData pointerEventData = eventData as PointerEventData;
-                    if (pointerEventData != null)
-                    {
-                        if (pointerEventData.button == PointerEventData.InputButton.Right && this._poseTarget != null)
-                            this._poseTarget.ToggleAdvancedMode();
-                    }
-                });
-                hspeButton.gameObject.AddComponent<EventTrigger>().triggers.Add(entry);
+                    if (eventData.button == PointerEventData.InputButton.Right && this._poseTarget != null)
+                        this._poseTarget.ToggleAdvancedMode();
+                };
+                this._hspeButtonImage = hspeButton.targetGraphic as Image;
+                this._hspeButtonImage.sprite = Sprite.Create(texture, new Rect(0f, 0f, 32, 32), new Vector2(16, 16));
                 this._hspeButtonImage.color = Color.white;
             }
 
+            GameObject uiPrefab;
 #if HONEYSELECT || PLAYHOME
-            this._ui = Instantiate(bundle.LoadAsset<GameObject>("HSPECanvas")).GetComponent<Canvas>();
+            uiPrefab = bundle.LoadAsset<GameObject>("HSPECanvas");
 #elif KOIKATSU
-            this._ui = Instantiate(bundle.LoadAsset<GameObject>("KKPECanvas")).GetComponent<Canvas>();
+            uiPrefab = bundle.LoadAsset<GameObject>("KKPECanvas");
 #elif AISHOUJO
-            this._ui = Instantiate(bundle.LoadAsset<GameObject>("AIPECanvas")).GetComponent<Canvas>();
+            uiPrefab = bundle.LoadAsset<GameObject>("AIPECanvas");
 #endif
+            this._ui = Instantiate(uiPrefab).GetComponent<Canvas>();
+            uiPrefab.hideFlags |= HideFlags.HideInHierarchy;
             this._fkBoneTogglePrefab = bundle.LoadAsset<GameObject>("FKBoneTogglePrefab");
+            this._fkBoneTogglePrefab.hideFlags = HideFlags.HideInHierarchy;
             bundle.Unload(false);
 
             RectTransform bg = (RectTransform)this._ui.transform.Find("BG");
             Transform topContainer = bg.Find("Top Container");
-            MovableWindow mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, (RectTransform)bg);
-            //mw.onPointerDown += this.OnWindowStartDrag;
-            //mw.onDrag += this.OnWindowDrag;
-            //mw.onPointerUp += this.OnWindowEndDrag;
+            UIUtility.MakeObjectDraggable((RectTransform)topContainer, bg);
 
             Toggle ikToggle = this._ui.transform.Find("BG/Top Container/Buttons/IK").GetComponent<Toggle>();
             ikToggle.onValueChanged.AddListener((b) =>
@@ -494,7 +498,6 @@ namespace HSPE
             });
 
             this._nothingText = this._ui.transform.Find("BG/Nothing Text").gameObject;
-            //this._nothingText.gameObject.SetActive(false);
             this._controls = this._ui.transform.Find("BG/Controls");
             this._ikBonesButtons = this._ui.transform.Find("BG/Controls/IK Bones Buttons");
             this._fkBonesButtons = this._ui.transform.Find("BG/Controls/FK Bones Buttons");
@@ -732,10 +735,7 @@ namespace HSPE
             this._optionsWindow = (RectTransform)this._ui.transform.Find("Options Window");
 
             topContainer = this._optionsWindow.Find("Top Container");
-            mw = UIUtility.MakeObjectDraggable(topContainer as RectTransform, this._optionsWindow);
-            //mw.onPointerDown += this.OnWindowStartDrag;
-            //mw.onDrag += this.OnWindowDrag;
-            //mw.onPointerUp += this.OnWindowEndDrag;
+            UIUtility.MakeObjectDraggable(topContainer as RectTransform, this._optionsWindow);
 
             Vector2 sizeDelta = bg.sizeDelta;
 #if HONEYSELECT
@@ -1373,6 +1373,7 @@ namespace HSPE
                 {
                     entry = new FKBoneEntry();
                     entry.toggle = GameObject.Instantiate(this._fkBoneTogglePrefab).GetComponent<Toggle>();
+                    entry.toggle.gameObject.hideFlags = HideFlags.None;
                     entry.text = entry.toggle.GetComponentInChildren<Text>();
 
                     entry.toggle.transform.SetParent(this._fkScrollRect.content);
@@ -1455,7 +1456,7 @@ namespace HSPE
 
         private bool CameraControllerCondition()
         {
-            return this._poseTarget != null && this._poseTarget.isDraggingDynamicBone;
+            return this._mouseInWindow || (this._poseTarget != null && this._poseTarget.isDraggingDynamicBone);
         }
         #endregion
 
@@ -1656,6 +1657,15 @@ namespace HSPE
             {
                 this.LoadSceneGeneric(node, Studio.Studio.Instance.dicObjectCtrl.Where(e => toIgnore.ContainsKey(e.Key) == false).OrderBy(e => SceneInfo_Import_Patches._newToOldKeys[e.Key]).ToList());
             }, 3);
+        }
+
+        /// <summary>
+        /// Other plugins should use this to force load some data.
+        /// </summary>
+        /// <param name="node"></param>
+        public void ExternalLoadScene(XmlNode node)
+        {
+            this.LoadSceneGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
         }
 
         private void LoadSceneGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)

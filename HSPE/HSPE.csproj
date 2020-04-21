@@ -68,20 +68,39 @@
     <StartupObject />
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\ToolBox\Extensions.cs">
-      <Link>ToolBox\Extensions.cs</Link>
-    </Compile>
     <Compile Include="..\ToolBox\GenericPlugin.cs">
       <Link>ToolBox\GenericPlugin.cs</Link>
     </Compile>
+    <Compile Include="..\ToolBox\HarmonyExtensions.cs">
+      <Link>ToolBox\HarmonyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\IMGUIExtensions.cs">
+      <Link>ToolBox\IMGUIExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\ReflectionExtensions.cs">
+      <Link>ToolBox\ReflectionExtensions.cs</Link>
+    </Compile>
     <Compile Include="..\ToolBox\TimelineCompatibility.cs">
       <Link>ToolBox\TimelineCompatibility.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\TransformExtensions.cs">
+      <Link>ToolBox\TransformExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\VariousExtensions.cs">
+      <Link>ToolBox\VariousExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\XmlExtensions.cs">
+      <Link>ToolBox\XmlExtensions.cs</Link>
     </Compile>
     <Compile Include="AMModules\BlendShapesEditor.cs" />
     <Compile Include="AMModules\CollidersEditor.cs" />
     <Compile Include="AMModules\BonesEditor.cs" />
     <Compile Include="AMModules\BoobsEditor.cs" />
     <Compile Include="AMModules\GenericOCITarget.cs" />
+    <Compile Include="AMModules\IKEditor.cs" />
     <Compile Include="CameraEventsDispatcher.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="AMModules\DynamicBonesEditor.cs" />
@@ -122,7 +141,7 @@
     <None Include="Resources\aiperesources.unity3d" />
     <None Include="Resources\hsperesources.unity3d" />
     <None Include="Resources\kkperesources.unity3d" />
-        <None Include="ILMergeConfig.json" />
+    <None Include="ILMergeConfig.json" />
   </ItemGroup>
   <Choose>
     <When Condition=" '$(Configuration)' == 'HS' ">

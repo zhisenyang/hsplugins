@@ -230,7 +230,7 @@ namespace HSPE
 #endif
             if (this._target.isFemale)
             {
-                this._boobsEditor = new BoobsEditor(this, this._target.ociChar);
+                this._boobsEditor = new BoobsEditor(this, this._target);
                 this._modules.Add(this._boobsEditor);
             }
 #if HONEYSELECT
