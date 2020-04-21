@@ -1,7 +1,7 @@
 ﻿using System;
 using UnityEngine.EventSystems;
 
-namespace UILib
+namespace UILib.EventHandlers
 {
     public class PointerDownHandler : UIBehaviour, IPointerDownHandler
     {

@@ -1,9 +1,14 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text;
+using UILib.ContextMenu;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using Object = System.Object;
 
 namespace UILib
 {
@@ -36,15 +41,15 @@ namespace UILib
         public static int defaultFontSize;
         public static DefaultControls.Resources resources;
 
-        private static bool _initCalled = false;
         private static bool _resourcesLoaded = false;
         private static Action<Action<bool>, string> _displayConfirmationDialog;
+        private static GameObject _contextMenuElementPrefab;
+        private static RectTransform _contextMenuRoot;
+        private static readonly List<ContextMenuUIElement> _displayedContextMenuElements = new List<ContextMenuUIElement>();
+        private static readonly List<RectTransform> _displayedContextMenuGroups = new List<RectTransform>();
 
         public static void Init()
         {
-            //if (_initCalled)
-            //    return;
-            _initCalled = true;
             if (_resourcesLoaded == false)
             {
 #if HONEYSELECT || PLAYHOME
@@ -93,6 +98,7 @@ namespace UILib
                     standard = standardSprite
                 };
                 defaultFontSize = 16;
+                _contextMenuElementPrefab = bundle.LoadAsset<GameObject>("ContextMenuElement");
                 bundle.Unload(false);
                 _resourcesLoaded = true;
             }
@@ -361,6 +367,191 @@ namespace UILib
             mv.toDrag = draggableObject;
             return mv;
         }
+
+        public static void ShowContextMenu(Canvas canvas, Vector2 anchoredPosition, List<AContextMenuElement> elements, float width = 120f)
+        {
+            if (_contextMenuRoot == null)
+            {
+                _contextMenuRoot = CreateContextMenuGroup("ContextMenu");
+                Canvas subCanvas = _contextMenuRoot.gameObject.AddComponent<Canvas>();
+                subCanvas.overrideSorting = true;
+                subCanvas.sortingOrder = 20;
+                subCanvas.gameObject.AddComponent<GraphicRaycaster>();
+            }
+            _contextMenuRoot.SetParent(canvas.transform);
+            _contextMenuRoot.localPosition = Vector3.zero;
+            _contextMenuRoot.localRotation = Quaternion.identity;
+            _contextMenuRoot.localScale = Vector3.one;
+            _contextMenuRoot.SetRect(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            _contextMenuRoot.anchoredPosition = anchoredPosition + new Vector2(2f, -2f);
+            _contextMenuRoot.sizeDelta = new Vector2(width, _contextMenuRoot.sizeDelta.y);
+            _contextMenuRoot.gameObject.SetActive(true);
+
+            int elementIndex = 0;
+            int groupIndex = 0;
+            foreach (AContextMenuElement element in elements)
+            {
+                RectTransform rt = null;
+                if (element is LeafElement)
+                    rt = HandleLeafElement((LeafElement)element, ref elementIndex);
+                else if (element is GroupElement)
+                    rt = HandleGroupElement((GroupElement)element, ref groupIndex, ref elementIndex, width);
+                rt.SetParent(_contextMenuRoot);
+                rt.localPosition = Vector3.zero;
+                rt.localRotation = Quaternion.identity;
+                rt.localScale = Vector3.one;
+                rt.SetAsLastSibling();
+            }
+
+            for (; elementIndex < _displayedContextMenuElements.Count; ++elementIndex)
+                _displayedContextMenuElements[elementIndex].rectTransform.gameObject.SetActive(false);
+            for (; groupIndex < _displayedContextMenuGroups.Count; ++groupIndex)
+                _displayedContextMenuGroups[groupIndex].gameObject.SetActive(false);
+        }
+
+        public static bool IsContextMenuDisplayed()
+        {
+            return _contextMenuRoot != null && _contextMenuRoot.gameObject.activeSelf;
+        }
+
+        public static bool WasClickInContextMenu()
+        {
+            return EventSystem.current.currentSelectedGameObject != null && _contextMenuRoot != null && EventSystem.current.currentSelectedGameObject.transform.IsChildOf(_contextMenuRoot.transform);
+        }
+
+        public static void HideContextMenu()
+        {
+            if (_contextMenuRoot != null)
+                _contextMenuRoot.gameObject.SetActive(false);
+        }
+
+        private static RectTransform CreateContextMenuGroup(string name = "Group")
+        {
+            GameObject obj = new GameObject(name, typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+            RectTransform rt = (RectTransform)obj.transform;
+            rt.pivot = Vector2.zero;
+            obj.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            return rt;
+        }
+
+        private static ContextMenuUIElement GetContextMenuUIElement(int index)
+        {
+            if (index < _displayedContextMenuElements.Count)
+                return _displayedContextMenuElements[index];
+            ContextMenuUIElement uiElement = new ContextMenuUIElement();
+            uiElement.rectTransform = (RectTransform)GameObject.Instantiate(_contextMenuElementPrefab).transform;
+            uiElement.button = uiElement.rectTransform.Find("Button").GetComponent<Button>();
+            uiElement.icon = uiElement.button.transform.Find("Icon").GetComponent<Image>();
+            uiElement.text = uiElement.button.GetComponentInChildren<Text>();
+            uiElement.childIcon = uiElement.button.transform.Find("ChildIcon").GetComponent<RawImage>();
+            _displayedContextMenuElements.Add(uiElement);
+            return uiElement;
+        }
+
+        private static RectTransform GetContextMenuGroup(int index)
+        {
+            if (index < _displayedContextMenuGroups.Count)
+                return _displayedContextMenuGroups[index];
+            RectTransform rt = CreateContextMenuGroup();
+            _displayedContextMenuGroups.Add(rt);
+            return rt;
+        }
+
+        private static RectTransform HandleLeafElement(LeafElement element, ref int index)
+        {
+            ContextMenuUIElement uiElement = GetContextMenuUIElement(index);
+            uiElement.rectTransform.SetParent(null);
+            uiElement.rectTransform.gameObject.SetActive(true);
+
+            uiElement.icon.gameObject.SetActive(element.icon != null);
+            uiElement.icon.sprite = element.icon;
+            uiElement.icon.color = element.icon != null ? element.iconColor : Color.clear;
+            uiElement.childIcon.gameObject.SetActive(false);
+            uiElement.text.rectTransform.offsetMax = Vector2.zero;
+
+            uiElement.text.text = element.text;
+            uiElement.rectTransform.gameObject.name = element.text;
+            uiElement.button.onClick = new Button.ButtonClickedEvent();
+            uiElement.button.onClick.AddListener(() =>
+            {
+                element.onClick(element.parameter);
+                HideContextMenu();
+            });
+            ++index;
+            return uiElement.rectTransform;
+        }
+
+        private static RectTransform HandleGroupElement(GroupElement element, ref int groupIndex, ref int elementIndex, float width = 120f)
+        {
+            ContextMenuUIElement uiElement = GetContextMenuUIElement(elementIndex);
+            uiElement.rectTransform.SetParent(null);
+            uiElement.rectTransform.gameObject.SetActive(true);
+
+            uiElement.icon.gameObject.SetActive(element.icon != null);
+            uiElement.icon.sprite = element.icon;
+            uiElement.icon.color = element.icon != null ? element.iconColor : Color.clear;
+            uiElement.childIcon.gameObject.SetActive(true);
+            uiElement.text.rectTransform.offsetMax = new Vector2(20f, 0f);
+            ++elementIndex;
+
+
+            RectTransform group = GetContextMenuGroup(groupIndex);
+            group.SetParent(uiElement.rectTransform);
+            group.localPosition = Vector3.zero;
+            group.localRotation = Quaternion.identity;
+            group.localScale = Vector3.one;
+            group.SetRect(new Vector2(1f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(width, 0f));
+            group.gameObject.SetActive(false);
+
+            uiElement.text.text = element.text;
+            uiElement.rectTransform.gameObject.name = element.text;
+            uiElement.button.onClick = new Button.ButtonClickedEvent();
+            uiElement.button.onClick.AddListener(() => group.gameObject.SetActive(!group.gameObject.activeSelf));
+            ++groupIndex;
+
+            foreach (AContextMenuElement e in element.elements)
+            {
+                RectTransform rt = null;
+                if (e is LeafElement)
+                    rt = HandleLeafElement((LeafElement)e, ref elementIndex);
+                else if (e is GroupElement)
+                    rt = HandleGroupElement((GroupElement)e, ref groupIndex, ref elementIndex, width);
+                rt.SetParent(group);
+                rt.localPosition = Vector3.zero;
+                rt.localRotation = Quaternion.identity;
+                rt.localScale = Vector3.one;
+                rt.SetAsLastSibling();
+            }
+
+            group.SetParent(uiElement.rectTransform);
+            group.localPosition = Vector3.zero;
+            group.localRotation = Quaternion.identity;
+            group.localScale = Vector3.one;
+            group.SetRect(new Vector2(1f, 0f), new Vector2(1f, 0f), Vector2.zero, new Vector2(width, 0f));
+            return uiElement.rectTransform;
+        }
+
+        private static string GetPathFrom(this Transform self, string root, bool includeRoot = false)
+        {
+            if (self.name.Equals(root))
+                return "";
+            Transform self2 = self;
+            StringBuilder path = new StringBuilder(self2.name);
+            self2 = self2.parent;
+            while (self2 != null && self2.name.Equals(root) == false)
+            {
+                path.Insert(0, "/");
+                path.Insert(0, self2.name);
+                self2 = self2.parent;
+            }
+            if (self2 != null && includeRoot)
+            {
+                path.Insert(0, "/");
+                path.Insert(0, root);
+            }
+            return path.ToString();
+        }
+
     }
 
     public static class UIExtensions

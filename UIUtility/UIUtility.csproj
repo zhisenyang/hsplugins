@@ -63,15 +63,19 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="ConfirmationDialog.cs" />
+    <Compile Include="ContextMenu\AContextMenuElement.cs" />
+    <Compile Include="ContextMenu\ContextMenuUIElement.cs" />
+    <Compile Include="ContextMenu\GroupElement.cs" />
+    <Compile Include="ContextMenu\LeafElement.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="MovableWindow.cs" />
     <Compile Include="OneTimeContentSizeFitter.cs" />
     <Compile Include="OneTimeHorizontalLayoutGroup.cs" />
     <Compile Include="OneTimeVerticalLayoutGroup.cs" />
-    <Compile Include="PointerEnterHandler.cs" />
-    <Compile Include="DragHandler.cs" />
-    <Compile Include="ScrollHandler.cs" />
-    <Compile Include="PointerDownHandler.cs" />
+    <Compile Include="EventHandlers\PointerEnterHandler.cs" />
+    <Compile Include="EventHandlers\DragHandler.cs" />
+    <Compile Include="EventHandlers\ScrollHandler.cs" />
+    <Compile Include="EventHandlers\PointerDownHandler.cs" />
     <Compile Include="Properties\AI\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -90,6 +94,7 @@
     </Compile>
     <Compile Include="UIUtility.cs" />
   </ItemGroup>
+  <ItemGroup />
   <Choose>
     <When Condition=" '$(Configuration)' == 'HS' ">
       <ItemGroup>

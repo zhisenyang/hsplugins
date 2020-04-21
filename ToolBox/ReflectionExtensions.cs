@@ -97,6 +97,31 @@ namespace ToolBox.Extensions {
             return info.GetValue(self, null);
         }
 
+        //Static versions
+        public static void SetPrivate(this Type self, string name, object value)
+        {
+            MemberKey key = new MemberKey(self, name);
+            FieldInfo info;
+            if (_fieldCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetField(key.name, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _fieldCache.Add(key, info);
+            }
+            info.SetValue(null, value);
+        }
+
+        public static object GetPrivate(this Type self, string name)
+        {
+            MemberKey key = new MemberKey(self, name);
+            FieldInfo info;
+            if (_fieldCache.TryGetValue(key, out info) == false)
+            {
+                info = key.type.GetField(key.name, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Public | BindingFlags.FlattenHierarchy);
+                _fieldCache.Add(key, info);
+            }
+            return info.GetValue(null);
+        }
+
         public static void SetPrivateProperty(this Type self, string name, object value)
         {
             MemberKey key = new MemberKey(self, name);

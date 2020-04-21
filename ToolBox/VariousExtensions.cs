@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Studio;
 using UnityEngine;
@@ -40,16 +41,16 @@ namespace ToolBox.Extensions {
             return self.visible;
         }
 
-        public static int LastIndexOf(this byte[] self, byte[] neddle)
+        public static int LastIndexOf(this byte[] self, byte[] needle)
         {
-            int limit = neddle.Length - 1;
+            int limit = needle.Length - 1;
             for (int i = self.Length - 1; i > limit; i--)
             {
                 int j;
                 int i2 = i;
-                for (j = neddle.Length - 1; j >= 0; --j)
+                for (j = needle.Length - 1; j >= 0; --j)
                 {
-                    if (self[i2] != neddle[j])
+                    if (self[i2] != needle[j])
                         break;
                     --i2;
                 }
@@ -84,6 +85,16 @@ namespace ToolBox.Extensions {
             _setupParticles.Invoke(self, null);
         }
 #endif
+
+        public static string RelativePath(string from, string to)
+        {
+            Uri fileUri = new Uri(to);
+            if (from.EndsWith("/") == false && from.EndsWith("\\") == false)
+                from += "\\";
+            Uri referenceUri = new Uri(from);
+            return Uri.UnescapeDataString(referenceUri.MakeRelativeUri(fileUri).ToString().Replace('/', '\\'));		
+        }
+
     }
 
     public delegate void Action<T1, T2, T3, T4, T5>(T1 arg, T2 arg2, T3 arg3, T4 arg4, T5 arg5);
