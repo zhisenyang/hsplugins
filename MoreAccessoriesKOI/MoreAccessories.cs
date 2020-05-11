@@ -12,6 +12,7 @@ using HarmonyLib;
 using Illusion.Extensions;
 using Illusion.Game;
 using Manager;
+using MessagePack;
 using Sideloader.AutoResolver;
 using Studio;
 using TMPro;
@@ -29,11 +30,11 @@ namespace MoreAccessoriesKOI
     [BepInDependency("com.bepis.bepinex.sideloader")]
     public class MoreAccessories : BaseUnityPlugin
     {
-        public const string versionNum = "1.0.8";
+        public const string versionNum = "1.0.9";
 
         #region Events
         /// <summary>
-        /// Fires when a new accessory UI element is created in the maker.
+        /// Fires when a new accessory UI slot is created in the maker.
         /// </summary>
         public event Action<int, Transform> onCharaMakerSlotAdded;
         #endregion
@@ -46,9 +47,30 @@ namespace MoreAccessoriesKOI
             public readonly List<GameObject> objAccessory = new List<GameObject>();
             public readonly List<GameObject[]> objAcsMove = new List<GameObject[]>();
             public readonly List<ChaAccessoryComponent> cusAcsCmp = new List<ChaAccessoryComponent>();
-            public List<bool> showAccessories = new List<bool>();
 
+            public List<bool> showAccessories = new List<bool>();
             public readonly Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> rawAccessoriesInfos = new Dictionary<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>>();
+
+            public CharAdditionalData() { }
+            public CharAdditionalData(CharAdditionalData other)
+            {
+                foreach (bool b in other.showAccessories)
+                    this.showAccessories.Add(b);
+
+                foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> coordPair in other.rawAccessoriesInfos)
+                {
+                    List<ChaFileAccessory.PartsInfo> parts = new List<ChaFileAccessory.PartsInfo>();
+                    foreach (ChaFileAccessory.PartsInfo part in coordPair.Value)
+                        parts.Add(MessagePackSerializer.Deserialize<ChaFileAccessory.PartsInfo>(MessagePackSerializer.Serialize(part)));
+                    this.rawAccessoriesInfos.Add(coordPair.Key, parts);
+                }
+
+                this.infoAccessory.AddRange(new ListInfoBase[other.infoAccessory.Count]);
+                this.objAccessory.AddRange(new GameObject[other.objAccessory.Count]);
+                while (this.objAcsMove.Count < other.objAcsMove.Count)
+                    this.objAcsMove.Add(new GameObject[2]);
+                this.cusAcsCmp.AddRange(new ChaAccessoryComponent[other.cusAcsCmp.Count]);
+            }
         }
 
         internal class CharaMakerSlotData
@@ -118,7 +140,8 @@ namespace MoreAccessoriesKOI
         private ScrollRect _charaMakerTransferScrollView;
         private GameObject _transferSlotTemplate;
         private List<UI_RaycastCtrl> _raycastCtrls = new List<UI_RaycastCtrl>();
-        private ChaFile _overrideCharaLoadingFile;
+        private ChaFile _overrideCharaLoadingFilePre;
+        private ChaFile _overrideCharaLoadingFilePost;
         private bool _loadAdditionalAccessories = true;
         private CustomFileWindow _loadCoordinatesWindow;
 
@@ -161,7 +184,7 @@ namespace MoreAccessoriesKOI
             }
             this._hasDarkness = typeof(ChaControl).GetMethod("ChangeShakeAccessory", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance) != null;
             this._isParty = Application.productName == "Koikatsu Party";
-            
+
             Harmony harmony = new Harmony("com.joan6694.kkplugins.moreaccessories");
             harmony.PatchAllSafe();
             Type uarHooks = typeof(UniversalAutoResolver).GetNestedType("Hooks", BindingFlags.NonPublic | BindingFlags.Static);
@@ -171,7 +194,7 @@ namespace MoreAccessoriesKOI
             harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateLoad", AccessTools.all), new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordLoad_Prefix)));
             harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateSave", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordSave_Postfix)));
         }
-        
+
         private void SceneLoaded(Scene scene, LoadSceneMode loadMode)
         {
             switch (loadMode)
@@ -987,6 +1010,31 @@ namespace MoreAccessoriesKOI
 
         #region Sideloader
         [HarmonyPatch]
+        private static class SideloaderAutoresolverHooks_IterateCardPrefixes_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("Sideloader.AutoResolver.UniversalAutoResolver,Sideloader") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("Sideloader.AutoResolver.UniversalAutoResolver,Sideloader").GetMethod("IterateCardPrefixes", BindingFlags.NonPublic | BindingFlags.Static);
+            }
+
+            private static void Prefix(ChaFile file)
+            {
+                if (_self._overrideCharaLoadingFilePost == null)
+                    _self._overrideCharaLoadingFilePost = file;
+            }
+
+            private static void Postfix()
+            {
+                _self._overrideCharaLoadingFilePost = null;
+            }
+        }
+
+        [HarmonyPatch]
         private static class SideloaderAutoresolverHooks_IterateCoordinatePrefixes_Patches
         {
             private static object _sideLoaderChaFileAccessoryPartsInfoProperties;
@@ -1037,8 +1085,8 @@ namespace MoreAccessoriesKOI
                 }
 
                 ChaFile owner = null;
-                if (_self._overrideCharaLoadingFile != null)
-                    owner = _self._overrideCharaLoadingFile;
+                if (_self._overrideCharaLoadingFilePost != null)
+                    owner = _self._overrideCharaLoadingFilePost;
                 else
                 {
                     foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
@@ -1114,14 +1162,15 @@ namespace MoreAccessoriesKOI
             {
                 if (_self._inCharaMaker && _self._customAcsChangeSlot != null)
                 {
-                    _self._overrideCharaLoadingFile = __instance;
+                    if (_self._overrideCharaLoadingFilePost == null)
+                        _self._overrideCharaLoadingFilePost = __instance;
                     _self._loadAdditionalAccessories = coordinate;
                 }
             }
 
             private static void Postfix()
             {
-                _self._overrideCharaLoadingFile = null;
+                _self._overrideCharaLoadingFilePost = null;
                 _self._loadAdditionalAccessories = true;
             }
         }
@@ -1131,25 +1180,57 @@ namespace MoreAccessoriesKOI
         {
             private static void Prefix(ChaFileControl __instance)
             {
-                _self._overrideCharaLoadingFile = __instance;
+                if (_self._overrideCharaLoadingFilePost == null)
+                    _self._overrideCharaLoadingFilePost = __instance;
             }
             private static void Postfix()
             {
-                _self._overrideCharaLoadingFile = null;
+                _self._overrideCharaLoadingFilePost = null;
             }
         }
 
+        [HarmonyPatch(typeof(CustomControl), "Entry")]
+        private static class CustomScene_Initialize_Patches
+        {
+            private static void Prefix(ChaControl entryChara)
+            {
+                _self._overrideCharaLoadingFilePre = entryChara.chaFile;
+            }
+            private static void Postfix()
+            {
+                _self._overrideCharaLoadingFilePre = null;
+            }
+        }
 
+        [HarmonyPatch(typeof(ChaFile), "CopyAll", typeof(ChaFile))]
+        private static class ChaFile_CopyAll_Patches
+        {
+            private static void Prefix(ChaFile __instance, ChaFile _chafile)
+            {
+                if (_self._accessoriesByChar.TryGetValue(_chafile, out CharAdditionalData srcData) == false)
+                    srcData = new CharAdditionalData();
+                CharAdditionalData dstData = new CharAdditionalData(srcData);
+                _self._accessoriesByChar[__instance] = dstData;
 
+                if (dstData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)__instance.status.coordinateType, out dstData.nowAccessories) == false)
+                {
+                    dstData.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
+                    dstData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)__instance.status.coordinateType, dstData.nowAccessories);
+                }
+            }
+        }
 
         private void OnActualCharaLoad(ChaFile file)
         {
             if (this._loadAdditionalAccessories == false)
                 return;
+            if (this._overrideCharaLoadingFilePre != null)
+                file = this._overrideCharaLoadingFilePre;
+            
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
 
-            if (this._overrideCharaLoadingFile != null)
-                file = this._overrideCharaLoadingFile;
+            if (this._overrideCharaLoadingFilePost != null)
+                file = this._overrideCharaLoadingFilePost;
 
             CharAdditionalData data;
             if (this._accessoriesByChar.TryGetValue(file, out data) == false)
@@ -1187,7 +1268,6 @@ namespace MoreAccessoriesKOI
 
                             foreach (XmlNode accessoryNode in childNode.ChildNodes)
                             {
-
                                 ChaFileAccessory.PartsInfo part = new ChaFileAccessory.PartsInfo();
                                 part.type = XmlConvert.ToInt32(accessoryNode.Attributes["type"].Value);
                                 if (part.type != 120)
@@ -1308,7 +1388,6 @@ namespace MoreAccessoriesKOI
                                 xmlWriter.WriteAttributeString($"color{i}b", XmlConvert.ToString(c.b));
                                 xmlWriter.WriteAttributeString($"color{i}a", XmlConvert.ToString(c.a));
                             }
-
                             xmlWriter.WriteAttributeString("hideCategory", XmlConvert.ToString(part.hideCategory));
                             if (this._hasDarkness)
                                 xmlWriter.WriteAttributeString("noShake", XmlConvert.ToString((bool)part.GetPrivateProperty("noShake")));
