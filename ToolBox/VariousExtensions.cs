@@ -124,5 +124,30 @@ namespace ToolBox.Extensions {
         {
             return this._hashCode;
         }
+
+        public override string ToString()
+        {
+            return $"key: {this.key}, value: {this.value}";
+        }
+    }
+
+    public class LambdaComparer<T> : IEqualityComparer<T>
+    {
+        private readonly Func<T, T, bool> _compareFunc;
+
+        public LambdaComparer(Func<T, T, bool> compareFunc)
+        {
+            this._compareFunc = compareFunc;
+        }
+
+        public bool Equals(T x, T y)
+        {
+            return this._compareFunc(x, y);
+        }
+
+        public int GetHashCode(T obj)
+        {
+            return EqualityComparer<T>.Default.GetHashCode(obj);
+        }
     }
 }
