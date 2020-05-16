@@ -85,14 +85,13 @@ namespace HSPE.AMModules
 
         private class DebugLines
         {
-            private List<DebugDynamicBone> _debugLines = new List<DebugDynamicBone>();
+            private readonly List<DebugDynamicBone> _debugLines = new List<DebugDynamicBone>();
 
             public void Draw(List<DynamicBone> dynamicBones, DynamicBone target, Dictionary<DynamicBone, DynamicBoneData> dirtyDynamicBones)
             {
                 int i = 0;
-                for (; i < dynamicBones.Count; i++)
+                foreach (DynamicBone db in dynamicBones)
                 {
-                    DynamicBone db = dynamicBones[i];
                     if (db.m_Root == null)
                         continue;
                     DebugDynamicBone debug;
@@ -107,6 +106,7 @@ namespace HSPE.AMModules
                         this._debugLines.Add(debug);
                     }
                     debug.Draw(db, db == target, dirtyDynamicBones.ContainsKey(db));
+                    ++i;
                 }
                 for (; i < this._debugLines.Count; ++i)
                 {
@@ -254,7 +254,6 @@ namespace HSPE.AMModules
         private Vector2 _dynamicBonesScroll;
         private DynamicBone _dynamicBoneTarget;
         internal readonly List<DynamicBone> _dynamicBones = new List<DynamicBone>();
-        private readonly Dictionary<string, DynamicBone> _dynamicBonesByRootPath = new Dictionary<string, DynamicBone>();
         private readonly Dictionary<DynamicBone, DynamicBoneData> _dirtyDynamicBones = new Dictionary<DynamicBone, DynamicBoneData>();
         private Vector3 _dragDynamicBoneStartPosition;
         private Vector3 _dragDynamicBoneEndPosition;
@@ -369,8 +368,7 @@ namespace HSPE.AMModules
                 {
                     if (dynamicBone == null)
                         continue;
-                    dynamicBone.InitTransforms();
-                    dynamicBone.SetupParticles();
+                    this.UpdateDynamicBone(dynamicBone);
                 }
                 this._toUpdate.Clear();
             }
@@ -873,54 +871,69 @@ namespace HSPE.AMModules
             GUILayout.EndHorizontal();
         }
 
-        private void SetDynamicBoneRadius(DynamicBone db, float v)
+        private void SetDynamicBoneRadius(DynamicBone db, float v, bool immediateUpdate = false)
         {
             DynamicBoneData data = this.SetDynamicBoneDirty(db);
             if (data.originalRadius.hasValue == false)
                 data.originalRadius = db.m_Radius;
             data.currentRadius = v;
             db.m_Radius = v;
-            this.NotifyDynamicBoneForUpdate(db);
+            if (immediateUpdate)
+                this.UpdateDynamicBone(db);
+            else
+                this.NotifyDynamicBoneForUpdate(db);
         }
 
-        private void SetDynamicBoneInertia(DynamicBone db, float v)
+        private void SetDynamicBoneInertia(DynamicBone db, float v, bool immediateUpdate = false)
         {
             DynamicBoneData data = this.SetDynamicBoneDirty(db);
             if (data.originalInert.hasValue == false)
                 data.originalInert = db.m_Inert;
             data.currentInert = v;
             db.m_Inert = v;
-            this.NotifyDynamicBoneForUpdate(db);
+            if (immediateUpdate)
+                this.UpdateDynamicBone(db);
+            else
+                this.NotifyDynamicBoneForUpdate(db);
         }
 
-        private void SetDynamicBoneStiffness(DynamicBone db, float v)
+        private void SetDynamicBoneStiffness(DynamicBone db, float v, bool immediateUpdate = false)
         {
             DynamicBoneData data = this.SetDynamicBoneDirty(db);
             if (data.originalStiffness.hasValue == false)
                 data.originalStiffness = db.m_Stiffness;
             data.currentStiffness = v;
             db.m_Stiffness = v;
-            this.NotifyDynamicBoneForUpdate(db);
+            if (immediateUpdate)
+                this.UpdateDynamicBone(db);
+            else
+                this.NotifyDynamicBoneForUpdate(db);
         }
 
-        private void SetDynamicBoneElasticity(DynamicBone db, float v)
+        private void SetDynamicBoneElasticity(DynamicBone db, float v, bool immediateUpdate = false)
         {
             DynamicBoneData data = this.SetDynamicBoneDirty(db);
             if (data.originalElasticity.hasValue == false)
                 data.originalElasticity = db.m_Elasticity;
             data.currentElasticity = v;
             db.m_Elasticity = v;
-            this.NotifyDynamicBoneForUpdate(db);
+            if (immediateUpdate)
+                this.UpdateDynamicBone(db);
+            else
+                this.NotifyDynamicBoneForUpdate(db);
         }
 
-        private void SetDynamicBoneDamping(DynamicBone db, float v)
+        private void SetDynamicBoneDamping(DynamicBone db, float v, bool immediateUpdate = false)
         {
             DynamicBoneData data = this.SetDynamicBoneDirty(db);
             if (data.originalDamping.hasValue == false)
                 data.originalDamping = db.m_Damping;
             data.currentDamping = v;
             db.m_Damping = v;
-            this.NotifyDynamicBoneForUpdate(db);
+            if (immediateUpdate)
+                this.UpdateDynamicBone(db);
+            else
+                this.NotifyDynamicBoneForUpdate(db);
         }
 
         private void SetDynamicBoneWeight(DynamicBone db, float w)
@@ -1191,11 +1204,25 @@ namespace HSPE.AMModules
 
         public string CalculateRoot(DynamicBone db)
         {
-            return db.m_Root != null ? db.m_Root.GetPathFrom(this._parent.transform) : db.name;
+            return db.m_Root != null ? db.m_Root.GetPathFrom(this._parent.transform) : db.transform.GetPathFrom(this._parent.transform);
         }
         #endregion
 
         #region Private Methods
+        private void UpdateDynamicBone(DynamicBone db)
+        {
+            db.InitTransforms();
+            DynamicBoneData data;
+            if (this._dirtyDynamicBones.TryGetValue(db, out data) && data.originalGravity.hasValue)
+            {
+                db.m_Gravity = data.originalGravity;
+                db.SetupParticles();
+                db.m_Gravity = data.currentGravity;
+            }
+            else
+                db.SetupParticles();
+        }
+
         private static void UpdateGizmosIf()
         {
             if (MainWindow._self._poseTarget != null && GizmosEnabled(MainWindow._self._poseTarget._dynamicBonesEditor))
@@ -1527,16 +1554,6 @@ namespace HSPE.AMModules
             }
             if (this._dynamicBones.Count != 0 && this._dynamicBoneTarget == null)
                 this._dynamicBoneTarget = this._dynamicBones.FirstOrDefault(d => d.m_Root != null);
-            this._dynamicBonesByRootPath.Clear();
-            foreach (DynamicBone db in this._dynamicBones)
-            {
-                if (db.m_Root != null && db.m_Root.IsChildOf(this._parent.transform))
-                {
-                    string path = db.m_Root.GetPathFrom(this._parent.transform);
-                    if (this._dynamicBonesByRootPath.ContainsKey(path) == false)
-                        this._dynamicBonesByRootPath.Add(path, db);
-                }
-            }
             foreach (KeyValuePair<DynamicBoneColliderBase, CollidersEditor> pair in CollidersEditor._loneColliders)
             {
                 HashSet<object> ignoredDynamicBones;
@@ -1584,7 +1601,7 @@ namespace HSPE.AMModules
                     get
                     {
                         if (this._dynamicBone == null)
-                            this.editor._dynamicBonesByRootPath.TryGetValue(this.dynamicBoneRootPath, out this._dynamicBone);
+                            this._dynamicBone = this.editor.SearchDynamicBone(this.dynamicBoneRootPath);
                         return this._dynamicBone;
                     }
                 }
@@ -1605,7 +1622,7 @@ namespace HSPE.AMModules
                 {
                     this.editor = editor;
                     this._dynamicBone = dynamicBone;
-                    this.dynamicBoneRootPath = this._dynamicBone.transform.GetPathFrom(this.editor._parent.transform);
+                    this.dynamicBoneRootPath = this.editor.CalculateRoot(this._dynamicBone);
                 }
 
                 public Parameter(DynamicBonesEditor editor, string dynamicBoneRootPath) : this()
@@ -1631,7 +1648,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneGravity(p.dynamicBone, Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor));
+                            {
+                                Vector3 newValue = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
+                                if (p.dynamicBone.m_Gravity != newValue)
+                                    p.editor.SetDynamicBoneGravity(p.dynamicBone, newValue);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1652,7 +1673,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneForce(p.dynamicBone, Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor));
+                            {
+                                Vector3 newValue = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
+                                if (p.dynamicBone.m_Force != newValue)
+                                    p.editor.SetDynamicBoneForce(p.dynamicBone, newValue);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1673,7 +1698,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneFreezeAxis(p.dynamicBone, (DynamicBone.FreezeAxis)leftValue);
+                            {
+                                DynamicBone.FreezeAxis newValue = (DynamicBone.FreezeAxis)leftValue;
+                                if (p.dynamicBone.m_FreezeAxis != newValue)
+                                    p.editor.SetDynamicBoneFreezeAxis(p.dynamicBone, newValue);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1694,7 +1723,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneWeight(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.GetWeight(), newValue) == false)
+                                    p.editor.SetDynamicBoneWeight(p.dynamicBone, newValue);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1715,7 +1748,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneDamping(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.m_Damping, newValue) == false)
+                                    p.editor.SetDynamicBoneDamping(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor), true);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1736,7 +1773,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneElasticity(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.m_Elasticity, newValue) == false)
+                                    p.editor.SetDynamicBoneElasticity(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor), true);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1757,7 +1798,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneStiffness(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.m_Stiffness, newValue) == false)
+                                    p.editor.SetDynamicBoneStiffness(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor), true);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1778,7 +1823,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneInertia(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.m_Inert, newValue) == false)
+                                    p.editor.SetDynamicBoneInertia(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor), true);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,
@@ -1799,7 +1848,11 @@ namespace HSPE.AMModules
                         {
                             Parameter p = (Parameter)parameter;
                             if (p.editor._isBusy == false)
-                                p.editor.SetDynamicBoneRadius(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor));
+                            {
+                                float newValue = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor);
+                                if (Mathf.Approximately(p.dynamicBone.m_Radius, newValue) == false)
+                                    p.editor.SetDynamicBoneRadius(p.dynamicBone, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor), true);
+                            }
                         },
                         interpolateAfter: null,
                         isCompatibleWithTarget: IsCompatibleWithTarget,

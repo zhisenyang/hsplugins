@@ -338,10 +338,9 @@ namespace HSPE
             foreach (AdvancedModeModule module in this._modules)
                 module.SaveXml(xmlWriter);
         }
-        #endregion
 
-        #region Protected Methods
-        protected virtual bool LoadDefaultVersion(XmlNode xmlNode)
+        // Using this directly will load the data on the same frame, only use this if you know exactly what you're doing.
+        public virtual bool LoadXml(XmlNode xmlNode)
         {
             bool changed = false;
             this._oldInstanceId = xmlNode.Attributes["uniqueId"] == null ? 0 : XmlConvert.ToInt32(xmlNode.Attributes["uniqueId"].Value);
@@ -406,7 +405,7 @@ namespace HSPE
             yield return null;
             yield return null;
             yield return null;
-            bool changed = this.LoadDefaultVersion(xmlNode);
+            bool changed = this.LoadXml(xmlNode);
             if (onLoadEnd != null)
                 onLoadEnd(changed);
         }

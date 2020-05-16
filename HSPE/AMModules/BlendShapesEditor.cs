@@ -1065,8 +1065,12 @@ namespace HSPE.AMModules
                 private SkinnedMeshRenderer _renderer;
                 private readonly int _hashCode;
 
-                private GroupParameter()
+                public GroupParameter(BlendShapesEditor editor, SkinnedMeshRenderer renderer)
                 {
+                    this.editor = editor;
+                    this._renderer = renderer;
+                    this.rendererPath = this._renderer.transform.GetPathFrom(this.editor._parent.transform);
+
                     unchecked
                     {
                         int hash = 17;
@@ -1075,22 +1079,27 @@ namespace HSPE.AMModules
                     }
                 }
 
-                public GroupParameter(BlendShapesEditor editor, SkinnedMeshRenderer renderer) : this()
-                {
-                    this.editor = editor;
-                    this._renderer = renderer;
-                    this.rendererPath = this._renderer.transform.GetPathFrom(this.editor._parent.transform);
-                }
-
-                public GroupParameter(BlendShapesEditor editor, string rendererPath) : this()
+                public GroupParameter(BlendShapesEditor editor, string rendererPath)
                 {
                     this.editor = editor;
                     this.rendererPath = rendererPath;
+
+                    unchecked
+                    {
+                        int hash = 17;
+                        hash = hash * 31 + (this.editor != null ? this.editor.GetHashCode() : 0);
+                        this._hashCode = hash * 31 + (this.rendererPath != null ? this.rendererPath.GetHashCode() : 0);
+                    }
                 }
 
                 public override int GetHashCode()
                 {
                     return this._hashCode;
+                }
+
+                public override string ToString()
+                {
+                    return $"editor: {this.editor}, rendererPath: {this.rendererPath}, renderer: {this._renderer}";
                 }
             }
 
@@ -1122,6 +1131,11 @@ namespace HSPE.AMModules
                 public override int GetHashCode()
                 {
                     return this._hashCode;
+                }
+
+                public override string ToString()
+                {
+                    return $"{base.ToString()}, index: {this.index}";
                 }
             }
 

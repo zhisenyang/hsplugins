@@ -259,7 +259,7 @@ namespace HSPE.AMModules
             }
             if (bone.parent.name.EndsWith("_R"))
             {
-                Transform twinParent = this._parent.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L"); 
+                Transform twinParent = this._parent.transform.FindDescendant(bone.parent.name.Substring(0, bone.parent.name.Length - 2) + "_L");
                 if (twinParent != null)
                 {
                     int index = bone.GetSiblingIndex();
@@ -1097,13 +1097,19 @@ namespace HSPE.AMModules
 
         private void ResetAll()
         {
-            this.ResetBonePos(this._parent.transform, null, true);
-            this.ResetBoneRot(this._parent.transform, null, true);
-            this.ResetBoneScale(this._parent.transform, null, true);
+            while (this._dirtyBones.Count != 0)
+            {
+                KeyValuePair<GameObject, TransformData> pair = this._dirtyBones.First();
+                this.ResetBonePos(pair.Key.transform);
+                this.ResetBoneRot(pair.Key.transform);
+                this.ResetBoneScale(pair.Key.transform);
+            }
         }
 
-        private void ResetBonePos(Transform bone, Transform twinBone = null, bool withChildren = false)
+        private void ResetBonePos(Transform bone, Transform twinBone = null, bool withChildren = false, int depth = 0) // Depth is a safeguard because for some reason I saw people getting stackoverflows on this function
         {
+            if (depth == 64)
+                return;
             TransformData data;
             if (this._dirtyBones.TryGetValue(bone.gameObject, out data))
             {
@@ -1115,24 +1121,22 @@ namespace HSPE.AMModules
                 data.position.Reset();
                 this.SetBoneNotDirtyIf(twinBone.gameObject);
             }
-            if (withChildren)
+            if (withChildren && this._dirtyBones.Count != 0)
             {
-                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                foreach (Transform childBone in bone)
                 {
-                    if (pair.Key.transform.IsChildOf(bone))
-                    {
-                        Transform childBone = pair.Key.transform;
-                        Transform twinChildBone = this.GetTwinBone(childBone);
-                        if (twinChildBone == childBone)
-                            twinChildBone = null;
-                        this.ResetBonePos(childBone, twinChildBone, true);
-                    }
+                    Transform twinChildBone = this.GetTwinBone(childBone);
+                    if (twinChildBone == childBone)
+                        twinChildBone = null;
+                    this.ResetBonePos(childBone, twinChildBone, true, depth + 1);
                 }
             }
         }
 
-        private void ResetBoneRot(Transform bone, Transform twinBone = null, bool withChildren = false)
+        private void ResetBoneRot(Transform bone, Transform twinBone = null, bool withChildren = false, int depth = 0)
         {
+            if (depth == 64)
+                return;
             TransformData data;
             OCIChar.BoneInfo info;
             if ((!this._target.fkEnabled || !this._target.fkObjects.TryGetValue(bone.gameObject, out info) || !info.active) && this._dirtyBones.TryGetValue(bone.gameObject, out data))
@@ -1145,24 +1149,22 @@ namespace HSPE.AMModules
                 data.rotation.Reset();
                 this.SetBoneNotDirtyIf(twinBone.gameObject);
             }
-            if (withChildren)
+            if (withChildren && this._dirtyBones.Count != 0)
             {
-                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                foreach (Transform childBone in bone)
                 {
-                    if (pair.Key.transform.IsChildOf(bone))
-                    {
-                        Transform childBone = pair.Key.transform;
-                        Transform twinChildBone = this.GetTwinBone(childBone);
-                        if (twinChildBone == childBone)
-                            twinChildBone = null;
-                        this.ResetBoneRot(childBone, twinChildBone, true);
-                    }
+                    Transform twinChildBone = this.GetTwinBone(childBone);
+                    if (twinChildBone == childBone)
+                        twinChildBone = null;
+                    this.ResetBoneRot(childBone, twinChildBone, true, depth + 1);
                 }
             }
         }
 
-        private void ResetBoneScale(Transform bone, Transform twinBone, bool withChildren = false)
+        private void ResetBoneScale(Transform bone, Transform twinBone = null, bool withChildren = false, int depth = 0)
         {
+            if (depth == 64)
+                return;
             TransformData data;
             if (this._dirtyBones.TryGetValue(bone.gameObject, out data))
             {
@@ -1174,17 +1176,14 @@ namespace HSPE.AMModules
                 data.scale.Reset();
                 this.SetBoneNotDirtyIf(twinBone.gameObject);
             }
-            if (withChildren)
+            if (withChildren && this._dirtyBones.Count != 0)
             {
-                foreach (KeyValuePair<GameObject, TransformData> pair in new Dictionary<GameObject, TransformData>(this._dirtyBones))
+                foreach (Transform childBone in bone)
                 {
-                    if (!pair.Key.transform.IsChildOf(bone))
-                        continue;
-                    Transform childBone = pair.Key.transform;
                     Transform twinChildBone = this.GetTwinBone(childBone);
                     if (twinChildBone == childBone)
                         twinChildBone = null;
-                    this.ResetBoneScale(childBone, twinChildBone, true);
+                    this.ResetBoneScale(childBone, twinChildBone, true, depth + 1);
                 }
             }
         }

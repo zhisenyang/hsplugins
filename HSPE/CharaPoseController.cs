@@ -1064,13 +1064,13 @@ namespace HSPE
             base.SaveXml(xmlWriter);
         }
 
-        protected override bool LoadDefaultVersion(XmlNode xmlNode)
+        public override bool LoadXml(XmlNode xmlNode)
         {
             this.optimizeIK = xmlNode.Attributes?["optimizeIK"] == null || XmlConvert.ToBoolean(xmlNode.Attributes["optimizeIK"].Value);
             this.crotchJointCorrection = xmlNode.Attributes?["crotchCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["crotchCorrection"].Value);
             this.leftFootJointCorrection = xmlNode.Attributes?["leftAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["leftAnkleCorrection"].Value);
             this.rightFootJointCorrection = xmlNode.Attributes?["rightAnkleCorrection"] != null && XmlConvert.ToBoolean(xmlNode.Attributes["rightAnkleCorrection"].Value);
-            return base.LoadDefaultVersion(xmlNode);
+            return base.LoadXml(xmlNode);
         }
         #endregion
     }
