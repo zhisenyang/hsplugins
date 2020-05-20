@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections;
-#if HONEYSELECT || PLAYHOME
+#if IPA
 using IllusionInjector;
 using IllusionPlugin;
 #endif
@@ -9,7 +9,7 @@ using UnityEngine;
 namespace ToolBox.Extensions {
     internal static class MonoBehaviourExtensions
     {
-#if HONEYSELECT || PLAYHOME
+#if IPA
         private static PluginComponent _pluginComponent;
         private static void CheckPluginComponent()
         {

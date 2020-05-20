@@ -1,4 +1,4 @@
-﻿#if HONEYSELECT || PLAYHOME
+﻿#if IPA
 using IllusionInjector;
 #else
 using BepInEx;
@@ -11,13 +11,13 @@ using System.Reflection;
 namespace ToolBox
 {
     public abstract class GenericPlugin
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
        : BaseUnityPlugin
 #endif
     {
         internal Binary _binary;
         internal int _level = -1;
-#if HONEYSELECT || PLAYHOME
+#if IPA
         private static PluginComponent _pluginComponent;
         private Component _onGUIDispatcher = null;
 
@@ -72,7 +72,7 @@ namespace ToolBox
 
         protected virtual void Awake()
         {
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
             SceneManager.sceneLoaded += this.LevelLoaded;
 #endif
             switch (Application.productName)
@@ -85,6 +85,8 @@ namespace ToolBox
                 case "Koikatu":
 #elif AISHOUJO
                 case "AI-Syoujyo":
+#elif PLAYHOME
+                case "PlayHome":
 #endif
                     this._binary = Binary.Game;
                     break;
@@ -94,11 +96,13 @@ namespace ToolBox
                 case "CharaStudio":
 #elif AISHOUJO
                 case "StudioNEOV2":
+#elif PLAYHOME
+                case "PlayHomeStudio":
 #endif
                     this._binary = Binary.Studio;
                     break;
             }
-#if HONEYSELECT || PLAYHOME
+#if IPA
 
             Component[] components = this.gameObject.GetComponents<Component>();
             foreach (Component c in components)
@@ -117,7 +121,7 @@ namespace ToolBox
 
         protected virtual void OnDestroy()
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             if (this._onGUIDispatcher != null)
             this._onGUIDispatcher.GetType().GetMethod(nameof(OnGUIDispatcher.RemoveListener), BindingFlags.Instance | BindingFlags.Public).Invoke(this._onGUIDispatcher, new object[]{new Action(this.OnGUI)});
 #endif
@@ -127,8 +131,8 @@ namespace ToolBox
         {
         }
 
-#if KOIKATSU || AISHOUJO
-        protected virtual void LevelLoaded(Scene scene, LoadSceneMode mode)
+#if BEPINEX
+        protected virtual void LevelLoaded(UnityEngine.SceneManagement.Scene scene, LoadSceneMode mode)
         {
             if (mode == LoadSceneMode.Single)
             {
@@ -159,7 +163,7 @@ namespace ToolBox
         }
     }
 
-#if HONEYSELECT || PLAYHOME
+#if IPA
     internal class OnGUIDispatcher : MonoBehaviour
     {
         private event Action _onGUI;

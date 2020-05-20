@@ -3,31 +3,31 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-#if HONEYSELECT || PLAYHOME
+#if IPA
 using Harmony;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
 using HarmonyLib;
 #endif
 
 namespace ToolBox.Extensions {
     internal static class HarmonyExtensions
     {
-#if HONEYSELECT || PLAYHOME
+#if IPA
         public static HarmonyInstance CreateInstance(string guid)
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
         public static Harmony CreateInstance(string guid)
 #endif
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             return HarmonyInstance.Create(guid);
-#elif AISHOUJO || KOIKATSU
+#elif BEPINEX
             return new Harmony(guid);
 #endif
         }
 
-#if HONEYSELECT || PLAYHOME
+#if IPA
         public static void PatchAllSafe(this HarmonyInstance self)
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
         public static void PatchAllSafe(this Harmony self)
 #endif
         {
@@ -35,9 +35,9 @@ namespace ToolBox.Extensions {
             {
                 try
                 {
-#if HONEYSELECT || PLAYHOME
+#if IPA
                     List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
-#elif AISHOUJO || KOIKATSU
+#elif BEPINEX
                     List<HarmonyMethod> harmonyMethods = HarmonyMethodExtensions.GetFromType(type);
 #endif
                     if (harmonyMethods == null || harmonyMethods.Count <= 0)
