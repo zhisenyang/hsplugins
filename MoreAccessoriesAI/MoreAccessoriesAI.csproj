@@ -23,7 +23,7 @@
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Optimize>true</Optimize>
-    <DefineConstants>AISHOUJO</DefineConstants>
+    <DefineConstants>AISHOUJO;BEPINEX</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -58,7 +58,7 @@
       <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Xml" >
+    <Reference Include="System.Xml">
       <HintPath>D:\Program Files (x86)\AI-Syoujyo\StudioNEOV2_Data\Managed\System.Xml.dll</HintPath>
       <Private>False</Private>
     </Reference>
@@ -96,11 +96,17 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\toolbox\Extensions.cs">
-      <Link>ToolBox\Extensions.cs</Link>
-    </Compile>
     <Compile Include="..\toolbox\GenericPlugin.cs">
       <Link>ToolBox\GenericPlugin.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\HarmonyExtensions.cs">
+      <Link>ToolBox\HarmonyExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\ReflectionExtensions.cs">
+      <Link>ToolBox\ReflectionExtensions.cs</Link>
     </Compile>
     <Compile Include="ReadOnlyListExtender.cs" />
     <Compile Include="Patches\ChaControl.cs" />

@@ -9,7 +9,6 @@ using MoreAccessoriesAI.Patches;
 using Sideloader.AutoResolver;
 using Studio;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -20,6 +19,7 @@ using ToolBox;
 using ToolBox.Extensions;
 using UILib;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace MoreAccessoriesAI
@@ -120,7 +120,7 @@ namespace MoreAccessoriesAI
         {
             base.Awake();
             _self = this;
-            
+
             Harmony harmony = new Harmony(_guid);
 
             harmony.Patch(typeof(UniversalAutoResolver).GetMethod("IterateCoordinatePrefixes", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_IterateCoordinatePrefixes_Postfix)));
@@ -150,19 +150,23 @@ namespace MoreAccessoriesAI
             this._patchThread = null;
         }
 
-        protected override void LevelLoaded(int level)
+        protected override void LevelLoaded(UnityEngine.SceneManagement.Scene scene, LoadSceneMode mode)
         {
-            switch (this._binary)
+            base.LevelLoaded(scene, mode);
+            if (mode == LoadSceneMode.Single)
             {
-                case Binary.Game:
-                    this._inMaker = false;
-                    if (level == 4)
-                        this.SpawnMakerUI();
-                    break;
-                case Binary.Studio:
-                    if (level == 2)
-                        this.SpawnStudioUI();
-                    break;
+                switch (this._binary)
+                {
+                    case Binary.Game:
+                        this._inMaker = false;
+                        if (scene.buildIndex == 4)
+                            this.SpawnMakerUI();
+                        break;
+                    case Binary.Studio:
+                        if (scene.name.Equals("Studio"))
+                            this.SpawnStudioUI();
+                        break;
+                }
             }
         }
 
@@ -244,7 +248,7 @@ namespace MoreAccessoriesAI
             this._makerCopyDstToggleTemplate = this._makerListCopyDstTop.Find("Toggle01").gameObject;
 
             this._inMaker = true;
-            
+
             this.ExecuteDelayed(() => CustomBase.Instance == null, this.UpdateUI);
         }
 

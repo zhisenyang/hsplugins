@@ -292,20 +292,11 @@ namespace MoreAccessoriesAI.Patches
             }
             ChaFileAccessory.PartsInfo part = additionalData.parts[slotNo];
             if ((flags & 1) != 0)
-            {
-                float value2 = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].x) + value).ToString("f1"));
-                part.addMove[correctNo, 0].x = Mathf.Clamp(value2, -100f, 100f);
-            }
+                part.addMove[correctNo, 0].x = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].x) + value).ToString("f1"));
             if ((flags & 2) != 0)
-            {
-                float value3 = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].y) + value).ToString("f1"));
-                part.addMove[correctNo, 0].y = Mathf.Clamp(value3, -100f, 100f);
-            }
+                part.addMove[correctNo, 0].y = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].y) + value).ToString("f1"));
             if ((flags & 4) != 0)
-            {
-                float value4 = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].z) + value).ToString("f1"));
-                part.addMove[correctNo, 0].z = Mathf.Clamp(value4, -100f, 100f);
-            }
+                part.addMove[correctNo, 0].z = float.Parse(((!add ? 0f : part.addMove[correctNo, 0].z) + value).ToString("f1"));
             transform.localPosition = new Vector3(part.addMove[correctNo, 0].x * 0.1f, part.addMove[correctNo, 0].y * 0.1f, part.addMove[correctNo, 0].z * 0.1f);
             __result = true;
             return false;
@@ -360,20 +351,11 @@ namespace MoreAccessoriesAI.Patches
             }
             ChaFileAccessory.PartsInfo part = additionalData.parts[slotNo];
             if ((flags & 1) != 0)
-            {
-                float value2 = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].x) + value).ToString("f2"));
-                part.addMove[correctNo, 2].x = Mathf.Clamp(value2, 0.01f, 100f);
-            }
+                part.addMove[correctNo, 2].x = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].x) + value).ToString("f2"));
             if ((flags & 2) != 0)
-            {
-                float value3 = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].y) + value).ToString("f2"));
-                part.addMove[correctNo, 2].y = Mathf.Clamp(value3, 0.01f, 100f);
-            }
+                part.addMove[correctNo, 2].y = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].y) + value).ToString("f2"));
             if ((flags & 4) != 0)
-            {
-                float value4 = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].z) + value).ToString("f2"));
-                part.addMove[correctNo, 2].z = Mathf.Clamp(value4, 0.01f, 100f);
-            }
+                part.addMove[correctNo, 2].z = float.Parse(((!add ? 0f : part.addMove[correctNo, 2].z) + value).ToString("f2"));
             transform.localScale = new Vector3(part.addMove[correctNo, 2].x, part.addMove[correctNo, 2].y, part.addMove[correctNo, 2].z);
             __result = true;
             return false;
@@ -521,12 +503,10 @@ namespace MoreAccessoriesAI.Patches
                     lib = (dataObject.info = component.data);
                     dataObject.cmp = dataObject.obj.GetComponent<CmpAccessory>();
                     if (dataObject.cmp)
-                    {
                         dataObject.cmp.InitDynamicBones();
-                    }
-                    if (lib.GetInfo(ChaListDefine.KeyType.MainData) == "p_dummy" || null == dataObject.cmp)
-                    {
-                    }
+                    //if (lib.GetInfo(ChaListDefine.KeyType.MainData) == "p_dummy" || null == dataObject.cmp) //wtf illusion
+                    //{
+                    //}
                     part.type = type;
                     part.id = lib.Id;
                     if (null != dataObject.cmp)
@@ -538,16 +518,23 @@ namespace MoreAccessoriesAI.Patches
             }
             if (dataObject.obj)
             {
-                if (__instance.loadWithDefaultColorAndPtn)
-                {
-                    __instance.SetAccessoryDefaultColor(slotNo + 20);
-                }
-                __instance.ChangeAccessoryColor(slotNo + 20);
                 if (string.Empty == parentKey)
                     parentKey = lib.GetInfo(ChaListDefine.KeyType.Parent);
                 __instance.ChangeAccessoryParent(slotNo + 20, parentKey);
                 __instance.UpdateAccessoryMoveFromInfo(slotNo + 20);
                 part.partsOfHead = ChaAccessoryDefine.CheckPartsOfHead(parentKey);
+
+                if (dataObject.cmp != null && dataObject.cmp.typeHair)
+                {
+                    __instance.ChangeSettingHairTypeAccessoryShader(slotNo + 20);
+                    __instance.ChangeHairTypeAccessoryColor(slotNo + 20);
+                }
+                else
+                {
+                    if (__instance.loadWithDefaultColorAndPtn)
+                        __instance.SetAccessoryDefaultColor(slotNo + 20);
+                    __instance.ChangeAccessoryColor(slotNo + 20);
+                }
             }
         }
         #endregion
