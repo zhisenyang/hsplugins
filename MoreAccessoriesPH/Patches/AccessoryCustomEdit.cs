@@ -122,7 +122,7 @@ namespace MoreAccessoriesPH.Patches
             return list.Count;
         }
 
-        private static IList GetAcceParamSlotList(AccessoryParameter acceParam)
+        private static PseudoAggregateList<AccessoryCustom> GetAcceParamSlotList(AccessoryParameter acceParam)
         {
             return new PseudoAggregateList<AccessoryCustom>(i => acceParam.slot[i], i => MoreAccessories._self.GetAdditionalData(acceParam).accessories[i].accessoryCustom,
                     (i, obj) => acceParam.slot[i] = obj, (i, obj) => MoreAccessories._self.GetAdditionalData(acceParam).accessories[i].accessoryCustom = obj,

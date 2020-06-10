@@ -1,17 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Xml;
 using BepInEx;
 using Character;
 using ExtensibleSaveFormat;
 using HarmonyLib;
 using MoreAccessoriesPH.Patches;
-using SEXY;
 using Studio;
 using ToolBox;
 using ToolBox.Extensions;
@@ -117,7 +112,7 @@ namespace MoreAccessoriesPH
 
         #region Private Variables
         private const string _name = "MoreAccessories";
-        private const string _version = "1.0.0";
+        private const string _version = "1.0.1";
         private const string _guid = "com.joan6694.illusionplugins.moreaccessories";
         private const string _extSaveKey = "moreAccessories";
         private const int _saveVersion = 0;
@@ -452,6 +447,7 @@ namespace MoreAccessoriesPH
                     slot.accessoryText = slot.slotButton.transform.Find("AcceText").GetComponent<Text>();
                     slot.textOn = slot.slotButton.transform.Find("Button_on").GetComponentInChildren<Text>();
                     slot.textOff = slot.slotButton.transform.Find("Button_off").GetComponentInChildren<Text>();
+
                     slot.panel = (RectTransform)Instantiate(this._makerPanelTemplate).transform;
                     while (slot.panel.childCount != 0)
                         DestroyImmediate(slot.panel.GetChild(0).gameObject);
@@ -506,6 +502,8 @@ namespace MoreAccessoriesPH
                     slot.copyDstToggle.name = $"Toggle ({index})";
                     slot.copySrcText.text = $"{index + 1}:なし";
                     slot.copyDstText.text = $"{index + 1}:なし";
+
+                    slot.slotButton.ChangeValue(false, false);
 
                     this._makerSlots.Add(slot);
                 }
