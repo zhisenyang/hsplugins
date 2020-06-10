@@ -1,16 +1,18 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-#if HONEYSELECT
-using Harmony;
+#if IPA
 using IllusionPlugin;
-#elif AISHOUJO
-using AIChara;
+using Harmony;
+#elif BEPINEX
 using BepInEx;
 using HarmonyLib;
+#endif
+#if AISHOUJO || HONEYSELECT2
+using AIChara;
 #endif
 using ToolBox;
 using ToolBox.Extensions;
@@ -18,11 +20,11 @@ using UnityEngine;
 
 namespace BonesFramework
 {
-#if AISHOUJO
+#if BEPINEX
     [BepInPlugin(_guid, _name, _version)]
 #endif
     public class BonesFramework : GenericPlugin
-#if HONEYSELECT
+#if IPA
         , IEnhancedPlugin
 #endif
     {
@@ -30,7 +32,7 @@ namespace BonesFramework
         private class AdditionalObjectData
         {
             public GameObject parent;
-            public List<GameObject> objects = new List<GameObject>();
+            public readonly List<GameObject> objects = new List<GameObject>();
         }
         #endregion
 
@@ -41,11 +43,11 @@ namespace BonesFramework
         private static Transform _currentTransformParent;
         private static readonly Dictionary<GameObject, AdditionalObjectData> _currentAdditionalObjects = new Dictionary<GameObject, AdditionalObjectData>();
         private const string _name = "BonesFramework";
-        private const string _version = "1.3.0";
+        private const string _version = "1.4.0";
         private const string _guid = "com.joan6694.illusionplugins.bonesframework";
         #endregion
 
-#if HONEYSELECT
+#if IPA
         public override string Name { get { return _name; } }
         public override string Version { get { return _version; } }
         public override string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_64", "StudioNEO_32", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
@@ -63,7 +65,7 @@ namespace BonesFramework
                 var harmony = HarmonyExtensions.CreateInstance(_guid);
 #if HONEYSELECT
                 harmony.Patch(typeof(CharBody).GetCoroutineMethod("LoadCharaFbxDataAsync"),
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                 harmony.Patch(typeof(ChaControl).GetCoroutineMethod("LoadCharaFbxDataAsync"),
 #endif
                         transpiler: new HarmonyMethod(typeof(BonesFramework), nameof(CharBody_LoadCharaFbxDataAsync_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
@@ -73,7 +75,7 @@ namespace BonesFramework
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsLoop", new[] { typeof(Transform), typeof(Transform) }),
                         new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsLoop_Prefix)));
 
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBounds", new[] { typeof(GameObject), typeof(string), typeof(Bounds), typeof(Transform) }),
                         new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Prefix)),
                         new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
@@ -178,18 +180,30 @@ namespace BonesFramework
                 if (set == false && inst.ToString().Contains("AddLoadAssetBundle")) //There's probably something better but idk m8
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
+#if HONEYSELECT2
+                    yield return new CodeInstruction(OpCodes.Ldloc_S, 4);
+                    yield return new CodeInstruction(OpCodes.Ldloc_3);
+#endif
                     yield return new CodeInstruction(OpCodes.Call, typeof(BonesFramework).GetMethod(nameof(CharBody_LoadCharaFbxDataAsync_Injected), BindingFlags.NonPublic | BindingFlags.Static));
                     set = true;
                 }
             }
         }
 
-        private static void CharBody_LoadCharaFbxDataAsync_Injected(object self)
+        private static void CharBody_LoadCharaFbxDataAsync_Injected(object self
+#if HONEYSELECT2
+                                                                    , GameObject obj
+                                                                    , string assetName
+
+#endif
+                )
         {
 #if HONEYSELECT
             _currentLoadingObject = (GameObject)self.GetPrivate("<newObj>__6");
 #elif AISHOUJO
             _currentLoadingObject = (GameObject)self.GetPrivate("$locvar2").GetPrivate("newObj");
+#elif HONEYSELECT2
+            _currentLoadingObject = obj;
 #endif
             _currentAdditionalRootBones.Clear();
             if (_currentLoadingObject == null)
@@ -203,6 +217,9 @@ namespace BonesFramework
             string assetBundlePath = (string)self.GetPrivate("<assetBundleName>__0");
             string assetName = (string)self.GetPrivate("<assetName>__0");
             string manifest = (string)self.GetPrivate("<manifestName>__0");
+#elif HONEYSELECT2
+            string assetBundlePath = (string)self.GetPrivate("<assetBundleName>5__4");
+            string manifest = (string)self.GetPrivate("<manifestName>5__3");
 #endif
             LoadAdditionalBonesForCurrent(assetBundlePath, assetName, manifest);
         }
@@ -254,8 +271,16 @@ namespace BonesFramework
                     Transform bone = component.bones[i];
                     if (__instance.dictBone.TryGetValue(bone.name, out gameObject))
                         array[i] = gameObject.transform;
-                    else if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
-                        array[i] = bone;
+                    else
+                    {
+                        // For AI, the bone is added anyway because Illusion decided to make their own pseudo BonesFramework, and if you look at the original code, it does the same thing (exceps more complicated because Illusion cannot produce optimized code).
+#if HONEYSELECT
+                        if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
+#endif
+                        {
+                            array[i] = bone;
+                        }
+                    }
                 }
 
                 component.bones = array;
@@ -288,7 +313,7 @@ namespace BonesFramework
             return false;
         }
 
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
         private static bool AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix(AssignedAnotherWeights __instance, Transform t, Bounds bounds, Transform rootBone)
         {
             SkinnedMeshRenderer renderer = t.GetComponent<SkinnedMeshRenderer>();
@@ -302,8 +327,15 @@ namespace BonesFramework
                     Transform bone = renderer.bones[i];
                     if (__instance.dictBone.TryGetValue(bone.name, out gameObject))
                         array[i] = gameObject.transform;
-                    else if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
-                        array[i] = bone;
+                    else
+                    {
+#if HONEYSELECT
+                        if (_currentAdditionalRootBones.Count != 0 && _currentAdditionalRootBones.Any(bone.IsChildOf))
+#endif
+                        {
+                            array[i] = bone;
+                        }
+                    }
                 }
 
                 renderer.bones = array;
