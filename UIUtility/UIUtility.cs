@@ -56,8 +56,8 @@ namespace UILib
                 AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.HS.Resources.DefaultResources);
 #elif KOIKATSU
                 AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.KOI.Resources.DefaultResources);
-#elif AISHOUJO
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.AI.Resources.DefaultResources);
+#elif AISHOUJO || HONEYSELECT2
+                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.AI.Resources.DefaultResources);
 #endif
                 foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
                 {
