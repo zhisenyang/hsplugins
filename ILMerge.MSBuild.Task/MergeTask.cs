@@ -29,6 +29,7 @@ using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -325,68 +326,81 @@ namespace ILMerge.MsBuild.Task
 
         private bool MergeAssemblies(string mergerPath, MergerSettings settings)
         {
-
             bool success = true;
-            Assembly ilmerge = LoadILMerge(mergerPath);
-            Type ilmergeType = ilmerge.GetType("ILMerging.ILMerge", true, true);
-            if (ilmergeType == null) throw new InvalidOperationException("Cannot find 'ILMerging.ILMerge' in executable.");
+
+            if (File.Exists(mergerPath) == false) 
+                throw new InvalidOperationException("Cannot find 'ILMerging.ILMerge' in executable.");
 
             Log.LogMessage("Instantianting ILMerge.");
-            dynamic merger = Activator.CreateInstance(ilmergeType);
+            StringBuilder commandLine = new StringBuilder();
 
             Log.LogMessage("Setting up ILMerge.");
 
-            merger.AllowMultipleAssemblyLevelAttributes = settings.Advanced.AllowMultipleAssemblyLevelAttributes;
-            merger.AllowWildCards = settings.Advanced.AllowWildCards;
-            merger.AllowZeroPeKind = settings.Advanced.AllowZeroPeKind;
-            merger.AttributeFile = settings.Advanced.AttributeFile;
-            merger.Closed = settings.Advanced.Closed;
-            merger.CopyAttributes = settings.Advanced.CopyAttributes;
-            merger.DebugInfo = settings.Advanced.DebugInfo;
-            merger.DelaySign = settings.Advanced.DelaySign;
-            merger.FileAlignment = settings.Advanced.FileAlignment > 0 ? settings.Advanced.FileAlignment : 512;
-            merger.KeyFile = settings.General.KeyFile;
-            merger.Log = settings.Advanced.Log;
-            merger.LogFile = settings.Advanced.LogFile;
-            merger.OutputFile = settings.General.OutputFile;
-            merger.PublicKeyTokens = settings.Advanced.PublicKeyTokens;
-            merger.UnionMerge = settings.Advanced.UnionMerge;
-            merger.XmlDocumentation = settings.Advanced.XmlDocumentation;
-
-            if (!string.IsNullOrWhiteSpace(settings.Advanced.ExcludeFile))
-                merger.ExcludeFile = settings.Advanced.ExcludeFile;
-
-            merger.Internalize = settings.Advanced.Internalize;
-
-            if (settings.Advanced.TargetKind.HasValue())
-                merger.TargetKind = (dynamic)Enum.Parse(merger.TargetKind.GetType(), settings.Advanced.TargetKind);
-
-            if (settings.Advanced.Version.HasValue())
+            foreach (string directory in settings.Advanced.SearchDirectories)
+                commandLine.Append($" /lib={this.EscapePathForCommandLine(directory)}");
+            if (settings.Advanced.Log)
             {
-                merger.Version = new Version(settings.Advanced.Version);
-
+                commandLine.Append(" /log");
+                if (string.IsNullOrEmpty(settings.Advanced.LogFile) == false)
+                    commandLine.Append($":{this.EscapePathForCommandLine(settings.Advanced.LogFile)}");
             }
-
+            if (string.IsNullOrEmpty(settings.General.KeyFile) == false)
+            {
+                commandLine.Append($" /keyfile:{this.EscapePathForCommandLine(settings.General.KeyFile)}");
+                if (settings.Advanced.DelaySign)
+                    commandLine.Append(" /delaysign");
+            }
+            if (settings.Advanced.Internalize)
+            {
+                commandLine.Append(" /internalize");
+                if (!string.IsNullOrWhiteSpace(settings.Advanced.ExcludeFile))
+                    commandLine.Append($":{this.EscapePathForCommandLine(settings.Advanced.ExcludeFile)}");
+            }
+            if (settings.Advanced.TargetKind.HasValue())
+                commandLine.Append($" /target:{settings.Advanced.TargetKind}");
+            if (settings.Advanced.Closed)
+                commandLine.Append(" /closed");
+            if (settings.Advanced.DebugInfo == false)
+                commandLine.Append(" /ndebug");
+            if (settings.Advanced.Version.HasValue())
+                commandLine.Append($" /ver:{settings.Advanced.Version}");
+            if (settings.Advanced.CopyAttributes)
+            {
+                commandLine.Append(" /copyattrs");
+                if (settings.Advanced.AllowMultipleAssemblyLevelAttributes)
+                    commandLine.Append(" /allowMultiple");
+            }
+            if (settings.Advanced.XmlDocumentation)
+                commandLine.Append(" /xmldocs");
+            if (string.IsNullOrEmpty(settings.Advanced.AttributeFile) == false)
+                commandLine.Append($" /attr:{this.EscapePathForCommandLine(settings.Advanced.AttributeFile)}");
+            if (string.IsNullOrEmpty(settings.General.TargetPlatform) == false)
+                commandLine.Append($" /targetplatform:{settings.General.TargetPlatform}");
+            if (settings.Advanced.PublicKeyTokens)
+                commandLine.Append(" /useFullPublicKeyForReferences");
+            if (settings.Advanced.AllowZeroPeKind)
+                commandLine.Append(" /zeroPeKind");
+            if (settings.Advanced.AllowWildCards)
+                commandLine.Append(" /wildcards");
             if (settings.Advanced.AllowDuplicateType.HasValue())
             {
                 if (settings.Advanced.AllowDuplicateType == "*")
-                {
-                    merger.AllowDuplicateType(null);
-                }
+                    commandLine.Append(" /allowDup");
                 else
                 {
                     foreach (string typeName in settings.Advanced.AllowDuplicateType.Split(','))
-                    {
-                        merger.AllowDuplicateType(typeName);
-                    }
+                        commandLine.Append($" /allowDup:{typeName}");
                 }
             }
+            if (settings.Advanced.UnionMerge)
+                commandLine.Append(" /union");
+            commandLine.Append($" /align:{(settings.Advanced.FileAlignment > 0 ? settings.Advanced.FileAlignment : 512)}");
 
-            string[] tp = settings.General.TargetPlatform.Split(new string[] { "," }, StringSplitOptions.RemoveEmptyEntries);
+            if (string.IsNullOrEmpty(settings.General.OutputFile) == false)
+                commandLine.Append($" /out:{this.EscapePathForCommandLine(settings.General.OutputFile)}");
 
-            merger.SetTargetPlatform(tp[0].Trim(), @tp[1].Trim());
-            merger.SetInputAssemblies(settings.General.InputAssemblies.ToArray());
-            merger.SetSearchDirectories(settings.Advanced.SearchDirectories.ToArray());
+            foreach (string assembly in settings.General.InputAssemblies)
+                commandLine.Append($" {this.EscapePathForCommandLine(assembly)}");
 
             try
             {
@@ -410,21 +424,34 @@ namespace ILMerge.MsBuild.Task
                     if (assembly != settings.General.OutputFile)
                         Log.LogMessage(MessageImportance.High, assembly);
                 }
+                Log.LogMessage(MessageImportance.High, "Arguments: " + commandLine.ToString());
+                Process proc = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = mergerPath,
+                        Arguments = commandLine.ToString(),
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WorkingDirectory = Directory.GetCurrentDirectory(),
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    }
+                };
+                proc.Start();
+                proc.WaitForExit();
+                string output = proc.StandardOutput.ReadToEnd();
+                string error = proc.StandardError.ReadToEnd();
+                if (string.IsNullOrEmpty(output) == false)
+                    Log.LogMessage(MessageImportance.High, "ILMerge: " + output);
+                if (string.IsNullOrEmpty(error) == false)
+                    Log.LogError("ILMerge: " + error);
 
-                merger.Merge();
-
-                if (merger.StrongNameLost)
-                    Log.LogMessage(MessageImportance.High, "StrongNameLost = true");
             }
             catch (Exception exception)
             {
                 Log.LogErrorFromException(exception);
                 success = false;
-            }
-            finally
-            {
-                merger = null;
-                ilmerge = null;
             }
 
             if (settings.Advanced.DeleteCopiesOverwriteTarget)            
@@ -432,6 +459,18 @@ namespace ILMerge.MsBuild.Task
 
             return success;
 
+        }
+
+        private string EscapePathForCommandLine(string path)
+        {
+            string currentDirectory = Directory.GetCurrentDirectory();
+            if (path.StartsWith(currentDirectory))
+                path = path.Remove(0, currentDirectory.Length + 1);
+            if (path.EndsWith("\\"))
+                path = path.Substring(0, path.Length - 1);
+            if (path.Contains(' '))
+                path = "\"" + path + "\"";
+            return path;
         }
 
         private void DeleteCopiesAndCopyTargetPath(MergerSettings settings)
