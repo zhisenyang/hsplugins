@@ -68,7 +68,7 @@ namespace ToolBox.Extensions {
             return Color.white;
         }
 
-#if KOIKATSU || AISHOUJO
+#if KOIKATSU || AISHOUJO || HONEYSELECT2
         private static MethodInfo _initTransforms = null;
         public static void InitTransforms(this DynamicBone self)
         {
@@ -88,11 +88,11 @@ namespace ToolBox.Extensions {
 
         public static string RelativePath(string from, string to)
         {
-            Uri fileUri = new Uri(to);
             if (from.EndsWith("/") == false && from.EndsWith("\\") == false)
                 from += "\\";
-            Uri referenceUri = new Uri(from);
-            return Uri.UnescapeDataString(referenceUri.MakeRelativeUri(fileUri).ToString().Replace('/', '\\'));		
+            Uri toUri = new Uri(to);
+            Uri fromUri = new Uri(from);
+            return Uri.UnescapeDataString(fromUri.MakeRelativeUri(toUri).ToString().Replace('/', '\\'));
         }
 
     }

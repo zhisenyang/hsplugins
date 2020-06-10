@@ -87,6 +87,8 @@ namespace ToolBox
                 case "AI-Syoujyo":
 #elif PLAYHOME
                 case "PlayHome":
+#elif HONEYSELECT2
+                case "HoneySelect2":
 #endif
                     this._binary = Binary.Game;
                     break;
@@ -94,7 +96,7 @@ namespace ToolBox
                 case "StudioNEO":
 #elif KOIKATSU
                 case "CharaStudio":
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                 case "StudioNEOV2":
 #elif PLAYHOME
                 case "PlayHomeStudio":

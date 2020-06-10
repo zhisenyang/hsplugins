@@ -12,14 +12,14 @@ namespace ToolBox
     public class GenericConfig
     {
         private readonly string _name;
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
         private readonly ConfigFile _configFile;
 #endif
 
         public GenericConfig(string name, GenericPlugin plugin = null)
         {
             this._name = name;
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
             if (plugin != null && plugin.Config != null)
                 this._configFile = plugin.Config;
             else
@@ -27,7 +27,7 @@ namespace ToolBox
 #endif
         }
 
-#if KOIKATSU ||AISHOUJO
+#if BEPINEX
         private ConfigEntry<T> GetOrAddEntry<T>(string key, T defaultValue, string description = null)
         {
             ConfigEntry<T> entry;
@@ -52,79 +52,79 @@ namespace ToolBox
 
         public string AddString(string key, string defaultValue, bool autoSave, string description = null)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             return ModPrefs.GetString(this._name, key, defaultValue, autoSave);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
         }
 
         public void SetString(string key, string value)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             ModPrefs.SetString(this._name, key, value);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             this.GetEntry<string>(key).Value = value;
 #endif
         }
 
         public int AddInt(string key, int defaultValue, bool autoSave, string description = null)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             return ModPrefs.GetInt(this._name, key, defaultValue, autoSave);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
         }
 
         public void SetInt(string key, int value)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             ModPrefs.SetInt(this._name, key, value);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             this.GetEntry<int>(key).Value = value;
 #endif
         }
 
         public bool AddBool(string key, bool defaultValue, bool autoSave, string description = null)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             return ModPrefs.GetBool(this._name, key, defaultValue, autoSave);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
         }
 
         public void SetBool(string key, bool value)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             ModPrefs.SetBool(this._name, key, value);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             this.GetEntry<bool>(key).Value = value;
 #endif
         }
 
         public float AddFloat(string key, float defaultValue, bool autoSave, string description = null)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             return ModPrefs.GetFloat(this._name, key, defaultValue, autoSave);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             return this.GetOrAddEntry(key, defaultValue, description).Value;
 #endif
         }
 
         public void SetFloat(string key, float value)
         {
-#if HONEYSELECT || PLAYHOME
+#if IPA
             ModPrefs.SetFloat(this._name, key, value);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
             this.GetEntry<float>(key).Value = value;
 #endif
         }
 
         public void Save()
         {
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
             this._configFile.Save();
 #endif
         }
