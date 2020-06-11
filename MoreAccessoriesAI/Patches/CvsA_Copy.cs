@@ -7,6 +7,7 @@ using AIChara;
 using CharaCustom;
 using HarmonyLib;
 using Manager;
+using MessagePack;
 using ToolBox.Extensions;
 using UnityEngine;
 
@@ -26,7 +27,7 @@ namespace MoreAccessoriesAI.Patches
                     new CodeInstruction(OpCodes.Ldarg_0),
                     new CodeInstruction(OpCodes.Ldfld, typeof(CvsA_Copy).GetField("selDst", AccessTools.all)),
                     new CodeInstruction(OpCodes.Ldloc_0),
-                    new CodeInstruction(OpCodes.Call, Type.GetType("MessagePack.MessagePackSerializer,MessagePack").GetMethods(AccessTools.all).FirstOrDefault(m =>
+                    new CodeInstruction(OpCodes.Call, typeof(MessagePackSerializer).GetMethods(AccessTools.all).FirstOrDefault(m =>
                     {
                         if (m.Name != "Deserialize")
                             return false;
@@ -41,7 +42,7 @@ namespace MoreAccessoriesAI.Patches
                     new CodeInstruction(OpCodes.Ldarg_0),
                     new CodeInstruction(OpCodes.Ldfld, typeof(CvsA_Copy).GetField("selDst", AccessTools.all)),
                     new CodeInstruction(OpCodes.Ldloc_0),
-                    new CodeInstruction(OpCodes.Call, Type.GetType("MessagePack.MessagePackSerializer,MessagePack").GetMethods(AccessTools.all).FirstOrDefault(m =>
+                    new CodeInstruction(OpCodes.Call, typeof(MessagePackSerializer).GetMethods(AccessTools.all).FirstOrDefault(m =>
                     {
                         if (m.Name != "Deserialize")
                             return false;
@@ -78,6 +79,7 @@ namespace MoreAccessoriesAI.Patches
                     new CodeInstruction(OpCodes.Call, typeof(CvsA_Copy_Patches).GetMethod(nameof(GetCmpAccessoryList), AccessTools.all)),
                 }
             },
+
             new HarmonyExtensions.Replacement() //orgAcs.parts[]
             {
                 pattern = new[]

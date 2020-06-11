@@ -14,6 +14,9 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Xml;
+#if HONEYSELECT2
+using Illusion.Game;
+#endif
 using TMPro;
 using ToolBox;
 using ToolBox.Extensions;
@@ -44,6 +47,62 @@ namespace MoreAccessoriesAI
             public List<ChaFileAccessory.PartsInfo> parts = new List<ChaFileAccessory.PartsInfo>();
             public List<AccessoryObject> objects = new List<AccessoryObject>();
 
+            public void LoadFrom(AdditionalData other)
+            {
+                this.Clear();
+                foreach (ChaFileAccessory.PartsInfo data in other.parts)
+                {
+                    this.parts.Add(this.MakePartFrom(data));
+                    this.objects.Add(new AccessoryObject());
+                }
+            }
+
+            private ChaFileAccessory.PartsInfo MakePartFrom(ChaFileAccessory.PartsInfo source)
+            {
+                ChaFileAccessory.PartsInfo destination = new ChaFileAccessory.PartsInfo();
+                destination.type = source.type;
+                destination.id = source.id;
+                destination.parentKey = source.parentKey;
+                destination.addMove = new Vector3[2, 3];
+                for (int i = 0; i < 2; i++)
+                {
+                    destination.addMove[i, 0] = source.addMove[i, 0];
+                    destination.addMove[i, 1] = source.addMove[i, 1];
+                    destination.addMove[i, 2] = source.addMove[i, 2];
+                }
+                destination.colorInfo = new ChaFileAccessory.PartsInfo.ColorInfo[4];
+                for (int j = 0; j < destination.colorInfo.Length; j++)
+                {
+                    ChaFileAccessory.PartsInfo.ColorInfo sourceColor = source.colorInfo[j];
+                    destination.colorInfo[j] = new ChaFileAccessory.PartsInfo.ColorInfo
+                    {
+                        color = sourceColor.color,
+                        glossPower = sourceColor.glossPower,
+                        metallicPower = sourceColor.metallicPower,
+                        smoothnessPower = sourceColor.smoothnessPower
+                    };
+                }
+                destination.hideCategory = source.hideCategory;
+                destination.hideTiming = source.hideTiming;
+                destination.partsOfHead = source.partsOfHead;
+                destination.noShake = source.noShake;
+                return destination;
+            }
+
+            public void Clear()
+            {
+                foreach (AccessoryObject d in this.objects)
+                {
+                    if (d.obj != null)
+                    {
+                        Destroy(d.obj);
+                        d.obj = null;
+                    }
+                }
+                this.objects.Clear();
+                this.parts.Clear();
+            }
+
         }
 
         internal class MakerSlot
@@ -58,6 +117,16 @@ namespace MoreAccessoriesAI
             public Text copyDstText;
         }
 
+#if HONEYSELECT2
+        internal class HSlot
+        {
+            public GameObject slot;
+            public Toggle toggle;
+            public Image image;
+            public Text text;
+        }
+#endif
+
         internal class StudioSlot
         {
             public GameObject slot;
@@ -69,7 +138,7 @@ namespace MoreAccessoriesAI
 
         #region Private Variables
         private const string _name = "MoreAccessories";
-        private const string _version = "1.1.1";
+        private const string _version = "1.2.0";
         private const string _guid = "com.joan6694.illusionplugins.moreaccessories";
         private const string _extSaveKey = "moreAccessories";
         private const int _saveVersion = 0;
@@ -77,6 +146,7 @@ namespace MoreAccessoriesAI
         private volatile Thread _patchThread = null;
         internal static MoreAccessories _self;
         internal readonly Dictionary<ChaFile, AdditionalData> _charAdditionalData = new Dictionary<ChaFile, AdditionalData>();
+        internal readonly Dictionary<ChaFileCoordinate, ChaFile> _charByCoordinates = new Dictionary<ChaFileCoordinate, ChaFile>();
         internal bool _loadAdditionalAccessories = true;
 
         #region Sideloader
@@ -93,7 +163,6 @@ namespace MoreAccessoriesAI
         private CvsA_Slot _makerCanvasAccessories;
         private CvsA_Copy _makerCanvasAccessoriesCopy;
         private CanvasGroup _makerCanvasGroupSettingWindow;
-        internal ChaFile _overrideChaFile;
         internal ChaFileCoordinate _overrideChaFileCoordinate;
         private RectTransform _makerListCopySrcTop;
         private RectTransform _makerListCopyDstTop;
@@ -101,6 +170,15 @@ namespace MoreAccessoriesAI
         private GameObject _makerCopyDstToggleTemplate;
         private bool _inMaker = false;
         #endregion
+
+#if HONEYSELECT2
+        #region H
+        private RectTransform _hListTop;
+        private GameObject _hButtonTemplate;
+        private readonly List<HSlot> _hSlots = new List<HSlot>();
+        private bool _inH;
+        #endregion
+#endif
 
         #region Studio
         private RectTransform _studioListTop;
@@ -129,7 +207,6 @@ namespace MoreAccessoriesAI
             harmony.Patch(uarHooks.GetMethod("ExtendedCardSave", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCardSave_Postfix)));
             harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateLoad", AccessTools.all), new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordLoad_Prefix)));
             harmony.Patch(uarHooks.GetMethod("ExtendedCoordinateSave", AccessTools.all), postfix: new HarmonyMethod(typeof(MoreAccessories), nameof(UAR_ExtendedCoordSave_Postfix)));
-
             this.ExecuteDelayed(() =>
             {
                 this._patchThread = new Thread(this.PatchAll);
@@ -159,8 +236,24 @@ namespace MoreAccessoriesAI
                 {
                     case Binary.Game:
                         this._inMaker = false;
-                        if (scene.buildIndex == 4)
-                            this.SpawnMakerUI();
+#if HONEYSELECT2
+                        this._inH = false;
+#endif
+                        switch (scene.buildIndex)
+                        {
+#if AISHOUJO
+                            case 4:
+#elif HONEYSELECT2
+                            case 3:
+#endif
+                                this.SpawnMakerUI();
+                                break;
+#if HONEYSELECT2
+                            case 7:
+                                this.SpawnHUI();
+                                break;
+#endif
+                        }
                         break;
                     case Binary.Studio:
                         if (scene.name.Equals("Studio"))
@@ -401,6 +494,110 @@ namespace MoreAccessoriesAI
         }
         #endregion
 
+#if HONEYSELECT2
+        #region H
+        private void SpawnHUI()
+        {
+            this._hListTop = (RectTransform)GameObject.Find("UI/ClothPanel/Acs").transform;
+            this._hButtonTemplate = this._hListTop.Find("0").gameObject;
+
+            ScrollRect scrollView = UIUtility.CreateScrollView("ScrollView", this._hListTop.parent);
+            scrollView.transform.SetAsFirstSibling();
+            scrollView.transform.localPosition = Vector3.zero;
+            scrollView.transform.localScale = Vector3.one;
+            scrollView.transform.SetRect(this._hListTop);
+            ((RectTransform)scrollView.transform).offsetMin += new Vector2(0, -714f);
+            ((RectTransform)scrollView.transform).offsetMax += new Vector2(180f, 0);
+            scrollView.viewport.GetComponent<Image>().sprite = null;
+            scrollView.movementType = ScrollRect.MovementType.Clamped;
+            scrollView.horizontal = false;
+            scrollView.scrollSensitivity = 18f;
+            if (scrollView.horizontalScrollbar != null)
+                Destroy(scrollView.horizontalScrollbar.gameObject);
+            if (scrollView.verticalScrollbar != null)
+                Destroy(scrollView.verticalScrollbar.gameObject);
+            Destroy(scrollView.GetComponent<Image>());
+            Destroy(scrollView.content.gameObject);
+            scrollView.content = this._hListTop;
+            this._hListTop.SetParent(scrollView.viewport);
+            this._hListTop.anchoredPosition = Vector2.zero;
+
+            this._inH = true;
+
+            this.ExecuteDelayed(this.UpdateUI);
+        }
+
+        private void UpdateHUI()
+        {
+            if (Manager.Scene.IsNowLoading || Manager.Scene.IsNowLoadingFade || HSceneSprite.Instance.isFade || this._inH == false)
+                return;
+            ChaControl chara = HSceneManager.Instance.numFemaleClothCustom < 2 ?
+                    HSceneManager.Instance.Hscene.GetFemales()[HSceneManager.Instance.numFemaleClothCustom] :
+                    HSceneManager.Instance.Hscene.GetMales()[HSceneManager.Instance.numFemaleClothCustom - 2];
+            if (this._charAdditionalData.TryGetValue(chara.chaFile, out AdditionalData additionalData) == false)
+                additionalData = new AdditionalData();
+            int i = 0;
+            for (; i < additionalData.parts.Count; ++i)
+            {
+                HSlot slot;
+                if (i < this._hSlots.Count)
+                    slot = this._hSlots[i];
+                else
+                {
+                    slot = new HSlot();
+                    slot.slot = Instantiate(this._hButtonTemplate);
+                    slot.toggle = slot.slot.GetComponent<Toggle>();
+                    slot.image = slot.slot.GetComponent<Image>();
+                    slot.text = slot.slot.GetComponentInChildren<Text>();
+
+                    slot.slot.name = (i + 20).ToString();
+                    slot.slot.transform.SetParent(this._hListTop);
+                    slot.slot.transform.SetSiblingIndex(i + 20);
+                    slot.slot.transform.localPosition = Vector3.zero;
+                    slot.slot.transform.localScale = Vector3.one;
+
+                    slot.toggle.onValueChanged = new Toggle.ToggleEvent();
+                    int index = i + 20;
+                    slot.toggle.onValueChanged.AddListener(b =>
+                    {
+                        slot.text.color = slot.toggle.isOn ? Color.white : Color.grey;
+                        (HSceneManager.Instance.numFemaleClothCustom < 2 ? HSceneManager.Instance.Hscene.GetFemales()[HSceneManager.Instance.numFemaleClothCustom] : HSceneManager.Instance.Hscene.GetMales()[HSceneManager.Instance.numFemaleClothCustom - 2]).SetAccessoryState(index, slot.toggle.isOn);
+                    });
+
+                    this._hSlots.Add(slot);
+                }
+
+                slot.slot.SetActive(true);
+
+                AdditionalData.AccessoryObject accObj = additionalData.objects[i];
+
+                if (accObj.info != null)
+                {
+                    slot.toggle.image.raycastTarget = true;
+                    slot.toggle.interactable = true;
+                    slot.toggle.isOn = accObj.show;
+                    slot.text.text = accObj.info.Name;
+                    if (slot.toggle.isOn)
+                        slot.text.color = Color.white;
+                    else
+                        slot.text.color = new Color32(141, 136, 129, byte.MaxValue);
+                }
+                else
+                {
+                    slot.image.raycastTarget = false;
+                    slot.toggle.interactable = false;
+                    slot.toggle.isOn = false;
+                    slot.text.text = $"スロット{i + 20}";
+                    slot.text.color = new Color32(141, 136, 129, byte.MaxValue);
+                }
+            }
+
+            for (; i < this._hSlots.Count; i++)
+                this._hSlots[i].slot.SetActive(false);
+        }
+        #endregion
+#endif
+
         #region Studio
         private void SpawnStudioUI()
         {
@@ -504,7 +701,7 @@ namespace MoreAccessoriesAI
         #endregion
 
         #region Common
-        private void UpdateUI()
+        internal void UpdateUI()
         {
             switch (this._binary)
             {
@@ -514,6 +711,10 @@ namespace MoreAccessoriesAI
                         this.UpdateMakerUI();
                         CustomBase.Instance.ChangeAcsSlotName();
                     }
+#if HONEYSELECT2
+                    else if (this._inH)
+                        this.UpdateHUI();
+#endif
                     break;
                 case Binary.Studio:
                     this.UpdateStudioUI();
@@ -529,13 +730,15 @@ namespace MoreAccessoriesAI
         {
             if (_self._sideloaderChaFileAccessoryPartsInfoProperties == null)
             {
+#if AISHOUJO
                 _self._sideloaderChaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,AI_Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+#elif HONEYSELECT2
+                _self._sideloaderChaFileAccessoryPartsInfoProperties = Type.GetType("Sideloader.AutoResolver.StructReference,HS2_Sideloader").GetProperty("ChaFileAccessoryPartsInfoProperties", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+#endif
             }
 
-            ChaFile owner = null;
-            if (_self._overrideChaFile != null)
-                owner = _self._overrideChaFile;
-            else
+            ChaFile owner;
+            if (_self._charByCoordinates.TryGetValue(coordinate, out owner) == false)
             {
                 if (_self._overrideChaFileCoordinate != null)
                     coordinate = _self._overrideChaFileCoordinate;
@@ -592,9 +795,6 @@ namespace MoreAccessoriesAI
 
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
 
-            if (this._overrideChaFile != null)
-                file = this._overrideChaFile;
-
             if (this._charAdditionalData.TryGetValue(file, out AdditionalData additionalData) == false)
             {
                 additionalData = new AdditionalData();
@@ -649,14 +849,11 @@ namespace MoreAccessoriesAI
                 return;
 
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
-            ChaFile owner = null;
-            if (this._overrideChaFile != null)
-                owner = this._overrideChaFile;
-            else
+            ChaFile owner;
+            if (this._overrideChaFileCoordinate != null)
+                file = this._overrideChaFileCoordinate;
+            if (this._charByCoordinates.TryGetValue(file, out owner) == false)
             {
-                if (this._overrideChaFileCoordinate != null)
-                    file = this._overrideChaFileCoordinate;
-
                 foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
                 {
                     if (pair.Value.nowCoordinate == file || pair.Value.chaFile.coordinate == file)

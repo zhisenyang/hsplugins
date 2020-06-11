@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Reflection;
 using AIChara;
 using CharaCustom;
 using HarmonyLib;
@@ -12,6 +14,37 @@ namespace MoreAccessoriesAI.Patches
         public static void PatchAll(Harmony harmony)
         {
             BepInEx.Harmony.HarmonyWrapper.PatchAll(typeof(Various), harmony);
+            //Doing those manually because for some reason they can't be done automatically, idk.
+            harmony.Patch(typeof(ChaFile).GetConstructor(new Type[0]), postfix: new HarmonyMethod(typeof(Various).GetMethod(nameof(ChaFile_Ctor_Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
+            harmony.Patch(AccessTools.Method(typeof(ChaFile), "CopyCoordinate"), postfix: new HarmonyMethod(typeof(Various).GetMethod(nameof(ChaFile_CopyCoordinate_Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
+        }
+
+        private static void ChaFile_Ctor_Postfix(ChaFile __instance)
+        {
+            MoreAccessories._self._charByCoordinates.Add(__instance.coordinate, __instance);
+        }
+
+        private static void ChaFile_CopyCoordinate_Postfix(ChaFile __instance, ChaFileCoordinate _coordinate)
+        {
+            MoreAccessories.AdditionalData sourceData;
+            if (MoreAccessories._self._charByCoordinates.TryGetValue(_coordinate, out ChaFile sourceFile))
+            {
+                if (MoreAccessories._self._charAdditionalData.TryGetValue(sourceFile, out sourceData) == false)
+                {
+                    sourceData = new MoreAccessories.AdditionalData();
+                    MoreAccessories._self._charAdditionalData.Add(sourceFile, sourceData);
+                }
+            }
+            else
+                sourceData = new MoreAccessories.AdditionalData();
+            if (MoreAccessories._self._charAdditionalData.TryGetValue(__instance, out MoreAccessories.AdditionalData destinationData) == false)
+            {
+                destinationData = new MoreAccessories.AdditionalData();
+                MoreAccessories._self._charAdditionalData.Add(__instance, destinationData);
+            }
+            if (sourceData == destinationData)
+                return;
+            destinationData.LoadFrom(sourceData);
         }
 
         [HarmonyPatch(typeof(CustomBase), "ChangeAcsSlotName", typeof(int)), HarmonyPostfix]
@@ -53,7 +86,7 @@ namespace MoreAccessoriesAI.Patches
                 }
             }
         }
-        
+
         [HarmonyPatch(typeof(CustomBase), "ChangeAcsSlotColor", typeof(int)), HarmonyPostfix]
         private static void CustomBase_ChangeAcsSlotColor_Postfix(CustomBase __instance, int slotNo)
         {
@@ -65,27 +98,43 @@ namespace MoreAccessoriesAI.Patches
         }
 
         [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool)), HarmonyPrefix]
-        private static void ChaFileControl_LoadFileLimited_Prefix(ChaFileControl __instance, bool coordinate = true)
+        private static void ChaFileControl_LoadFileLimited_Prefix(bool coordinate = true)
         {
-            MoreAccessories._self._overrideChaFile = __instance;
             MoreAccessories._self._loadAdditionalAccessories = coordinate;
         }
 
         [HarmonyPatch(typeof(ChaFileControl), "LoadFileLimited", typeof(string), typeof(byte), typeof(bool), typeof(bool), typeof(bool), typeof(bool), typeof(bool)), HarmonyPostfix]
         private static void ChaFileControl_LoadFileLimited_Postfix()
         {
-            MoreAccessories._self._overrideChaFile = null;
             MoreAccessories._self._loadAdditionalAccessories = true;
         }
 
-        [HarmonyPatch(typeof(CvsC_ClothesLoad), "<Start>m__0", typeof(CustomClothesFileInfo)), HarmonyPrefix]
-        private static void CvsC_ClothesLoad_Start_m__0_Prefix()
+        [
+                HarmonyPatch(typeof(CvsC_ClothesLoad),
+#if AISHOUJO
+                        "<Start>m__0",
+#elif HONEYSELECT2
+                        "<Start>b__4_1",
+#endif
+                        typeof(CustomClothesFileInfo)),
+                HarmonyPrefix
+        ]
+        private static void CvsC_ClothesLoad_Start_Anonymous0_Prefix()
         {
             MoreAccessories._self._loadAdditionalAccessories = false;
         }
 
-        [HarmonyPatch(typeof(CvsC_ClothesLoad), "<Start>m__0", typeof(CustomClothesFileInfo)), HarmonyPostfix]
-        private static void CvsC_ClothesLoad_Start_m__0_Postfix()
+        [
+                HarmonyPatch(typeof(CvsC_ClothesLoad),
+#if AISHOUJO
+                        "<Start>m__0",
+#elif HONEYSELECT2
+                        "<Start>b__4_1",
+#endif
+                        typeof(CustomClothesFileInfo)),
+                HarmonyPostfix
+        ]
+        private static void CvsC_ClothesLoad_Start_Anonymous0_Postfix()
         {
             MoreAccessories._self._loadAdditionalAccessories = true;
         }
@@ -130,16 +179,19 @@ namespace MoreAccessoriesAI.Patches
             }
         }
 
-        [HarmonyPatch(typeof(ChaFileControl), "LoadCharaFile", typeof(BinaryReader), typeof(bool), typeof(bool)), HarmonyPrefix]
-        private static void ChaFileControl_LoadCharaFile_Prefix(ChaFileControl __instance)
+#if HONEYSELECT2
+        [HarmonyPatch(typeof(HSceneSpriteAccessoryCondition), "SetAccessoryCharacter"), HarmonyPostfix]
+        private static void HSceneSpriteAccessoryCondition_SetAccessoryCharacter_Postfix()
         {
-            MoreAccessories._self._overrideChaFile = __instance;
+            MoreAccessories._self.UpdateUI();
         }
 
-        [HarmonyPatch(typeof(ChaFileControl), "LoadCharaFile", typeof(BinaryReader), typeof(bool), typeof(bool)), HarmonyPostfix]
-        private static void ChaFileControl_LoadCharaFile_Postfix()
+        [HarmonyPatch(typeof(HSceneSpriteAccessoryCondition), "OnClickAllAccessory"), HarmonyPostfix]
+        private static void HSceneSpriteAccessoryCondition_OnClickAllAccessory_Postfix()
         {
-            MoreAccessories._self._overrideChaFile = null;
+            UnityEngine.Debug.LogError("click all");
+            MoreAccessories._self.UpdateUI();
         }
+#endif
     }
 }

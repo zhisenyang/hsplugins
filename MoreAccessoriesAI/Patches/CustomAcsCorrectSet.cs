@@ -86,7 +86,7 @@ namespace MoreAccessoriesAI.Patches
 
         };
 
-        private static MethodInfo[] _methodsToPatch = new[]
+        private static readonly MethodInfo[] _methodsToPatch = new[]
         {
             typeof(CustomAcsCorrectSet).GetMethod("UpdateCustomUI", AccessTools.all),
             typeof(CustomAcsCorrectSet).GetMethod("UpdateDragValue", AccessTools.all),
