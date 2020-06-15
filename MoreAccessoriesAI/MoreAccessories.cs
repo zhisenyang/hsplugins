@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Xml;
 #if HONEYSELECT2
@@ -138,7 +139,7 @@ namespace MoreAccessoriesAI
 
         #region Private Variables
         private const string _name = "MoreAccessories";
-        private const string _version = "1.2.0";
+        private const string _version = "1.2.1";
         private const string _guid = "com.joan6694.illusionplugins.moreaccessories";
         private const string _extSaveKey = "moreAccessories";
         private const int _saveVersion = 0;
@@ -146,6 +147,7 @@ namespace MoreAccessoriesAI
         private volatile Thread _patchThread = null;
         internal static MoreAccessories _self;
         internal readonly Dictionary<ChaFile, AdditionalData> _charAdditionalData = new Dictionary<ChaFile, AdditionalData>();
+        internal readonly Dictionary<ChaFile, ChaControl> _charControlByChar = new Dictionary<ChaFile, ChaControl>();
         internal readonly Dictionary<ChaFileCoordinate, ChaFile> _charByCoordinates = new Dictionary<ChaFileCoordinate, ChaFile>();
         internal bool _loadAdditionalAccessories = true;
 
@@ -291,6 +293,8 @@ namespace MoreAccessoriesAI
                 this._patchThread.Abort();
         }
         #endregion
+
+        #region Private Methods
 
         #region Maker
         private void SpawnMakerUI()
@@ -723,6 +727,35 @@ namespace MoreAccessoriesAI
         }
         #endregion
 
+        internal AdditionalData GetAdditionalDataByCharacter(ChaFile file)
+        {
+            if (this._charAdditionalData.TryGetValue(file, out AdditionalData data))
+                return data;
+            return null;
+        }
+
+        internal ChaFile GetCharaByCoordinate(ChaFileCoordinate coord)
+        {
+            if (this._charByCoordinates.TryGetValue(coord, out ChaFile value))
+                return value;
+            return null;
+        }
+
+        internal void PurgeUselessEntries()
+        {
+            foreach (KeyValuePair<ChaFileCoordinate, ChaFile> pair in new Dictionary<ChaFileCoordinate, ChaFile>(this._charByCoordinates))
+            {
+                if (pair.Value.coordinate != pair.Key || this._charControlByChar.ContainsKey(pair.Value) == false)
+                    this._charByCoordinates.Remove(pair.Key);
+            }
+            foreach (KeyValuePair<ChaFile, AdditionalData> pair in new Dictionary<ChaFile, AdditionalData>(this._charAdditionalData))
+            {
+                if (this._charControlByChar.ContainsKey(pair.Key) == false)
+                    this._charAdditionalData.Remove(pair.Key);
+            }
+        }
+        #endregion
+
         #region Saves
 
         #region Sideloader
@@ -737,8 +770,8 @@ namespace MoreAccessoriesAI
 #endif
             }
 
-            ChaFile owner;
-            if (_self._charByCoordinates.TryGetValue(coordinate, out owner) == false)
+            ChaFile owner = _self.GetCharaByCoordinate(coordinate);
+            if (owner == null)
             {
                 if (_self._overrideChaFileCoordinate != null)
                     coordinate = _self._overrideChaFileCoordinate;
@@ -823,6 +856,7 @@ namespace MoreAccessoriesAI
                 additionalData.objects.Add(new AdditionalData.AccessoryObject());
 
             this.ExecuteDelayed(this.UpdateUI);
+            this.ExecuteDelayed(this.PurgeUselessEntries, 2);
         }
 
         private void OnCharaSave(ChaFile file)
@@ -841,6 +875,7 @@ namespace MoreAccessoriesAI
                 pluginData.data.Add("additionalAccessories", stringWriter.ToString());
                 ExtendedSave.SetExtendedDataById(file, _extSaveKey, pluginData);
             }
+            this.ExecuteDelayed(this.PurgeUselessEntries, 2);
         }
 
         private void OnCoordLoad(ChaFileCoordinate file)
@@ -849,10 +884,10 @@ namespace MoreAccessoriesAI
                 return;
 
             PluginData pluginData = ExtendedSave.GetExtendedDataById(file, _extSaveKey);
-            ChaFile owner;
             if (this._overrideChaFileCoordinate != null)
                 file = this._overrideChaFileCoordinate;
-            if (this._charByCoordinates.TryGetValue(file, out owner) == false)
+            ChaFile owner = this.GetCharaByCoordinate(file);
+            if (owner == null)
             {
                 foreach (KeyValuePair<int, ChaControl> pair in Character.Instance.dictEntryChara)
                 {
@@ -894,6 +929,7 @@ namespace MoreAccessoriesAI
                 additionalData.objects.Add(new AdditionalData.AccessoryObject());
 
             this.ExecuteDelayed(this.UpdateUI);
+            this.ExecuteDelayed(this.PurgeUselessEntries, 2);
         }
 
         private void OnCoordSave(ChaFileCoordinate file)
@@ -925,6 +961,7 @@ namespace MoreAccessoriesAI
                 pluginData.data.Add("additionalAccessories", stringWriter.ToString());
                 ExtendedSave.SetExtendedDataById(file, _extSaveKey, pluginData);
             }
+            this.ExecuteDelayed(this.PurgeUselessEntries, 2);
         }
 
         private void LoadAdditionalData(AdditionalData data, XmlNode node)

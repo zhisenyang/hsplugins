@@ -13,7 +13,7 @@ namespace MoreAccessoriesAI.Patches
     {
         public static void PatchAll(Harmony harmony)
         {
-            BepInEx.Harmony.HarmonyWrapper.PatchAll(typeof(Various), harmony);
+            harmony.PatchAll(typeof(Various));
             //Doing those manually because for some reason they can't be done automatically, idk.
             harmony.Patch(typeof(ChaFile).GetConstructor(new Type[0]), postfix: new HarmonyMethod(typeof(Various).GetMethod(nameof(ChaFile_Ctor_Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
             harmony.Patch(AccessTools.Method(typeof(ChaFile), "CopyCoordinate"), postfix: new HarmonyMethod(typeof(Various).GetMethod(nameof(ChaFile_CopyCoordinate_Postfix), BindingFlags.NonPublic | BindingFlags.Static)));
@@ -27,7 +27,8 @@ namespace MoreAccessoriesAI.Patches
         private static void ChaFile_CopyCoordinate_Postfix(ChaFile __instance, ChaFileCoordinate _coordinate)
         {
             MoreAccessories.AdditionalData sourceData;
-            if (MoreAccessories._self._charByCoordinates.TryGetValue(_coordinate, out ChaFile sourceFile))
+            ChaFile sourceFile = MoreAccessories._self.GetCharaByCoordinate(_coordinate);
+            if (sourceFile != null)
             {
                 if (MoreAccessories._self._charAdditionalData.TryGetValue(sourceFile, out sourceData) == false)
                 {
@@ -155,20 +156,20 @@ namespace MoreAccessoriesAI.Patches
         private static void ChaControl_SetAccessoryState_Postfix(ChaControl __instance, int slotNo, bool show)
         {
             if (slotNo >= 20)
-                MoreAccessories._self._charAdditionalData[__instance.chaFile].objects[slotNo - 20].show = show;
+                MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).objects[slotNo - 20].show = show;
         }
 
         [HarmonyPatch(typeof(ChaControl), "SetAccessoryStateAll", typeof(bool)), HarmonyPostfix]
         private static void ChaControl_SetAccessoryState_Postfix(ChaControl __instance, bool show)
         {
-            foreach (MoreAccessories.AdditionalData.AccessoryObject accessoryObject in MoreAccessories._self._charAdditionalData[__instance.chaFile].objects)
+            foreach (MoreAccessories.AdditionalData.AccessoryObject accessoryObject in MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).objects)
                 accessoryObject.show = show;
         }
 
         [HarmonyPatch(typeof(ChaControl), "UpdateVisible"), HarmonyPostfix]
         private static void ChaControl_UpdateVisible_Postfix(ChaControl __instance, bool ___confBody, bool ___drawSimple)
         {
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             for (int i = 0; i < additionalData.parts.Count; i++)
             {
                 MoreAccessories.AdditionalData.AccessoryObject accessoryObject = additionalData.objects[i];
@@ -189,7 +190,6 @@ namespace MoreAccessoriesAI.Patches
         [HarmonyPatch(typeof(HSceneSpriteAccessoryCondition), "OnClickAllAccessory"), HarmonyPostfix]
         private static void HSceneSpriteAccessoryCondition_OnClickAllAccessory_Postfix()
         {
-            UnityEngine.Debug.LogError("click all");
             MoreAccessories._self.UpdateUI();
         }
 #endif

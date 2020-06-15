@@ -115,7 +115,7 @@ namespace MoreAccessoriesAI.Patches
                     UnityEngine.Debug.LogError("MoreAccessories: Could not patch:\n" + e);
                 }
             }
-            BepInEx.Harmony.HarmonyWrapper.PatchAll(typeof(CvsA_Slot_Patches), harmony);
+            harmony.PatchAll(typeof(CvsA_Slot_Patches));
         }
 
         private static IEnumerable<CodeInstruction> GeneralTranspiler(IEnumerable<CodeInstruction> instructions)

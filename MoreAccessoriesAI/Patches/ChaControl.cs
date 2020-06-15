@@ -169,7 +169,7 @@ namespace MoreAccessoriesAI.Patches
                     UnityEngine.Debug.LogError("MoreAccessories: Could not patch:\n" + e);
                 }
             }
-            BepInEx.Harmony.HarmonyWrapper.PatchAll(typeof(ChaControl_Patches), harmony);
+            harmony.PatchAll(typeof(ChaControl_Patches));
         }
 
         private static IEnumerable<CodeInstruction> GeneralTranspiler(IEnumerable<CodeInstruction> instructions)
@@ -183,35 +183,35 @@ namespace MoreAccessoriesAI.Patches
         {
             if (slotNo < 20)
                 return self.nowCoordinate.accessory.parts[slotNo];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].parts[slotNo - 20];
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).parts[slotNo - 20];
         }
 
         private static CmpAccessory GetCmpAccessory(ChaControl self, int slotNo)
         {
             if (slotNo < 20)
                 return self.cmpAccessory[slotNo];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].cmp;
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].cmp;
         }
 
         private static GameObject GetObjAccessory(ChaControl self, int slotNo)
         {
             if (slotNo < 20)
                 return self.objAccessory[slotNo];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].obj;
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].obj;
         }
 
         private static ListInfoBase GetInfoAccessory(ChaControl self, int slotNo)
         {
             if (slotNo < 20)
                 return self.infoAccessory[slotNo];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].info;
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].info;
         }
 
         private static Transform GetTrfAcsMove(ChaControl self, int slotNo, int i)
         {
             if (slotNo < 20)
                 return self.trfAcsMove[slotNo, i];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].move[i];
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].move[i];
         }
 
         private static void SetTrfAcsMove(ChaControl self, int slotNo, int i, Transform t)
@@ -219,7 +219,7 @@ namespace MoreAccessoriesAI.Patches
             if (slotNo < 20)
                 self.trfAcsMove[slotNo, i] = t;
             else
-                MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].move[i] = t;
+                MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].move[i] = t;
         }
 
         private static bool MathfEx_RangeEqualOn(int min, int n, int max)
@@ -231,6 +231,19 @@ namespace MoreAccessoriesAI.Patches
         #endregion
 
         #region Manual Patches
+        [HarmonyPatch(typeof(ChaControl), "Initialize"), HarmonyPostfix]
+        private static void ChaControl_Initialize_Postfix(ChaControl __instance)
+        {
+            MoreAccessories._self._charControlByChar.Add(__instance.chaFile, __instance);
+        }
+        [HarmonyPatch(typeof(ChaControl), "OnDestroy"), HarmonyPrefix]
+        private static void ChaControl_OnDestroy_Prefix(ChaControl __instance)
+        {
+            if (MoreAccessories._self._charControlByChar.ContainsKey(__instance.chaFile))
+                MoreAccessories._self._charControlByChar.Remove(__instance.chaFile);
+            MoreAccessories._self.ExecuteDelayed(MoreAccessories._self.PurgeUselessEntries);
+        }
+
         [HarmonyPatch(typeof(ChaControl), "LateUpdateForce"), HarmonyPostfix]
         private static void LateUpdateForce_Postfix(ChaControl __instance)
         {
@@ -248,10 +261,10 @@ namespace MoreAccessoriesAI.Patches
             {
                 for (int i = 0; i < additionalData.objects.Count; i++)
                 {
-                    MoreAccessories.AdditionalData.AccessoryObject o = MoreAccessories._self._charAdditionalData[__instance.chaFile].objects[i];
+                    MoreAccessories.AdditionalData.AccessoryObject o = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).objects[i];
                     if (o.cmp != null)
                     {
-                        ChaFileAccessory.PartsInfo part = MoreAccessories._self._charAdditionalData[__instance.chaFile].parts[i];
+                        ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).parts[i];
                         o.cmp.EnableDynamicBones(part.noShake && o.cmp.isVisible);
                     }
                 }
@@ -263,7 +276,7 @@ namespace MoreAccessoriesAI.Patches
         {
             if (slotNo < 20)
                 return true;
-            MoreAccessories._self._charAdditionalData[__instance.chaFile].objects[slotNo - 20].show = show;
+            MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).objects[slotNo - 20].show = show;
             return false;
         }
 
@@ -283,7 +296,7 @@ namespace MoreAccessoriesAI.Patches
             if (slotNo < 20)
                 return true;
             slotNo -= 20;
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             Transform transform = additionalData.objects[slotNo].move[correctNo];
             if (null == transform)
             {
@@ -308,7 +321,7 @@ namespace MoreAccessoriesAI.Patches
             if (slotNo < 20)
                 return true;
             slotNo -= 20;
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             Transform transform = additionalData.objects[slotNo].move[correctNo];
             if (null == transform)
             {
@@ -342,7 +355,7 @@ namespace MoreAccessoriesAI.Patches
             if (slotNo < 20)
                 return true;
             slotNo -= 20;
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             Transform transform = additionalData.objects[slotNo].move[correctNo];
             if (null == transform)
             {
@@ -367,7 +380,7 @@ namespace MoreAccessoriesAI.Patches
             if (slotNo < 20)
                 return true;
             slotNo -= 20;
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             ChaFileAccessory.PartsInfo part = additionalData.parts[slotNo];
             for (int i = 0; i < 2; i++)
             {
@@ -386,7 +399,7 @@ namespace MoreAccessoriesAI.Patches
         [HarmonyPatch(typeof(ChaControl), "UpdateAccessoryMoveAllFromInfo"), HarmonyPostfix]
         private static void UpdateAccessoryMoveAllFromInfo_Postfix(ChaControl __instance)
         {
-            List<ChaFileAccessory.PartsInfo> list = MoreAccessories._self._charAdditionalData[__instance.chaFile].parts;
+            List<ChaFileAccessory.PartsInfo> list = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).parts;
             for (int i = 0; i < list.Count; i++)
                 __instance.UpdateAccessoryMoveFromInfo(i + 20);
         }
@@ -399,7 +412,7 @@ namespace MoreAccessoriesAI.Patches
                 return;
             for (int i = 0; i < additionalData.parts.Count; i++)
             {
-                ChaFileAccessory.PartsInfo part = MoreAccessories._self._charAdditionalData[__instance.chaFile].parts[i];
+                ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).parts[i];
                 ChangeAccessoryAsync_Prefix(__instance, i, part.type, part.id, part.parentKey, forceChange);
             }
         }
@@ -420,14 +433,14 @@ namespace MoreAccessoriesAI.Patches
                 return;
             for (int i = 0; i < additionalData.parts.Count; i++)
             {
-                ChaFileAccessory.PartsInfo part = MoreAccessories._self._charAdditionalData[__instance.chaFile].parts[i];
+                ChaFileAccessory.PartsInfo part = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile).parts[i];
                 ChangeAccessoryAsync_Prefix(__instance, i, part.type, part.id, part.parentKey, forceChange);
             }
         }
 
         private static void ChangeAccessoryAsync_Prefix(ChaControl __instance, int slotNo, int type, int id, string parentKey, bool forceChange)
         {
-            MoreAccessories.AdditionalData additionalData = MoreAccessories._self._charAdditionalData[__instance.chaFile];
+            MoreAccessories.AdditionalData additionalData = MoreAccessories._self.GetAdditionalDataByCharacter(__instance.chaFile);
             ChaFileAccessory.PartsInfo part = additionalData.parts[slotNo];
             MoreAccessories.AdditionalData.AccessoryObject dataObject = additionalData.objects[slotNo];
 

@@ -110,7 +110,7 @@ namespace MoreAccessoriesAI.Patches
                     UnityEngine.Debug.LogError("MoreAccessories: Could not patch:\n" + e);
                 }
             }
-            BepInEx.Harmony.HarmonyWrapper.PatchAll(typeof(CustomAcsCorrectSet_Patches), harmony);
+            harmony.PatchAll(typeof(CustomAcsCorrectSet_Patches));
         }
 
         private static IEnumerable<CodeInstruction> GeneralTranspiler(IEnumerable<CodeInstruction> instructions)
@@ -133,7 +133,7 @@ namespace MoreAccessoriesAI.Patches
         {
             if (slotNo < 20)
                 return self.trfAcsMove[slotNo, i];
-            return MoreAccessories._self._charAdditionalData[self.chaFile].objects[slotNo - 20].move[i];
+            return MoreAccessories._self.GetAdditionalDataByCharacter(self.chaFile).objects[slotNo - 20].move[i];
         }
         private static ChaFileAccessory.PartsInfo GetIndexFromList(IList<ChaFileAccessory.PartsInfo> list, int index)
         {
