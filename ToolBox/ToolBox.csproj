@@ -304,6 +304,7 @@
     <Compile Include="ReflectionExtensions.cs" />
     <Compile Include="TimelineCompatibility.cs" />
     <Compile Include="TransformExtensions.cs" />
+    <Compile Include="TranslationDictionary.cs" />
     <Compile Include="VariousExtensions.cs" />
     <Compile Include="XmlExtensions.cs" />
   </ItemGroup>

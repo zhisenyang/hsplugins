@@ -129,9 +129,7 @@ namespace ToolBox
 #endif
         }
 
-        protected virtual void LevelLoaded(int level)
-        {
-        }
+        protected virtual void LevelLoaded(int level) { }
 
 #if BEPINEX
         protected virtual void LevelLoaded(UnityEngine.SceneManagement.Scene scene, LoadSceneMode mode)
@@ -144,25 +142,13 @@ namespace ToolBox
         }
 #endif
 
-        protected virtual void Update()
-        {
+        protected virtual void Update() { }
 
-        }
+        protected virtual void LateUpdate() { }
 
-        protected virtual void LateUpdate()
-        {
+        protected virtual void FixedUpdate() { }
 
-        }
-
-        protected virtual void FixedUpdate()
-        {
-
-        }
-
-        protected virtual void OnGUI()
-        {
-
-        }
+        protected virtual void OnGUI() { }
     }
 
 #if IPA
