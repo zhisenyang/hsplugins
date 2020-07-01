@@ -5,7 +5,7 @@ namespace UILib.EventHandlers
 {
     public class PointerEnterHandler : UIBehaviour, IPointerEnterHandler, IPointerExitHandler
     {
-        public event Action<PointerEventData> onPointerEnter;
+        public Action<PointerEventData> onPointerEnter;
 
         public void OnPointerEnter(PointerEventData eventData)
         {
@@ -13,7 +13,7 @@ namespace UILib.EventHandlers
                 this.onPointerEnter(eventData);
         }
 
-        public event Action<PointerEventData> onPointerExit;
+        public Action<PointerEventData> onPointerExit;
 
         public void OnPointerExit(PointerEventData eventData)
         {

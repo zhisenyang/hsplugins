@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using UILib.ContextMenu;
@@ -43,7 +45,6 @@ namespace UILib
 
         private static bool _resourcesLoaded = false;
         private static Action<Action<bool>, string> _displayConfirmationDialog;
-        private static GameObject _contextMenuElementPrefab;
         private static RectTransform _contextMenuRoot;
         private static readonly List<ContextMenuUIElement> _displayedContextMenuElements = new List<ContextMenuUIElement>();
         private static readonly List<RectTransform> _displayedContextMenuGroups = new List<RectTransform>();
@@ -52,13 +53,22 @@ namespace UILib
         {
             if (_resourcesLoaded == false)
             {
+                AssetBundle bundle;
+
 #if HONEYSELECT || PLAYHOME
-                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.HS.Resources.DefaultResources);
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("UILib.Resources.DefaultResources.unity3d"))
 #elif KOIKATSU
-                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.KOI.Resources.DefaultResources);
-#elif AISHOUJO || HONEYSELECT2
-                AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.AI.Resources.DefaultResources);
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("UILib.Resources.DefaultResourcesKOI.unity3d"))
+#elif AISHOUJO
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("UILib.Resources.DefaultResourcesAI.unity3d"))
+#elif HONEYSELECT2
+                using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("UILib.Resources.DefaultResourcesHS2.unity3d"))
 #endif
+                {
+                    byte[] arr = new byte[stream.Length];
+                    stream.Read(arr, 0, arr.Length);
+                    bundle = AssetBundle.LoadFromMemory(arr);
+                }
                 foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
                 {
                     switch (sprite.name)
@@ -98,7 +108,6 @@ namespace UILib
                     standard = standardSprite
                 };
                 defaultFontSize = 16;
-                _contextMenuElementPrefab = bundle.LoadAsset<GameObject>("ContextMenuElement");
                 bundle.Unload(false);
                 _resourcesLoaded = true;
             }
@@ -107,7 +116,7 @@ namespace UILib
             SetCustomFont("mplus-1c-medium");
 #elif KOIKATSU
             SetCustomFont("SourceHanSansJP-Medium");
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
             SetCustomFont("Yu Gothic UI Semibold");
 #endif
             _displayConfirmationDialog = ConfirmationDialog.SpawnUI();
@@ -439,13 +448,38 @@ namespace UILib
             if (index < _displayedContextMenuElements.Count)
                 return _displayedContextMenuElements[index];
             ContextMenuUIElement uiElement = new ContextMenuUIElement();
-            uiElement.rectTransform = (RectTransform)GameObject.Instantiate(_contextMenuElementPrefab).transform;
+            uiElement.rectTransform = ConstuctContextMenuElement();
             uiElement.button = uiElement.rectTransform.Find("Button").GetComponent<Button>();
             uiElement.icon = uiElement.button.transform.Find("Icon").GetComponent<Image>();
             uiElement.text = uiElement.button.GetComponentInChildren<Text>();
             uiElement.childIcon = uiElement.button.transform.Find("ChildIcon").GetComponent<RawImage>();
             _displayedContextMenuElements.Add(uiElement);
             return uiElement;
+        }
+
+        private static RectTransform ConstuctContextMenuElement()
+        {
+            RectTransform root = CreateNewUIObject("ContextMenuElement");
+            root.gameObject.AddComponent<LayoutElement>().preferredHeight = 25;
+            Button b = CreateButton("Button", root);
+            b.transform.SetRect();
+            UnityEngine.Object.Destroy(b.GetComponent<Image>());
+            UnityEngine.Object.Destroy(b.GetComponent<CanvasRenderer>());
+            b.targetGraphic = CreateImage("Background", b.transform, standardSprite);
+            b.targetGraphic.rectTransform.SetRect();
+            ((Image)b.targetGraphic).type = Image.Type.Sliced;
+            Image icon = CreateImage("Icon", b.transform);
+            icon.rectTransform.pivot = new Vector2(0f, 0.5f);
+            icon.rectTransform.SetRect(new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(2f, 2f), new Vector2(23f, -2f));
+            Text t = b.GetComponentInChildren<Text>();
+            t.rectTransform.SetRect(new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(25f, 0f), new Vector2(-25f, 0f));
+            t.rectTransform.SetAsLastSibling();
+            t.alignment = TextAnchor.MiddleLeft;
+            t.alignByGeometry = true;
+            RawImage childIcon = CreateRawImage("ChildIcon", b.transform, dropdownArrow.texture);
+            childIcon.rectTransform.localRotation = Quaternion.AngleAxis(90, Vector3.forward);
+            childIcon.rectTransform.SetRect(new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(-26.5f, -2f), new Vector2(2.5f, 2f));
+            return root;
         }
 
         private static RectTransform GetContextMenuGroup(int index)

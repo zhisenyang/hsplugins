@@ -87,35 +87,14 @@
     <Compile Include="EventHandlers\DragHandler.cs" />
     <Compile Include="EventHandlers\ScrollHandler.cs" />
     <Compile Include="EventHandlers\PointerDownHandler.cs" />
-    <Compile Include="Properties\AI\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\HS\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
-    <Compile Include="Properties\KOI\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
     <Compile Include="UIUtility.cs" />
   </ItemGroup>
   <ItemGroup />
   <Choose>
     <When Condition=" '$(Configuration)' == 'HS' ">
       <ItemGroup>
-        <EmbeddedResource Include="Properties\HS\Resources.resx">
-          <Generator>ResXFileCodeGenerator</Generator>
-          <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-      </ItemGroup>
-      <ItemGroup>
-        <None Include="Resources\DefaultResources.unity3d" />
+        <EmbeddedResource Include="Resources\DefaultResources.unity3d" />
       </ItemGroup>
       <ItemGroup>
         <Reference Include="Assembly-CSharp">
@@ -142,13 +121,7 @@
     </When>
     <When Condition=" '$(Configuration)' == 'PH' ">
       <ItemGroup>
-        <EmbeddedResource Include="Properties\HS\Resources.resx">
-          <Generator>ResXFileCodeGenerator</Generator>
-          <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-      </ItemGroup>
-      <ItemGroup>
-        <None Include="Resources\DefaultResources.unity3d" />
+        <EmbeddedResource Include="Resources\DefaultResources.unity3d" />
       </ItemGroup>
       <ItemGroup>
         <Reference Include="Assembly-CSharp">
@@ -175,13 +148,7 @@
     </When>
     <When Condition=" '$(Configuration)' == 'KOI' ">
       <ItemGroup>
-        <EmbeddedResource Include="Properties\KOI\Resources.resx">
-          <Generator>ResXFileCodeGenerator</Generator>
-          <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-      </ItemGroup>
-      <ItemGroup>
-        <None Include="Resources\DefaultResourcesKOI.unity3d" />
+        <EmbeddedResource Include="Resources\DefaultResourcesKOI.unity3d" />
       </ItemGroup>
       <ItemGroup>
         <Reference Include="Assembly-CSharp">
@@ -204,13 +171,7 @@
     </When>
     <When Condition=" '$(Configuration)' == 'AI' ">
       <ItemGroup>
-        <EmbeddedResource Include="Properties\AI\Resources.resx">
-          <Generator>ResXFileCodeGenerator</Generator>
-          <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-      </ItemGroup>
-      <ItemGroup>
-        <None Include="Resources\DefaultResourcesAI.unity3d" />
+        <EmbeddedResource Include="Resources\DefaultResourcesAI.unity3d" />
       </ItemGroup>
       <ItemGroup>
         <Reference Include="Assembly-CSharp">
@@ -249,13 +210,7 @@
     </When>
     <When Condition=" '$(Configuration)' == 'HS2' ">
       <ItemGroup>
-        <EmbeddedResource Include="Properties\AI\Resources.resx">
-          <Generator>ResXFileCodeGenerator</Generator>
-          <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-        </EmbeddedResource>
-      </ItemGroup>
-      <ItemGroup>
-        <None Include="Resources\DefaultResourcesAI.unity3d" />
+        <EmbeddedResource Include="Resources\DefaultResourcesHS2.unity3d" />
       </ItemGroup>
       <ItemGroup>
         <Reference Include="Assembly-CSharp">

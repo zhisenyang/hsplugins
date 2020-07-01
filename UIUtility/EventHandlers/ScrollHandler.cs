@@ -5,7 +5,7 @@ namespace UILib.EventHandlers
 {
     public class ScrollHandler : UIBehaviour, IScrollHandler
     {
-        public event Action<PointerEventData> onScroll;
+        public Action<PointerEventData> onScroll;
 
         public void OnScroll(PointerEventData eventData)
         {
