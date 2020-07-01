@@ -53,6 +53,7 @@ namespace HSPE
         #region Private Variables
         internal static bool _drawAdvancedMode = false;
         internal readonly HashSet<GameObject> _childObjects = new HashSet<GameObject>();
+        private static bool _onPreRenderCallbackAdded = false;
         #endregion
 
         #region Public Accessors
@@ -63,6 +64,12 @@ namespace HSPE
         #region Unity Methods
         protected virtual void Awake()
         {
+            if (_onPreRenderCallbackAdded == false)
+            {
+                _onPreRenderCallbackAdded = true;
+                MainWindow._self._cameraEventsDispatcher.onPreRender += UpdateGizmosIf;
+            }
+
             _poseControllers.Add(this);
             foreach (KeyValuePair<int, ObjectCtrlInfo> pair in Studio.Studio.Instance.dicObjectCtrl)
             {
@@ -114,7 +121,7 @@ namespace HSPE
             this.onLateUpdate();
         }
 
-        void OnGUI()
+        private void OnGUI()
         {
             if (_drawAdvancedMode && MainWindow._self._poseTarget == this)
             {
@@ -123,7 +130,20 @@ namespace HSPE
             }
         }
 
-        void OnDisable()
+        private static void UpdateGizmosIf()
+        {
+            if (MainWindow._self._poseTarget == null)
+                return;
+            MainWindow._self._poseTarget.UpdateGizmos();
+        }
+
+        protected virtual void UpdateGizmos()
+        {
+            foreach (AdvancedModeModule module in this._modules)
+                module.UpdateGizmos();
+        }
+
+        private void OnDisable()
         {
             this.onDisable();
         }
