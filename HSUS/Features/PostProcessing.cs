@@ -1,12 +1,14 @@
 ﻿using System.Xml;
+#if IPA
+using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 #if HONEYSELECT
 using System;
 using System.Reflection;
 using UnityEngine;
 using UnityStandardAssets.ImageEffects;
-using Harmony;
-#elif KOIKATSU
-using HarmonyLib;
 #endif
 using Studio;
 using ToolBox.Extensions;
@@ -117,7 +119,7 @@ namespace HSUS.Features
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(_ssrEnabled));
                 writer.WriteEndElement();
             }
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU
             {
                 writer.WriteStartElement("selfShadow");
                 writer.WriteAttributeString("enabled", XmlConvert.ToString(_selfShadowEnabled));

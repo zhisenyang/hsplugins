@@ -5,9 +5,9 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Xml;
-#if HONEYSELECT
+#if IPA
 using Harmony;
-#elif AISHOUJO || KOIKATSU
+#elif BEPINEX
 using HarmonyLib;
 #endif
 using Studio;
@@ -19,7 +19,7 @@ namespace HSUS.Features
 {
     public class GenericFK : IFeature
     {
-#if HONEYSELECT || AISHOUJO
+#if HONEYSELECT || AISHOUJO || HONEYSELECT2
         private static bool _enableGenericFK = true;
 #endif
 
@@ -29,7 +29,7 @@ namespace HSUS.Features
         
         public void LoadParams(XmlNode node)
         {
-#if HONEYSELECT || AISHOUJO
+#if HONEYSELECT || AISHOUJO || HONEYSELECT2
             node = node.FindChildNode("enableGenericFK");
             if (node == null)
                 return;
@@ -40,7 +40,7 @@ namespace HSUS.Features
 
         public void SaveParams(XmlTextWriter writer)
         {
-#if HONEYSELECT || AISHOUJO
+#if HONEYSELECT || AISHOUJO || HONEYSELECT2
             writer.WriteStartElement("enableGenericFK");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_enableGenericFK));
             writer.WriteEndElement();
@@ -51,7 +51,7 @@ namespace HSUS.Features
         {
         }
 
-#if HONEYSELECT || AISHOUJO
+#if HONEYSELECT || AISHOUJO || HONEYSELECT2
         [HarmonyPatch(typeof(AddObjectItem), "Load", new[] { typeof(OIItemInfo), typeof(ObjectCtrlInfo), typeof(TreeNodeObject), typeof(bool), typeof(int) })]
         private static class AddObjectItem_Load_Patches
         {
@@ -92,145 +92,6 @@ namespace HSUS.Features
 #endif
                 return itemFKCtrl;
             }
-
-            //public static bool Prefix(OIItemInfo _info, ObjectCtrlInfo _parent, TreeNodeObject _parentNode, bool _addInfo, int _initialPosition, ref OCIItem __result)
-            //{
-            //    OCIItem ociitem = new OCIItem();
-            //    Info.ItemLoadInfo loadInfo = GetLoadInfo(_info.no);
-            //    if (loadInfo == null)
-            //        loadInfo = GetLoadInfo(0);
-            //    ociitem.objectInfo = _info;
-            //    GameObject gameObject = CommonLib.LoadAsset<GameObject>(loadInfo.bundlePath, loadInfo.fileName, true, loadInfo.manifest);
-            //    if (gameObject == null)
-            //    {
-            //        Debug.LogError($"読み込み失敗 : {loadInfo.manifest} : {loadInfo.bundlePath} : {loadInfo.fileName}");
-            //        Studio.Studio.DeleteIndex(_info.dicKey);
-            //        __result = null;
-            //        return false;
-            //    }
-            //    gameObject.transform.SetParent(Singleton<Manager.Scene>.Instance.commonSpace.transform);
-            //    ociitem.objectItem = gameObject;
-            //    ociitem.arrayRender = gameObject.GetComponentsInChildren<Renderer>().Where(v => v.enabled).ToArray();
-            //    ParticleSystem[] componentsInChildren = gameObject.GetComponentsInChildren<ParticleSystem>();
-            //    if (!componentsInChildren.IsNullOrEmpty())
-            //    {
-            //        ociitem.arrayParticle = componentsInChildren.Where(v => v.isPlaying).ToArray();
-            //    }
-            //    GuideObject guideObject = Singleton<GuideObjectManager>.Instance.Add(gameObject.transform, _info.dicKey);
-            //    guideObject.isActive = false;
-            //    guideObject.scaleSelect = 0.1f;
-            //    guideObject.scaleRot = 0.05f;
-            //    GuideObject guideObject2 = guideObject;
-            //    guideObject2.isActiveFunc = (GuideObject.IsActiveFunc)Delegate.Combine(guideObject2.isActiveFunc, new GuideObject.IsActiveFunc(ociitem.OnSelect));
-            //    guideObject.enableScale = loadInfo.isScale;
-            //    ociitem.guideObject = guideObject;
-            //    if (!loadInfo.childRoot.IsNullOrEmpty())
-            //    {
-            //        GameObject gameObject2 = gameObject.transform.FindLoop(loadInfo.childRoot);
-            //        if (gameObject2)
-            //            ociitem.childRoot = gameObject2.transform;
-            //    }
-            //    if (ociitem.childRoot == null)
-            //        ociitem.childRoot = gameObject.transform;
-            //    ociitem.animator = gameObject.GetComponent<Animator>();
-            //    if (ociitem.animator)
-            //        ociitem.animator.enabled = loadInfo.isAnime;
-            //    if (loadInfo.isColor)
-            //    {
-            //        List<KeyValuePair<string, OCIItem.ColorTargetInfo>> listWork = GetTarget(gameObject, loadInfo.colorTarget);
-            //        if (loadInfo.isColor2)
-            //        {
-            //            foreach (KeyValuePair<string, OCIItem.ColorTargetInfo> keyValuePair in listWork.Where(v => loadInfo.color2Target.Any(s => s == v.Key)))
-            //                keyValuePair.Value.isColor2 = true;
-            //            List<KeyValuePair<string, OCIItem.ColorTargetInfo>> target = GetTarget(gameObject, loadInfo.color2Target.Where(s => listWork.All(v => v.Key != s)).ToArray());
-            //            if (!target.IsNullOrEmpty())
-            //            {
-            //                int count = target.Count;
-            //                for (int i = 0; i < count; i++)
-            //                {
-            //                    target[i].Value.isColor2 = true;
-            //                    target[i].Value.isColor2Only = true;
-            //                }
-            //                listWork.AddRange(target);
-            //            }
-            //        }
-            //        ociitem.colorTargets = (from v in listWork
-            //                                select v.Value).ToArray();
-            //    }
-            //    if (_addInfo)
-            //        Studio.Studio.AddInfo(_info, ociitem);
-            //    else
-            //        Studio.Studio.AddObjectCtrlInfo(ociitem);
-            //    TreeNodeObject parent = !(_parentNode != null) ? (_parent == null ? null : _parent.treeNodeObject) : _parentNode;
-            //    TreeNodeObject treeNodeObject = Studio.Studio.AddNode(loadInfo.name, parent);
-            //    treeNodeObject.treeState = _info.treeState;
-            //    TreeNodeObject treeNodeObject2 = treeNodeObject;
-            //    treeNodeObject2.onVisible = (TreeNodeObject.OnVisibleFunc)Delegate.Combine(treeNodeObject2.onVisible, new TreeNodeObject.OnVisibleFunc(ociitem.OnVisible));
-            //    treeNodeObject.enableVisible = true;
-            //    treeNodeObject.visible = _info.visible;
-            //    guideObject.guideSelect.treeNodeObject = treeNodeObject;
-            //    ociitem.treeNodeObject = treeNodeObject;
-            //    if (!loadInfo.bones.IsNullOrEmpty())
-            //    {
-            //        ociitem.itemFKCtrl = gameObject.AddComponent<ItemFKCtrl>();
-            //        ociitem.itemFKCtrl.InitBone(ociitem, loadInfo, _addInfo);
-            //        ociitem.dynamicBones = ociitem.objectItem.GetComponentsInChildren<DynamicBone>(true);
-            //    }
-            //    else if (ociitem.objectItem != null && ociitem.objectItem.transform.childCount != 0)
-            //    {
-            //        ociitem.itemFKCtrl = gameObject.AddComponent<ItemFKCtrl>();
-            //        ociitem.itemFKCtrl.InitBone(ociitem, null, _addInfo);
-            //        ociitem.dynamicBones = ociitem.objectItem.GetComponentsInChildren<DynamicBone>(true);
-            //    }
-            //    else
-            //        ociitem.itemFKCtrl = null;
-            //    if (_initialPosition == 1)
-            //        _info.changeAmount.pos = Singleton<Studio.Studio>.Instance.cameraCtrl.targetPos;
-            //    _info.changeAmount.OnChange();
-            //    Studio.Studio.AddCtrlInfo(ociitem);
-            //    if (_parent != null)
-            //    {
-            //        _parent.OnLoadAttach(!(_parentNode != null) ? _parent.treeNodeObject : _parentNode, ociitem);
-            //    }
-            //    if (ociitem.animator)
-            //    {
-            //        ociitem.animator.speed = _info.animeSpeed;
-            //        if (_info.animeNormalizedTime != 0f && ociitem.animator.layerCount != 0)
-            //        {
-            //            ociitem.animator.Update(1f);
-            //            AnimatorStateInfo currentAnimatorStateInfo = ociitem.animator.GetCurrentAnimatorStateInfo(0);
-            //            ociitem.animator.Play(currentAnimatorStateInfo.shortNameHash, 0, _info.animeNormalizedTime);
-            //        }
-            //    }
-            //    ociitem.UpdateColor();
-            //    ociitem.ActiveFK(_info.enableFK);
-            //    __result = ociitem;
-            //    return false;
-            //}
-
-            //private static Info.ItemLoadInfo GetLoadInfo(int _no)
-            //{
-            //    Info.ItemLoadInfo result = null;
-            //    if (!Singleton<Info>.Instance.dicItemLoadInfo.TryGetValue(_no, out result))
-            //    {
-            //        Debug.LogWarning($"存在しない番号[{_no}]");
-            //        return null;
-            //    }
-            //    return result;
-            //}
-
-            //private static List<KeyValuePair<string, OCIItem.ColorTargetInfo>> GetTarget(GameObject _obj, string[] _target)
-            //{
-            //    if (_target.IsNullOrEmpty())
-            //    {
-            //        return null;
-            //    }
-            //    return (from v in (from g in _obj.DescendantsAndSelf(null)
-            //                       where _target.Any(s => s == g.name)
-            //                       select g).OfComponent<Renderer>()
-            //            select new KeyValuePair<string, OCIItem.ColorTargetInfo>(v.name, new OCIItem.ColorTargetInfo(v))).ToList();
-            //}
-
         }
 
         [HarmonyPatch]
@@ -321,7 +182,7 @@ namespace HSUS.Features
                             new OCIChar.BoneInfo(
                                     guideObject,
                                     oIBoneInfo
-#if KOIKATSU || AISHOUJO
+#if KOIKATSU || AISHOUJO || HONEYSELECT2
                                                             , i
 #endif
                             )

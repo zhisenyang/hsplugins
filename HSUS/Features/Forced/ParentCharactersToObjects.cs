@@ -3,7 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+#if IPA
 using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 using Manager;
 using Studio;
 using ToolBox;

@@ -5,17 +5,19 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Studio;
 using ToolBox;
+#if IPA
+using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 #if HONEYSELECT
 using IllusionUtility.SetUtility;
-using Harmony;
 #elif KOIKATSU
 using TMPro;
-using HarmonyLib;
-#elif AISHOUJO
-using HarmonyLib;
 #endif
 using ToolBox.Extensions;
 using UILib;
+using UILib.EventHandlers;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -32,28 +34,35 @@ namespace HSUS.Features
 
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             node = node.FindChildNode("improvedTransformOperations");
             if (node == null)
                 return;
             if (node.Attributes["enabled"] != null)
                 _improvedTransformOperations = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("improvedTransformOperations");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_improvedTransformOperations));
             writer.WriteEndElement();
+#endif
         }
 
         public void LevelLoaded()
         {
+#if !PLAYHOME
             GameObject canvasGuideInput = GameObject.Find("StudioScene/Canvas Guide Input");
             if (_improvedTransformOperations && HSUS._self._binary == Binary.Studio && canvasGuideInput != null)
                 canvasGuideInput.AddComponent<TransformOperations>();
+#endif
         }
 
 
+#if !PLAYHOME
         [HarmonyPatch(typeof(GuideInput), "OnEndEditScale", new[] { typeof(int) })]
         private static class GuideInput_OnEndEditScale_Patches
         {
@@ -104,7 +113,7 @@ namespace HSUS.Features
                         new CodeInstruction(OpCodes.Call, typeof(GuideScale_OnDrag_Patches).GetMethod(nameof(DummyMax), BindingFlags.NonPublic | BindingFlags.Static)),
                     }
                 }
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                 new HarmonyExtensions.Replacement
                 {
                     pattern = new[]
@@ -134,13 +143,14 @@ namespace HSUS.Features
             {
                 return first;
             }
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
             private static float DummyClamp(float value, float min, float max)
             {
                 return value;
             }
 #endif
         }
+#endif
 
 #if HONEYSELECT
         [HarmonyPatch(typeof(CharClothes), "SetAccessoryScl", new[] { typeof(int), typeof(float), typeof(bool), typeof(int) })]
@@ -233,6 +243,7 @@ namespace HSUS.Features
         }
 #endif
 
+#if !PLAYHOME
         public class TransformOperations : MonoBehaviour
         {
             private class TransformData
@@ -278,7 +289,7 @@ namespace HSUS.Features
                     if (rt != guideInput && rt != container.rectTransform)
                         rt.anchoredPosition += new Vector2(105, 0f);
                 }
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 ((RectTransform)guideInput.Find("Button Move")).anchoredPosition += new Vector2(100f, 0f);
                 ((RectTransform)guideInput.Find("Button Rotation")).anchoredPosition += new Vector2(100f, 0f);
                 ((RectTransform)guideInput.Find("Button Scale")).anchoredPosition += new Vector2(100f, 0f);
@@ -326,7 +337,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform posX = (RectTransform)guideInput.Find("Pos/InputField X");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform posX = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField X");
 #endif
                 RawImage posXDrag = UIUtility.CreateRawImage("DragX", posX.parent);
@@ -340,7 +351,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform posY = (RectTransform)guideInput.Find("Pos/InputField Y");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform posY = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField Y");
 #endif
                 RawImage posYDrag = UIUtility.CreateRawImage("DragY", posY.parent);
@@ -354,7 +365,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform posZ = (RectTransform)guideInput.Find("Pos/InputField Z");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform posZ = (RectTransform)guideInput.Find("Pos/TextMeshPro - InputField Z");
 #endif
                 RawImage posZDrag = UIUtility.CreateRawImage("DragZ", posZ.parent);
@@ -368,7 +379,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform rotX = (RectTransform)guideInput.Find("Rot/InputField X");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform rotX = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField X");
 #endif
                 RawImage rotXDrag = UIUtility.CreateRawImage("DragX", rotX.parent);
@@ -382,7 +393,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform rotY = (RectTransform)guideInput.Find("Rot/InputField Y");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform rotY = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField Y");
 #endif
                 RawImage rotYDrag = UIUtility.CreateRawImage("DragY", rotY.parent);
@@ -396,7 +407,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform rotZ = (RectTransform)guideInput.Find("Rot/InputField Z");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform rotZ = (RectTransform)guideInput.Find("Rot/TextMeshPro - InputField Z");
 #endif
                 RawImage rotZDrag = UIUtility.CreateRawImage("DragZ", rotZ.parent);
@@ -410,7 +421,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform scaleX = (RectTransform)guideInput.Find("Scl/InputField X");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform scaleX = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField X");
 #endif
                 RawImage scaleXDrag = UIUtility.CreateRawImage("DragX", scaleX.parent);
@@ -424,7 +435,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform scaleY = (RectTransform)guideInput.Find("Scl/InputField Y");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform scaleY = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField Y");
 #endif
                 RawImage scaleYDrag = UIUtility.CreateRawImage("DragY", scaleY.parent);
@@ -438,7 +449,7 @@ namespace HSUS.Features
 
 #if HONEYSELECT
                 RectTransform scaleZ = (RectTransform)guideInput.Find("Scl/InputField Z");
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 RectTransform scaleZ = (RectTransform)guideInput.Find("Scl/TextMeshPro - InputField Z");
 #endif
                 RawImage scaleZDrag = UIUtility.CreateRawImage("DragZ", scaleZ.parent);
@@ -639,9 +650,9 @@ namespace HSUS.Features
 
         public class TransformEqualsCommand : Studio.ICommand
         {
-            private readonly Studio.GuideCommand.EqualsInfo[] _moveChangeAmountInfo;
-            private readonly Studio.GuideCommand.EqualsInfo[] _rotateChangeAmountInfo;
-            private readonly Studio.GuideCommand.EqualsInfo[] _scaleChangeAmountInfo;
+            private readonly GuideCommand.EqualsInfo[] _moveChangeAmountInfo;
+            private readonly GuideCommand.EqualsInfo[] _rotateChangeAmountInfo;
+            private readonly GuideCommand.EqualsInfo[] _scaleChangeAmountInfo;
 
             public TransformEqualsCommand(GuideCommand.EqualsInfo[] moveChangeAmountInfo, GuideCommand.EqualsInfo[] rotateChangeAmountInfo, GuideCommand.EqualsInfo[] scaleChangeAmountInfo)
             {
@@ -682,25 +693,26 @@ namespace HSUS.Features
 
             public void Undo()
             {
-                foreach (Studio.GuideCommand.EqualsInfo info in this._moveChangeAmountInfo)
+                foreach (GuideCommand.EqualsInfo info in this._moveChangeAmountInfo)
                 {
-                    Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                    ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
                     if (changeAmount != null)
                         changeAmount.pos = info.oldValue;
                 }
-                foreach (Studio.GuideCommand.EqualsInfo info in this._rotateChangeAmountInfo)
+                foreach (GuideCommand.EqualsInfo info in this._rotateChangeAmountInfo)
                 {
-                    Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                    ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
                     if (changeAmount != null)
                         changeAmount.rot = info.oldValue;
                 }
-                foreach (Studio.GuideCommand.EqualsInfo info in this._scaleChangeAmountInfo)
+                foreach (GuideCommand.EqualsInfo info in this._scaleChangeAmountInfo)
                 {
-                    Studio.ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
+                    ChangeAmount changeAmount = Studio.Studio.GetChangeAmount(info.dicKey);
                     if (changeAmount != null)
                         changeAmount.scale = info.oldValue;
                 }
             }
         }
+#endif
     }
 }

@@ -1,9 +1,9 @@
-﻿#if HONEYSELECT
+﻿#if IPA
 using Harmony;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
 using HarmonyLib;
 #endif
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
 using AIChara;
 #endif
 using System.Reflection;
@@ -24,24 +24,29 @@ namespace HSUS.Features
 
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             node = node.FindChildNode("autoJointCorrection");
             if (node == null)
                 return;
             if (node.Attributes["enabled"] != null)
                 _autoJointCorrection = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("autoJointCorrection");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_autoJointCorrection));
             writer.WriteEndElement();
+#endif
         }
 
         public void LevelLoaded()
         {
         }
 
+#if !PLAYHOME
         [HarmonyPatch]
         public class OICharInfo_Ctor_Patches
         {
@@ -49,7 +54,7 @@ namespace HSUS.Features
             {
 #if HONEYSELECT
                 return typeof(OICharInfo).GetConstructor(new[] { typeof(CharFile), typeof(int) });
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 return typeof(OICharInfo).GetConstructor(new[] { typeof(ChaFileControl), typeof(int) });
 #endif
             }
@@ -65,6 +70,6 @@ namespace HSUS.Features
                     __instance.expression[i] = true;
             }
         }
-
+#endif
     }
 }

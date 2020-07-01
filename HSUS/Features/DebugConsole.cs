@@ -3,20 +3,21 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
+#if IPA
+using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 #if HONEYSELECT
 using Config;
 using Studio;
 using ILSetUtility.TimeUtility;
 using kleberswf.tools.miniprofiler;
-using Harmony;
-#elif KOIKATSU
-using HarmonyLib;
-#elif AISHOUJO
-using HarmonyLib;
 #endif
 using ToolBox;
 using ToolBox.Extensions;
@@ -29,9 +30,9 @@ namespace HSUS.Features
 {
     public class DebugFeature : IFeature
     {
-#if HONEYSELECT
+#if HONEYSELECT || PLAYHOME
         internal static bool _debugEnabled = true;
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
         internal static bool _debugEnabled = false;
 #endif
         internal static KeyCode _debugShortcut = KeyCode.RightControl;
@@ -301,7 +302,13 @@ namespace HSUS.Features
         #region Private Methods
         private static void HandleLog(string condition, string stackTrace, LogType type)
         {
-            _lastLogs.AddLast(new KeyValuePair<LogType, string>(type, DateTime.Now.ToString("[HH:mm:ss] ") + condition + " " + stackTrace));
+            string s = DateTime.Now.ToString("[HH:mm:ss] ") + condition + " " + stackTrace;
+            if (s.Length > 10000)
+            {
+                s = s.Substring(0, 10000);
+                s += "...";
+            }
+            _lastLogs.AddLast(new KeyValuePair<LogType, string>(type, s));
             if (_lastLogs.Count == 1001)
                 _lastLogs.RemoveFirst();
             _scroll3.y += 999999;
@@ -412,6 +419,8 @@ namespace HSUS.Features
                 if ((this._target.gameObject.hideFlags & HideFlags.DontUnloadUnusedAsset) != 0)
                     hf += (hf.Length != 0 ? " | " : "") + "DontUnloadUnusedAsset";
                 GUILayout.Label("HideFlags: " + hf);
+                GUILayout.Label("HashCode: " + this._target.gameObject.GetHashCode());
+                GUILayout.Label("InstanceID: " + this._target.gameObject.GetInstanceID());
                 foreach (Component c in this._target.GetComponents<Component>())
                 {
                     if (c == null)
@@ -696,7 +705,7 @@ namespace HSUS.Features
             }
             else
             {
-                FieldInfo[] fields = t.GetFields(AccessTools.all);
+                IOrderedEnumerable<FieldInfo> fields = t.GetFields(AccessTools.all).OrderBy(f => f.Name);
                 foreach (FieldInfo field in fields)
                 {
                     object o = null;
@@ -741,21 +750,18 @@ namespace HSUS.Features
                     GUILayout.EndHorizontal();
                     this.RecurseObjects(pair, indent + 1);
                 }
-                PropertyInfo[] properties = t.GetProperties(AccessTools.all);
-                Type compilerGeneratedAttribute = typeof(CompilerGeneratedAttribute);
+                IOrderedEnumerable<PropertyInfo> properties = t.GetProperties(AccessTools.all).OrderBy(p => p.Name);
                 foreach (PropertyInfo property in properties)
                 {
-                    if ((property.GetGetMethod(true) ?? property.GetSetMethod(true)).IsDefined(compilerGeneratedAttribute, false))
-                        continue;
                     object o = null;
-                    bool exception = false;
+                    Exception exceptionCaught = null;
                     try
                     {
                         o = property.GetValue(obj.child, null);
                     }
-                    catch (Exception)
+                    catch (Exception e)
                     {
-                        exception = true;
+                        exceptionCaught = e;
                     }
                     if (o != null && obj.child == o)
                         continue;
@@ -765,7 +771,12 @@ namespace HSUS.Features
                     if (o != null)
                         GUILayout.Label(property.Name + ": " + o, GUILayout.ExpandWidth(false));
                     else
-                        GUILayout.Label(property.Name + ": " + (exception ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+                    {
+                        GUILayout.Label(property.Name + ": " + (exceptionCaught != null ? "Exception caught while getting value" : "null"), GUILayout.ExpandWidth(false));
+                        GUILayout.FlexibleSpace();
+                        if (exceptionCaught != null && GUILayout.Button("Print", GUILayout.ExpandWidth(false)))
+                            UnityEngine.Debug.LogError(exceptionCaught.ToString());
+                    }
 
                     ObjectPair pair = new ObjectPair(obj.child, o);
                     if (o != null)
@@ -789,6 +800,11 @@ namespace HSUS.Features
 
                     this.RecurseObjects(pair, indent + 1);
                 }
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Space(10);
+                GUILayout.Label("HashCode: " + obj.child.GetHashCode());
+                GUILayout.EndHorizontal();
             }
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();

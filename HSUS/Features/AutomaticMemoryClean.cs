@@ -11,8 +11,8 @@ namespace HSUS.Features
 {
     public class AutomaticMemoryClean : IFeature
     {
-        private bool _automaticMemoryClean = false;
-        private int _automaticMemoryCleanInterval = 30;
+        private bool _automaticMemoryClean = true;
+        private int _automaticMemoryCleanInterval = 300;
         private float _lastCleanup;
 
         public void Awake()

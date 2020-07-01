@@ -1,7 +1,9 @@
 ﻿using System.Reflection;
 using System.Xml;
-#if HONEYSELECT
+#if IPA
 using Harmony;
+#elif BEPINEX
+using HarmonyLib;
 #endif
 using Studio;
 using ToolBox;

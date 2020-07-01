@@ -6,7 +6,7 @@ using System.IO;
 using UnityEngine;
 #elif KOIKATSU
 using ChaCustom;
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
 using CharaCustom;
 #endif
 
@@ -23,6 +23,7 @@ namespace HSUS.Features
 
         public void LevelLoaded()
         {
+#if !PLAYHOME
             if (HSUS._self._binary == Binary.Game &&
 #if HONEYSELECT
                    HSUS._self._level == 21
@@ -30,6 +31,8 @@ namespace HSUS.Features
                    HSUS._self._level == 2
 #elif AISHOUJO
                 HSUS._self._level == 4
+#elif HONEYSELECT2
+                HSUS._self._level == 3
 #endif
             )
             {
@@ -51,7 +54,7 @@ namespace HSUS.Features
                             LoadCustomDefault(UserData.Path + "chara/female/" + this._defaultFemaleChar);
                         break;
                 }
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                     switch (CustomBase.Instance.modeSex)
                     {
                         case 0:
@@ -64,23 +67,27 @@ namespace HSUS.Features
                             break;
                     }
 #endif
-                });
+                }, 2);
             }
+#endif
         }
 
 
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             XmlNode femaleNode = node.FindChildNode("defaultFemaleChar");
             if (femaleNode != null && femaleNode.Attributes["path"] != null)
                 this._defaultFemaleChar = femaleNode.Attributes["path"].Value;
             XmlNode maleNode = node.FindChildNode("defaultMaleChar");
             if (maleNode != null && maleNode.Attributes["path"] != null)
                 this._defaultMaleChar = maleNode.Attributes["path"].Value;
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("defaultFemaleChar");
             writer.WriteAttributeString("path", this._defaultFemaleChar);
             writer.WriteEndElement();
@@ -89,6 +96,7 @@ namespace HSUS.Features
             writer.WriteStartElement("defaultMaleChar");
             writer.WriteAttributeString("path", this._defaultMaleChar);
             writer.WriteEndElement();
+#endif
 #endif
         }
 
@@ -158,7 +166,7 @@ namespace HSUS.Features
             CustomBase.Instance.updateCustomUI = true;
             //CustomHistory.Instance.Add5(chaCtrl, chaCtrl.Reload, false, false, false, false);
         }
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
         private static void LoadCustomDefault(string path)
         {
             Singleton<CustomBase>.Instance.chaCtrl.chaFile.LoadFileLimited(path, Singleton<CustomBase>.Instance.chaCtrl.sex);

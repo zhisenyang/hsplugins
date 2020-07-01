@@ -2,17 +2,19 @@
 using System.Collections.Generic;
 using System.Reflection;
 using System.Xml;
+#if IPA
+using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 #if HONEYSELECT
 using FBSAssist;
-using Harmony;
 using System.Reflection.Emit;
 using System.IO;
 using System.Globalization;
 using System.Threading;
 using UniRx.Triggers;
 using Manager;
-#elif KOIKATSU || AISHOUJO
-using HarmonyLib;
 #endif
 using System.Linq;
 using Studio;
@@ -101,18 +103,22 @@ namespace HSUS.Features
 #endif
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             node = node.FindChildNode("optimizeNeo");
             if (node == null)
                 return;
             if (node.Attributes["enabled"] != null)
                 _optimizeNeo = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("optimizeNeo");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_optimizeNeo));
             writer.WriteEndElement();
+#endif
         }
 
         public void Awake()
@@ -424,7 +430,7 @@ namespace HSUS.Features
         }
 #endif
 
-#if KOIKATSU || AISHOUJO
+#if KOIKATSU || AISHOUJO || HONEYSELECT2
         [HarmonyPatch(typeof(CharaList), "Awake")]
         internal static class CharaList_Awake_Patches
         {
@@ -1426,6 +1432,7 @@ namespace HSUS.Features
         }
 #endif
 
+#if !PLAYHOME
         [HarmonyPatch(typeof(WorkspaceCtrl), "Awake")]
         internal static class WorkspaceCtrl_Awake_Patches
         {
@@ -1444,7 +1451,7 @@ namespace HSUS.Features
                 _search = UIUtility.CreateInputField("Search", viewport.parent, "Search...");
 #if HONEYSELECT
                 float height = 18f;
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 float height = 22f;
 #endif
                 _search.transform.SetRect(Vector2.zero, new Vector2(1f, 0f), new Vector2(viewport.offsetMin.x, viewport.offsetMin.y - 2f), new Vector2(viewport.offsetMax.x, viewport.offsetMin.y + height));
@@ -1474,7 +1481,7 @@ namespace HSUS.Features
                     return;
                 string searchText = _search.text;
                 RecurseAny(o, t => t.textName.IndexOf(searchText, StringComparison.CurrentCultureIgnoreCase) != -1,
-                           (t, r) => t.gameObject.SetActive(r && AllParentsOpen(t)));
+                        (t, r) => t.gameObject.SetActive(r && AllParentsOpen(t)));
 
             }
 
@@ -1650,6 +1657,7 @@ namespace HSUS.Features
                 WorkspaceCtrl_Awake_Patches._ignoreSearch = false;
             }
         }
+#endif
 
 #if HONEYSELECT
         [HarmonyPatch(typeof(TreeNodeCtrl), "AddNode", new[] { typeof(string), typeof(TreeNodeObject) })]

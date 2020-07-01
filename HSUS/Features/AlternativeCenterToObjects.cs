@@ -1,8 +1,8 @@
-﻿#if HONEYSELECT
+﻿#if IPA
 using System;
 using System.Reflection;
 using Harmony;
-#else
+#elif BEPINEX
 using HarmonyLib;
 #endif
 using System.Xml;
@@ -24,18 +24,22 @@ namespace HSUS.Features
 
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             node = node.FindChildNode("alternativeCenterToObject");
             if (node == null)
                 return;
             if (node.Attributes["enabled"] != null)
                 _alternativeCenterToObject = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("alternativeCenterToObject");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_alternativeCenterToObject));
             writer.WriteEndElement();
+#endif
         }
 
         public void LevelLoaded()
@@ -73,7 +77,7 @@ namespace HSUS.Features
                     ___cameraControl.targetPos = GuideObjectManager.Instance.selectObject.transformTarget.position;
             }
         }
-#else
+#elif !PLAYHOME
         [HarmonyPatch(typeof(ShortcutKeyCtrl), "Update")]
         public static class ShortcutKeyCtrl_Update_Patches
         {

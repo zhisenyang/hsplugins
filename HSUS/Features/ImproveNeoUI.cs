@@ -6,9 +6,9 @@ using System.Linq;
 using System.Reflection.Emit;
 using ToolBox;
 using ToolBox.Extensions;
-#if HONEYSELECT
+#if IPA
 using Harmony;
-#elif KOIKATSU
+#elif BEPINEX
 using HarmonyLib;
 #endif
 using UnityEngine;

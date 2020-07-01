@@ -7,18 +7,21 @@ using System.Reflection;
 using System.Text;
 using System.Xml;
 using HSUS.Features;
-#if HONEYSELECT
+#if IPA
 using IllusionPlugin;
 using Harmony;
-#elif KOIKATSU
+#elif BEPINEX
 using BepInEx;
+using HarmonyLib;
+#endif
+#if HONEYSELECT
+#elif PLAYHOME
+using UnityEngine.SceneManagement;
+#elif KOIKATSU
 using ChaCustom;
 using UnityEngine.SceneManagement;
-using HarmonyLib;
-#elif AISHOUJO
-using BepInEx;
+#elif AISHOUJO || HONEYSELECT2
 using UnityEngine.SceneManagement;
-using HarmonyLib;
 #endif
 using ToolBox;
 using ToolBox.Extensions;
@@ -28,24 +31,30 @@ using UnityEngine.EventSystems;
 
 namespace HSUS
 {
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
     [BepInPlugin(_guid, _name, _version)]
 #endif
     internal class HSUS : GenericPlugin
-#if HONEYSELECT
+#if IPA
     , IEnhancedPlugin
 #endif
     {
-        internal const string _version = "1.8.1";
+        internal const string _version = "1.9.0";
 #if HONEYSELECT
         internal const string _name = "HSUS";
         internal const string _guid = "com.joan6694.illusionplugins.hsus";
+#elif PLAYHOME
+        internal const string _name = "PHUS";
+        internal const string _guid = "com.joan6694.illusionplugins.phus";
 #elif KOIKATSU
         internal const string _name = "KKUS";
         internal const string _guid = "com.joan6694.illusionplugins.kkus";
 #elif AISHOUJO
         internal const string _name = "AIUS";
         internal const string _guid = "com.joan6694.illusionplugins.aius";
+#elif HONEYSELECT2
+        internal const string _name = "HS2US";
+        internal const string _guid = "com.joan6694.illusionplugins.hs2us";
 #endif
         private const string _config = "config.xml";
 
@@ -69,6 +78,7 @@ namespace HSUS
         private readonly CameraShortcuts _cameraShortcuts = new CameraShortcuts();
         private readonly AlternativeCenterToObjects _alternativeCenterToObjects = new AlternativeCenterToObjects();
         private readonly FingersFKCopyButtons _fingersFKCopyButtons = new FingersFKCopyButtons();
+        private readonly AnimationOptionDisplay _animationOptionDisplay = new AnimationOptionDisplay();
         private readonly FKColors _fkColors = new FKColors();
         private readonly PostProcessing _postProcessing = new PostProcessing();
         private readonly AutomaticMemoryClean _automaticMemoryClean = new AutomaticMemoryClean();
@@ -89,15 +99,15 @@ namespace HSUS
         internal Sprite _buttonBackground;
         internal readonly List<IEnumerator> _asyncMethods = new List<IEnumerator>();
 #endif
-#if HONEYSELECT || PLAYHOME
+#if IPA
         internal HarmonyInstance _harmonyInstance;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
         internal Harmony _harmonyInstance;
 #endif
         #endregion
 
         #region Public Accessors
-#if HONEYSELECT
+#if IPA
         public override string Name { get { return _name; } }
         public override string Version
         {
@@ -147,6 +157,7 @@ namespace HSUS
             this._features.Add(this._cameraShortcuts);
             this._features.Add(this._alternativeCenterToObjects);
             this._features.Add(this._fingersFKCopyButtons);
+            this._features.Add(this._animationOptionDisplay);
             this._features.Add(this._fkColors);
             this._features.Add(this._postProcessing);
             this._features.Add(this._automaticMemoryClean);
@@ -239,13 +250,6 @@ namespace HSUS
         protected override void LevelLoaded(int level)
         {
             UIUtility.Init();
-            //#if HONEYSELECT
-            //            UIUtility.SetCustomFont("mplus-1c-medium");
-            //#elif KOIKATSU
-            //            UIUtility.SetCustomFont(this._binary == Binary.Game ? "JKG-M_3" : "mplus-1c-medium");
-            //#elif AISHOUJO
-            //            UIUtility.SetCustomFont("Yu Gothic UI");
-            //#endif
             foreach (IFeature feature in this._features)
             {
                 try
@@ -263,7 +267,6 @@ namespace HSUS
 
         protected override void Update()
         {
-
             if (this._vSyncEnabled == false)
                 QualitySettings.vSyncCount = 0;
 

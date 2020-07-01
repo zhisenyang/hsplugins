@@ -3,7 +3,11 @@ using ToolBox.Extensions;
 #if HONEYSELECT
 using System;
 using System.Reflection;
+#if IPA
 using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 using Studio;
 using ToolBox;
 using UnityEngine;

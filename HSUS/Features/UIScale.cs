@@ -202,7 +202,7 @@ namespace HSUS.Features
                         case "ExitScene/Canvas":
                         case "NotificationScene/Canvas":
                         case "CheckScene/Canvas":
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                         case "SceneLoadScene/Canvas Load":
                         case "SceneLoadScene/Canvas Load Work":
                         case "ExitScene/Canvas":
@@ -234,7 +234,7 @@ namespace HSUS.Features
                         case "CustomScene/CustomRoot/SaveFrame/FrontSpCanvas":
                         case "CustomScene/CustomRoot/FrontUIGroup/CvsCaptureFront":
                         case "ConfigScene/Canvas":
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
                         case "CharaCustom/CustomControl/SaveFrame/BackSpCanvas":
                         case "CharaCustom/CustomControl/SaveFrame/FrontSpCanvas":
                         case "CharaCustom/CustomControl/CanvasInputCoordinate":
@@ -253,7 +253,7 @@ namespace HSUS.Features
 
         private void SpecialOperations(float scale)
         {
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
             if (HSUS._self._binary == Binary.Game && HSUS._self._level == 4)
             {
                 RectTransform rt = GameObject.Find("CharaCustom/CustomControl/CanvasMain/SubMenu")?.transform as RectTransform;

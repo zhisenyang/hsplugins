@@ -1,9 +1,9 @@
-﻿#if HONEYSELECT
+﻿#if IPA
 using Harmony;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
 using HarmonyLib;
 #endif
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
 using AIChara;
 #endif
 using System;
@@ -23,26 +23,31 @@ namespace HSUS.Features
 
         public void LoadParams(XmlNode node)
         {
+#if !PLAYHOME
             node = node.FindChildNode("eyesBlink");
             if (node == null)
                 return;
             if (node.Attributes["enabled"] != null)
                 _eyesBlink = XmlConvert.ToBoolean(node.Attributes["enabled"].Value);
+#endif
         }
 
         public void SaveParams(XmlTextWriter writer)
         {
+#if !PLAYHOME
             writer.WriteStartElement("eyesBlink");
             writer.WriteAttributeString("enabled", XmlConvert.ToString(_eyesBlink));
             writer.WriteEndElement();
+#endif
         }
 
         public void LevelLoaded()
         {
         }
 
+#if !PLAYHOME
         [HarmonyPatch]
-        public static class CharFileInfoStatus_Ctor_Patches
+        private static class CharFileInfoStatus_Ctor_Patches
         {
             private static bool Prepare()
             {
@@ -53,20 +58,21 @@ namespace HSUS.Features
             {
 #if HONEYSELECT
                 return typeof(CharFileInfoStatus).GetConstructor(new Type[] { });
-#elif AISHOUJO || KOIKATSU
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
                 return typeof(ChaFileStatus).GetConstructor(new Type[] { });
 #endif
             }
 
 #if HONEYSELECT
             private static void Postfix(CharFileInfoStatus __instance)
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
             private static void Postfix(ChaFileStatus __instance)
 #endif
             {
                 __instance.eyesBlink = _eyesBlink;
             }
         }
+#endif
 
     }
 }

@@ -3,13 +3,17 @@ using ToolBox;
 using ToolBox.Extensions;
 using UnityEngine;
 using UnityEngine.UI;
+#if IPA
+using Harmony;
+#elif BEPINEX
+using HarmonyLib;
+#endif
 #if HONEYSELECT
 using CustomMenu;
 #elif KOIKATSU
 using System;
 using System.Collections.Generic;
 using ChaCustom;
-using HarmonyLib;
 using UILib;
 #endif
 
@@ -221,8 +225,22 @@ namespace HSUS.Features
 
             private static void UpdateSearch(string text, List<CustomFileInfo> items)
             {
+                bool party = Application.productName == "Koikatsu Party";
                 foreach (CustomFileInfo info in items)
-                    info.fic.Disvisible(info.name.IndexOf(text, StringComparison.OrdinalIgnoreCase) == -1);
+                {
+                    //This is obligatory because Koikatsu Party is garbage
+                    CustomFileInfoComponent cfic;
+                    if (party == false)
+                    {
+                        cfic = (CustomFileInfoComponent)info.GetPrivate("fic");
+                        cfic.Disvisible(((string)info.GetPrivate("name")).IndexOf(text, StringComparison.OrdinalIgnoreCase) == -1);
+                    }
+                    else
+                    {
+                        cfic = (CustomFileInfoComponent)info.GetPrivateProperty("fic");
+                        cfic.Disvisible(((string)info.GetPrivateProperty("name")).IndexOf(text, StringComparison.OrdinalIgnoreCase) == -1);
+                    }
+                }
             }
         }
 #endif
