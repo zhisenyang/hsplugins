@@ -139,7 +139,7 @@ namespace MoreAccessoriesAI
 
         #region Private Variables
         private const string _name = "MoreAccessories";
-        private const string _version = "1.2.1";
+        private const string _version = "1.2.2";
         private const string _guid = "com.joan6694.illusionplugins.moreaccessories";
         private const string _extSaveKey = "moreAccessories";
         private const int _saveVersion = 0;
@@ -299,6 +299,8 @@ namespace MoreAccessoriesAI
         #region Maker
         private void SpawnMakerUI()
         {
+            this._makerSlots.Clear();
+
             this._makerSelectWindow = GameObject.Find("CharaCustom/CustomControl/CanvasMain/SubMenu/SubMenuAccessory").GetComponent<CvsSelectWindow>();
             this._makerCanvasAccessories = GameObject.Find("CharaCustom/CustomControl/CanvasSub/SettingWindow/WinAccessory/A_Slot").GetComponent<CvsA_Slot>();
             this._makerCanvasAccessoriesCopy = GameObject.Find("CharaCustom/CustomControl/CanvasSub/SettingWindow/WinAccessory/A_Copy").GetComponent<CvsA_Copy>();
@@ -529,6 +531,14 @@ namespace MoreAccessoriesAI
             this._inH = true;
 
             this.ExecuteDelayed(this.UpdateUI);
+
+            //IDK m8, if I don't do that the UI mask of the coordinates scroll view goes wack
+            scrollView.gameObject.SetActive(false);
+            this.ExecuteDelayed(() =>
+            {
+                scrollView.gameObject.SetActive(true);
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)scrollView.transform);
+            }, 10);
         }
 
         private void UpdateHUI()
