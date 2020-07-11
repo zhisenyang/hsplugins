@@ -144,18 +144,22 @@ namespace MoreAccessoriesPH.Patches
 
         private static void HoneyPot_setAccsShader_Prefix(Human h)
         {
-            _acceObjsCached = h.accessories.GetPrivate("acceObjs");
+            if (h.accessories != null)
+            {
+                _acceObjsCached = h.accessories.GetPrivate("acceObjs");
 
-            PseudoAggregateList<object> list = GetAcceObjList(h.accessories);
-            Array arr = (Array)Activator.CreateInstance(_acceObjsCached.GetType(), list.Count);
-            for (int i = 0; i < arr.Length; i++)
-                arr.SetValue(list[i], i);
-            h.accessories.SetPrivate("acceObjs", arr);
+                PseudoAggregateList<object> list = GetAcceObjList(h.accessories);
+                Array arr = (Array)Activator.CreateInstance(_acceObjsCached.GetType(), list.Count);
+                for (int i = 0; i < arr.Length; i++)
+                    arr.SetValue(list[i], i);
+                h.accessories.SetPrivate("acceObjs", arr);
+            }
         }
 
         private static void HoneyPot_setAccsShader_Postfix(Human h)
         {
-            h.accessories.SetPrivate("acceObjs", _acceObjsCached);
+            if (h.accessories != null)
+                h.accessories.SetPrivate("acceObjs", _acceObjsCached);
         }
         #endregion
 

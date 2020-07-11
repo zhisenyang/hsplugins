@@ -112,7 +112,7 @@ namespace MoreAccessoriesPH
 
         #region Private Variables
         private const string _name = "MoreAccessories";
-        private const string _version = "1.0.1";
+        private const string _version = "1.0.2";
         private const string _guid = "com.joan6694.illusionplugins.moreaccessories";
         private const string _extSaveKey = "moreAccessories";
         private const int _saveVersion = 0;
