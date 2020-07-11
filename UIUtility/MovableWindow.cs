@@ -16,11 +16,6 @@ namespace UILib
 
         public RectTransform toDrag;
 
-        protected override void Awake()
-        {
-            base.Awake();
-        }
-
         public void OnPointerDown(PointerEventData eventData)
         {
             this._pointerDownCalled = true;

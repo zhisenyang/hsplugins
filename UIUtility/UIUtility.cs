@@ -733,5 +733,15 @@ namespace UILib
             self.value = value;
             self.onValueChanged = cachedEvent;
         }
+
+        private static readonly Toggle.ToggleEvent _emptyToggleEvent = new Toggle.ToggleEvent();
+
+        public static void SetIsOnNoCallback(this Toggle self, bool value)
+        {
+            Toggle.ToggleEvent cachedEvent = self.onValueChanged;
+            self.onValueChanged = _emptyToggleEvent;
+            self.isOn = value;
+            self.onValueChanged = cachedEvent;
+        }
     }
 }
