@@ -12,23 +12,58 @@ namespace ToolBox
 {
     internal class TimelineCompatibility
     {
+        private static Func<float> _getPlaybackTime;
+        private static Func<float> _getDuration;
+        private static Func<bool> _getIsPlaying;
+        private static Action _play;
         private static MethodInfo _addInterpolableModelStatic;
         private static MethodInfo _addInterpolableModelDynamic;
         private static Action _refreshInterpolablesList;
         private static Type _interpolableDelegate;
 
-        public static void Init(Action onTimelineFound)
+        public static bool Init()
         {
-            Type timelineType = Type.GetType("Timeline.Timeline,Timeline");
-            if (timelineType != null)
+            try
             {
-                _addInterpolableModelStatic = timelineType.GetMethod("AddInterpolableModelStatic", BindingFlags.Public | BindingFlags.Static);
-                _addInterpolableModelDynamic = timelineType.GetMethod("AddInterpolableModelDynamic", BindingFlags.Public | BindingFlags.Static);
-                _refreshInterpolablesList = (Action)Delegate.CreateDelegate(typeof(Action), timelineType.GetMethod("RefreshInterpolablesList", BindingFlags.Public | BindingFlags.Static));
-                _interpolableDelegate = Type.GetType("Timeline.InterpolableDelegate,Timeline");
-                if (onTimelineFound != null)
-                    onTimelineFound();
+                Type timelineType = Type.GetType("Timeline.Timeline,Timeline");
+                if (timelineType != null)
+                {
+                    _getPlaybackTime = (Func<float>)Delegate.CreateDelegate(typeof(Func<float>), timelineType.GetProperty("playbackTime", BindingFlags.Public | BindingFlags.Static).GetGetMethod());
+                    _getDuration = (Func<float>)Delegate.CreateDelegate(typeof(Func<float>), timelineType.GetProperty("duration", BindingFlags.Public | BindingFlags.Static).GetGetMethod());
+                    _getIsPlaying = (Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>), timelineType.GetProperty("isPlaying", BindingFlags.Public | BindingFlags.Static).GetGetMethod());
+                    _play = (Action)Delegate.CreateDelegate(typeof(Action), timelineType.GetMethod("Play", BindingFlags.Public | BindingFlags.Static));
+                    _addInterpolableModelStatic = timelineType.GetMethod("AddInterpolableModelStatic", BindingFlags.Public | BindingFlags.Static);
+                    _addInterpolableModelDynamic = timelineType.GetMethod("AddInterpolableModelDynamic", BindingFlags.Public | BindingFlags.Static);
+                    _refreshInterpolablesList = (Action)Delegate.CreateDelegate(typeof(Action), timelineType.GetMethod("RefreshInterpolablesList", BindingFlags.Public | BindingFlags.Static));
+                    _interpolableDelegate = Type.GetType("Timeline.InterpolableDelegate,Timeline");
+                    return true;
+                }
             }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogError(e);
+            }
+            return false;
+        }
+
+        public static float GetPlaybackTime()
+        {
+            return _getPlaybackTime();
+        }
+
+        public static float GetDuration()
+        {
+            return _getDuration();
+        }
+
+        public static bool GetIsPlaying()
+        {
+            return _getIsPlaying();
+        }
+
+        public static void Play()
+        {
+            _play();
         }
 
         /// <summary>

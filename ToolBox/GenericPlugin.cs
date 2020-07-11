@@ -83,6 +83,9 @@ namespace ToolBox
 #elif KOIKATSU
                 case "Koikatsu Party":
                 case "Koikatu":
+                case "KoikatuVR":
+#elif EMOTIONCREATORS
+                case "EmotionCreators":
 #elif AISHOUJO
                 case "AI-Syoujyo":
 #elif PLAYHOME
@@ -96,6 +99,8 @@ namespace ToolBox
                 case "StudioNEO":
 #elif KOIKATSU
                 case "CharaStudio":
+#elif EMOTIONCREATORS
+                case "":
 #elif AISHOUJO || HONEYSELECT2
                 case "StudioNEOV2":
 #elif PLAYHOME

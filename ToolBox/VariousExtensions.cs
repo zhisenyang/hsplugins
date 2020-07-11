@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
+#if !EMOTIONCREATORS
 using Studio;
+#endif
 using UnityEngine;
 
 namespace ToolBox.Extensions {
@@ -34,12 +36,14 @@ namespace ToolBox.Extensions {
                 self.Add(pair.Key, pair.Value);
         }
 
+#if !EMOTIONCREATORS
         public static bool IsVisible(this TreeNodeObject self)
         {
             if (self.parent != null)
                 return self.visible && self.parent.IsVisible();
             return self.visible;
         }
+#endif
 
         public static int LastIndexOf(this byte[] self, byte[] needle)
         {
