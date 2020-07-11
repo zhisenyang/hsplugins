@@ -13,6 +13,7 @@ namespace PackPlugins
         public string Name;
         public string RootDirectory;
         public string DestinationDirectory;
+        public string CopyTo;
         public string[] Files;
 
         public void Pack()
@@ -25,6 +26,9 @@ namespace PackPlugins
                 File.Delete(destinationPath);
             }
             Console.WriteLine("Initializing archive...");
+            string destinationDirectory = Path.GetDirectoryName(destinationPath);
+            if (Directory.Exists(destinationDirectory) == false)
+                Directory.CreateDirectory(destinationDirectory);
             using (FileStream fileStream = new FileStream(destinationPath, FileMode.CreateNew))
             {
                 using (ZipArchive archive = new ZipArchive(fileStream, ZipArchiveMode.Create, true))
@@ -43,6 +47,14 @@ namespace PackPlugins
                         Console.WriteLine("\tFile added");
                     }
                 }
+            }
+            if (string.IsNullOrEmpty(this.CopyTo) == false)
+            {
+                Console.WriteLine("Copying to " + this.CopyTo);
+                if (Directory.Exists(this.CopyTo) == false)
+                    Directory.CreateDirectory(this.CopyTo);
+                
+                File.Copy(destinationPath, Path.Combine(this.CopyTo, this.Name + ".zip"), true);
             }
             Console.WriteLine("Done\n");
         }
