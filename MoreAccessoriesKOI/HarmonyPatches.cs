@@ -5,11 +5,17 @@ using System.Reflection;
 using System.Reflection.Emit;
 using ChaCustom;
 using HarmonyLib;
+#if EMOTIONCREATORS
+using ADVPart.Manipulate.Chara;
+using HEdit;
+using HPlay;
+#endif
 using Illusion.Extensions;
 using IllusionUtility.GetUtility;
 using Manager;
 using MessagePack;
 using TMPro;
+using ToolBox;
 using ToolBox.Extensions;
 using UniRx;
 using UniRx.Triggers;
@@ -19,6 +25,7 @@ using UnityEngine.UI;
 namespace MoreAccessoriesKOI
 {
     #region Patches
+#if KOIKATSU
     [HarmonyPatch]
     internal static class VRHScene_Start_Patches
     {
@@ -89,7 +96,148 @@ namespace MoreAccessoriesKOI
             return res;
         }
     }
+#elif EMOTIONCREATORS
+    [HarmonyPatch(typeof(HPlayHPartAccessoryCategoryUI), "Start")]
+    internal static class HPlayHPartAccessoryCategoryUI_Start_Postfix
+    {
+        private static void Postfix(HPlayHPartAccessoryCategoryUI __instance)
+        {
+            MoreAccessories._self.SpawnPlayUI(__instance);
+        }
+    }
 
+    [HarmonyPatch(typeof(HPlayHPartAccessoryCategoryUI), "Init")]
+    internal static class HPlayHPartAccessoryCategoryUI_Init_Postfix
+    {
+        private static void Postfix()
+        {
+            MoreAccessories._self.ExecuteDelayed(MoreAccessories._self.UpdatePlayUI, 2);
+        }
+    }
+
+    [HarmonyPatch(typeof(HPlayHPartClothMenuUI), "Init")]
+    internal static class HPlayHPartClothMenuUI_Init_Postfix
+    {
+        private static void Postfix(HPlayHPartClothMenuUI __instance, Button[] ___btnClothMenus)
+        {
+            ___btnClothMenus[1].gameObject.SetActive(___btnClothMenus[1].gameObject.activeSelf || MoreAccessories._self._accessoriesByChar[__instance.selectChara.chaFile].objAccessory.Any(o => o != null));
+        }
+    }
+
+    [HarmonyPatch(typeof(PartInfoClothSetUI), "Start")]
+    internal static class PartInfoClothSetUI_Start_Patches
+    {
+        internal static WeakKeyDictionary<ChaControl, MoreAccessories.CharAdditionalData> _originalAdditionalData = new WeakKeyDictionary<ChaControl, MoreAccessories.CharAdditionalData>();
+        private static void Postfix(PartInfoClothSetUI.CoordinateUIInfo[] ___coordinateUIs)
+        {
+            _originalAdditionalData.Purge();
+            for (int i = 0; i < ___coordinateUIs.Length; i++)
+            {
+                PartInfoClothSetUI.CoordinateUIInfo ui = ___coordinateUIs[i];
+                Button.ButtonClickedEvent originalOnClick = ui.btnEntry.onClick;
+                ui.btnEntry.onClick = new Button.ButtonClickedEvent();
+                int i1 = i;
+                ui.btnEntry.onClick.AddListener(() =>
+                {
+                    ChaControl chaControl = Singleton<HEditData>.Instance.charas[i1];
+                    if (_originalAdditionalData.ContainsKey(chaControl) == false && MoreAccessories._self._accessoriesByChar.TryGetValue(chaControl.chaFile, out MoreAccessories.CharAdditionalData originalData))
+                    {
+                        MoreAccessories.CharAdditionalData newData = new MoreAccessories.CharAdditionalData();
+                        newData.LoadFrom(originalData);
+                        _originalAdditionalData.Add(chaControl, newData);
+                    }
+                    originalOnClick.Invoke();
+                });
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(PartInfoClothSetUI), "BackToCoordinate")]
+    internal static class PartInfoClothSetUI_BackToCoordinate_Patches
+    {
+        private static void Prefix(int _charaID)
+        {
+            ChaControl chara = Singleton<HEditData>.Instance.charas[_charaID];
+            MoreAccessories.CharAdditionalData originalData;
+            if (PartInfoClothSetUI_Start_Patches._originalAdditionalData.TryGetValue(chara, out originalData) && 
+                MoreAccessories._self._accessoriesByChar.TryGetValue(chara.chaFile, out MoreAccessories.CharAdditionalData data))
+                data.LoadFrom(originalData);
+        }
+    }
+
+    [HarmonyPatch(typeof(AccessoryUICtrl), "Init")]
+    internal static class AccessoryUICtrl_Init_Patches
+    {
+        private static void Postfix(AccessoryUICtrl __instance)
+        {
+            MoreAccessories._self.SpawnADVUI(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(AccessoryUICtrl), "UpdateUI")]
+    internal static class AccessoryUICtrl_UpdateUI_Patches
+    {
+        private static void Postfix()
+        {
+            MoreAccessories._self.UpdateADVUI();
+        }
+    }
+
+#endif
+
+    [HarmonyPatch(typeof(ChaFileControl), MethodType.Constructor)]
+    internal static class ChaFileControl_Ctor_Patches
+    {
+        private static void Postfix(ChaFileControl __instance)
+        {
+#if KOIKATSU
+            foreach (ChaFileCoordinate coordinate in __instance.coordinate)
+                MoreAccessories._self._charByCoordinate[coordinate] = new WeakReference(__instance);
+#elif EMOTIONCREATORS
+            MoreAccessories._self._charByCoordinate[__instance.coordinate] = new WeakReference(__instance);
+#endif
+        }
+    }
+
+    [HarmonyPatch(typeof(ChaFile), "CopyCoordinate")]
+    internal static class ChaFile_CopyCoordinate_Patches
+    {
+        private static void Postfix(ChaFile __instance,
+#if KOIKATSU
+                                    ChaFileCoordinate[] _coordinate
+#elif EMOTIONCREATORS
+                                    ChaFileCoordinate _coordinate
+#endif
+                )
+        {
+            ChaFileControl sourceFile;
+            WeakReference r;
+#if KOIKATSU
+            if (MoreAccessories._self._charByCoordinate.TryGetValue(_coordinate[0], out r) == false || r.IsAlive == false)
+#elif EMOTIONCREATORS
+            if (MoreAccessories._self._charByCoordinate.TryGetValue(_coordinate, out r) == false || r.IsAlive == false)
+#endif
+                return;
+            else
+                sourceFile = (ChaFileControl)r.Target;
+            if (__instance == sourceFile)
+                return;
+
+            MoreAccessories.CharAdditionalData sourceData;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(sourceFile, out sourceData) == false)
+            {
+                sourceData = new MoreAccessories.CharAdditionalData();
+                MoreAccessories._self._accessoriesByChar.Add(sourceFile, sourceData);
+            }
+            MoreAccessories.CharAdditionalData destinationData;
+            if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance, out destinationData) == false)
+            {
+                destinationData = new MoreAccessories.CharAdditionalData();
+                MoreAccessories._self._accessoriesByChar.Add(__instance, destinationData);
+            }
+            destinationData.LoadFrom(sourceData);
+        }
+    }
 
     [HarmonyPatch(typeof(CustomAcsChangeSlot), "Start")]
     internal static class CustomAcsChangeSlot_Start_Patches
@@ -184,6 +332,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
+#if KOIKATSU
     [HarmonyPatch(typeof(ChaControl), "ChangeCoordinateType", new[] { typeof(ChaFileDefine.CoordinateType), typeof(bool) })]
     internal static class ChaControl_ChangeCoordinateType_Patches
     {
@@ -196,10 +345,10 @@ namespace MoreAccessoriesKOI
                 data = new MoreAccessories.CharAdditionalData();
                 MoreAccessories._self._accessoriesByChar.Add(__instance.chaFile, data);
             }
-            if (data.rawAccessoriesInfos.TryGetValue(type, out accessories) == false)
+            if (data.rawAccessoriesInfos.TryGetValue((int)type, out accessories) == false)
             {
                 accessories = new List<ChaFileAccessory.PartsInfo>();
-                data.rawAccessoriesInfos.Add(type, accessories);
+                data.rawAccessoriesInfos.Add((int)type, accessories);
             }
             data.nowAccessories = accessories;
             while (data.infoAccessory.Count < data.nowAccessories.Count)
@@ -215,6 +364,7 @@ namespace MoreAccessoriesKOI
             MoreAccessories._self.ExecuteDelayed(MoreAccessories._self.OnCoordTypeChange);
         }
     }
+#endif
 
     [HarmonyPatch(typeof(ChaControl), "UpdateVisible")]
     internal static class ChaControl_UpdateVisible_Patches
@@ -231,9 +381,48 @@ namespace MoreAccessoriesKOI
                 flag2 = (__instance.sex != 0 || Manager.Config.EtcData.VisibleBody);
             }
 
+#if EMOTIONCREATORS
+            bool[] array10 = new bool[]
+            {
+                true,
+                __instance.objClothes[0] && __instance.objClothes[0].activeSelf,
+                __instance.objClothes[1] && __instance.objClothes[1].activeSelf,
+                __instance.objClothes[2] && __instance.objClothes[2].activeSelf,
+                __instance.objClothes[3] && __instance.objClothes[3].activeSelf,
+                __instance.objClothes[4] && __instance.objClothes[4].activeSelf,
+                __instance.objClothes[5] && __instance.objClothes[5].activeSelf,
+                __instance.objClothes[6] && __instance.objClothes[6].activeSelf,
+                __instance.objClothes[7] && __instance.objClothes[7].activeSelf
+            };
+            bool[] array11 = new bool[]
+            {
+                true,
+                false,
+                false,
+                false,
+                false,
+                true,
+                true,
+                true,
+                true
+            };
+            array11[1] = (__instance.fileStatus.clothesState[0] != 1);
+            array11[2] = (__instance.fileStatus.clothesState[1] != 1);
+            array11[3] = (__instance.fileStatus.clothesState[2] != 1);
+            array11[4] = (__instance.fileStatus.clothesState[3] != 1 && __instance.fileStatus.clothesState[3] != 2);
+            bool[] array12 = array11;
+
+            bool flag3 = false;
+            if (Singleton<Scene>.Instance.NowSceneNames.Any(s => s == "HPlayScene") && Singleton<HPlayData>.IsInstance() && Singleton<HPlayData>.Instance.basePart != null && Singleton<HPlayData>.Instance.basePart.kind == 0)
+            {
+                flag3 = (__instance.sex == 0 && __instance.fileStatus.visibleSimple);
+            }
+#endif
+
             for (int i = 0; i < data.nowAccessories.Count; i++)
             {
                 GameObject objAccessory = data.objAccessory[i];
+#if KOIKATSU
                 if (objAccessory == null)
                     continue;
 
@@ -251,6 +440,28 @@ namespace MoreAccessoriesKOI
                                        data.showAccessories[i] &&
                                        __instance.fileStatus.visibleSimple == false &&
                                        !flag9);
+#elif EMOTIONCREATORS
+                ChaFileAccessory.PartsInfo part = data.nowAccessories[i];
+
+                bool flag10 = array10[part.hideCategory];
+                if (flag10 && part.hideTiming == 0)
+                {
+                    flag10 = array12[part.hideCategory];
+                }
+                bool flag11 = false;
+                if (!__instance.fileStatus.visibleHeadAlways && part.partsOfHead)
+                {
+                    flag11 = true;
+                }
+                if (!__instance.fileStatus.visibleBodyAlways || !flag2)
+                {
+                    flag11 = true;
+                }
+                if (YS_Assist.SetActiveControl(objAccessory, __instance.visibleAll, data.showAccessories[i], flag10, !flag3, !flag11))
+                {
+                    __instance.updateShape = true;
+                }
+#endif
             }
         }
     }
@@ -268,6 +479,7 @@ namespace MoreAccessoriesKOI
         }
     }
 
+#if KOIKATSU
     [HarmonyPatch(typeof(ChaControl), "SetAccessoryStateCategory")]
     internal static class ChaControl_SetAccessoryStateCategory_Patches
     {
@@ -299,6 +511,7 @@ namespace MoreAccessoriesKOI
             }
         }
     }
+#endif
 
     [HarmonyPatch(typeof(ChaControl), "SetAccessoryState")]
     internal static class ChaControl_SetAccessoryState_Patches
@@ -354,7 +567,7 @@ namespace MoreAccessoriesKOI
             MoreAccessories.CharAdditionalData destinationData;
             if (MoreAccessories._self._accessoriesByChar.TryGetValue(__instance, out destinationData))
             {
-                foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> pair in destinationData.rawAccessoriesInfos)
+                foreach (KeyValuePair<int, List<ChaFileAccessory.PartsInfo>> pair in destinationData.rawAccessoriesInfos)
                 {
                     if (pair.Value != null)
                         pair.Value.Clear();
@@ -365,7 +578,7 @@ namespace MoreAccessoriesKOI
                 destinationData = new MoreAccessories.CharAdditionalData();
                 MoreAccessories._self._accessoriesByChar.Add(__instance, destinationData);
             }
-            foreach (KeyValuePair<ChaFileDefine.CoordinateType, List<ChaFileAccessory.PartsInfo>> sourcePair in sourceData.rawAccessoriesInfos)
+            foreach (KeyValuePair<int, List<ChaFileAccessory.PartsInfo>> sourcePair in sourceData.rawAccessoriesInfos)
             {
                 if (sourcePair.Value == null || sourcePair.Value.Count == 0)
                     continue;
@@ -383,10 +596,10 @@ namespace MoreAccessoriesKOI
                     }
                 }
             }
-            if (destinationData.rawAccessoriesInfos.TryGetValue((ChaFileDefine.CoordinateType)_chafile.status.coordinateType, out destinationData.nowAccessories) == false)
+            if (destinationData.rawAccessoriesInfos.TryGetValue(_chafile.status.GetCoordinateType(), out destinationData.nowAccessories) == false)
             {
                 destinationData.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
-                destinationData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)_chafile.status.coordinateType, destinationData.nowAccessories);
+                destinationData.rawAccessoriesInfos.Add(_chafile.status.GetCoordinateType(), destinationData.nowAccessories);
             }
             while (destinationData.infoAccessory.Count < destinationData.nowAccessories.Count)
                 destinationData.infoAccessory.Add(null);
@@ -452,7 +665,7 @@ namespace MoreAccessoriesKOI
             if (MoreAccessories._self._charaMakerData.nowAccessories == null)
             {
                 MoreAccessories._self._charaMakerData.nowAccessories = new List<ChaFileAccessory.PartsInfo>();
-                MoreAccessories._self._charaMakerData.rawAccessoriesInfos.Add((ChaFileDefine.CoordinateType)CustomBase.Instance.chaCtrl.fileStatus.coordinateType, MoreAccessories._self._charaMakerData.nowAccessories);
+                MoreAccessories._self._charaMakerData.rawAccessoriesInfos.Add(CustomBase.Instance.chaCtrl.fileStatus.GetCoordinateType(), MoreAccessories._self._charaMakerData.nowAccessories);
             }
             return false;
         }
@@ -1424,7 +1637,11 @@ namespace MoreAccessoriesKOI
     internal static class ChaControl_ChangeAccessory_Patches
     {
         private static MethodInfo _loadCharaFbxData;
+#if KOIKATSU
         private static readonly object[] _params = new object[9];
+#elif EMOTIONCREATORS
+        private static readonly object[] _params = new object[8];
+#endif
 
         internal static void ManualPatch(Harmony harmony)
         {
@@ -1511,6 +1728,7 @@ namespace MoreAccessoriesKOI
                         release = true;
                         load = false;
                     }
+#if KOIKATSU
                     else if (!instance.hiPoly)
                     {
                         bool flag = true;
@@ -1536,6 +1754,7 @@ namespace MoreAccessoriesKOI
                             load = false;
                         }
                     }
+#endif
                 }
             }
             if (release)
@@ -1568,6 +1787,7 @@ namespace MoreAccessoriesKOI
                 }
                 if (_loadCharaFbxData == null)
                     _loadCharaFbxData = instance.GetType().GetMethod("LoadCharaFbxData", AccessTools.all);
+#if KOIKATSU
                 _params[0] = true;
                 _params[1] = type;
                 _params[2] = id;
@@ -1577,6 +1797,17 @@ namespace MoreAccessoriesKOI
                 _params[6] = trfParent;
                 _params[7] = -1;
                 _params[8] = false;
+#elif EMOTIONCREATORS
+                _params[0] = type;
+                _params[1] = id;
+                _params[2] = "ca_slot" + (slotNo + 20).ToString("00");
+                _params[3] = false;
+                _params[4] = weight;
+                _params[5] = trfParent;
+                _params[6] = -1;
+                _params[7] = false;
+#endif
+
                 data.objAccessory[slotNo] = (GameObject)_loadCharaFbxData.Invoke(instance, _params); // I'm doing this the reflection way in order to be compatible with other plugins (like RimRemover)
                 if (data.objAccessory[slotNo])
                 {
@@ -1603,6 +1834,7 @@ namespace MoreAccessoriesKOI
                 instance.ChangeAccessoryParent(slotNo + 20, parentKey);
                 instance.UpdateAccessoryMoveFromInfo(slotNo + 20);
                 data.nowAccessories[slotNo].partsOfHead = ChaAccessoryDefine.CheckPartsOfHead(parentKey);
+#if KOIKATSU
                 if (!instance.hiPoly && !Manager.Config.EtcData.loadAllAccessory)
                 {
                     DynamicBone[] componentsInChildren = data.objAccessory[slotNo].GetComponentsInChildren<DynamicBone>(true);
@@ -1611,6 +1843,7 @@ namespace MoreAccessoriesKOI
                         dynamicBone.enabled = false;
                     }
                 }
+#endif
                 if (MoreAccessories._self._hasDarkness)
                     instance.CallPrivate("ChangeShakeAccessory", slotNo + 20);
             }
