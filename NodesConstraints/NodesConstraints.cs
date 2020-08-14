@@ -7,20 +7,21 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Xml;
 using ToolBox;
-#if HONEYSELECT
+#if IPA
 using IllusionPlugin;
 using Harmony;
-#elif KOIKATSU
+#elif BEPINEX
 using BepInEx;
+using HarmonyLib;
+#endif
+#if KOIKATSU
 using KKAPI.Studio.SaveLoad;
 using ExtensibleSaveFormat;
 using MessagePack;
-using HarmonyLib;
 using Expression = ExpressionBone;
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
+using AIChara;
 using ExtensibleSaveFormat;
-using HarmonyLib;
-using BepInEx;
 using UnityEngine.SceneManagement;
 using CharaUtils;
 #endif
@@ -32,36 +33,36 @@ using Vectrosity;
 
 namespace NodesConstraints
 {
-#if KOIKATSU || AISHOUJO
+#if BEPINEX
     [BepInPlugin(_guid, _name, _versionNum)]
     [BepInDependency("com.bepis.bepinex.extendedsave")]
 #if KOIKATSU
     [BepInProcess("CharaStudio")]
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
     [BepInProcess("StudioNEOV2")]
 #endif
 #endif
     public class NodesConstraints : GenericPlugin
-#if HONEYSELECT
+#if IPA
     , IEnhancedPlugin
 #endif
     {
         public const string _name = "NodesConstraints";
         public const string _guid = "com.joan6694.illusionplugins.nodesconstraints";
-        public const string _versionNum = "1.1.0";
-#if KOIKATSU || AISHOUJO
+        public const string _versionNum = "1.2.0";
+#if KOIKATSU || AISHOUJO || HONEYSELECT2
         private const string _extSaveKey = "nodesConstraints";
         private const int _saveVersion = 0;
 #endif
 #if HONEYSELECT || KOIKATSU
         private const float _circleRadius = 0.01f;
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
         private const float _circleRadius = 0.1f;
 #endif
 
         private static NodesConstraints _self;
 
-#if HONEYSELECT
+#if IPA
         public override string Name { get { return _name; } }
         public override string Version
         {
@@ -69,7 +70,7 @@ namespace NodesConstraints
             {
                 return _versionNum
 #if BETA
-                       + "b2"
+                       + "b"
 #endif
                         ;
             }
@@ -102,6 +103,8 @@ namespace NodesConstraints
             public Quaternion originalChildRotation;
             public Vector3 originalChildScale;
             public string alias = "";
+            public int? uniqueLoadId;
+            public bool destroyed = false;
             private VectorLine _debugLine;
 
             public Constraint()
@@ -146,6 +149,7 @@ namespace NodesConstraints
             public void Destroy()
             {
                 VectorLine.Destroy(ref this._debugLine);
+                this.destroyed = true;
             }
         }
 
@@ -173,12 +177,12 @@ namespace NodesConstraints
 
         private bool _studioLoaded;
         private bool _showUI = false;
+        private RectTransform _imguiBackground;
         private const int _uniqueId = ('N' << 24) | ('O' << 16) | ('D' << 8) | 'E';
         private Rect _windowRect = new Rect(Screen.width / 2f - 200, Screen.height / 2f - 300, 400, 600);
         private readonly Constraint _displayedConstraint = new Constraint();
         private Constraint _selectedConstraint;
         private readonly List<Constraint> _constraints = new List<Constraint>();
-        private bool _mouseInWindow;
         private Vector2 _scroll;
         private HashSet<GuideObject> _selectedGuideObjects;
         private bool _initUI;
@@ -194,7 +198,8 @@ namespace NodesConstraints
         private Action _onPreCullAction;
         private CameraEventsDispatcher _dispatcher;
         private bool _advancedList = false;
-        private string _search = "";
+        private string _constraintsSearch = "";
+        private string _bonesSearch = "";
         private GuideObject _selectedWorkspaceObject;
         private GuideObject _lastSelectedWorkspaceObject;
 #if KOIKATSU
@@ -234,7 +239,7 @@ namespace NodesConstraints
             if (width < 400)
                 width = 400;
             this._windowRect = new Rect((Screen.width - width) / 2f, Screen.height / 2f - 300, width, 600);
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
             ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
             ExtendedSave.SceneBeingImported += this.OnSceneImport;
             ExtendedSave.SceneBeingSaved += this.OnSceneSave;
@@ -243,9 +248,14 @@ namespace NodesConstraints
             harmonyInstance.PatchAllSafe();
 
             this._simpleListShowNodeTypeNames = Enum.GetNames(typeof(SimpleListShowNodeType));
+            this.ExecuteDelayed(() =>
+            {
+                if (TimelineCompatibility.Init())
+                    this.PopulateTimeline();
+            }, 10);
         }
 
-#if AISHOUJO
+#if AISHOUJO || HONEYSELECT2
         protected override void LevelLoaded(Scene scene, LoadSceneMode mode)
         {
             base.LevelLoaded(scene, mode);
@@ -273,16 +283,15 @@ namespace NodesConstraints
             this._selectedGuideObjects = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
             this._allGuideObjects = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
             this._dispatcher = Camera.main.gameObject.AddComponent<CameraEventsDispatcher>();
-#if HONEYSELECT
             VectorLine.SetCamera3D(Camera.main);
-#endif
-            if (this._dispatcher.gameObject.GetComponent<Expression>() == null)
-                this._dispatcher.gameObject.AddComponent<Expression>();
+            if (Camera.main.GetComponent<Expression>() == null)
+                Camera.main.gameObject.AddComponent<Expression>();
 #if KOIKATSU
             this._kkAnimationControllerInstalled = BepInEx.Bootstrap.Chainloader.Plugins
                                                           .Select(MetadataHelper.GetMetadata)
                                                           .FirstOrDefault(x => x.GUID == "com.deathweasel.bepinex.animationcontroller") != null;
 #endif
+            this._imguiBackground = IMGUIExtensions.CreateUGUIPanelForIMGUI();
             this.ExecuteDelayed(() =>
             {
                 this._parentCircle = VectorLine.SetLine(Color.green, new Vector3[16]);
@@ -303,7 +312,7 @@ namespace NodesConstraints
                 return;
             this._totalActiveExpressions = this._allExpressions.Count(e => e.enabled && e.gameObject.activeInHierarchy);
             this._currentExpressionIndex = 0;
-#if HONEYSELECT || AISHOUJO
+#if HONEYSELECT || AISHOUJO || HONEYSELECT2
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.N))
 #elif KOIKATSU
             if ((Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl)) && Input.GetKeyDown(KeyCode.I))
@@ -330,8 +339,22 @@ namespace NodesConstraints
                 this._selectedBone = this._selectedWorkspaceObject.transformTarget;
             this._lastSelectedWorkspaceObject = this._selectedWorkspaceObject;
             this.ApplyNodesConstraints();
+
+            if (this._showUI)
+            {
+                this._imguiBackground.gameObject.SetActive(true);
+                IMGUIExtensions.FitRectTransformToRect(this._imguiBackground, this._windowRect);
+            }
+            else if (this._imguiBackground != null)
+                this._imguiBackground.gameObject.SetActive(false);
+
             if (this._showUI)
                 this._windowRect.height = 600f;
+        }
+
+        protected override void LateUpdate()
+        {
+            this.ApplyNodesConstraints();
         }
 
         protected override void OnGUI()
@@ -345,23 +368,35 @@ namespace NodesConstraints
                 this._wrapButton.alignment = TextAnchor.MiddleLeft;
                 this._initUI = true;
             }
-            this._mouseInWindow = this._windowRect.Contains(Event.current.mousePosition);
             this._windowRect = GUILayout.Window(_uniqueId, this._windowRect, this.WindowFunction, "Nodes Constraints " + _versionNum
 #if BETA
-                                                                                                                       + "b2"
+                                                                                                                       + "b"
 #endif
             );
             IMGUIExtensions.DrawBackground(this._windowRect);
-
-            if (this._mouseInWindow)
-                Studio.Studio.Instance.cameraCtrl.noCtrlCondition = () => this._mouseInWindow && this._showUI;
         }
         #endregion
 
         #region Private Methods
+#if AISHOUJO || HONEYSELECT2
+        [HarmonyPatch(typeof(ChaControl), "Load", typeof(bool))]
+        private static class ChaControl_Load_Patches
+        {
+            private static void Postfix(ChaControl __instance)
+            {
+                //Illusion I fucking hate you why are you like this
+                if (__instance.fullBodyIK != null && 
+                    __instance.fullBodyIK.solver.leftShoulderEffector != null && 
+                    __instance.fullBodyIK.solver.leftShoulderEffector.target != null && 
+                    __instance.fullBodyIK.solver.leftShoulderEffector.target.name == "f_t_shoulder_R")
+                    __instance.fullBodyIK.solver.leftShoulderEffector.target = __instance.fullBodyIK.solver.leftShoulderEffector.target.parent.Find("f_t_shoulder_L");
+            }
+        }
+#endif
+
 #if HONEYSELECT
         [HarmonyPatch(typeof(Expression), "Start")]
-#elif KOIKATSU || AISHOUJO
+#elif KOIKATSU || AISHOUJO || HONEYSELECT2
         [HarmonyPatch(typeof(Expression), "Initialize")]
 #endif
         private static class Expression_Start_Patches
@@ -381,16 +416,14 @@ namespace NodesConstraints
             }
         }
 
-        [HarmonyPatch(typeof(Expression), "LateUpdate")]
+        [HarmonyPatch(typeof(Expression), "LateUpdate"), HarmonyAfter("com.joan6694.illusionplugins.timeline")]
         private static class Expression_LateUpdate_Patches
         {
             private static void Postfix()
             {
                 _self._currentExpressionIndex++;
                 if (_self._currentExpressionIndex == _self._totalActiveExpressions) //Dirty fucking hack that I hate to make sure this runs after *everything*
-                {
                     _self.ApplyConstraints();
-                }
             }
         }
 
@@ -544,7 +577,10 @@ namespace NodesConstraints
                         toDelete = new List<int>();
                     toDelete.Add(i);
                     if (this._selectedConstraint == constraint)
+                    {
                         this._selectedConstraint = null;
+                        TimelineCompatibility.RefreshInterpolablesList();
+                    }
                     continue;
                 }
                 if (constraint.enabled && (constraint.child != null || constraint.parent != null))
@@ -591,7 +627,10 @@ namespace NodesConstraints
                         toDelete = new List<int>();
                     toDelete.Add(i);
                     if (this._selectedConstraint == constraint)
+                    {
                         this._selectedConstraint = null;
+                        TimelineCompatibility.RefreshInterpolablesList();
+                    }
                     continue;
                 }
                 if (constraint.enabled == false)
@@ -849,6 +888,7 @@ namespace NodesConstraints
                                 this._selectedConstraint.originalChildRotation = this._selectedConstraint.childTransform.localRotation;
                                 this._selectedConstraint.originalChildScale = this._selectedConstraint.childTransform.localScale;
                                 this._selectedConstraint.alias = this._displayedConstraint.alias;
+                                TimelineCompatibility.RefreshInterpolablesList();
                             }
                             GUI.enabled = true;
                         }
@@ -858,6 +898,13 @@ namespace NodesConstraints
                 }
                 GUILayout.EndHorizontal();
 
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Search", GUILayout.ExpandWidth(false));
+                this._constraintsSearch = GUILayout.TextField(this._constraintsSearch);
+                if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
+                    this._constraintsSearch = "";
+                GUILayout.EndHorizontal();
+
                 this._scroll = GUILayout.BeginScrollView(this._scroll, false, false, GUI.skin.horizontalScrollbar, GUI.skin.verticalScrollbar, GUI.skin.box, GUILayout.Height(150));
                 {
                     int toDelete = -1;
@@ -865,33 +912,18 @@ namespace NodesConstraints
                     for (int i = 0; i < this._constraints.Count; i++)
                     {
                         Constraint constraint = this._constraints[i];
+
+                        if (constraint.parentTransform.name.IndexOf(this._constraintsSearch, StringComparison.OrdinalIgnoreCase) == -1 && constraint.childTransform.name.IndexOf(this._constraintsSearch, StringComparison.OrdinalIgnoreCase) == -1 && (string.IsNullOrEmpty(constraint.alias) || constraint.alias.IndexOf(this._constraintsSearch, StringComparison.OrdinalIgnoreCase) == -1))
+                            continue;
+
                         GUILayout.BeginHorizontal();
                         {
                             Color c = GUI.color;
                             if (this._selectedConstraint == constraint)
                                 GUI.color = Color.cyan;
                             bool newEnabled = GUILayout.Toggle(constraint.enabled, "", GUILayout.ExpandWidth(false));
-                            if (constraint.enabled && newEnabled == false)
-                            {
-                                if (constraint.position)
-                                {
-                                    constraint.childTransform.localPosition = constraint.originalChildPosition;
-                                    if (constraint.child != null)
-                                        constraint.child.changeAmount.pos = constraint.originalChildPosition;
-                                }
-                                if (constraint.rotation)
-                                {
-                                    constraint.childTransform.localRotation = constraint.originalChildRotation;
-                                    if (constraint.child != null)
-                                        constraint.child.changeAmount.rot = constraint.originalChildRotation.eulerAngles;
-                                }
-                            }
-                            if (constraint.enabled == false && newEnabled)
-                            {
-                                constraint.originalChildPosition = constraint.childTransform.localPosition;
-                                constraint.originalChildRotation = constraint.childTransform.localRotation;
-                            }
-                            constraint.enabled = newEnabled;
+                            if (constraint.enabled != newEnabled)
+                                this.SetConstraintEnabled(constraint, newEnabled);
 
                             string constraintName;
                             if (string.IsNullOrEmpty(constraint.alias))
@@ -904,6 +936,7 @@ namespace NodesConstraints
                                 if (this._selectedConstraint != null)
                                     this._selectedConstraint.SetActiveDebugLines(false);
                                 this._selectedConstraint = constraint;
+                                TimelineCompatibility.RefreshInterpolablesList();
                                 this._selectedConstraint.SetActiveDebugLines(true);
                                 this._displayedConstraint.parentTransform = this._selectedConstraint.parentTransform;
                                 this._displayedConstraint.childTransform = this._selectedConstraint.childTransform;
@@ -955,12 +988,12 @@ namespace NodesConstraints
                 this._advancedList = GUILayout.Toggle(this._advancedList, "Advanced List");
 
                 GUILayout.BeginHorizontal();
-                string oldSearch = this._search;
+                string oldSearch = this._bonesSearch;
                 GUILayout.Label("Search", GUILayout.ExpandWidth(false));
-                this._search = GUILayout.TextField(this._search);
+                this._bonesSearch = GUILayout.TextField(this._bonesSearch);
                 if (GUILayout.Button("X", GUILayout.ExpandWidth(false)))
-                    this._search = "";
-                if (oldSearch.Length != 0 && this._selectedBone != null && (this._search.Length == 0 || (this._search.Length < oldSearch.Length && oldSearch.StartsWith(this._search))))
+                    this._bonesSearch = "";
+                if (oldSearch.Length != 0 && this._selectedBone != null && (this._bonesSearch.Length == 0 || (this._bonesSearch.Length < oldSearch.Length && oldSearch.StartsWith(this._bonesSearch))))
                 {
                     //string displayedName;
                     //bool aliased = true;
@@ -1003,7 +1036,7 @@ namespace NodesConstraints
                                         continue;
                                     break;
                             }
-                            if (pair.Key.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) == -1)
+                            if (pair.Key.name.IndexOf(this._bonesSearch, StringComparison.OrdinalIgnoreCase) == -1)
                                 continue;
                             Color c = GUI.color;
                             if (pair.Value == selectedGuideObject)
@@ -1099,6 +1132,31 @@ namespace NodesConstraints
             }
             GUILayout.EndVertical();
             GUI.DragWindow();
+        }
+
+        private void SetConstraintEnabled(Constraint constraint, bool newEnabled)
+        {
+            if (constraint.enabled && newEnabled == false)
+            {
+                if (constraint.position)
+                {
+                    constraint.childTransform.localPosition = constraint.originalChildPosition;
+                    if (constraint.child != null)
+                        constraint.child.changeAmount.pos = constraint.originalChildPosition;
+                }
+                if (constraint.rotation)
+                {
+                    constraint.childTransform.localRotation = constraint.originalChildRotation;
+                    if (constraint.child != null)
+                        constraint.child.changeAmount.rot = constraint.originalChildRotation.eulerAngles;
+                }
+            }
+            if (constraint.enabled == false && newEnabled)
+            {
+                constraint.originalChildPosition = constraint.childTransform.localPosition;
+                constraint.originalChildRotation = constraint.childTransform.localRotation;
+            }
+            constraint.enabled = newEnabled;
         }
 
         private void UpdateDisplayedPositionOffset()
@@ -1201,9 +1259,16 @@ namespace NodesConstraints
                 newConstraint.originalChildScale = newConstraint.childTransform.localScale;
 
                 this._constraints.Add(newConstraint);
+                TimelineCompatibility.RefreshInterpolablesList();
                 return newConstraint;
             }
             return null;
+        }
+
+        private void ClearAllConstraints()
+        {
+            this._constraints.Clear();
+            this._selectedConstraint = null;
         }
 
         private void RemoveConstraintAt(int index)
@@ -1235,6 +1300,7 @@ namespace NodesConstraints
             this._constraints.RemoveAt(index);
             if (c == this._selectedConstraint)
                 this._selectedConstraint = null;
+            TimelineCompatibility.RefreshInterpolablesList();
         }
 
         private void DisplayObjectTree(GameObject go, int indent)
@@ -1247,7 +1313,7 @@ namespace NodesConstraints
             //    aliased = false;
             //}
 
-            if (this._search.Length == 0 || go.name.IndexOf(this._search, StringComparison.OrdinalIgnoreCase) != -1/* || (aliased && displayedName.IndexOf(_search, StringComparison.OrdinalIgnoreCase) != -1)*/)
+            if (this._bonesSearch.Length == 0 || go.name.IndexOf(this._bonesSearch, StringComparison.OrdinalIgnoreCase) != -1/* || (aliased && displayedName.IndexOf(_bonesSearch, StringComparison.OrdinalIgnoreCase) != -1)*/)
             {
                 Color c = GUI.color;
                 if (this._selectedBone == go.transform)
@@ -1257,7 +1323,7 @@ namespace NodesConstraints
                 else if (this._displayedConstraint.childTransform == go.transform)
                     GUI.color = Color.red;
                 GUILayout.BeginHorizontal();
-                if (this._search.Length == 0)
+                if (this._bonesSearch.Length == 0)
                 {
                     GUILayout.Space(indent * 20f);
                     if (go.transform.childCount != 0)
@@ -1281,7 +1347,7 @@ namespace NodesConstraints
                 GUI.color = c;
                 GUILayout.EndHorizontal();
             }
-            if (this._search.Length != 0 || this._openedBones.Contains(go))
+            if (this._bonesSearch.Length != 0 || this._openedBones.Contains(go))
                 for (int i = 0; i < go.transform.childCount; ++i)
                     this.DisplayObjectTree(go.transform.GetChild(i).gameObject, indent + 1);
         }
@@ -1302,7 +1368,7 @@ namespace NodesConstraints
         #endregion
 
         #region Saves
-#if KOIKATSU || AISHOUJO
+#if KOIKATSU || AISHOUJO || HONEYSELECT2
         private void OnSceneLoad(string path)
         {
 #if KOIKATSU
@@ -1376,6 +1442,17 @@ namespace NodesConstraints
             }, 8);
         }
 
+        
+        /// <summary>
+        /// Other plugins should use this to force load some data.
+        /// </summary>
+        /// <param name="node"></param>
+        public void ExternalLoadScene(XmlNode node)
+        {
+            this.ClearAllConstraints();
+            this.LoadSceneGeneric(node, new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList());
+        }
+
         private void LoadSceneGeneric(XmlNode node, List<KeyValuePair<int, ObjectCtrlInfo>> dic)
         {
             string v = node.Attributes["version"].Value;
@@ -1409,7 +1486,7 @@ namespace NodesConstraints
                         continue;
                 }
 
-                this.AddConstraint(
+                Constraint c = this.AddConstraint(
                         childNode.Attributes["enabled"] == null || XmlConvert.ToBoolean(childNode.Attributes["enabled"].Value),
                         parentTransform,
                         childTransform,
@@ -1437,6 +1514,8 @@ namespace NodesConstraints
                                 ),
                         childNode.Attributes["alias"] != null ? childNode.Attributes["alias"].Value : ""
                 );
+                if (c != null && childNode.Attributes["uniqueLoadId"] != null)
+                    c.uniqueLoadId = XmlConvert.ToInt32(childNode.Attributes["uniqueLoadId"].Value);
             }
         }
 
@@ -1574,25 +1653,29 @@ namespace NodesConstraints
 
             xmlWriter.WriteAttributeString("version", _versionNum);
 
-            foreach (Constraint constraint in this._constraints)
+            for (int i = 0; i < this._constraints.Count; i++)
             {
+                Constraint constraint = this._constraints[i];
                 int parentObjectIndex = -1;
                 Transform parentT = constraint.parentTransform;
                 while ((parentObjectIndex = dic.FindIndex(e => e.Value.guideObject.transformTarget == parentT)) == -1)
                     parentT = parentT.parent;
+                string parentPath = constraint.parentTransform.GetPathFrom(parentT);
 
                 int childObjectIndex = -1;
                 Transform childT = constraint.childTransform;
                 while ((childObjectIndex = dic.FindIndex(e => e.Value.guideObject.transformTarget == childT)) == -1)
                     childT = childT.parent;
+                string childPath = constraint.childTransform.GetPathFrom(childT);
 
                 xmlWriter.WriteStartElement("constraint");
 
                 xmlWriter.WriteAttributeString("enabled", XmlConvert.ToString(constraint.enabled));
                 xmlWriter.WriteAttributeString("parentObjectIndex", XmlConvert.ToString(parentObjectIndex));
-                xmlWriter.WriteAttributeString("parentPath", constraint.parentTransform.GetPathFrom(parentT));
+                xmlWriter.WriteAttributeString("parentPath", parentPath);
                 xmlWriter.WriteAttributeString("childObjectIndex", XmlConvert.ToString(childObjectIndex));
-                xmlWriter.WriteAttributeString("childPath", constraint.childTransform.GetPathFrom(childT));
+                xmlWriter.WriteAttributeString("childPath", childPath);
+                xmlWriter.WriteAttributeString("uniqueLoadId", XmlConvert.ToString(i));
 
                 xmlWriter.WriteAttributeString("position", XmlConvert.ToString(constraint.position));
                 xmlWriter.WriteAttributeString("positionOffsetX", XmlConvert.ToString(constraint.positionOffset.x));
@@ -1616,6 +1699,62 @@ namespace NodesConstraints
             }
 
             xmlWriter.WriteEndElement();
+        }
+        #endregion
+
+        #region Timeline Compatibility
+        private void PopulateTimeline()
+        {
+            TimelineCompatibility.AddInterpolableModelDynamic(
+                    owner: _name,
+                    id: "constraintEnabled",
+                    name: "Constraint Enabled",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        Constraint c = (Constraint)parameter;
+                        bool newEnabled = (bool)leftValue;
+                        if (c.enabled != newEnabled)
+                            this.SetConstraintEnabled(c, newEnabled);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => this._selectedConstraint != null,
+                    getValue: (oci, parameter) => ((Constraint)parameter).enabled,
+                    readValueFromXml: (parameter, node) => node.ReadBool("value"),
+                    writeValueToXml: (parameter, writer, value) => writer.WriteValue("value", (bool)value),
+                    getParameter: oci => this._selectedConstraint,
+                    readParameterFromXml: (oci, node) =>
+                    {
+                        int uniqueLoadId = node.ReadInt("parameter");
+                        foreach (Constraint c in this._constraints)
+                            if (c.uniqueLoadId != null && c.uniqueLoadId.Value == uniqueLoadId)
+                            {
+                                c.uniqueLoadId = null;
+                                return c;
+                            }
+                        return null; 
+                    },
+                    writeParameterToXml: (oci, writer, parameter) =>
+                    {
+                        Constraint c = (Constraint)parameter;
+                        int uniqueLoadId = _self._constraints.IndexOf(c);
+                        if (uniqueLoadId != -1) // Should never happen but just in case
+                            writer.WriteValue("parameter", uniqueLoadId);
+                    },
+                    checkIntegrity: (oci, parameter, leftValue, rightValue) =>
+                    {
+                        if (parameter == null)
+                            return false;
+                        Constraint c = (Constraint)parameter;
+                        if (c.destroyed || c.parentTransform == null || c.childTransform == null)
+                            return false;
+                        return true;
+                    }, 
+                    useOciInHash: false,
+                    getFinalName: (currentName, oci, parameter) =>
+                    {
+                        Constraint c = (Constraint)parameter;
+                        return string.IsNullOrEmpty(c.alias) == false ? $"NC: {c.alias}" : $"NC: {c.parentTransform?.name}/{c.childTransform?.name}";
+                    });
         }
         #endregion
     }
