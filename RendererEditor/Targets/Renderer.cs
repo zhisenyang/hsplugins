@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
+using ToolBox;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -34,13 +36,13 @@ namespace RendererEditor.Targets
             this._target = target;
         }
 
-        public void CopyFrom(ITarget other)
+        public void ApplyData(ATargetData data)
         {
-            RendererTarget rendererTarget = (RendererTarget)other;
+            RendererData rendererData = (RendererData)data;
 
-            this._target.shadowCastingMode = rendererTarget._target.shadowCastingMode;
-            this._target.receiveShadows = rendererTarget._target.receiveShadows;
-            this._target.reflectionProbeUsage = rendererTarget._target.reflectionProbeUsage;
+            SetShadowCastingMode(this, rendererData.shadowCastingMode.currentValue);
+            SetReceiveShadows(this, rendererData.receiveShadows.currentValue);
+            SetReflectionProbeUsage(this, rendererData.reflectionProbeUsage.currentValue);
         }
 
         public void DisplayParams(HashSet<ITarget> selectedTargets)
@@ -66,40 +68,36 @@ namespace RendererEditor.Targets
 
         public static void SetReceiveShadows(RendererTarget target, bool receiveShadows)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData targetData);
+            ((RendererData)targetData).receiveShadows.currentValue = receiveShadows;
             target._target.receiveShadows = receiveShadows;
         }
 
         public static void SetShadowCastingMode(RendererTarget target, ShadowCastingMode shadowCastingMode)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData targetData);
+            ((RendererData)targetData).shadowCastingMode.currentValue = shadowCastingMode;
             target._target.shadowCastingMode = shadowCastingMode;
         }
 
         public static void SetReflectionProbeUsage(RendererTarget target, ReflectionProbeUsage reflectionProbeUsage)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData targetData);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData targetData);
+            ((RendererData)targetData).reflectionProbeUsage.currentValue = reflectionProbeUsage;
             target._target.reflectionProbeUsage = reflectionProbeUsage;
         }
 
-        public ITargetData GetNewData()
+        public ATargetData GetNewData()
         {
-            return new RendererData
-            {
-                target = this,
-                currentEnabled = true,
-                originalShadowCastingMode = this._target.shadowCastingMode,
-                originalReceiveShadow = this._target.receiveShadows,
-                originalReflectionProbeUsage = this._target.reflectionProbeUsage
-            };
+            return new RendererData(this, true, this._target.shadowCastingMode, this._target.receiveShadows, this._target.reflectionProbeUsage);
         }
 
-        public void ResetData(ITargetData data)
+        public void ResetData(ATargetData data)
         {
             RendererData rendererData = (RendererData)data;
-            this._target.shadowCastingMode = rendererData.originalShadowCastingMode;
-            this._target.receiveShadows = rendererData.originalReceiveShadow;
-            this._target.reflectionProbeUsage = rendererData.originalReflectionProbeUsage;
+            this._target.shadowCastingMode = rendererData.shadowCastingMode.originalValue;
+            this._target.receiveShadows = rendererData.receiveShadows.originalValue;
+            this._target.reflectionProbeUsage = rendererData.reflectionProbeUsage.originalValue;
         }
 
         public void LoadXml(XmlNode node)
@@ -146,16 +144,22 @@ namespace RendererEditor.Targets
         }
     }
 
-    public class RendererData : ITargetData
+    public class RendererData : ATargetData
     {
-        public ITarget target { get; set; }
-        public bool currentEnabled { get; set; }
-        public IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
+        public override TargetType targetDataType { get { return TargetType.Renderer; } }
+        public override IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
 
-        public ShadowCastingMode originalShadowCastingMode;
-        public bool originalReceiveShadow;
-        public ReflectionProbeUsage originalReflectionProbeUsage;
+        public EditablePair<ShadowCastingMode> shadowCastingMode;
+        public EditablePair<bool> receiveShadows;
+        public EditablePair<ReflectionProbeUsage> reflectionProbeUsage;
 
         private readonly Dictionary<Material, MaterialData> _dirtyMaterials = new Dictionary<Material, MaterialData>();
+
+        public RendererData(ITarget target, bool currentEnabled, ShadowCastingMode originalShadowCastingMode, bool originalReceiveShadows, ReflectionProbeUsage originalReflectionProbeUsage) : base(target, currentEnabled)
+        {
+            this.shadowCastingMode.originalValue = originalShadowCastingMode;
+            this.receiveShadows.originalValue = originalReceiveShadows;
+            this.reflectionProbeUsage.originalValue = originalReflectionProbeUsage;
+        }
     }
 }

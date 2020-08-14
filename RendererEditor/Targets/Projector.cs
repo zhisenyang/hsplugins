@@ -41,16 +41,16 @@ namespace RendererEditor.Targets
             this._target = target;
         }
 
-        public void CopyFrom(ITarget other)
+        public void ApplyData(ATargetData data)
         {
-            ProjectorTarget rendererTarget = (ProjectorTarget)other;
+            ProjectorData projectorData = (ProjectorData)data;
 
-            this._target.nearClipPlane = rendererTarget._target.nearClipPlane;
-            this._target.farClipPlane = rendererTarget._target.farClipPlane;
-            this._target.aspectRatio = rendererTarget._target.aspectRatio;
-            this._target.orthographic = rendererTarget._target.orthographic;
-            this._target.orthographicSize = rendererTarget._target.orthographicSize;
-            this._target.fieldOfView = rendererTarget._target.fieldOfView;
+            SetNearClipPlane(this, projectorData.nearClipPlane.currentValue);
+            SetFarClipPlane(this, projectorData.farClipPlane.currentValue);
+            SetAspectRatio(this, projectorData.aspectRatio.currentValue);
+            SetOrthographic(this, projectorData.orthographic.currentValue);
+            SetOrthographicSize(this, projectorData.orthographicSize.currentValue);
+            SetFieldOfView(this, projectorData.fieldOfView.currentValue);
         }
 
         public void DisplayParams(HashSet<ITarget> selectedTargets)
@@ -88,64 +88,60 @@ namespace RendererEditor.Targets
 
         public static void SetNearClipPlane(ProjectorTarget target, float nearClipPlane)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).nearClipPlane.currentValue = nearClipPlane;
             target._target.nearClipPlane = nearClipPlane;
         }
 
         public static void SetFarClipPlane(ProjectorTarget target, float farClipPlane)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).farClipPlane.currentValue = farClipPlane;
             target._target.farClipPlane = farClipPlane;
         }
 
         public static void SetAspectRatio(ProjectorTarget target, float aspectRatio)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).aspectRatio.currentValue = aspectRatio;
             target._target.aspectRatio = aspectRatio;
         }
 
         public static void SetOrthographic(ProjectorTarget target, bool orthographic)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).orthographic.currentValue = orthographic;
             target._target.orthographic = orthographic;
         }
 
         public static void SetOrthographicSize(ProjectorTarget target, float orthographicSize)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).orthographicSize.currentValue = orthographicSize;
             target._target.orthographicSize = orthographicSize;
         }
 
         public static void SetFieldOfView(ProjectorTarget target, float fieldOfView)
         {
-            RendererEditor._self.SetTargetDirty(target, out ITargetData data);
+            RendererEditor._self.SetTargetDirty(target, out ATargetData data);
+            ((ProjectorData)data).fieldOfView.currentValue = fieldOfView;
             target._target.fieldOfView = fieldOfView;
         }
 
-        public ITargetData GetNewData()
+        public ATargetData GetNewData()
         {
-            return new ProjectorData()
-            {
-                target = this,
-                currentEnabled = true,
-                originalNearClipPlane = this._target.nearClipPlane,
-                originalFarClipPlane = this._target.farClipPlane,
-                originalAspectRatio = this._target.aspectRatio,
-                originalOrthographic = this._target.orthographic,
-                originalOrthographicSize = this._target.orthographicSize,
-                originalFieldOfView = this._target.fieldOfView
-            };
+            return new ProjectorData(this, true, this._target.nearClipPlane, this._target.farClipPlane, this._target.aspectRatio, this._target.orthographic, this._target.orthographicSize, this._target.fieldOfView);
         }
 
-        public void ResetData(ITargetData data)
+        public void ResetData(ATargetData data)
         {
             ProjectorData projectorData = (ProjectorData)data;
-            this._target.nearClipPlane = projectorData.originalNearClipPlane;
-            this._target.farClipPlane = projectorData.originalFarClipPlane;
-            this._target.aspectRatio = projectorData.originalAspectRatio;
-            this._target.orthographic = projectorData.originalOrthographic;
-            this._target.orthographicSize = projectorData.originalOrthographicSize;
-            this._target.fieldOfView = projectorData.originalFieldOfView;
+            this._target.nearClipPlane = projectorData.nearClipPlane.originalValue;
+            this._target.farClipPlane = projectorData.farClipPlane.originalValue;
+            this._target.aspectRatio = projectorData.aspectRatio.originalValue;
+            this._target.orthographic = projectorData.orthographic.originalValue;
+            this._target.orthographicSize = projectorData.orthographicSize.originalValue;
+            this._target.fieldOfView = projectorData.fieldOfView.originalValue;
         }
 
         public void LoadXml(XmlNode node)
@@ -197,19 +193,29 @@ namespace RendererEditor.Targets
         }
     }
 
-    public class ProjectorData : ITargetData
+    public class ProjectorData : ATargetData
     {
-        public ITarget target { get; set; }
-        public bool currentEnabled { get; set; }
-        public IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
+        public override TargetType targetDataType { get { return TargetType.Projector; } }
+        public override IDictionary<Material, MaterialData> dirtyMaterials { get { return this._dirtyMaterials; } }
 
-        public float originalNearClipPlane;
-        public float originalFarClipPlane;
-        public float originalAspectRatio;
-        public bool originalOrthographic;
-        public float originalOrthographicSize;
-        public float originalFieldOfView;
+        public EditablePair<float> nearClipPlane;
+        public EditablePair<float> farClipPlane;
+        public EditablePair<float> aspectRatio;
+        public EditablePair<bool> orthographic;
+        public EditablePair<float> orthographicSize;
+        public EditablePair<float> fieldOfView;
 
         private readonly Dictionary<Material, MaterialData> _dirtyMaterials = new Dictionary<Material, MaterialData>();
+
+        public ProjectorData(ITarget target, bool currentEnabled, float originalNearClipPlane, float originalFarClipPlane, float originalAspectRatio, bool originalOrthographic, float originalOrthographicSize, float originalFieldOfView
+        ) : base(target, currentEnabled)
+        {
+            this.nearClipPlane.originalValue = originalNearClipPlane;
+            this.farClipPlane.originalValue = originalFarClipPlane;
+            this.aspectRatio.originalValue = originalAspectRatio;
+            this.orthographic.originalValue = originalOrthographic;
+            this.orthographicSize.originalValue = originalOrthographicSize;
+            this.fieldOfView.originalValue = originalFieldOfView;
+        }
     }
 }
