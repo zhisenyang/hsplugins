@@ -24,6 +24,7 @@ namespace VideoExport.ScreenshotPlugins
         public Vector2 currentSize { get { return new Vector2(Screen.width * this._currentSize, Screen.height * this._currentSize); } }
         public bool transparency { get { return this._transparent; } }
         public string extension { get { return "png"; } }
+        public byte bitDepth { get { return 8; } }
 
         public bool Init(HarmonyInstance harmony)
         {
@@ -57,7 +58,15 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture(bool forcePng = false)
+        public void UpdateLanguage()
+        {
+        }
+
+        public void OnStartRecording()
+        {
+        }
+
+        public byte[] Capture(string saveTo)
         {
             _recordingVideo = true;
             if (this._transparent)
@@ -68,15 +77,19 @@ namespace VideoExport.ScreenshotPlugins
             return _currentBytes;
         }
 
+        public void OnEndRecording()
+        {
+        }
+
         public void DisplayParams()
         {
             GUILayout.BeginHorizontal();
-            this._transparent = GUILayout.Toggle(this._transparent, "Transparent");
+            this._transparent = GUILayout.Toggle(this._transparent, VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Transparent));
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
             {
-                GUILayout.Label("Size Multiplier", GUILayout.ExpandWidth(false));
+                GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.SizeMultiplier), GUILayout.ExpandWidth(false));
                 this._currentSize = Mathf.RoundToInt(GUILayout.HorizontalSlider(this._currentSize, 1, 4));
                 GUILayout.Label(this._currentSize.ToString(), GUILayout.Width(15));
             }

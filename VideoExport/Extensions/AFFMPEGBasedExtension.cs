@@ -1,7 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using ToolBox.Extensions;
 using UnityEngine;
+using VideoExport.ScreenshotPlugins;
 
 namespace VideoExport.Extensions
 {
@@ -17,10 +19,11 @@ namespace VideoExport.Extensions
 
         private readonly string _ffmpegFolder;
         private readonly string _ffmpegExe;
-        private readonly string[] _rotationNames = new[] {"None", "90° CW", "180°", "90° CCW"};
+        private string[] _rotationNames;
 
         protected static Rotation _rotation = Rotation.None;
         protected int _progress;
+        protected static readonly int _coreCount;
 
         private StringBuilder _outputBuilder = new StringBuilder();
         private StringBuilder _errorBuilder = new StringBuilder();
@@ -29,22 +32,40 @@ namespace VideoExport.Extensions
         public bool canProcessStandardOutput { get { return true; } }
         public bool canProcessStandardError { get{ return true; } }
 
+        static AFFMPEGBasedExtension()
+        {
+            _coreCount = Environment.ProcessorCount;
+        }
+
         protected AFFMPEGBasedExtension()
         {
             this._ffmpegFolder = Path.Combine(VideoExport._pluginFolder, "ffmpeg");
             if (IntPtr.Size == 8)
-                this._ffmpegExe = Path.Combine(this._ffmpegFolder, "ffmpeg-64.exe");
+                this._ffmpegExe = Path.GetFullPath(Path.Combine(this._ffmpegFolder, "ffmpeg-64.exe"));
             else
-                this._ffmpegExe = Path.Combine(this._ffmpegFolder, "ffmpeg.exe");
+                this._ffmpegExe = Path.GetFullPath(Path.Combine(this._ffmpegFolder, "ffmpeg.exe"));
             _rotation = (Rotation)VideoExport._configFile.AddInt("ffmpegRotation", (int)Rotation.None, true);
         }
+
+        public virtual void UpdateLanguage()
+        {
+            this._rotationNames = new[]
+            {
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.RotationNone),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Rotation90),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Rotation180),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Rotation270)
+            };
+        }
+
+        public abstract bool IsCompatibleWithPlugin(IScreenshotPlugin plugin, out string reason);
 
         public virtual string GetExecutable()
         {
             return this._ffmpegExe;
         }
 
-        public abstract string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName);
+        public abstract string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, byte bitDepth, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName);
 
         public virtual void ProcessStandardOutput(char c)
         {
@@ -78,7 +99,7 @@ namespace VideoExport.Extensions
 
         public virtual void DisplayParams()
         {
-            GUILayout.Label("Rotation", GUILayout.ExpandWidth(false));
+            GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Rotation), GUILayout.ExpandWidth(false));
             _rotation = (Rotation)GUILayout.SelectionGrid((int)_rotation, this._rotationNames, 4);
         }
 

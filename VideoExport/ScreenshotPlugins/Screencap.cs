@@ -18,6 +18,7 @@ namespace VideoExport.ScreenshotPlugins
         public Vector2 currentSize { get { return this._currentSize; } }
         public bool transparency { get { return false; } }
         public string extension { get { return "png"; } }
+        public byte bitDepth { get { return 8; } }
 
         public bool Init(HarmonyInstance harmony)
         {
@@ -40,9 +41,21 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture(bool forcePng = false)
+        public void UpdateLanguage()
+        {
+        }
+
+        public void OnStartRecording()
+        {
+        }
+
+        public byte[] Capture(string saveTo)
         {
             return this._captureFunction();
+        }
+
+        public void OnEndRecording()
+        {
         }
 
         public void DisplayParams()
@@ -105,6 +118,7 @@ namespace VideoExport.ScreenshotPlugins
         }
         public bool transparency { get { return this._captureAlpha.Value; } }
         public string extension { get { return this._useJpg.Value ? "jpg" : "png"; } }
+        public byte bitDepth { get { return 8; } }
         #endregion
 
         #region Private Variables
@@ -142,6 +156,17 @@ namespace VideoExport.ScreenshotPlugins
                 {
                     new CodeInstruction(OpCodes.Call, typeof(Screencap).GetMethod(nameof(PlayReplacement), BindingFlags.NonPublic | BindingFlags.Static)),
                 }
+            },
+            new HarmonyExtensions.Replacement() 
+            {
+                pattern = new[] 
+                {
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(GL), "Clear", new[]{typeof(bool), typeof(bool), typeof(Color)})),
+                },
+                replacer = new[] 
+                {
+                    new CodeInstruction(OpCodes.Call, typeof(Screencap).GetMethod(nameof(ClearReplacement), BindingFlags.NonPublic | BindingFlags.Static)),
+                }
             }
         };
         private static bool _videoExportCapture = false;
@@ -151,6 +176,7 @@ namespace VideoExport.ScreenshotPlugins
         private Func<bool, IEnumerator> _take360Screenshot;
 
         private CaptureType _captureType = CaptureType.Normal;
+        private string[] _captureTypeNames;
         private bool _in3d;
         private ConfigEntry<int> _resolutionX;
         private ConfigEntry<int> _resolutionY;
@@ -191,6 +217,7 @@ namespace VideoExport.ScreenshotPlugins
             {
                 harmony.Patch(screencapType.GetCoroutineMethod("TakeCharScreenshot"), transpiler: new HarmonyMethod(typeof(Screencap).GetMethod(nameof(GeneralTranspiler), BindingFlags.Static | BindingFlags.NonPublic)));
                 harmony.Patch(screencapType.GetCoroutineMethod("Take360Screenshot"), transpiler: new HarmonyMethod(typeof(Screencap).GetMethod(nameof(GeneralTranspiler), BindingFlags.Static | BindingFlags.NonPublic)));
+                harmony.Patch(Type.GetType("alphaShot.AlphaShot2,Screencap").GetMethod("PerformCapture"), transpiler: new HarmonyMethod(typeof(Screencap).GetMethod(nameof(GeneralTranspiler), BindingFlags.Static | BindingFlags.NonPublic)));
             }
             catch (Exception e)
             {
@@ -200,7 +227,20 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture(bool forcePng = false)
+        public void UpdateLanguage()
+        {
+            this._captureTypeNames = new[]
+            {
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.ScreencapCaptureTypeNormal),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.ScreencapCaptureType360)
+            };
+        }
+
+        public void OnStartRecording()
+        {
+        }
+
+        public byte[] Capture(string path)
         {
             _videoExportCapture = true;
             IEnumerator e = null;
@@ -219,17 +259,21 @@ namespace VideoExport.ScreenshotPlugins
             return _imageBytes;
         }
 
+        public void OnEndRecording()
+        {
+        }
+
         public void DisplayParams()
         {
             GUILayout.BeginHorizontal();
             {
-                GUILayout.Label("Capture Type", GUILayout.ExpandWidth(false));
-                this._captureType = (CaptureType)GUILayout.SelectionGrid((int)this._captureType, new[] { "Normal", "360" }, 2);
+                GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.ScreencapCaptureType), GUILayout.ExpandWidth(false));
+                this._captureType = (CaptureType)GUILayout.SelectionGrid((int)this._captureType, this._captureTypeNames, 2);
             }
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            this._in3d = GUILayout.Toggle(this._in3d, "3D");
+            this._in3d = GUILayout.Toggle(this._in3d, VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.Screencap3D));
             GUILayout.EndHorizontal();
         }
 
@@ -261,6 +305,12 @@ namespace VideoExport.ScreenshotPlugins
                 Utils.Sound.Play(se);
         }
 
+        private static void ClearReplacement(bool clearDepth, bool clearColor, Color backgroundColor)
+        {
+            if (!_videoExportCapture)
+                GL.Clear(clearDepth, clearColor, backgroundColor);
+        }
+
         private static IEnumerable<CodeInstruction> GeneralTranspiler(IEnumerable<CodeInstruction> instructions)
         {
             return HarmonyExtensions.ReplaceCodePattern(instructions, _replacements);
@@ -269,7 +319,7 @@ namespace VideoExport.ScreenshotPlugins
     }
 }
 
-#elif AISHOUJO
+#elif AISHOUJO || HONEYSELECT2
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -293,6 +343,7 @@ namespace VideoExport.ScreenshotPlugins
         public Vector2 currentSize { get { return new Vector2(this._captureWidth.Value, this._captureHeight.Value); } }
         public bool transparency { get { return this._alpha.Value; } }
         public string extension { get { return "png"; } }
+        public byte bitDepth { get { return 8; } }
         #endregion
 
         #region Private Variables
@@ -310,7 +361,11 @@ namespace VideoExport.ScreenshotPlugins
         #region Public Methods
         public bool Init(Harmony harmony)
         {
+#if AISHOUJO
             Type screencapType = Type.GetType("Screencap.ScreenshotManager,AI_Screencap");
+#elif HONEYSELECT2
+            Type screencapType = Type.GetType("Screencap.ScreenshotManager,HS2_Screencap");
+#endif
             if (screencapType == null)
                 return false;
             object screenshotManager = GameObject.FindObjectOfType(screencapType);
@@ -338,13 +393,21 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture(bool forcePng = false)
+        public void UpdateLanguage()
+        {
+        }
+
+        public void OnStartRecording() { }
+
+        public byte[] Capture(string saveTo)
         {
             _videoExportCapture = true;
             this._capture(this._alpha.Value);
             _videoExportCapture = false;
             return _imageBytes;
         }
+
+        public void OnEndRecording() { }
 
         public void DisplayParams()
         {
@@ -370,6 +433,7 @@ namespace VideoExport.ScreenshotPlugins
                 _texture.Apply(false);
                 _imageBytes = _texture.EncodeToPNG();
                 __result = RoutineReplacement();
+                GL.Clear(false, true, Color.clear);
                 return false;
             }
             return true;
@@ -382,5 +446,4 @@ namespace VideoExport.ScreenshotPlugins
         #endregion
     }
 }
-
 #endif

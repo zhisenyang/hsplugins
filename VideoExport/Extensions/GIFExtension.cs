@@ -1,6 +1,9 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.Text;
+using ToolBox.Extensions;
 using UnityEngine;
+using VideoExport.ScreenshotPlugins;
 
 namespace VideoExport.Extensions
 {
@@ -18,7 +21,27 @@ namespace VideoExport.Extensions
         public GIFExtension()
         {
             this._gifskiFolder = Path.Combine(VideoExport._pluginFolder, "gifski");
-            this._gifskiExe = Path.Combine(this._gifskiFolder, "gifski.exe");
+            this._gifskiExe = Path.GetFullPath(Path.Combine(this._gifskiFolder, "gifski.exe"));
+        }
+
+        public void UpdateLanguage()
+        {
+        }
+
+        public bool IsCompatibleWithPlugin(IScreenshotPlugin plugin, out string reason)
+        {
+            if (plugin.extension != "png")
+            {
+                reason = VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.GIFError);
+                return false;
+            }
+            if (plugin.bitDepth != 8)
+            {
+                reason = VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.BitDepthError);
+                return false;
+            }
+            reason = null;
+            return true;
         }
 
         public string GetExecutable()
@@ -26,9 +49,10 @@ namespace VideoExport.Extensions
             return this._gifskiExe;
         }
 
-        public string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
+        public string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, byte bitDepth, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
-            return $"{(resize ? $"-W {resizeX} -H {resizeY}" : "")} --fps {fps} -o {fileName}.gif {framesFolder}/{prefix}*{postfix}.{inputExtension} --quiet";
+            // Second part isn't surrounded by double quotes because gifski is absolute garbage
+            return $"{(resize ? $"-W {resizeX} -H {resizeY}" : "")} --fps {fps} -o \"{fileName}.gif\" {framesFolder}\\{prefix}*{postfix}.{inputExtension} --quiet";
         }
 
         public void ProcessStandardOutput(char c)
@@ -51,7 +75,7 @@ namespace VideoExport.Extensions
         {
             Color c = GUI.color;
             GUI.color = Color.yellow;
-            GUILayout.Label("It is recommended to downscale your images when using the GIF format (use Resize). Also, GIF isn't a very good format, prefer using MP4 or WEBM. Plus, the encoder is only compatible with PNG images.");
+            GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.GIFWarning));
             GUI.color = c;
         }
 

@@ -19,6 +19,7 @@ namespace VideoExport.ScreenshotPlugins
         public Vector2 currentSize { get { return new Vector2(ModPrefs.GetInt("HoneyShot", "output_width"), ModPrefs.GetInt("HoneyShot", "output_height")); } }
         public bool transparency { get { return false; } }
         public string extension { get { return ModPrefs.GetBool("HoneyShot", "use_jpeg") ? "jpg" : "png"; } }
+        public byte bitDepth { get { return 8; } }
 
         public bool Init(HarmonyInstance harmony)
         {
@@ -49,20 +50,21 @@ namespace VideoExport.ScreenshotPlugins
             return true;
         }
 
-        public byte[] Capture(bool forcePng = false)
+        public void UpdateLanguage()
         {
-            bool jpg = false;
-            if (forcePng)
-            {
-                jpg = ModPrefs.GetBool("HoneyShot", "use_jpeg");
-                ModPrefs.SetBool("HoneyShot", "use_jpeg", false);
-            }
-            byte[] res = this._captureFunction();
-            if (forcePng)
-            {
-                ModPrefs.SetBool("HoneyShot", "use_jpeg", jpg);
-            }
-            return res;
+        }
+
+        public void OnStartRecording()
+        {
+        }
+
+        public byte[] Capture(string saveTo)
+        {
+            return this._captureFunction();
+        }
+
+        public void OnEndRecording()
+        {
         }
 
         public void DisplayParams()

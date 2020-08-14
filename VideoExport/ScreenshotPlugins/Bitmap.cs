@@ -1,8 +1,14 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
-#if HONEYSELECT
+using Graphics = System.Drawing.Graphics;
+#if IPA
 using Harmony;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
 using HarmonyLib;
 #endif
 
@@ -10,13 +16,116 @@ namespace VideoExport.ScreenshotPlugins
 {
     public class Bitmap : IScreenshotPlugin
     {
-        public string name { get { return "Built-in BMP"; } }
-        public Vector2 currentSize { get { return new Vector2(Screen.width * this._scaleFactor, Screen.height * this._scaleFactor); } }
+#if !KOIKATSU
+        [DllImport("user32.dll")]
+        static extern IntPtr GetActiveWindow();
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetClientRect(IntPtr hWnd, ref Rect rect);
+        [DllImport("user32.dll")]
+        public static extern bool ClientToScreen(IntPtr hWnd, ref System.Drawing.Point lpPoint);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct Rect
+        {
+            public int left;
+            public int top;
+            public int right;
+            public int bottom;
+        }
+#endif
+
+        private enum CaptureMode
+        {
+            Normal,
+            Immediate,
+#if !KOIKATSU
+            Win32
+#endif
+        }
+
+        private enum ImgFormat
+        {
+            BMP,
+            PNG,
+#if !HONEYSELECT //Someday I hope...
+            EXR
+#endif
+        }
+
+        public string name { get { return VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.BuiltInCaptureTool); } }
+        public Vector2 currentSize
+        {
+            get
+            {
+                int width = 0;
+                int height = 0;
+                switch (this._captureMode)
+                {
+                    case CaptureMode.Normal:
+                    case CaptureMode.Immediate:
+                        width = Mathf.RoundToInt(Screen.width * this._scaleFactor);
+                        height = Mathf.RoundToInt(Screen.height * this._scaleFactor);
+                        break;
+#if !KOIKATSU
+                    case CaptureMode.Win32:
+                        if (this._windowHandle == IntPtr.Zero)
+                            this._windowHandle = GetActiveWindow();
+                        Rect rect = new Rect();
+                        GetClientRect(this._windowHandle, ref rect);
+                        width = rect.right - rect.left;
+                        height = rect.bottom - rect.top;
+                        break;
+#endif
+                }
+                if (width % 2 != 0)
+                    width += 1;
+                if (height % 2 != 0)
+                    height += 1;
+
+                return new Vector2(width, height);
+            }
+        }
         public bool transparency { get { return false; } }
-        public string extension { get { return "bmp"; } }
+        public string extension
+        {
+            get
+            {
+                switch (this._imageFormat)
+                {
+                    default:
+                    case ImgFormat.BMP:
+                        return "bmp";
+                    case ImgFormat.PNG:
+                        return "png";
+#if !HONEYSELECT
+                    case ImgFormat.EXR:
+                        return "exr";
+#endif
+                }
+            }
+        }
+        public byte bitDepth
+        {
+            get
+            {
+#if HONEYSELECT
+                return 8;
+#else
+                return (byte)(this._imageFormat == ImgFormat.EXR ? 10 : 8);
+#endif
+            }
+        }
 
         private float _scaleFactor;
-        private Texture2D _texture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false, true);
+        private CaptureMode _captureMode;
+        private string[] _captureModeNames;
+        private ImgFormat _imageFormat;
+        private string[] _imageFormatNames;
+        private IntPtr _windowHandle;
+        private System.Drawing.Bitmap _bitmap;
+        private System.Drawing.Graphics _graphics;
+        private RenderTexture _cachedRenderTexture;
+        private Texture2D _texture;
         private readonly byte[] _bmpHeader = {
             0x42, 0x4D,
             0, 0, 0, 0,
@@ -37,45 +146,256 @@ namespace VideoExport.ScreenshotPlugins
         };
         private byte[] _fileBytes = new byte[0];
 
-#if HONEYSELECT
+#if IPA
         public bool Init(HarmonyInstance harmony)
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
         public bool Init(Harmony harmony)
 #endif
         {
-            this._scaleFactor = VideoExport._configFile.AddFloat("bmpSizeMultiplier", 1f, true);
+            this._scaleFactor = VideoExport._configFile.AddFloat("builtInSizeMultiplier", 1f, true);
+            this._captureMode = (CaptureMode)VideoExport._configFile.AddInt("builtInCaptureMode", (int)CaptureMode.Normal, true);
+            this._imageFormat = (ImgFormat)VideoExport._configFile.AddInt("builtInImageFormat", (int)ImgFormat.BMP, true);
+            this._imageFormatNames = Enum.GetNames(typeof(ImgFormat));
+
             return true;
         }
 
+        public void UpdateLanguage()
+        {
+            this._captureModeNames = new[]
+            {
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.CaptureModeNormal),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.CaptureModeImmediate),
+                VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.CaptureModeWin32)
+            };
+        }
 
-        public byte[] Capture(bool forcePng = false)
+        public void OnStartRecording()
         {
             Vector2 size = this.currentSize;
-            int width = Mathf.RoundToInt(size.x);
-            if (width % 2 != 0)
-                width += 1;
-            int height = Mathf.RoundToInt(size.y);
-            if (height % 2 != 0)
-                height += 1;
-            if (this._texture.width != width || this._texture.height != height)
+            TextureFormat textureFormat = TextureFormat.RGB24;
+            RenderTextureFormat renderTextureFormat = RenderTextureFormat.ARGB32;
+            int renderTextureDepth = 0;
+#if !HONEYSELECT
+            if (this._imageFormat == ImgFormat.EXR)
             {
-                UnityEngine.Object.Destroy(this._texture);
-                this._texture = new Texture2D(width, height, TextureFormat.RGB24, false, true);
+                textureFormat = TextureFormat.RGBAHalf;
+                renderTextureFormat = RenderTextureFormat.ARGBHalf;
+                renderTextureDepth = 16;
             }
+#endif
+            switch (this._captureMode)
+            {
+                case CaptureMode.Normal:
+                    this._texture = new Texture2D((int)size.x, (int)size.y, textureFormat, false, true);
+                    break;
+                case CaptureMode.Immediate:
+                    this._texture = new Texture2D((int)size.x, (int)size.y, textureFormat, false, true);
+                    this._cachedRenderTexture = Camera.main.targetTexture;
+                    Camera.main.targetTexture = RenderTexture.GetTemporary((int)size.x, (int)size.y, renderTextureDepth, renderTextureFormat);
+                    break;
+#if !KOIKATSU
+                case CaptureMode.Win32:
+                    this._windowHandle = GetActiveWindow();
+                    Rect rect = new Rect();
+                    GetClientRect(this._windowHandle, ref rect);
+                    int width = rect.right - rect.left;
+                    int height = rect.bottom - rect.top;
+                    this._bitmap = new System.Drawing.Bitmap(width, height, PixelFormat.Format32bppArgb);
+                    this._graphics = Graphics.FromImage(this._bitmap);
+                    VideoExport._showUi = false;
+                    break;
+#endif
+            }
+        }
+
+        public byte[] Capture(string saveTo)
+        {
+            switch (this._captureMode)
+            {
+                case CaptureMode.Normal:
+                    return this.CaptureNormal();
+                case CaptureMode.Immediate:
+                    return this.CaptureImmediate();
+#if !KOIKATSU
+                case CaptureMode.Win32:
+                    return this.CaptureWin32(saveTo);
+#endif
+            }
+            return null;
+        }
+
+        public void OnEndRecording()
+        {
+            switch (this._captureMode)
+            {
+                case CaptureMode.Normal:
+                    UnityEngine.Object.Destroy(this._texture);
+                    break;
+                case CaptureMode.Immediate:
+                    UnityEngine.Object.Destroy(this._texture);
+                    RenderTexture.ReleaseTemporary(Camera.main.targetTexture);
+                    Camera.main.targetTexture = this._cachedRenderTexture;
+                    break;
+#if !KOIKATSU
+                case CaptureMode.Win32:
+                    this._graphics.Dispose();
+                    this._graphics = null;
+                    VideoExport._showUi = true;
+                    break;
+#endif
+            }
+        }
+
+        public void DisplayParams()
+        {
+            GUILayout.BeginHorizontal();
+            {
+                GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.SizeMultiplier), GUILayout.ExpandWidth(false));
+                this._scaleFactor = GUILayout.HorizontalSlider(this._scaleFactor, 1, 8);
+                string s = this._scaleFactor.ToString("0.000");
+                string newS = GUILayout.TextField(s, GUILayout.Width(40));
+                if (newS != s)
+                {
+                    float res;
+                    if (float.TryParse(newS, out res))
+                        this._scaleFactor = res;
+                }
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            {
+                GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.CaptureMode), GUILayout.ExpandWidth(false));
+                this._captureMode = (CaptureMode)GUILayout.SelectionGrid((int)this._captureMode, this._captureModeNames, this._captureModeNames.Length);
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            {
+                GUILayout.Label(VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.ImageFormat), GUILayout.ExpandWidth(false));
+                this._imageFormat = (ImgFormat)GUILayout.SelectionGrid((int)this._imageFormat, this._imageFormatNames, this._imageFormatNames.Length);
+            }
+            GUILayout.EndHorizontal();
+
+#if !HONEYSELECT && !KOIKATSU
+            if (this._captureMode == CaptureMode.Win32 && this._imageFormat == ImgFormat.EXR)
+                this._imageFormat = ImgFormat.BMP;
+#endif
+        }
+
+        public void SaveParams()
+        {
+            VideoExport._configFile.SetFloat("bmpSizeMultiplier", this._scaleFactor);
+            VideoExport._configFile.SetInt("builtInCaptureMode", (int)this._captureMode);
+            VideoExport._configFile.SetInt("builtInImageFormat", (int)this._imageFormat);
+        }
+
+        private byte[] CaptureNormal()
+        {
+            Vector2 size = this.currentSize;
+            int width = (int)size.x;
+            int height = (int)size.y;
+
+            RenderTextureFormat renderTextureFormat = RenderTextureFormat.ARGB32;
+            int renderTextureDepth = 0;
+#if !HONEYSELECT
+            if (this._imageFormat == ImgFormat.EXR)
+            {
+                renderTextureFormat = RenderTextureFormat.ARGBHalf;
+                renderTextureDepth = 16;
+            }
+#endif
 
             RenderTexture cached = Camera.main.targetTexture;
-            Camera.main.targetTexture = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32);
+            Camera.main.targetTexture = RenderTexture.GetTemporary(width, height, renderTextureDepth, renderTextureFormat);
             Camera.main.Render();
+
             RenderTexture cached2 = RenderTexture.active;
             RenderTexture.active = Camera.main.targetTexture;
-            Camera.main.targetTexture = cached;
-            this._texture.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
-            RenderTexture.ReleaseTemporary(RenderTexture.active);
+            this._texture.ReadPixels(new UnityEngine.Rect(0, 0, width, height), 0, 0, false);
             RenderTexture.active = cached2;
 
-            if (forcePng)
-                return this._texture.EncodeToPNG();
+            RenderTexture.ReleaseTemporary(Camera.main.targetTexture);
+            Camera.main.targetTexture = cached;
 
+            switch (this._imageFormat)
+            {
+                default:
+                case ImgFormat.BMP:
+                    return this.EncodeToBMP(this._texture, width, height);
+                case ImgFormat.PNG:
+                    return this._texture.EncodeToPNG();
+#if !HONEYSELECT
+                case ImgFormat.EXR:
+                    return this._texture.EncodeToEXR();
+#endif
+            }
+        }
+
+        private byte[] CaptureImmediate()
+        {
+            Vector2 size = this.currentSize;
+            int width = (int)size.x;
+            int height = (int)size.y;
+
+            RenderTexture cached2 = RenderTexture.active;
+            RenderTexture.active = Camera.main.targetTexture;
+            this._texture.ReadPixels(new UnityEngine.Rect(0, 0, width, height), 0, 0, false);
+            RenderTexture.active = cached2;
+
+            switch (this._imageFormat)
+            {
+                default:
+                case ImgFormat.BMP:
+                    return this.EncodeToBMP(this._texture, width, height);
+                case ImgFormat.PNG:
+                    return this._texture.EncodeToPNG();
+#if !HONEYSELECT
+                case ImgFormat.EXR:
+                    return this._texture.EncodeToEXR();
+#endif
+            }
+        }
+
+#if !KOIKATSU
+        private byte[] CaptureWin32(string saveTo)
+        {
+            Rect rect = new Rect();
+            GetClientRect(this._windowHandle, ref rect);
+            System.Drawing.Point point = new System.Drawing.Point(0, 0);
+            ClientToScreen(this._windowHandle, ref point);
+            rect.left += point.X;
+            rect.top += point.Y;
+            rect.right += point.X;
+            rect.bottom += point.Y;
+
+            int width = rect.right - rect.left;
+            int height = rect.bottom - rect.top;
+
+            if (width % 2 != 0)
+                width += 1;
+            if (height % 2 != 0)
+                height += 1;
+
+            this._graphics.CopyFromScreen(rect.left, rect.top, 0, 0, new Size(width, height), CopyPixelOperation.SourceCopy);
+
+            switch (this._imageFormat)
+            {
+                default:
+                case ImgFormat.BMP:
+                    this._bitmap.Save(saveTo, ImageFormat.Bmp);
+                    break;
+                case ImgFormat.PNG:
+                    this._bitmap.Save(saveTo, ImageFormat.Png);
+                    break;
+            }
+            return null;
+        }
+#endif
+
+        private byte[] EncodeToBMP(Texture2D texture, int width, int height)
+        {
             unsafe
             {
                 uint byteSize = (uint)(width * height * 3);
@@ -107,7 +427,7 @@ namespace VideoExport.ScreenshotPlugins
                 }
 
                 int i = this._bmpHeader.Length;
-                Color32[] pixels = this._texture.GetPixels32();
+                Color32[] pixels = texture.GetPixels32();
                 foreach (Color32 c in pixels)
                 {
                     this._fileBytes[i++] = c.b;
@@ -116,29 +436,6 @@ namespace VideoExport.ScreenshotPlugins
                 }
                 return this._fileBytes;
             }
-        }
-
-        public void DisplayParams()
-        {
-            GUILayout.BeginHorizontal();
-            {
-                GUILayout.Label("Size Multiplier", GUILayout.ExpandWidth(false));
-                this._scaleFactor = GUILayout.HorizontalSlider(this._scaleFactor, 1, 8);
-                string s = this._scaleFactor.ToString("0.000");
-                string newS = GUILayout.TextField(s, GUILayout.Width(40));
-                if (newS != s)
-                {
-                    float res;
-                    if (float.TryParse(newS, out res))
-                        this._scaleFactor = res;
-                }
-            }
-            GUILayout.EndHorizontal();
-        }
-
-        public void SaveParams()
-        {
-            VideoExport._configFile.SetFloat("bmpSizeMultiplier", this._scaleFactor);
         }
     }
 }

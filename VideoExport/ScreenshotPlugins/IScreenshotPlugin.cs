@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-#if HONEYSELECT
+#if IPA
 using Harmony;
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
 using HarmonyLib;
 #endif
 using UnityEngine;
@@ -17,13 +17,16 @@ namespace VideoExport.ScreenshotPlugins
         Vector2 currentSize { get; }
         bool transparency { get; }
         string extension { get; }
-
-#if HONEYSELECT
+        byte bitDepth { get; }
+#if IPA
         bool Init(HarmonyInstance harmony);
-#elif KOIKATSU || AISHOUJO
+#elif BEPINEX
         bool Init(Harmony harmony);
 #endif
-        byte[] Capture(bool forcePng = false);
+        void UpdateLanguage();
+        void OnStartRecording();
+        byte[] Capture(string saveTo);
+        void OnEndRecording();
         void DisplayParams();
         void SaveParams();
     }
