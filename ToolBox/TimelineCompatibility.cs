@@ -41,7 +41,7 @@ namespace ToolBox
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError(e);
+                UnityEngine.Debug.LogError("Exception caught when trying to find Timeline: " + e);
             }
             return false;
         }

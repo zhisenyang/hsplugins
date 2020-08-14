@@ -341,6 +341,7 @@
     </When>
   </Choose>
   <ItemGroup>
+    <Compile Include="EditablePair.cs" />
     <Compile Include="GenericConfig.cs" />
     <Compile Include="GenericPlugin.cs" />
     <Compile Include="HarmonyExtensions.cs" />
