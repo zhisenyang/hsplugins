@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PackPlugins
 {
@@ -31,7 +27,7 @@ namespace PackPlugins
                 Directory.CreateDirectory(destinationDirectory);
             using (FileStream fileStream = new FileStream(destinationPath, FileMode.CreateNew))
             {
-                using (ZipArchive archive = new ZipArchive(fileStream, ZipArchiveMode.Create, true))
+                using (ZipArchive archive = new ZipArchive(fileStream, ZipArchiveMode.Create))
                 {
                     Console.WriteLine("Adding files...");
                     foreach (string file in this.Files)

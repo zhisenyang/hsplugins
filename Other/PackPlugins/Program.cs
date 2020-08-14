@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace PackPlugins
 {
@@ -10,24 +7,31 @@ namespace PackPlugins
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("0: Pack");
-            Console.WriteLine("1: Release");
-            string line = Console.ReadLine();
-            if (int.TryParse(line, out int index))
+            while (true)
             {
-                switch (index)
+                Console.WriteLine("0: Pack");
+                Console.WriteLine("1: Release");
+                Console.WriteLine("2: Quit");
+                string line = Console.ReadLine();
+                if (int.TryParse(line, out int index))
                 {
-                    case 0:
-                        Pack();
-                        break;
-                    case 1:
-                        Release();
-                        break;
+                    switch (index)
+                    {
+                        case 0:
+                            Pack();
+                            break;
+                        case 1:
+                            Release();
+                            break;
+                        case 2:
+                            goto EXIT_PROGRAM;
+                    }
                 }
+                else
+                    Console.WriteLine("Try again");
             }
-            else
-                Console.WriteLine("Try again");
-            Console.ReadKey();
+            EXIT_PROGRAM: 
+            ;
         }
 
         private static void Pack()
@@ -135,6 +139,62 @@ namespace PackPlugins
             },
             new PackProfile()
             {
+                Name = "RendererEditor",
+                Archives = new []
+                {
+                    new PackArchive()
+                    {
+                        Name = "HSRendererEditor",
+                        RootDirectory = @"D:\Program Files (x86)\HoneySelect",
+                        DestinationDirectory = @"D:\Program Files (x86)\HoneySelect\Modding",
+                        Files = new []
+                        {
+                            @"Plugins\RendererEditor.dll",
+                            @"Plugins\RendererEditor\Textures\ReplaceMe.png",
+                            @"abdata\studioneo\Joan6694\projector.unity3d",
+                            @"abdata\studioneo\HoneyselectItemResolver\Joan6694 Projectors.txt"
+                        }
+                    }, 
+                    new PackArchive()
+                    {
+                        Name = "KKRendererEditor",
+                        RootDirectory = @"D:\Program Files (x86)\Koikatu",
+                        DestinationDirectory = @"D:\Program Files (x86)\Koikatu\Modding",
+                        Files = new []
+                        {
+                            @"BepInEx\plugins\RendererEditor.dll",
+                            @"BepInEx\plugins\RendererEditor\Textures\ReplaceMe.png",
+                            @"mods\Joan6694Projectors.zipmod",
+                        }
+                    }, 
+                    new PackArchive()
+                    {
+                        Name = "AIRendererEditor",
+                        RootDirectory = @"D:\Program Files (x86)\AI-Syoujyo",
+                        DestinationDirectory = @"D:\Program Files (x86)\AI-Syoujyo\Modding",
+                        Files = new []
+                        {
+                            @"BepInEx\plugins\RendererEditor.dll",
+                            @"BepInEx\plugins\RendererEditor\Textures\ReplaceMe.png",
+                            @"mods\Joan6694Projectors.zipmod",
+                        }
+                    }, 
+                    new PackArchive()
+                    {
+                        Name = "HS2RendererEditor",
+                        RootDirectory = @"D:\Program Files (x86)\HoneySelect2",
+                        DestinationDirectory = @"D:\Program Files (x86)\HoneySelect2\Modding",
+                        Files = new []
+                        {
+                            @"BepInEx\plugins\RendererEditor.dll",
+                            @"BepInEx\plugins\RendererEditor\Textures\ReplaceMe.png",
+                            @"mods\Joan6694Projectors.zipmod",
+                        }
+                    }, 
+                }
+            },
+            new PackProfile()
+            {
                 Name = "VideoExport",
                 Archives = new []
                 {
@@ -185,7 +245,7 @@ namespace PackPlugins
                     }, 
                     new PackArchive()
                     {
-                        Name = "AIVideoExport",
+                        Name = "HS2VideoExport",
                         RootDirectory = @"D:\Program Files (x86)\HoneySelect2",
                         DestinationDirectory = @"D:\Program Files (x86)\HoneySelect2\Modding",
                         Files = new []
@@ -204,6 +264,126 @@ namespace PackPlugins
 
         private static readonly ReleaseProfile[] _releaseProfiles = new[]
         {
+            new ReleaseProfile()
+            {
+                Name = "Timeline",
+                Files = new []
+                {
+                    new ReleaseFile()
+                    {
+                        Name = "Timeline",
+                        Path = @"D:\Program Files (x86)\HoneySelect\Plugins\Timeline.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS\HS Plugins\Timeline"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "Timeline",
+                        Path = @"D:\Program Files (x86)\Koikatu\BepInEx\plugins\Timeline.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\KK\KK Plugins\Timeline"
+                    }, 
+                }
+            }, 
+            new ReleaseProfile()
+            {
+                Name = "RendererEditor",
+                Files = new []
+                {
+                    new ReleaseFile()
+                    {
+                        Name = "RendererEditor",
+                        Archive = _packProfiles.First(p => p.Name.Equals("RendererEditor")).Archives.First(a => a.Name.Equals("HSRendererEditor")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS\HS Plugins\RendererEditor",
+                        NewName = "RendererEditor"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "RendererEditor",
+                        Archive = _packProfiles.First(p => p.Name.Equals("RendererEditor")).Archives.First(a => a.Name.Equals("KKRendererEditor")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\KK\KK Plugins\RendererEditor",
+                        NewName = "RendererEditor"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "RendererEditor",
+                        Archive = _packProfiles.First(p => p.Name.Equals("RendererEditor")).Archives.First(a => a.Name.Equals("AIRendererEditor")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\AI\AI Plugins\RendererEditor",
+                        NewName = "RendererEditor"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "RendererEditor",
+                        Archive = _packProfiles.First(p => p.Name.Equals("RendererEditor")).Archives.First(a => a.Name.Equals("HS2RendererEditor")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS2\HS2 Plugins\RendererEditor",
+                        NewName = "RendererEditor"
+                    }, 
+                }
+            },
+            new ReleaseProfile()
+            {
+                Name = "VideoExport",
+                Files = new []
+                {
+                    new ReleaseFile()
+                    {
+                        Name = "VideoExport",
+                        Archive = _packProfiles.First(p => p.Name.Equals("VideoExport")).Archives.First(a => a.Name.Equals("HSVideoExport")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS\HS Plugins\VideoExport",
+                        NewName = "VideoExport"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "VideoExport",
+                        Archive = _packProfiles.First(p => p.Name.Equals("VideoExport")).Archives.First(a => a.Name.Equals("KKVideoExport")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\KK\KK Plugins\VideoExport",
+                        NewName = "VideoExport"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "VideoExport",
+                        Archive = _packProfiles.First(p => p.Name.Equals("VideoExport")).Archives.First(a => a.Name.Equals("AIVideoExport")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\AI\AI Plugins\VideoExport",
+                        NewName = "VideoExport"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "VideoExport",
+                        Archive = _packProfiles.First(p => p.Name.Equals("VideoExport")).Archives.First(a => a.Name.Equals("HS2VideoExport")),
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS2\HS2 Plugins\VideoExport",
+                        NewName = "VideoExport"
+                    }, 
+                }
+            },
+            new ReleaseProfile()
+            {
+                Name = "NodesConstraints",
+                Files = new []
+                {
+                    new ReleaseFile()
+                    {
+                        Name = "NodesConstraints",
+                        Path = @"D:\Program Files (x86)\HoneySelect\Plugins\NodesConstraints.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS\HS Plugins\NodesConstraints"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "NodesConstraints",
+                        Path = @"D:\Program Files (x86)\Koikatu\BepInEx\plugins\NodesConstraints.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\KK\KK Plugins\NodesConstraints"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "NodesConstraints",
+                        Path = @"D:\Program Files (x86)\AI-Syoujyo\BepInEx\plugins\NodesConstraints.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\AI\AI Plugins\NodesConstraints"
+                    }, 
+                    new ReleaseFile()
+                    {
+                        Name = "NodesConstraints",
+                        Path = @"D:\Program Files (x86)\HoneySelect2\BepInEx\plugins\NodesConstraints.dll",
+                        DestinationPath = @"D:\Joan\Mega\Illusion Stuff\HS2\HS2 Plugins\NodesConstraints"
+                    }, 
+                }
+            },
             new ReleaseProfile()
             {
                 Name = "MoreAccessoriesKOI/EC",
