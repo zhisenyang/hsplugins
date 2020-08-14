@@ -297,6 +297,14 @@ namespace UILib
             GameObject go = DefaultControls.CreateScrollView(resources);
             go.name = objectName;
             go.transform.SetParent(parent, false);
+            // I swear this is useful.
+            // It prevents the the new mask from "combining" with existing masks.
+            // Yes, I know, it's weird issue, but I guess that's the price of creating UI at runtime.
+            foreach (Mask m in go.GetComponentsInChildren<Mask>())
+            {
+                m.enabled = false;
+                m.enabled = true;
+            }
             return go.GetComponent<ScrollRect>();
         }
 
@@ -370,10 +378,11 @@ namespace UILib
             return i;
         }
 
-        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject)
+        public static MovableWindow MakeObjectDraggable(RectTransform clickableDragZone, RectTransform draggableObject, RectTransform limit = null)
         {
             MovableWindow mv = clickableDragZone.gameObject.AddComponent<MovableWindow>();
             mv.toDrag = draggableObject;
+            mv.limit = limit;
             return mv;
         }
 
