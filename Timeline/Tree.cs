@@ -193,7 +193,7 @@ namespace Timeline
             this.RemoveInternal(node);
             if (node.type == INodeType.Group)
             {
-                foreach (INode child in ((GroupNode<TGroup>)node).children)
+                foreach (INode child in ((GroupNode<TGroup>)node).children.ToList())
                     this.Remove(child);
             }
             while (node.parent != null && node.parent.children.Count == 0)

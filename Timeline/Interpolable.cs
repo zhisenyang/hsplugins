@@ -11,6 +11,8 @@ namespace Timeline
     {
         private readonly int _hashCode;
 
+        public override string name { get { return this._getFinalName != null ? this._getFinalName(this._name, this.oci, this.parameter) : base.name; } }
+
         public readonly ObjectCtrlInfo oci;
         public readonly SortedList<float, Keyframe> keyframes = new SortedList<float, Keyframe>();
         public bool enabled = true;
@@ -21,9 +23,6 @@ namespace Timeline
         {
             if (this.useOciInHash)
                 this.oci = oci;
-
-            if (this._getFinalName != null)
-                this.name = this._getFinalName(this.name, this.oci, this.parameter);
 
             unchecked
             {
@@ -36,9 +35,6 @@ namespace Timeline
         {
             if (this.useOciInHash)
                 this.oci = oci;
-
-            if (this._getFinalName != null)
-                this.name = this._getFinalName(this.name, this.oci, this.parameter);
 
             unchecked
             {

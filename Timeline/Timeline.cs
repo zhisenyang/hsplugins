@@ -1,6 +1,16 @@
 ﻿using System;
+using System.Collections;
+#if IPA
 using Harmony;
 using IllusionPlugin;
+#elif BEPINEX
+using HarmonyLib;
+using BepInEx;
+#endif
+#if KOIKATSU
+using Expression = ExpressionBone;
+using ExtensibleSaveFormat;
+#endif
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,30 +24,42 @@ using ToolBox.Extensions;
 using UILib;
 using UILib.ContextMenu;
 using UILib.EventHandlers;
+using UniRx.Triggers;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Button = UnityEngine.UI.Button;
+using Type = System.Type;
 
 namespace Timeline
 {
+#if BEPINEX
+    [BepInPlugin(_guid, _name, _version)]
+    [BepInProcess("CharaStudio")]
+    [BepInDependency("com.bepis.bepinex.extendedsave")]
+#endif
     public class Timeline : GenericPlugin
-#if HONEYSELECT
-    , IEnhancedPlugin
+#if IPA
+                            , IEnhancedPlugin
 #endif
     {
         #region Constants
         internal const string _name = "Timeline";
-        private const string _version = "1.0.0";
+        private const string _version = "1.1.0";
         private const string _guid = "com.joan6694.illusionplugins.timeline";
         internal const string _ownerId = "Timeline";
+#if KOIKATSU
+        private const int _saveVersion = 0;
+        private const string _extSaveKey = "timeline";
+#endif
         #endregion
 
-        #region IPA
+#if IPA
         public override string Name { get { return _name; } }
         public override string Version { get { return _version; } }
         public override string[] Filter { get { return new[] { "StudioNEO_32", "StudioNEO_64" }; } }
-        #endregion
+#endif
 
         #region Private Types
         private class HeaderDisplay
@@ -61,6 +83,7 @@ namespace Timeline
             public Text name;
             public InputField inputField;
             public Image background;
+            public Image selectedOutline;
             public RawImage gridBackground;
 
             public LeafNode<Interpolable> interpolable;
@@ -86,6 +109,10 @@ namespace Timeline
         {
             public GameObject gameObject;
             public RawImage image;
+            public PointerDownHandler pointerDownHandler;
+            public ScrollHandler scrollHandler;
+            public DragHandler dragHandler;
+            public PointerEnterHandler pointerEnterHandler;
         }
 
         private class SingleFileDisplay
@@ -115,17 +142,17 @@ namespace Timeline
         internal Dictionary<string, List<InterpolableModel>> _interpolableModelsDictionary = new Dictionary<string, List<InterpolableModel>>();
         private readonly Dictionary<string, int> _hardCodedOwnerOrder = new Dictionary<string, int>()
         {
-            {_ownerId, 0 },
-            {"HSPE", 1 },
-            {"RendererEditor", 2 }
+            {_ownerId, 0},
+            {"HSPE", 1},
+            {"KKPE", 1},
+            {"RendererEditor", 2},
+            {"NodesConstraints", 3}
         };
         internal Dictionary<Transform, GuideObject> _allGuideObjects;
         internal HashSet<GuideObject> _selectedGuideObjects;
         private readonly List<Interpolable> _toDelete = new List<Interpolable>();
         private readonly Dictionary<int, Interpolable> _interpolables = new Dictionary<int, Interpolable>();
         private readonly Tree<Interpolable, InterpolableGroup> _interpolablesTree = new Tree<Interpolable, InterpolableGroup>();
-
-        private bool _autoSaveKeyframes = false;
 
         private const float _baseGridWidth = 300f;
         private const int _interpolableHeight = 32;
@@ -140,6 +167,9 @@ namespace Timeline
         private Sprite _chevronUpSprite;
         private Sprite _chevronDownSprite;
         private Sprite _deleteSprite;
+        private Sprite _checkboxSprite;
+        private Sprite _checkboxCompositeSprite;
+        private Sprite _selectAllSprite;
 
         private RectTransform _timelineWindow;
         private GameObject _helpPanel;
@@ -169,8 +199,13 @@ namespace Timeline
         private RectTransform _resizeHandle;
         private GameObject _keyframeWindow;
         private Text _keyframeInterpolableNameText;
+        private Button _keyframeSelectPrevButton;
+        private Button _keyframeSelectNextButton;
         private InputField _keyframeTimeTextField;
+        private Button _keyframeUseCurrentTimeButton;
         private Text _keyframeValueText;
+        private Button _keyframeUseCurrentValueButton;
+        private Text _keyframeDeleteButtonText;
         private GameObject _headerPrefab;
         private readonly List<HeaderDisplay> _displayedOwnerHeader = new List<HeaderDisplay>();
         private GameObject _interpolablePrefab;
@@ -214,17 +249,23 @@ namespace Timeline
         private readonly List<Interpolable> _selectedInterpolables = new List<Interpolable>();
         private readonly List<KeyValuePair<float, Keyframe>> _selectedKeyframes = new List<KeyValuePair<float, Keyframe>>();
         private readonly List<KeyValuePair<float, Keyframe>> _copiedKeyframes = new List<KeyValuePair<float, Keyframe>>();
+        private readonly List<KeyValuePair<float, Keyframe>> _cutKeyframes = new List<KeyValuePair<float, Keyframe>>();
         private readonly Dictionary<KeyframeDisplay, float> _selectedKeyframesXOffset = new Dictionary<KeyframeDisplay, float>();
-        private object _selectedKeyframeValue;
-        private AnimationCurve _selectedKeyframeCurve = new AnimationCurve();
+        private double _keyframeSelectionSize;
         private int _selectedKeyframeCurvePointIndex = -1;
         private ObjectCtrlInfo _selectedOCI;
         private GuideObject _selectedGuideObject;
         private readonly AnimationCurve _copiedKeyframeCurve = new AnimationCurve();
+
+        private bool _isAreaSelecting;
+        private Vector2 _areaSelectFirstPoint;
+        private RectTransform _selectionArea;
         #endregion
 
         #region Accessors
-
+        public static float playbackTime { get { return _self._playbackTime; } }
+        public static float duration { get { return _self._duration; } }
+        public static bool isPlaying { get { return _self._isPlaying; } }
         #endregion
 
         #region Unity Methods
@@ -233,22 +274,35 @@ namespace Timeline
             base.Awake();
             _self = this;
 
-            this._autoSaveKeyframes = ModPrefs.GetBool("Timeline", "autoSaveKeyframes", false, true);
-
             _assemblyLocation = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             _singleFilesFolder = Path.Combine(_assemblyLocation, Path.Combine(_name, "Single Files"));
 
+#if HONEYSELECT
             HSExtSave.HSExtSave.RegisterHandler("timeline", null, null, this.SceneLoad, this.SceneImport, this.SceneWrite, null, null);
-
+#else
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingLoaded += this.OnSceneLoad;
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingImported += this.OnSceneImport;
+            ExtensibleSaveFormat.ExtendedSave.SceneBeingSaved += this.OnSceneSave;
+#endif
             var harmonyInstance = HarmonyExtensions.CreateInstance(_guid);
             harmonyInstance.PatchAllSafe();
+            OCI_OnDelete_Patches.ManualPatch(harmonyInstance);
         }
 
+#if HONEYSELECT
         protected override void LevelLoaded(int level)
         {
             if (level == 3)
                 this.Init();
         }
+#elif KOIKATSU
+        protected override void LevelLoaded(Scene scene, LoadSceneMode mode)
+        {
+            base.LevelLoaded(scene, mode);
+            if (mode == LoadSceneMode.Single && scene.buildIndex == 1)
+                this.Init();
+        }
+#endif
 
         protected override void Update()
         {
@@ -275,9 +329,9 @@ namespace Timeline
             if (Input.GetKey(KeyCode.LeftAlt) && Input.GetKeyDown(KeyCode.T))
             {
                 if (this._isPlaying)
-                    this.Pause();
+                    Pause();
                 else
-                    this.Play();
+                    Play();
             }
 
             this._totalActiveExpressions = this._allExpressions.Count(e => e.enabled && e.gameObject.activeInHierarchy);
@@ -303,22 +357,15 @@ namespace Timeline
                 if (this._selectedOCI != objectCtrlInfo)
                 {
                     this._selectedOCI = objectCtrlInfo;
-                    this.CloseKeyframeWindow();
                     this.UpdateInterpolablesView();
+                    this.UpdateKeyframeWindow(false);
                 }
             }
 
             if (this._toDelete.Count != 0)
             {
-                foreach (Interpolable interpolable in this._toDelete)
-                    if (this._interpolables.ContainsKey(interpolable.GetHashCode()))
-                    {
-                        this._interpolables.Remove(interpolable.GetHashCode());
-                        this._interpolablesTree.RemoveLeaf(interpolable);
-                    }
+                this.RemoveInterpolables(this._toDelete);
                 this._toDelete.Clear();
-                this.CloseKeyframeWindow();
-                this.UpdateInterpolablesView();
             }
             if (this._tooltip.transform.parent.gameObject.activeSelf)
             {
@@ -327,16 +374,18 @@ namespace Timeline
                     this._tooltip.transform.parent.position = this._tooltip.transform.parent.parent.TransformPoint(localPoint);
             }
 
-            if (Input.GetKey(KeyCode.LeftControl))
-            {
-                if (Input.GetKeyDown(KeyCode.C))
-                    this.CopyKeyframe();
-                if (Input.GetKeyDown(KeyCode.V))
-                    this.PasteKeyframe();
-            }
-
             if (this._ui.gameObject.activeSelf)
             {
+                if (Input.GetKey(KeyCode.LeftControl))
+                {
+                    if (Input.GetKeyDown(KeyCode.C))
+                        this.CopyKeyframes();
+                    else if (Input.GetKeyDown(KeyCode.X))
+                        this.CutKeyframes();
+                    else if (Input.GetKeyDown(KeyCode.V))
+                        this.PasteKeyframes();
+                }
+
                 if (this._speedInputField.isFocused == false)
                     this._speedInputField.text = Time.timeScale.ToString("0.#####");
             }
@@ -354,6 +403,62 @@ namespace Timeline
         #endregion
 
         #region Public Methods
+        public static void Play()
+        {
+            if (_self._isPlaying == false)
+            {
+                _self._isPlaying = true;
+                _self._startTime = Time.time - _self._playbackTime;
+            }
+            else
+                Pause();
+        }
+
+        public static void Pause()
+        {
+            _self._isPlaying = false;
+        }
+
+        public static void Stop()
+        {
+            _self._playbackTime = 0f;
+            _self.UpdateCursor();
+            _self.Interpolate(true);
+            _self.Interpolate(false);
+            _self._isPlaying = false;
+        }
+
+        public static void PreviousFrame()
+        {
+            float beat = 1f / _self._desiredFrameRate;
+            float time = _self._playbackTime % _self._duration;
+            float mod = time % beat;
+            if (mod / beat < 0.5f)
+                time -= mod;
+            else
+                time += beat - mod;
+            time -= beat;
+            if (time < 0f)
+                time = 0f;
+            _self.SeekPlaybackTime(time);
+        }
+
+        public static void NextFrame()
+        {
+            float beat = 1f / _self._desiredFrameRate;
+            float time = _self._playbackTime % _self._duration;
+            float mod = time % beat;
+            if (mod / beat < 0.5f)
+                time -= mod;
+            else
+                time += beat - mod;
+            time += beat;
+            if (time > _self._duration)
+                time = _self._duration;
+            _self.SeekPlaybackTime(time);
+        }
+
+
         /// <summary>
         /// Adds an InterpolableModel to the list.
         /// </summary>
@@ -437,17 +542,19 @@ namespace Timeline
         #region Private Methods
         private Interpolable AddInterpolable(InterpolableModel model)
         {
+            bool added = false;
+            Interpolable actualInterpolable = null;
             try
             {
                 if (model.IsCompatibleWithTarget(this._selectedOCI) == false)
                     return null;
                 Interpolable interpolable = new Interpolable(this._selectedOCI, model);
-                Interpolable actualInterpolable;
                 if (this._interpolables.TryGetValue(interpolable.GetHashCode(), out actualInterpolable) == false)
                 {
                     this._interpolables.Add(interpolable.GetHashCode(), interpolable);
                     this._interpolablesTree.AddLeaf(interpolable);
                     actualInterpolable = interpolable;
+                    added = true;
                 }
                 this.UpdateInterpolablesView();
                 return actualInterpolable;
@@ -455,6 +562,12 @@ namespace Timeline
             catch (Exception e)
             {
                 UnityEngine.Debug.LogError(_name + ": Couldn't add interpolable with model:\n" + model + "\n" + e);
+                if (added)
+                {
+                    this._interpolables.Remove(actualInterpolable.GetHashCode());
+                    this._interpolablesTree.RemoveLeaf(actualInterpolable);
+                    this.UpdateInterpolablesView();
+                }
             }
             return null;
         }
@@ -466,26 +579,28 @@ namespace Timeline
             if (selectedIndex != -1)
                 this._selectedInterpolables.RemoveAt(selectedIndex);
             this._interpolablesTree.RemoveLeaf(interpolable);
+            this._selectedKeyframes.RemoveAll(elem => elem.Value.parent == interpolable);
             this.UpdateInterpolablesView();
-            if (this._selectedKeyframes.RemoveAll(elem => interpolable.keyframes.ContainsValue(elem.Value)) > 0)
-                this.CloseKeyframeWindow();
+            this.UpdateKeyframeWindow(false);
         }
 
         private void RemoveInterpolables(IEnumerable<Interpolable> interpolables)
         {
+            if (interpolables == this._selectedInterpolables)
+                interpolables = interpolables.ToArray();
             foreach (Interpolable interpolable in interpolables)
             {
-                this._interpolables.Remove(interpolable.GetHashCode());
+                if (this._interpolables.ContainsKey(interpolable.GetHashCode()))
+                    this._interpolables.Remove(interpolable.GetHashCode());
                 this._interpolablesTree.RemoveLeaf(interpolable);
-            }
-            foreach (Interpolable interpolable in interpolables.ToArray())
-            {
+
                 int index = this._selectedInterpolables.IndexOf(interpolable);
                 if (index != -1)
                     this._selectedInterpolables.RemoveAt(index);
+                this._selectedKeyframes.RemoveAll(elem => elem.Value.parent == interpolable);
             }
             this.UpdateInterpolablesView();
-            this.CloseKeyframeWindow();
+            this.UpdateKeyframeWindow(false);
         }
 
         private void Init()
@@ -498,8 +613,11 @@ namespace Timeline
                 Camera.main.gameObject.AddComponent<Expression>();
             this._allGuideObjects = (Dictionary<Transform, GuideObject>)GuideObjectManager.Instance.GetPrivate("dicGuideObject");
             this._selectedGuideObjects = (HashSet<GuideObject>)GuideObjectManager.Instance.GetPrivate("hashSelectObject");
-
-            AssetBundle bundle = AssetBundle.LoadFromMemory(Properties.Resources.TimelineResources);
+#if HONEYSELECT
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Assembly.GetExecutingAssembly().GetResource("Timeline.Resources.TimelineResources.unity3d"));
+#elif KOIKATSU
+            AssetBundle bundle = AssetBundle.LoadFromMemory(Assembly.GetExecutingAssembly().GetResource("Timeline.Resources.TimelineResourcesKoi.unity3d"));
+#endif
             GameObject uiPrefab = bundle.LoadAsset<GameObject>("Canvas");
             this._ui = GameObject.Instantiate(uiPrefab).GetComponent<Canvas>();
             CanvasGroup alphaGroup = this._ui.GetComponent<CanvasGroup>();
@@ -517,6 +635,8 @@ namespace Timeline
             this._headerPrefab.hideFlags |= HideFlags.HideInHierarchy;
             this._singleFilePrefab = bundle.LoadAsset<GameObject>("SingleFile");
             this._singleFilePrefab.hideFlags |= HideFlags.HideInHierarchy;
+
+            this._ui.transform.Find("Timeline Window/Help Panel/Main Container/Scroll View/Viewport/Content/Text").GetComponent<Text>().text = System.Text.Encoding.Default.GetString(Assembly.GetExecutingAssembly().GetResource("Timeline.Resources.Help.txt"));
 
             foreach (Sprite sprite in bundle.LoadAllAssets<Sprite>())
             {
@@ -549,6 +669,15 @@ namespace Timeline
                     case "Delete":
                         this._deleteSprite = sprite;
                         break;
+                    case "Checkbox":
+                        this._checkboxSprite = sprite;
+                        break;
+                    case "CheckboxComposite":
+                        this._checkboxCompositeSprite = sprite;
+                        break;
+                    case "SelectAll":
+                        this._selectAllSprite = sprite;
+                        break;
                 }
             }
 
@@ -558,7 +687,7 @@ namespace Timeline
 
             //Timeline window
             this._timelineWindow = (RectTransform)this._ui.transform.Find("Timeline Window");
-            UIUtility.MakeObjectDraggable((RectTransform)this._ui.transform.Find("Timeline Window/Top Container"), this._timelineWindow);
+            UIUtility.MakeObjectDraggable((RectTransform)this._ui.transform.Find("Timeline Window/Top Container"), this._timelineWindow, (RectTransform)this._ui.transform);
             this._helpPanel = this._ui.transform.Find("Timeline Window/Help Panel").gameObject;
             this._singleFilesPanel = this._ui.transform.Find("Timeline Window/Single Files Panel").gameObject;
             this._singleFilesContainer = (RectTransform)this._singleFilesPanel.transform.Find("Main Container/Scroll View/Viewport/Content");
@@ -580,14 +709,15 @@ namespace Timeline
             this._speedInputField = this._ui.transform.Find("Timeline Window/Buttons/Speed").GetComponent<InputField>();
             this._textsContainer = (RectTransform)this._ui.transform.Find("Timeline Window/Main Container/Timeline/Scroll View/Viewport/Content/Grid Container/Texts");
             this._keyframesContainer = (RectTransform)this._ui.transform.Find("Timeline Window/Main Container/Timeline/Scroll View/Viewport/Content/Grid Container/Grid/Viewport/Content");
+            this._selectionArea = (RectTransform)this._ui.transform.Find("Timeline Window/Main Container/Timeline/Scroll View/Viewport/Content/Grid Container/Grid/Viewport/Content/Selection");
             this._miscContainer = (RectTransform)this._ui.transform.Find("Timeline Window/Main Container/Timeline/Scroll View/Viewport/Content/Grid Container/Grid/Viewport/Misc Content");
             this._resizeHandle = (RectTransform)this._ui.transform.Find("Timeline Window/Resize Handle");
 
-            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Play").GetComponent<Button>().onClick.AddListener(this.Play);
-            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Pause").GetComponent<Button>().onClick.AddListener(this.Pause);
-            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Stop").GetComponent<Button>().onClick.AddListener(this.Stop);
-            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/PrevFrame").GetComponent<Button>().onClick.AddListener(this.PreviousFrame);
-            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/NextFrame").GetComponent<Button>().onClick.AddListener(this.NextFrame);
+            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Play").GetComponent<Button>().onClick.AddListener(Play);
+            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Pause").GetComponent<Button>().onClick.AddListener(Pause);
+            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/Stop").GetComponent<Button>().onClick.AddListener(Stop);
+            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/PrevFrame").GetComponent<Button>().onClick.AddListener(PreviousFrame);
+            this._ui.transform.Find("Timeline Window/Buttons/Play Buttons/NextFrame").GetComponent<Button>().onClick.AddListener(NextFrame);
             this._ui.transform.Find("Timeline Window/Buttons/Single Files").GetComponent<Button>().onClick.AddListener(this.ToggleSingleFilesPanel);
             this._singleFileNameField.onValueChanged.AddListener((s) => this.UpdateSingleFileSelection());
             this._singleFilesPanel.transform.Find("Main Container/Buttons/Load").GetComponent<Button>().onClick.AddListener(this.LoadSingleFile);
@@ -603,9 +733,9 @@ namespace Timeline
             this._divisionsInputField.onEndEdit.AddListener(this.UpdateDivisions);
             this._divisionsInputField.text = this._divisions.ToString();
             this._speedInputField.onEndEdit.AddListener(this.UpdateSpeed);
-            this._keyframesContainer.gameObject.AddComponent<PointerDownHandler>().onPointerDown += this.OnKeyframeContainerMouseDown;
-            this._gridTop.gameObject.AddComponent<PointerDownHandler>().onPointerDown += this.OnGridTopMouse;
-            this._ui.transform.Find("Timeline Window/Top Container").gameObject.AddComponent<ScrollHandler>().onScroll += e =>
+            this._keyframesContainer.gameObject.AddComponent<PointerDownHandler>().onPointerDown = this.OnKeyframeContainerMouseDown;
+            this._gridTop.gameObject.AddComponent<PointerDownHandler>().onPointerDown = this.OnGridTopMouse;
+            this._ui.transform.Find("Timeline Window/Top Container").gameObject.AddComponent<ScrollHandler>().onScroll = e =>
             {
                 if (Input.GetKey(KeyCode.LeftControl))
                 {
@@ -617,25 +747,25 @@ namespace Timeline
                 }
             };
             DragHandler handler = this._gridTop.gameObject.AddComponent<DragHandler>();
-            //handler.onBeginDrag += (e) =>
+            //handler.onBeginDrag = (e) =>
             //{
             //    this.OnGridTopMouse(e);
             //    e.Reset();
             //};
-            handler.onDrag += (e) =>
+            handler.onDrag = (e) =>
             {
                 this._isPlaying = false;
                 this._isDraggingCursor = true;
                 this.OnGridTopMouse(e);
                 e.Reset();
             };
-            handler.onEndDrag += (e) =>
+            handler.onEndDrag = (e) =>
             {
                 this._isDraggingCursor = false;
                 this.OnGridTopMouse(e);
                 e.Reset();
             };
-            this._gridTop.gameObject.AddComponent<ScrollHandler>().onScroll += e =>
+            this._gridTop.gameObject.AddComponent<ScrollHandler>().onScroll = e =>
             {
                 if (e.scrollDelta.y > 0)
                     this.ZoomIn();
@@ -644,7 +774,7 @@ namespace Timeline
                 e.Reset();
             };
             this._verticalScrollView.onValueChanged.AddListener(this.ScrollKeyframes);
-            this._keyframesContainer.gameObject.AddComponent<ScrollHandler>().onScroll += e =>
+            this._keyframesContainer.gameObject.AddComponent<ScrollHandler>().onScroll = e =>
             {
                 if (Input.GetKey(KeyCode.LeftControl))
                 {
@@ -652,6 +782,11 @@ namespace Timeline
                         this.ZoomIn();
                     else
                         this.ZoomOut();
+                    e.Reset();
+                }
+                else if (Input.GetKey(KeyCode.LeftAlt))
+                {
+                    this.ScaleKeyframeSelection(e.scrollDelta.y);
                     e.Reset();
                 }
                 else if (Input.GetKey(KeyCode.LeftShift) == false)
@@ -663,37 +798,43 @@ namespace Timeline
                     this._horizontalScrollView.OnScroll(e);
             };
             handler = this._keyframesContainer.gameObject.AddComponent<DragHandler>();
-            handler.onInitializePotentialDrag += (e) =>
+            handler.onInitializePotentialDrag = (e) =>
             {
-                this._verticalScrollView.OnInitializePotentialDrag(e);
-                this._horizontalScrollView.OnInitializePotentialDrag(e);
+                this.PotentiallyBeginAreaSelect(e);
+                e.Reset();
             };
-            handler.onBeginDrag += (e) =>
+            handler.onBeginDrag = (e) =>
             {
-                this._verticalScrollView.OnBeginDrag(e);
-                this._horizontalScrollView.OnBeginDrag(e);
+                this.BeginAreaSelect(e);
+                e.Reset();
             };
-            handler.onDrag += (e) =>
+            handler.onDrag = (e) =>
             {
-                this._verticalScrollView.OnDrag(e);
-                this._horizontalScrollView.OnDrag(e);
+                this.UpdateAreaSelect(e);
+                e.Reset();
             };
-            handler.onEndDrag += (e) =>
+            handler.onEndDrag = (e) =>
             {
-                this._verticalScrollView.OnEndDrag(e);
-                this._horizontalScrollView.OnEndDrag(e);
+                this.EndAreaSelect(e);
+                e.Reset();
             };
             this._allToggle.onValueChanged.AddListener(b => this.UpdateInterpolablesView());
             this._interpolablesSearchField.onValueChanged.AddListener(this.InterpolablesSearch);
             handler = this._resizeHandle.gameObject.AddComponent<DragHandler>();
-            handler.onDrag += this.OnResizeWindow;
+            handler.onDrag = this.OnResizeWindow;
 
             //Keyframe window
             this._keyframeWindow = this._ui.transform.Find("Keyframe Window").gameObject;
-            UIUtility.MakeObjectDraggable((RectTransform)this._keyframeWindow.transform.Find("Top Container"), (RectTransform)this._keyframeWindow.transform);
+            UIUtility.MakeObjectDraggable((RectTransform)this._keyframeWindow.transform.Find("Top Container"), (RectTransform)this._keyframeWindow.transform, (RectTransform)this._ui.transform);
             this._keyframeInterpolableNameText = this._keyframeWindow.transform.Find("Main Container/Main Fields/Interpolable Name").GetComponent<Text>();
+            this._keyframeSelectPrevButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Prev").GetComponent<Button>();
+            this._keyframeSelectNextButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Next").GetComponent<Button>();
             this._keyframeTimeTextField = this._keyframeWindow.transform.Find("Main Container/Main Fields/Time/InputField").GetComponent<InputField>();
+            this._keyframeUseCurrentTimeButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Use Current Time").GetComponent<Button>();
             this._keyframeValueText = this._keyframeWindow.transform.Find("Main Container/Main Fields/Value/Background/Text").GetComponent<Text>();
+            this._keyframeUseCurrentValueButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Use Current").GetComponent<Button>();
+            Button deleteButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Delete").GetComponent<Button>();
+            this._keyframeDeleteButtonText = deleteButton.GetComponentInChildren<Text>();
 
             this._curveContainer = this._keyframeWindow.transform.Find("Main Container/Curve Fields/Curve/Grid/Spline").GetComponent<RawImage>();
             this._curveContainer.material = new Material(this._curveContainer.material);
@@ -708,19 +849,13 @@ namespace Timeline
             this._cursor2 = (RectTransform)this._ui.transform.Find("Keyframe Window/Main Container/Curve Fields/Curve/Grid/Cursor");
 
             this._keyframeWindow.transform.Find("Close").GetComponent<Button>().onClick.AddListener(this.CloseKeyframeWindow);
-            this._keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Prev").GetComponent<Button>().onClick.AddListener(this.SelectPreviousKeyframe);
-            this._keyframeWindow.transform.Find("Main Container/Main Fields/Prev Next/Next").GetComponent<Button>().onClick.AddListener(this.SelectNextKeyframe);
-            this._keyframeWindow.transform.Find("Main Container/Main Fields/Use Current Time").GetComponent<Button>().onClick.AddListener(this.UseCurrentTime);
-            this._keyframeWindow.transform.Find("Main Container/Main Fields/Use Current").GetComponent<Button>().onClick.AddListener(this.UseCurrentValue);
-            this._keyframeWindow.transform.Find("Main Container/Main Fields/Delete Save/Delete").GetComponent<Button>().onClick.AddListener(this.DeleteSelectedKeyframe);
-            if (this._autoSaveKeyframes)
-            {
-                Button saveButton = this._keyframeWindow.transform.Find("Main Container/Main Fields/Delete Save/Save").GetComponent<Button>();
-                saveButton.interactable = false;
-                saveButton.GetComponentInChildren<Text>().text = "Auto save on";
-            }
-            else
-                this._keyframeWindow.transform.Find("Main Container/Main Fields/Delete Save/Save").GetComponent<Button>().onClick.AddListener(this.SaveEntireKeyframe);
+            this._keyframeSelectPrevButton.onClick.AddListener(this.SelectPreviousKeyframe);
+            this._keyframeSelectNextButton.onClick.AddListener(this.SelectNextKeyframe);
+            this._keyframeUseCurrentTimeButton.onClick.AddListener(this.UseCurrentTime);
+            this._keyframeWindow.transform.Find("Main Container/Main Fields/Drag At Current Time").GetComponent<Button>().onClick.AddListener(this.DragAtCurrentTime);
+            this._keyframeUseCurrentValueButton.onClick.AddListener(this.UseCurrentValue);
+            deleteButton.onClick.AddListener(this.DeleteSelectedKeyframes);
+
 
             this._keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Line").GetComponent<Button>().onClick.AddListener(() => this.ApplyKeyframeCurvePreset(this._linePreset));
             this._keyframeWindow.transform.Find("Main Container/Curve Fields/Fields/Presets/Top").GetComponent<Button>().onClick.AddListener(() => this.ApplyKeyframeCurvePreset(this._topPreset));
@@ -733,7 +868,7 @@ namespace Timeline
 
             this._keyframeTimeTextField.onEndEdit.AddListener(this.UpdateSelectedKeyframeTime);
 
-            this._curveContainer.gameObject.AddComponent<PointerDownHandler>().onPointerDown += this.OnCurveMouseDown;
+            this._curveContainer.gameObject.AddComponent<PointerDownHandler>().onPointerDown = this.OnCurveMouseDown;
             this._curveTimeInputField.onEndEdit.AddListener(this.UpdateCurvePointTime);
             this._curveTimeSlider.onValueChanged.AddListener(this.UpdateCurvePointTime);
             this._curveValueInputField.onEndEdit.AddListener(this.UpdateCurvePointValue);
@@ -778,24 +913,27 @@ namespace Timeline
 
         private void Interpolate(bool before)
         {
-            foreach (KeyValuePair<int, Interpolable> interpolablePair in this._interpolables)
+            this._interpolablesTree.Recurse((node, depth) =>
             {
-                if (interpolablePair.Value.enabled == false)
-                    continue;
+                if (node.type != INodeType.Leaf)
+                    return;
+                Interpolable interpolable = ((LeafNode<Interpolable>)node).obj;
+                if (interpolable.enabled == false)
+                    return;
                 if (before)
                 {
-                    if (interpolablePair.Value.canInterpolateBefore == false)
-                        continue;
+                    if (interpolable.canInterpolateBefore == false)
+                        return;
                 }
                 else
                 {
-                    if (interpolablePair.Value.canInterpolateAfter == false)
-                        continue;
+                    if (interpolable.canInterpolateAfter == false)
+                        return;
                 }
 
                 KeyValuePair<float, Keyframe> left = default;
                 KeyValuePair<float, Keyframe> right = default;
-                foreach (KeyValuePair<float, Keyframe> keyframePair in interpolablePair.Value.keyframes)
+                foreach (KeyValuePair<float, Keyframe> keyframePair in interpolable.keyframes)
                 {
                     if (keyframePair.Key <= this._playbackTime)
                         left = keyframePair;
@@ -812,27 +950,27 @@ namespace Timeline
                     float normalizedTime = (this._playbackTime - left.Key) / (right.Key - left.Key);
                     normalizedTime = left.Value.curve.Evaluate(normalizedTime);
                     if (before)
-                        res = interpolablePair.Value.InterpolateBefore(left.Value.value, right.Value.value, normalizedTime);
+                        res = interpolable.InterpolateBefore(left.Value.value, right.Value.value, normalizedTime);
                     else
-                        res = interpolablePair.Value.InterpolateAfter(left.Value.value, right.Value.value, normalizedTime);
+                        res = interpolable.InterpolateAfter(left.Value.value, right.Value.value, normalizedTime);
                 }
                 else if (left.Value != null)
                 {
                     if (before)
-                        res = interpolablePair.Value.InterpolateBefore(left.Value.value, left.Value.value, 0);
+                        res = interpolable.InterpolateBefore(left.Value.value, left.Value.value, 0);
                     else
-                        res = interpolablePair.Value.InterpolateAfter(left.Value.value, left.Value.value, 0);
+                        res = interpolable.InterpolateAfter(left.Value.value, left.Value.value, 0);
                 }
                 else if (right.Value != null)
                 {
                     if (before)
-                        res = interpolablePair.Value.InterpolateBefore(right.Value.value, right.Value.value, 0);
+                        res = interpolable.InterpolateBefore(right.Value.value, right.Value.value, 0);
                     else
-                        res = interpolablePair.Value.InterpolateAfter(right.Value.value, right.Value.value, 0);
+                        res = interpolable.InterpolateAfter(right.Value.value, right.Value.value, 0);
                 }
                 if (res == false)
-                    this._toDelete.Add(interpolablePair.Value);
-            }
+                    this._toDelete.Add(interpolable);
+            });
         }
 
         private float ParseTime(string timeString)
@@ -850,64 +988,11 @@ namespace Timeline
         }
 
         #region Main Window
-        private void Play()
-        {
-            if (this._isPlaying == false)
-            {
-                this._isPlaying = true;
-                this._startTime = Time.time - this._playbackTime;
-            }
-        }
-
-        private void Pause()
-        {
-            this._isPlaying = false;
-        }
-
-        private void Stop()
-        {
-            this._playbackTime = 0f;
-            this.UpdateCursor();
-            this.Interpolate(true);
-            this.Interpolate(false);
-            this._isPlaying = false;
-        }
-
-        private void PreviousFrame()
-        {
-            float beat = 1f / this._desiredFrameRate;
-            float time = this._playbackTime % this._duration;
-            float mod = time % beat;
-            if (mod / beat < 0.5f)
-                time -= mod;
-            else
-                time += beat - mod;
-            time -= beat;
-            if (time < 0f)
-                time = 0f;
-            this.SeekPlaybackTime(time);
-        }
-
-        private void NextFrame()
-        {
-            float beat = 1f / this._desiredFrameRate;
-            float time = this._playbackTime % this._duration;
-            float mod = time % beat;
-            if (mod / beat < 0.5f)
-                time -= mod;
-            else
-                time += beat - mod;
-            time += beat;
-            if (time > this._duration)
-                time = this._duration;
-            this.SeekPlaybackTime(time);
-        }
-
         private void UpdateCursor()
         {
             this._cursor.anchoredPosition = new Vector2((this._playbackTime * this._grid.rect.width) / this._duration, this._cursor.anchoredPosition.y);
             this.UpdateCursor2();
-            this._timeInputField.text = $"{(int)(this._playbackTime / 60):00}:{(this._playbackTime % 60):00.000}";
+            this._timeInputField.text = $"{Mathf.FloorToInt(this._playbackTime / 60):00}:{(this._playbackTime % 60):00.000}";
         }
 
         private void UpdateDesiredFrameRate(string s)
@@ -944,7 +1029,7 @@ namespace Timeline
             if (float.TryParse(this._blockLengthInputField.text, out res) && res >= 0.01f)
             {
                 this._blockLength = res;
-                this.UpdateGridMaterial();
+                this.UpdateGrid();
             }
             this._blockLengthInputField.text = this._blockLength.ToString();
         }
@@ -955,7 +1040,7 @@ namespace Timeline
             if (int.TryParse(this._divisionsInputField.text, out res) && res >= 1)
             {
                 this._divisions = res;
-                this.UpdateGrid();
+                this.UpdateGridMaterial();
             }
             this._divisionsInputField.text = this._divisions.ToString();
         }
@@ -1022,7 +1107,7 @@ namespace Timeline
                     foreach (InterpolableModel model in ownerPair.Value)
                     {
                         //Interpolable usedInterpolable;
-                        if (/*usedInterpolables.TryGetValue(model.GetHashCode(), out usedInterpolable) ||*/ model.IsCompatibleWithTarget(this._selectedOCI) == false)
+                        if ( /*usedInterpolables.TryGetValue(model.GetHashCode(), out usedInterpolable) ||*/ model.IsCompatibleWithTarget(this._selectedOCI) == false)
                             continue;
 
                         if (model.name.IndexOf(this._interpolablesSearchField.text, StringComparison.OrdinalIgnoreCase) == -1)
@@ -1191,7 +1276,9 @@ namespace Timeline
                 display.name = display.container.Find("Label").GetComponent<Text>();
                 display.inputField = display.container.Find("InputField").GetComponent<InputField>();
                 display.background = display.container.GetComponent<Image>();
+                display.selectedOutline = display.container.Find("SelectedOutline").GetComponent<Image>();
                 display.gridBackground = UIUtility.CreateRawImage($"Interpolable{i} Background", this._miscContainer);
+                display.background.material = new Material(display.background.material);
 
                 display.gameObject.transform.SetParent(this._verticalScrollView.content);
                 display.gameObject.transform.localPosition = Vector3.zero;
@@ -1200,7 +1287,7 @@ namespace Timeline
                 display.gridBackground.raycastTarget = false;
                 display.gridBackground.material = new Material(this._keyframesBackgroundMaterial);
                 display.inputField.gameObject.SetActive(false);
-                display.container.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+                display.container.gameObject.AddComponent<PointerDownHandler>().onPointerDown = (e) =>
                 {
                     Interpolable interpolable = display.interpolable.obj;
                     switch (e.button)
@@ -1228,6 +1315,14 @@ namespace Timeline
                                 }
                                 else
                                     this.SelectAddInterpolable(interpolable);
+                            }
+                            else if (Input.GetKey(KeyCode.LeftAlt))
+                            {
+                                GuideObject linkedGuideObject = interpolable.parameter as GuideObject;
+                                if (linkedGuideObject == null && interpolable.oci != null)
+                                    linkedGuideObject = interpolable.oci.guideObject;
+                                if (linkedGuideObject != null)
+                                    GuideObjectManager.Instance.selectObject = linkedGuideObject;
                             }
                             else
                                 this.SelectInterpolable(interpolable);
@@ -1296,13 +1391,51 @@ namespace Timeline
                                         }
                                     });
                                 }
-
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        foreach (Interpolable selected in currentlySelectedInterpolables)
+                                            toSelect.AddRange(selected.keyframes);
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes before cursor",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        float currentTime = this._playbackTime % this._duration;
+                                        foreach (Interpolable selected in currentlySelectedInterpolables)
+                                            toSelect.AddRange(selected.keyframes.Where(k => k.Key < currentTime));
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes after cursor",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        float currentTime = this._playbackTime % this._duration;
+                                        foreach (Interpolable selected in currentlySelectedInterpolables)
+                                            toSelect.AddRange(selected.keyframes.Where(k => k.Key >= currentTime));
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
                                 elements.Add(new LeafElement()
                                 {
                                     icon = this._colorSprite,
                                     text = "Color",
                                     onClick = p =>
                                     {
+#if HONEYSELECT
                                         Studio.Studio.Instance.colorPaletteCtrl.visible = true;
                                         Studio.Studio.Instance.colorMenu.updateColorFunc = null;
                                         if (currentlySelectedInterpolables.Count == 1)
@@ -1316,15 +1449,26 @@ namespace Timeline
                                                 this.UpdateInterpolableColor(disp, col);
                                             }
                                         };
+#elif KOIKATSU
+                                        Studio.Studio.Instance.colorPalette.visible = false;
+                                        Studio.Studio.Instance.colorPalette.Setup("Interpolable Color", currentlySelectedInterpolables[0].color, (col) =>
+                                        {
+                                            foreach (Interpolable interp in currentlySelectedInterpolables)
+                                            {
+                                                InterpolableDisplay disp = this._displayedInterpolables.Find(id => id.interpolable.obj == interp);
+                                                interp.color = col;
+                                                this.UpdateInterpolableColor(disp, col);
+                                            }
+                                        }, true);
+
+#endif
                                     }
                                 });
 
                                 elements.Add(new LeafElement()
                                 {
                                     icon = this._addSprite,
-                                    text = currentlySelectedInterpolables.Count == 1 ?
-                                            "Add keyframe at cursor" :
-                                            "Add keyframes at cursor",
+                                    text = currentlySelectedInterpolables.Count == 1 ? "Add keyframe at cursor" : "Add keyframes at cursor",
                                     onClick = p =>
                                     {
                                         float time = this._playbackTime % this._duration;
@@ -1343,6 +1487,28 @@ namespace Timeline
                                         elements = treeGroups
                                     });
                                 }
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._checkboxSprite,
+                                    text = currentlySelectedInterpolables.Count == 1 ? "Disable" : "Disable all",
+                                    onClick = p =>
+                                    {
+                                        foreach (Interpolable selectedInterpolable in currentlySelectedInterpolables)
+                                            selectedInterpolable.enabled = false;
+                                        this.UpdateInterpolablesView();
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._checkboxCompositeSprite,
+                                    text = currentlySelectedInterpolables.Count == 1 ? "Enable" : "Enable all",
+                                    onClick = p =>
+                                    {
+                                        foreach (Interpolable selectedInterpolable in currentlySelectedInterpolables)
+                                            selectedInterpolable.enabled = true;
+                                        this.UpdateInterpolablesView();
+                                    }
+                                });
                                 elements.Add(new LeafElement()
                                 {
                                     icon = this._chevronUpSprite,
@@ -1431,7 +1597,7 @@ namespace Timeline
                 display.gameObject.transform.localScale = Vector3.one;
                 display.inputField.gameObject.SetActive(false);
 
-                display.container.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
+                display.container.gameObject.AddComponent<PointerDownHandler>().onPointerDown = (e) =>
                 {
                     switch (e.button)
                     {
@@ -1485,6 +1651,83 @@ namespace Timeline
                                         display.inputField.Select();
                                     }
                                 });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select Interpolables under",
+                                    onClick = p =>
+                                    {
+                                        List<Interpolable> toSelect = new List<Interpolable>();
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                toSelect.Add(((LeafNode<Interpolable>)n).obj);
+                                        });
+                                        this.SelectInterpolable(toSelect.ToArray());
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                toSelect.AddRange(((LeafNode<Interpolable>)n).obj.keyframes);
+                                        });
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes before cursor",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        float currentTime = this._playbackTime % this._duration;
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                toSelect.AddRange(((LeafNode<Interpolable>)n).obj.keyframes.Where(k => k.Key < currentTime));
+                                        });
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._selectAllSprite,
+                                    text = "Select keyframes after cursor",
+                                    onClick = p =>
+                                    {
+                                        List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+                                        float currentTime = this._playbackTime % this._duration;
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                toSelect.AddRange(((LeafNode<Interpolable>)n).obj.keyframes.Where(k => k.Key >= currentTime));
+                                        });
+                                        this.SelectKeyframes(toSelect);
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._addSprite,
+                                    text = "Add keyframes at cursor",
+                                    onClick = p =>
+                                    {
+                                        float time = this._playbackTime % this._duration;
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                this.AddKeyframe(((LeafNode<Interpolable>)n).obj, time);
+                                        });
+                                        this.UpdateGrid();
+                                    }
+                                });
                                 List<AContextMenuElement> treeGroups = this.GetInterpolablesTreeGroups(new List<INode> { display.group });
                                 if (treeGroups.Count != 1)
                                 {
@@ -1495,6 +1738,34 @@ namespace Timeline
                                         elements = treeGroups
                                     });
                                 }
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._checkboxSprite,
+                                    text = "Disable",
+                                    onClick = p =>
+                                    {
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                ((LeafNode<Interpolable>)n).obj.enabled = false;
+                                        });
+                                        this.UpdateInterpolablesView();
+                                    }
+                                });
+                                elements.Add(new LeafElement()
+                                {
+                                    icon = this._checkboxCompositeSprite,
+                                    text = "Enable",
+                                    onClick = p =>
+                                    {
+                                        this._interpolablesTree.Recurse(display.group, (n, d) =>
+                                        {
+                                            if (n.type == INodeType.Leaf)
+                                                ((LeafNode<Interpolable>)n).obj.enabled = true;
+                                        });
+                                        this.UpdateInterpolablesView();
+                                    }
+                                });
                                 elements.Add(new LeafElement()
                                 {
                                     icon = this._chevronUpSprite,
@@ -1534,6 +1805,7 @@ namespace Timeline
 
                                                 this.RemoveInterpolables(interpolables);
                                                 this._interpolablesTree.Remove(display.group);
+                                                this.UpdateInterpolablesView();
                                             }
                                         }, "Are you sure you want to delete this group?");
                                     }
@@ -1605,6 +1877,144 @@ namespace Timeline
             return elements;
         }
 
+        private void HighlightInterpolable(Interpolable interpolable)
+        {
+            this.StartCoroutine(this.HighlightInterpolable_Routine(interpolable));
+        }
+
+        private IEnumerator HighlightInterpolable_Routine(Interpolable interpolable)
+        {
+            InterpolableDisplay display = this._displayedInterpolables.FirstOrDefault(d => d.interpolable.obj == interpolable);
+            if (display != null)
+            {
+                Color first = interpolable.color.GetContrastingColor();
+                Color second = first.GetContrastingColor();
+                float startTime = Time.unscaledTime;
+                while (Time.unscaledTime - startTime < 0.25f)
+                {
+                    this.UpdateInterpolableColor(display, Color.Lerp(interpolable.color, first, (Time.unscaledTime - startTime) * 4f));
+                    yield return null;
+                }
+                startTime = Time.unscaledTime;
+                while (Time.unscaledTime - startTime < 1f)
+                {
+                    this.UpdateInterpolableColor(display, Color.Lerp(second, first, (Mathf.Cos((Time.unscaledTime - startTime) * Mathf.PI * 4) + 1f) / 2f));
+                    yield return null;
+                }
+                startTime = Time.unscaledTime;
+                while (Time.unscaledTime - startTime < 0.25f)
+                {
+                    this.UpdateInterpolableColor(display, Color.Lerp(first, interpolable.color, (Time.unscaledTime - startTime) * 4f));
+                    yield return null;
+                }
+                this.UpdateInterpolableColor(display, interpolable.color);
+            }
+        }
+
+        private void PotentiallyBeginAreaSelect(PointerEventData e)
+        {
+            Vector2 localPoint;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._keyframesContainer, e.position, e.pressEventCamera, out localPoint))
+            {
+                if (Input.GetKey(KeyCode.LeftShift))
+                {
+                    float time = 10f * localPoint.x / (_baseGridWidth * this._zoomLevel);
+                    float beat = this._blockLength / this._divisions;
+                    float mod = time % beat;
+                    if (mod / beat > 0.5f)
+                        time += beat - mod;
+                    else
+                        time -= mod;
+                    localPoint.x = time * (_baseGridWidth * this._zoomLevel) / 10f;
+                }
+                this._areaSelectFirstPoint = localPoint;
+            }
+            this._isAreaSelecting = false;
+        }
+
+        private void BeginAreaSelect(PointerEventData e)
+        {
+            this._isAreaSelecting = true;
+            this._selectionArea.gameObject.SetActive(true);
+        }
+
+        private void UpdateAreaSelect(PointerEventData e)
+        {
+            if (this._isAreaSelecting == false)
+                return;
+            Vector2 localPoint;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._keyframesContainer, e.position, e.pressEventCamera, out localPoint))
+            {
+                if (Input.GetKey(KeyCode.LeftShift))
+                {
+                    float time = 10f * localPoint.x / (_baseGridWidth * this._zoomLevel);
+                    float beat = this._blockLength / this._divisions;
+                    float mod = time % beat;
+                    if (mod / beat > 0.5f)
+                        time += beat - mod;
+                    else
+                        time -= mod;
+                    localPoint.x = time * (_baseGridWidth * this._zoomLevel) / 10f;
+                }
+                Vector2 min = new Vector2(Mathf.Min(this._areaSelectFirstPoint.x, localPoint.x), Mathf.Min(this._areaSelectFirstPoint.y, localPoint.y));
+                Vector2 max = new Vector2(Mathf.Max(this._areaSelectFirstPoint.x, localPoint.x), Mathf.Max(this._areaSelectFirstPoint.y, localPoint.y));
+
+                this._selectionArea.offsetMin = min;
+                this._selectionArea.offsetMax = max;
+            }
+        }
+
+        private void EndAreaSelect(PointerEventData e)
+        {
+            Vector2 localPoint;
+            if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(this._keyframesContainer, e.position, e.pressEventCamera, out localPoint))
+                return;
+            float firstTime = 10f * this._areaSelectFirstPoint.x / (_baseGridWidth * this._zoomLevel);
+            float secondTime = 10f * localPoint.x / (_baseGridWidth * this._zoomLevel);
+            if (Input.GetKey(KeyCode.LeftShift))
+            {
+                float beat = this._blockLength / this._divisions;
+                float mod = secondTime % beat;
+                if (mod / beat > 0.5f)
+                    secondTime += beat - mod;
+                else
+                    secondTime -= mod;
+            }
+            if (secondTime < firstTime)
+            {
+                float temp = firstTime;
+                firstTime = secondTime;
+                secondTime = temp;
+            }
+            float minY = Mathf.Min(this._areaSelectFirstPoint.y, localPoint.y);
+            float maxY = Mathf.Max(this._areaSelectFirstPoint.y, localPoint.y);
+
+            this._selectionArea.gameObject.SetActive(false);
+            this._isAreaSelecting = false;
+
+            List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+            foreach (InterpolableDisplay display in this._displayedInterpolables)
+            {
+                if (display.gameObject.activeSelf == false)
+                    break;
+                float height = ((RectTransform)display.gameObject.transform).anchoredPosition.y;
+
+                if (height > minY && height < maxY)
+                {
+                    foreach (KeyValuePair<float, Keyframe> pair in display.interpolable.obj.keyframes)
+                    {
+                        if (pair.Key >= firstTime && pair.Key <= secondTime)
+                            toSelect.Add(pair);
+                    }
+
+                }
+            }
+            if (Input.GetKey(KeyCode.LeftControl))
+                this.SelectAddKeyframes(toSelect);
+            else
+                this.SelectKeyframes(toSelect);
+        }
+
         private void SelectAddInterpolable(params Interpolable[] interpolables)
         {
             foreach (Interpolable interpolable in interpolables)
@@ -1635,8 +2045,13 @@ namespace Timeline
             foreach (InterpolableDisplay display in this._displayedInterpolables)
             {
                 bool selected = this._selectedInterpolables.Any(e => e == display.interpolable.obj);
-                display.background.color = selected ? Color.green : display.interpolable.obj.color;
+                display.selectedOutline.gameObject.SetActive(selected);
+                display.background.material.SetFloat("_DrawChecker", selected ? 1f : 0f);
                 display.gridBackground.material.SetFloat("_DrawChecker", selected ? 1f : 0f);
+                display.name.fontStyle = selected ? FontStyle.Bold : FontStyle.Normal;
+                // Forcing the texture to refresh
+                display.background.enabled = false;
+                display.background.enabled = true;
                 display.gridBackground.enabled = false;
                 display.gridBackground.enabled = true;
             }
@@ -1644,7 +2059,7 @@ namespace Timeline
 
         private void UpdateGrid()
         {
-            this._durationInputField.text = $"{(int)(this._duration / 60):00}:{(this._duration % 60):00.00}";
+            this._durationInputField.text = $"{Mathf.FloorToInt(this._duration / 60):00}:{(this._duration % 60):00.00}";
 
             this._horizontalScrollView.content.sizeDelta = new Vector2(_baseGridWidth * this._zoomLevel * this._duration / 10f, this._horizontalScrollView.content.sizeDelta.y);
             this.UpdateGridMaterial();
@@ -1665,7 +2080,7 @@ namespace Timeline
                     t.rectTransform.SetRect(Vector2.zero, new Vector2(0f, 1f), Vector2.zero, new Vector2(60f, 0f));
                     this._timeTexts.Add(t);
                 }
-                t.text = $"{(i * this._blockLength / 60):00}:{((i * this._blockLength) % 60):00.##}";
+                t.text = $"{Mathf.FloorToInt((i * this._blockLength) / 60):00}:{((i * this._blockLength) % 60):00.##}";
                 t.gameObject.SetActive(true);
                 t.rectTransform.anchoredPosition = new Vector2(i * this._blockLength * _baseGridWidth * this._zoomLevel / 10, t.rectTransform.anchoredPosition.y);
                 ++textIndex;
@@ -1726,15 +2141,15 @@ namespace Timeline
                                 display.gameObject.transform.localScale = Vector3.one;
 
                                 PointerEnterHandler pointerEnter = display.gameObject.AddComponent<PointerEnterHandler>();
-                                pointerEnter.onPointerEnter += (e) =>
+                                pointerEnter.onPointerEnter = (e) =>
                                 {
                                     this._tooltip.transform.parent.gameObject.SetActive(true);
                                     float t = display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe).Key;
-                                    this._tooltip.text = $"T: {(int)(t / 60):00}:{t % 60:00.########}\nV: {display.keyframe.value}";
+                                    this._tooltip.text = $"T: {Mathf.FloorToInt(t / 60):00}:{t % 60:00.########}\nV: {display.keyframe.value}";
                                 };
-                                pointerEnter.onPointerExit += (e) => { this._tooltip.transform.parent.gameObject.SetActive(false); };
+                                pointerEnter.onPointerExit = (e) => { this._tooltip.transform.parent.gameObject.SetActive(false); };
                                 PointerDownHandler pointerDown = display.gameObject.AddComponent<PointerDownHandler>();
-                                pointerDown.onPointerDown += (e) =>
+                                pointerDown.onPointerDown = (e) =>
                                 {
                                     if (Input.GetKey(KeyCode.LeftAlt))
                                         return;
@@ -1742,7 +2157,7 @@ namespace Timeline
                                     {
                                         case PointerEventData.InputButton.Left:
                                             if (Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl))
-                                                this.SelectAddKeyframe(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+                                                this.SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
                                             else if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
                                             {
                                                 KeyValuePair<float, Keyframe> lastSelected = this._selectedKeyframes.LastOrDefault(k => k.Value.parent == display.keyframe.parent);
@@ -1761,14 +2176,14 @@ namespace Timeline
                                                         minTime = selectingNow.Key;
                                                         maxTime = lastSelected.Key;
                                                     }
-                                                    this.SelectAddKeyframe(display.keyframe.parent.keyframes.Where(k => k.Key > minTime && k.Key < maxTime).ToArray());
-                                                    this.SelectAddKeyframe(selectingNow);
+                                                    this.SelectAddKeyframes(display.keyframe.parent.keyframes.Where(k => k.Key > minTime && k.Key < maxTime));
+                                                    this.SelectAddKeyframes(selectingNow);
                                                 }
                                                 else
-                                                    this.SelectAddKeyframe(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+                                                    this.SelectAddKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
                                             }
                                             else
-                                                this.SelectKeyframe(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
+                                                this.SelectKeyframes(display.keyframe.parent.keyframes.First(k => k.Value == display.keyframe));
 
                                             break;
                                         case PointerEventData.InputButton.Right:
@@ -1777,17 +2192,15 @@ namespace Timeline
                                         case PointerEventData.InputButton.Middle:
                                             if (Input.GetKey(KeyCode.LeftControl))
                                             {
+                                                List<KeyValuePair<float, Keyframe>> toDelete = new List<KeyValuePair<float, Keyframe>>();
+                                                if (Input.GetKey(KeyCode.LeftShift))
+                                                    toDelete.AddRange(this._selectedKeyframes);
                                                 KeyValuePair<float, Keyframe> kPair = display.keyframe.parent.keyframes.FirstOrDefault(k => k.Value == display.keyframe);
                                                 if (kPair.Value != null)
+                                                    toDelete.Add(kPair);
+                                                if (toDelete.Count != 0)
                                                 {
-                                                    this.DeleteKeyframes(kPair);
-                                                    if (display.keyframe.parent.keyframes.Count == 0)
-                                                    {
-                                                        this._interpolables.Remove(display.keyframe.parent.GetHashCode());
-                                                        this.UpdateInterpolablesView();
-                                                    }
-                                                    else
-                                                        this.UpdateGrid();
+                                                    this.DeleteKeyframes(toDelete);
                                                     this._tooltip.transform.parent.gameObject.SetActive(false);
                                                 }
                                             }
@@ -1796,7 +2209,7 @@ namespace Timeline
                                 };
 
                                 DragHandler dragHandler = display.gameObject.AddComponent<DragHandler>();
-                                dragHandler.onBeginDrag += e =>
+                                dragHandler.onBeginDrag = e =>
                                 {
                                     if (Input.GetKey(KeyCode.LeftAlt) == false)
                                         return;
@@ -1814,7 +2227,7 @@ namespace Timeline
                                         this._isPlaying = false;
                                     e.Reset();
                                 };
-                                dragHandler.onDrag += e =>
+                                dragHandler.onDrag = e =>
                                 {
                                     if (this._selectedKeyframesXOffset.Count == 0)
                                         return;
@@ -1850,7 +2263,7 @@ namespace Timeline
                                     e.Reset();
                                 };
 
-                                dragHandler.onEndDrag += e =>
+                                dragHandler.onEndDrag = e =>
                                 {
                                     if (this._selectedKeyframesXOffset.Count == 0)
                                         return;
@@ -1858,16 +2271,14 @@ namespace Timeline
                                     {
                                         RectTransform rt = ((RectTransform)pair.Key.gameObject.transform);
                                         float time = 10f * rt.anchoredPosition.x / (_baseGridWidth * this._zoomLevel);
-                                        pair.Key.keyframe.parent.keyframes.RemoveAt(pair.Key.keyframe.parent.keyframes.IndexOfValue(pair.Key.keyframe));
-                                        pair.Key.keyframe.parent.keyframes.Add(time, pair.Key.keyframe);
+                                        this.MoveKeyframe(pair.Key.keyframe, time);
 
                                         int index = this._selectedKeyframes.FindIndex(k => k.Value == pair.Key.keyframe);
                                         this._selectedKeyframes[index] = new KeyValuePair<float, Keyframe>(time, pair.Key.keyframe);
                                     }
 
                                     e.Reset();
-                                    this.UpdateKeyframeWindow();
-                                    this.UpdateCurve();
+                                    this.UpdateKeyframeWindow(false);
                                     this._selectedKeyframesXOffset.Clear();
                                 };
 
@@ -1898,38 +2309,96 @@ namespace Timeline
             this._gridImage.enabled = true;
         }
 
-        private void SelectAddKeyframe(params KeyValuePair<float, Keyframe>[] keyframes)
+        private void SelectAddKeyframes(params KeyValuePair<float, Keyframe>[] keyframes)
         {
-            bool refreshWindow = false;
+            this.SelectAddKeyframes((IEnumerable<KeyValuePair<float, Keyframe>>)keyframes);
+        }
+
+        private void SelectAddKeyframes(IEnumerable<KeyValuePair<float, Keyframe>> keyframes)
+        {
             foreach (KeyValuePair<float, Keyframe> keyframe in keyframes)
             {
                 int index = this._selectedKeyframes.FindIndex(k => k.Value == keyframe.Value);
                 if (index != -1)
-                {
                     this._selectedKeyframes.RemoveAt(index);
-                    if (index == 0)
-                        refreshWindow = true;
-                }
                 else
                     this._selectedKeyframes.Add(keyframe);
             }
+            this._keyframeSelectionSize = this._selectedKeyframes.Max(k => k.Key) - this._selectedKeyframes.Min(k => k.Key);
             this.UpdateKeyframeSelection();
-            if (this._selectedKeyframes.Count == 0)
-                this.CloseKeyframeWindow();
-            else if (this._selectedKeyframes.Count == 1 || refreshWindow)
-                this.OpenKeyframeWindow();
+            this.UpdateKeyframeWindow();
         }
 
-        private void SelectKeyframe(params KeyValuePair<float, Keyframe>[] keyframe)
+        private void SelectKeyframes(params KeyValuePair<float, Keyframe>[] keyframes)
+        {
+            this.SelectKeyframes((IEnumerable<KeyValuePair<float, Keyframe>>)keyframes);
+        }
+
+        private void SelectKeyframes(IEnumerable<KeyValuePair<float, Keyframe>> keyframes)
         {
             this._selectedKeyframes.Clear();
-            this.SelectAddKeyframe(keyframe);
+            if (keyframes.Count() != 0)
+                this.SelectAddKeyframes(keyframes);
         }
 
         private void UpdateKeyframeSelection()
         {
             foreach (KeyframeDisplay display in this._displayedKeyframes)
                 display.image.color = this._selectedKeyframes.Any(k => k.Value == display.keyframe) ? Color.green : Color.red;
+        }
+
+        private void ScaleKeyframeSelection(float scrollDelta)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+            {
+                if (pair.Key < min)
+                    min = pair.Key;
+                if (pair.Key > max)
+                    max = pair.Key;
+            }
+            if (Mathf.Approximately(min, max))
+                return;
+            double currentSize = max - min;
+
+            double newSize;
+            bool conflicting;
+            int multiplier = 1;
+            do
+            {
+                conflicting = false;
+                double sizeMultiplier = Math.Round(Math.Round(currentSize * 10) / this._keyframeSelectionSize + multiplier * (scrollDelta > 0 ? 1 : -1)) / 10;
+                bool clamped = false;
+                if (sizeMultiplier < 0.1)
+                {
+                    clamped = true;
+                    sizeMultiplier = 0.1;
+                }
+                newSize = sizeMultiplier * this._keyframeSelectionSize;
+                foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                {
+                    float newTime = (float)(((pair.Key - min) * newSize) / currentSize + min);
+                    if (pair.Value.parent.keyframes.TryGetValue(newTime, out Keyframe otherKeyframe) && otherKeyframe != pair.Value)
+                    {
+                        conflicting = true;
+                        ++multiplier;
+                        break;
+                    }
+                }
+                if (clamped && conflicting)
+                    return;
+            } while (conflicting);
+
+            for (int i = 0; i < this._selectedKeyframes.Count; i++)
+            {
+                KeyValuePair<float, Keyframe> pair = this._selectedKeyframes[i];
+                float newTime = (float)(((pair.Key - min) * newSize) / currentSize + min);
+                this.MoveKeyframe(pair.Value, newTime);
+                this._selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(newTime, pair.Value);
+            }
+            this.UpdateKeyframeWindow(false);
+            this.UpdateGrid();
         }
 
         private void OnKeyframeContainerMouseDown(PointerEventData eventData)
@@ -2015,33 +2484,70 @@ namespace Timeline
             {
                 UnityEngine.Debug.LogError(_name + ": couldn't add keyframe to interpolable with value:" + interpolable + "\n" + e);
             }
-
         }
 
-        private void CopyKeyframe()
+        private void CopyKeyframes()
         {
             this._copiedKeyframes.Clear();
             foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
                 this._copiedKeyframes.Add(new KeyValuePair<float, Keyframe>(pair.Key, new Keyframe(pair.Value)));
         }
 
-        private void PasteKeyframe()
+        private void CutKeyframes()
         {
-            if (this._copiedKeyframes.Count != 0)
-            {
-                float time = this._playbackTime % this._duration;
-                float startOffset = this._copiedKeyframes.Min(k => k.Key);
-                foreach (KeyValuePair<float, Keyframe> pair in this._copiedKeyframes)
-                {
-                    float finalTime = time + pair.Key - startOffset;
-                    if (pair.Value.parent.keyframes.ContainsKey(finalTime))
-                        continue;
-                    pair.Value.parent.keyframes.Add(finalTime, pair.Value);
-                }
-                this.UpdateGrid();
-            }
+            this.CopyKeyframes();
+            if (this._selectedKeyframes.Count != 0)
+                this.DeleteKeyframes(this._selectedKeyframes, false);
         }
 
+        private void PasteKeyframes()
+        {
+            if (this._copiedKeyframes.Count == 0)
+                return;
+            List<KeyValuePair<float, Keyframe>> toSelect = new List<KeyValuePair<float, Keyframe>>();
+            float time = this._playbackTime % this._duration;
+            if (time == 0f && this._playbackTime == this._duration)
+                time = this._duration;
+            float startOffset = this._copiedKeyframes.Min(k => k.Key);
+            if (Input.GetKey(KeyCode.LeftAlt))
+            {
+                float max = this._copiedKeyframes.Max(k => k.Key);
+                //// If they keyframe(s) that are at the end of the selection would conflict with any pushed keyframes (those that are currently on the cursor), then cancel
+                //if (this._copiedKeyframes.Where(k => Mathf.Approximately(k.Key, max)).Any(k => k.Value.parent.keyframes.ContainsKey(time)))
+                //    return;
+                double duration = max - startOffset + (this._blockLength / this._divisions);
+                foreach (IGrouping<Interpolable, KeyValuePair<float, Keyframe>> group in this._copiedKeyframes.GroupBy(k => k.Value.parent))
+                {
+                    foreach (KeyValuePair<float, Keyframe> pair in @group.Key.keyframes.Reverse())
+                    {
+                        if (pair.Key >= time)
+                            this.MoveKeyframe(pair.Value, (float)(pair.Key + duration));
+                    }
+                }
+            }
+            else if (this._copiedKeyframes.Any(k => k.Value.parent.keyframes.ContainsKey(time + k.Key - startOffset)))
+                return;
+            foreach (KeyValuePair<float, Keyframe> pair in this._copiedKeyframes)
+            {
+                float finalTime = time + pair.Key - startOffset;
+                Keyframe newKeyframe = new Keyframe(pair.Value);
+                pair.Value.parent.keyframes.Add(finalTime, newKeyframe);
+                // This is dumb as shit but I have no choice
+                toSelect.Add(new KeyValuePair<float, Keyframe>(finalTime, newKeyframe));
+            }
+            this.SelectKeyframes(toSelect);
+            this.UpdateGrid();
+        }
+
+        private void MoveKeyframe(Keyframe keyframe, float destinationTime)
+        {
+            UnityEngine.Debug.LogError(keyframe.parent.keyframes.IndexOfValue(keyframe));
+            keyframe.parent.keyframes.RemoveAt(keyframe.parent.keyframes.IndexOfValue(keyframe));
+            keyframe.parent.keyframes.Add(destinationTime, keyframe);
+            int i = this._selectedKeyframes.FindIndex(k => k.Value == keyframe);
+            if (i != -1)
+                this._selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(destinationTime, keyframe);
+        }
 
         private void OnGridTopMouse(PointerEventData eventData)
         {
@@ -2192,52 +2698,84 @@ namespace Timeline
         private void OpenKeyframeWindow()
         {
             this._keyframeWindow.gameObject.SetActive(true);
-            this._selectedKeyframeCurvePointIndex = -1;
-            this.UpdateKeyframeWindow();
         }
 
         private void CloseKeyframeWindow()
         {
             this._keyframeWindow.gameObject.SetActive(false);
+            this._selectedKeyframeCurvePointIndex = -1;
         }
 
         private void SelectPreviousKeyframe()
         {
+            if (this._selectedKeyframes.Count != 1)
+                return;
             KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
             KeyValuePair<float, Keyframe> keyframe = firstSelected.Value.parent.keyframes.LastOrDefault(f => f.Key < firstSelected.Key);
             if (keyframe.Value != null)
-                this.SelectKeyframe(keyframe);
+                this.SelectKeyframes(keyframe);
         }
 
         private void SelectNextKeyframe()
         {
+            if (this._selectedKeyframes.Count != 1)
+                return;
             KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
             KeyValuePair<float, Keyframe> keyframe = firstSelected.Value.parent.keyframes.FirstOrDefault(f => f.Key > firstSelected.Key);
             if (keyframe.Value != null)
-                this.SelectKeyframe(keyframe);
+                this.SelectKeyframes(keyframe);
         }
 
         private void UseCurrentTime()
         {
             float currentTime = this._playbackTime % this._duration;
+            this.SaveKeyframeTime(currentTime);
+            this.UpdateKeyframeTimeTextField();
+        }
 
-            this._keyframeTimeTextField.text = $"{(int)(currentTime / 60):00}:{currentTime % 60:00.########}";
-            this.UpdateSelectedKeyframeTime("");
+        private void DragAtCurrentTime()
+        {
+            float currentTime = this._playbackTime % this._duration;
+            float min = this._selectedKeyframes.Min(k => k.Key);
+
+            // Checking if all keyframes can be moved.
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+            {
+                Keyframe potentialDuplicateKeyframe;
+                float time = currentTime + pair.Key - min;
+                if (pair.Value.parent.keyframes.TryGetValue(time, out potentialDuplicateKeyframe) && potentialDuplicateKeyframe != pair.Value)
+                    return;
+            }
+
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                pair.Value.parent.keyframes.Remove(pair.Key);
+
+            for (int i = 0; i < this._selectedKeyframes.Count; i++)
+            {
+                KeyValuePair<float, Keyframe> pair = this._selectedKeyframes[i];
+                float time = currentTime + pair.Key - min;
+                pair.Value.parent.keyframes.Add(time, pair.Value);
+                this._selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(time, pair.Value);
+            }
+
+            this.UpdateKeyframeTimeTextField();
+            this.ExecuteDelayed(this.UpdateCursor2);
+            this.UpdateGrid();
         }
 
         private void UpdateSelectedKeyframeTime(string s)
         {
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeTime();
+            float time = this.ParseTime(this._keyframeTimeTextField.text);
+            if (time < 0)
+                return;
+            this.SaveKeyframeTime(time);
         }
 
         private void UseCurrentValue()
         {
-            this._selectedKeyframeValue = this._selectedKeyframes[0].Value.parent.GetValue();
-
-            this._keyframeValueText.text = this._selectedKeyframeValue != null ? this._selectedKeyframeValue.ToString() : "null";
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeValue();
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                pair.Value.value = pair.Value.parent.GetValue();
+            this.UpdateKeyframeValueText();
         }
 
         private void OnCurveMouseDown(PointerEventData eventData)
@@ -2262,112 +2800,118 @@ namespace Timeline
                 UnityEngine.Keyframe curveKey = new UnityEngine.Keyframe(time, value);
                 if (curveKey.time < 0 || curveKey.time > 1 || curveKey.value < 0 || curveKey.value > 1)
                     return;
-                this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                if (this._autoSaveKeyframes)
-                    this.SaveKeyframeCurve();
+                this._selectedKeyframeCurvePointIndex = this._selectedKeyframes[0].Value.curve.AddKey(curveKey);
+                this.SaveKeyframeCurve();
                 this.UpdateCurve();
             }
         }
 
         private void UpdateCurvePointTime(string s)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex >= 1 && this._selectedKeyframeCurvePointIndex < curve.length - 1)
             {
-                if (this._selectedKeyframeCurvePointIndex == 0 || this._selectedKeyframeCurvePointIndex == this._selectedKeyframeCurve.length - 1)
-                    return;
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 float v;
                 if (float.TryParse(this._curveTimeInputField.text, out v))
                 {
-                    curveKey.time = v;
-                    this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                    this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                    this.UpdateCurve();
+                    v = Mathf.Clamp(v, 0.001f, 0.999f);
+                    if (!curve.keys.Any(k => k.time == v))
+                    {
+                        curveKey.time = v;
+                        curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                        this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                        this.SaveKeyframeCurve();
+                    }
                 }
             }
             this.UpdateCurvePointTime();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointTime(float f)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex >= 1 && this._selectedKeyframeCurvePointIndex < curve.length - 1)
             {
-                if (this._selectedKeyframeCurvePointIndex == 0 || this._selectedKeyframeCurvePointIndex == this._selectedKeyframeCurve.length - 1)
-                    return;
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
-                curveKey.time = this._curveTimeSlider.value;
-                this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                this.UpdateCurve();
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
+                float v = Mathf.Clamp(this._curveTimeSlider.value, 0.001f, 0.999f);
+                if (curve.keys.Any(k => k.time == v) == false)
+                {
+                    curveKey.time = v;
+                    curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                    this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                    this.SaveKeyframeCurve();
+                }
             }
             this.UpdateCurvePointTime();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointTime()
         {
             UnityEngine.Keyframe curveKey;
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
-                curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
+                curveKey = curve[this._selectedKeyframeCurvePointIndex];
             else
                 curveKey = new UnityEngine.Keyframe();
             this._curveTimeInputField.text = curveKey.time.ToString("0.00000");
             this._curveTimeSlider.SetValueNoCallback(curveKey.time);
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
         }
 
         private void UpdateCurvePointValue(string s)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex >= 1 && this._selectedKeyframeCurvePointIndex < curve.length - 1)
             {
-                if (this._selectedKeyframeCurvePointIndex == 0 || this._selectedKeyframeCurvePointIndex == this._selectedKeyframeCurve.length - 1)
-                    return;
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 float v;
                 if (float.TryParse(this._curveValueInputField.text, out v))
                 {
                     curveKey.value = v;
-                    this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                    this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                    this.UpdateCurve();
+                    curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                    this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                    this.SaveKeyframeCurve();
                 }
             }
             this.UpdateCurvePointValue();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointValue(float f)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex >= 1 && this._selectedKeyframeCurvePointIndex < curve.length - 1)
             {
-                if (this._selectedKeyframeCurvePointIndex == 0 || this._selectedKeyframeCurvePointIndex == this._selectedKeyframeCurve.length - 1)
-                    return;
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 curveKey.value = this._curveValueSlider.value;
-                this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                this.UpdateCurve();
+                curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                this.SaveKeyframeCurve();
             }
             this.UpdateCurvePointValue();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointValue()
         {
             UnityEngine.Keyframe curveKey;
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
-                curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
+                curveKey = curve[this._selectedKeyframeCurvePointIndex];
             else
                 curveKey = new UnityEngine.Keyframe();
             this._curveValueInputField.text = curveKey.value.ToString("0.00000");
             this._curveValueSlider.SetValueNoCallback(curveKey.value);
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
         }
 
         private void UpdateCurvePointInTangent(string s)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
             {
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 float v;
                 if (float.TryParse(this._curveInTangentInputField.text, out v))
                 {
@@ -2375,49 +2919,52 @@ namespace Timeline
                         curveKey.inTangent = float.NegativeInfinity;
                     else
                         curveKey.inTangent = Mathf.Tan(v * Mathf.Deg2Rad);
-                    this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                    this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                    this.UpdateCurve();
+                    curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                    this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                    this.SaveKeyframeCurve();
                 }
             }
             this.UpdateCurvePointInTangent();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointInTangent(float f)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
             {
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 if (this._curveInTangentSlider.value == 90f || this._curveInTangentSlider.value == -90f)
                     curveKey.inTangent = float.PositiveInfinity;
                 else
                     curveKey.inTangent = Mathf.Tan(this._curveInTangentSlider.value * Mathf.Deg2Rad);
-                this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                this.UpdateCurve();
+                curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                this.SaveKeyframeCurve();
             }
             this.UpdateCurvePointInTangent();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointInTangent()
         {
             UnityEngine.Keyframe curveKey;
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
-                curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
+                curveKey = curve[this._selectedKeyframeCurvePointIndex];
             else
                 curveKey = new UnityEngine.Keyframe();
             float v = Mathf.Atan(curveKey.inTangent) * Mathf.Rad2Deg;
             this._curveInTangentInputField.text = v.ToString("0.000");
             this._curveInTangentSlider.SetValueNoCallback(v);
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
         }
 
         private void UpdateCurvePointOutTangent(string s)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
             {
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 float v;
                 if (float.TryParse(this._curveOutTangentInputField.text, out v))
                 {
@@ -2425,60 +2972,62 @@ namespace Timeline
                         curveKey.outTangent = float.NegativeInfinity;
                     else
                         curveKey.outTangent = Mathf.Tan(v * Mathf.Deg2Rad);
-                    this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                    this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                    this.UpdateCurve();
+                    curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                    this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                    this.SaveKeyframeCurve();
                 }
             }
             this.UpdateCurvePointOutTangent();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointOutTangent(float f)
         {
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
             {
-                UnityEngine.Keyframe curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+                UnityEngine.Keyframe curveKey = curve[this._selectedKeyframeCurvePointIndex];
                 if (this._curveOutTangentSlider.value == 90f || this._curveOutTangentSlider.value == -90f)
                     curveKey.outTangent = float.NegativeInfinity;
                 else
                     curveKey.outTangent = Mathf.Tan(this._curveOutTangentSlider.value * Mathf.Deg2Rad);
-                this._selectedKeyframeCurve.RemoveKey(this._selectedKeyframeCurvePointIndex);
-                this._selectedKeyframeCurvePointIndex = this._selectedKeyframeCurve.AddKey(curveKey);
-                this.UpdateCurve();
+                curve.RemoveKey(this._selectedKeyframeCurvePointIndex);
+                this._selectedKeyframeCurvePointIndex = curve.AddKey(curveKey);
+                this.SaveKeyframeCurve();
             }
             this.UpdateCurvePointOutTangent();
+            this.UpdateCurve();
         }
 
         private void UpdateCurvePointOutTangent()
         {
             UnityEngine.Keyframe curveKey;
-            if (this._selectedKeyframeCurve != null && this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < this._selectedKeyframeCurve.length)
-                curveKey = this._selectedKeyframeCurve[this._selectedKeyframeCurvePointIndex];
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            if (this._selectedKeyframeCurvePointIndex != -1 && this._selectedKeyframeCurvePointIndex < curve.length)
+                curveKey = curve[this._selectedKeyframeCurvePointIndex];
             else
                 curveKey = new UnityEngine.Keyframe();
             float v = Mathf.Atan(curveKey.outTangent) * Mathf.Rad2Deg;
             this._curveOutTangentInputField.text = v.ToString("0.000");
             this._curveOutTangentSlider.SetValueNoCallback(v);
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
         }
 
         private void CopyKeyframeCurve()
         {
-            this._copiedKeyframeCurve.keys = this._selectedKeyframeCurve.keys;
+            this._copiedKeyframeCurve.keys = this._selectedKeyframes[0].Value.curve.keys;
         }
 
         private void PasteKeyframeCurve()
         {
-            this._selectedKeyframeCurve.keys = this._copiedKeyframeCurve.keys;
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
+            this._selectedKeyframes[0].Value.curve.keys = this._copiedKeyframeCurve.keys;
+            this.SaveKeyframeCurve();
             this.UpdateCurve();
         }
 
         private void InvertKeyframeCurve()
         {
-            UnityEngine.Keyframe[] keys = this._selectedKeyframeCurve.keys;
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            UnityEngine.Keyframe[] keys = curve.keys;
             for (int i = 0; i < keys.Length; i++)
             {
                 UnityEngine.Keyframe key = keys[i];
@@ -2491,34 +3040,34 @@ namespace Timeline
             }
 
             Array.Reverse(keys);
-            this._selectedKeyframeCurve.keys = keys;
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
+            curve.keys = keys;
+            this.SaveKeyframeCurve();
             this.UpdateCurve();
         }
 
         private void ApplyKeyframeCurvePreset(AnimationCurve preset)
         {
-            this._selectedKeyframeCurve = new AnimationCurve(preset.keys);
-            if (this._autoSaveKeyframes)
-                this.SaveKeyframeCurve();
+            this._selectedKeyframes[0].Value.curve = new AnimationCurve(preset.keys);
+            this.SaveKeyframeCurve();
             this.UpdateCurve();
         }
 
         private void UpdateCursor2()
         {
-            if (this._keyframeWindow.activeSelf)
+            if (!this._keyframeWindow.activeSelf)
+                return;
+            if (this._selectedKeyframes.Count == 1)
             {
-                KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
+                KeyValuePair<float, Keyframe> selectedKeyframe = this._selectedKeyframes[0];
 
-                if (this._playbackTime >= firstSelected.Key)
+                if (this._playbackTime >= selectedKeyframe.Key)
                 {
-                    KeyValuePair<float, Keyframe> after = firstSelected.Value.parent.keyframes.FirstOrDefault(k => k.Key > firstSelected.Key);
+                    KeyValuePair<float, Keyframe> after = selectedKeyframe.Value.parent.keyframes.FirstOrDefault(k => k.Key > selectedKeyframe.Key);
                     if (after.Value != null && this._playbackTime <= after.Key)
                     {
                         this._cursor2.gameObject.SetActive(true);
 
-                        float normalizedTime = (this._playbackTime - firstSelected.Key) / (after.Key - firstSelected.Key);
+                        float normalizedTime = (this._playbackTime - selectedKeyframe.Key) / (after.Key - selectedKeyframe.Key);
                         this._cursor2.anchoredPosition = new Vector2(normalizedTime * this._curveContainer.rectTransform.rect.width, this._cursor2.anchoredPosition.y);
                     }
                     else
@@ -2527,128 +3076,188 @@ namespace Timeline
                 else
                     this._cursor2.gameObject.SetActive(false);
             }
+            else
+                this._cursor2.gameObject.SetActive(false);
         }
 
-        private void DeleteSelectedKeyframe()
+        private void DeleteSelectedKeyframes()
         {
-            UIUtility.DisplayConfirmationDialog(result =>
-            {
-                if (result)
-                {
-                    KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
-                    this.DeleteKeyframes(firstSelected);
-                    bool deleted = false;
-                    if (firstSelected.Value.parent.keyframes.Count == 0)
+            UIUtility.DisplayConfirmationDialog(result => 
                     {
-                        deleted = true;
-                        this._interpolables.Remove(firstSelected.Value.parent.GetHashCode());
-                    }
-                    this.CloseKeyframeWindow();
-                    if (deleted)
-                        this.UpdateInterpolablesView();
-                    else
-                        this.UpdateGrid();
-                }
-            }, "Are you sure you want to delete this Keyframe?");
+                        if (result)
+                            this.DeleteKeyframes(this._selectedKeyframes);
+                    }, this._selectedKeyframes.Count == 1 ? "Are you sure you want to delete this Keyframe?" : "Are you sure you want to delete these Keyframes?"
+            );
         }
 
         private void DeleteKeyframes(params KeyValuePair<float, Keyframe>[] keyframes)
         {
+            this.DeleteKeyframes((IEnumerable<KeyValuePair<float, Keyframe>>)keyframes);
+        }
+
+        private void DeleteKeyframes(IEnumerable<KeyValuePair<float, Keyframe>> keyframes, bool removeInterpolables = true)
+        {
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            keyframes = keyframes.ToList();
             foreach (KeyValuePair<float, Keyframe> pair in keyframes)
-                pair.Value.parent.keyframes.Remove(pair.Key);
-            if (this._selectedKeyframes.RemoveAll(elem => keyframes.Any(k => k.Value == elem.Value)) > 0)
-                this.CloseKeyframeWindow();
-        }
+            {
+                if (pair.Value == null) //Just a safeguard.
+                    continue;
+                if (pair.Key < min)
+                    min = pair.Key;
+                if (pair.Key > max)
+                    max = pair.Key;
+                try
+                {
+                    pair.Value.parent.keyframes.Remove(pair.Key);
+                    if (removeInterpolables && pair.Value.parent.keyframes.Count == 0)
+                        this.RemoveInterpolable(pair.Value.parent);
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(_name + ": Couldn't delete keyframe with time \"" + pair.Key + "\" and value \"" + pair.Value + "\" from interpolable \"" + pair.Value.parent + "\"\n" + e);
+                }
+            }
 
-        private void SaveEntireKeyframe()
-        {
-            float time = this.ParseTime(this._keyframeTimeTextField.text);
-            if (time < 0)
-                return;
-            Keyframe potentialDuplicateKeyframe;
-            KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
-            if (firstSelected.Value.parent.keyframes.TryGetValue(time, out potentialDuplicateKeyframe) && potentialDuplicateKeyframe != firstSelected.Value)
-                return;
-            firstSelected.Value.parent.keyframes.Remove(firstSelected.Key);
+            if (Input.GetKey(KeyCode.LeftAlt))
+            {
+                double duration = max - min + (this._blockLength / this._divisions);
+                //IDK, grouping didn't work so I'm doing it like this
+                HashSet<Interpolable> processedParents = new HashSet<Interpolable>();
+                foreach (KeyValuePair<float, Keyframe> k in keyframes)
+                {
+                    if (processedParents.Contains(k.Value.parent) != false)
+                        continue;
+                    processedParents.Add(k.Value.parent);
+                    foreach (KeyValuePair<float, Keyframe> pair in k.Value.parent.keyframes.ToList())
+                        if (pair.Key > min)
+                            this.MoveKeyframe(pair.Value, (float)(pair.Key - duration));
+                }
+            }
+            this._selectedKeyframes.RemoveAll(elem => elem.Value == null || keyframes.Any(k => k.Value == elem.Value));
 
-            firstSelected.Value.value = this._selectedKeyframeValue;
-            firstSelected.Value.curve = new AnimationCurve(this._selectedKeyframeCurve.keys);
-
-            firstSelected.Value.parent.keyframes.Add(time, firstSelected.Value);
-
-            this._selectedKeyframes[0] = new KeyValuePair<float, Keyframe>(time, firstSelected.Value);
-
-            this.UpdateKeyframeWindow();
             this.UpdateGrid();
+            this.UpdateKeyframeWindow(false);
         }
 
-        private void SaveKeyframeTime()
+        private void SaveKeyframeTime(float time)
         {
-            float time = this.ParseTime(this._keyframeTimeTextField.text);
-            if (time < 0)
-                return;
-            Keyframe potentialDuplicateKeyframe;
-            KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
-            if (firstSelected.Value.parent.keyframes.TryGetValue(time, out potentialDuplicateKeyframe) && potentialDuplicateKeyframe != firstSelected.Value)
-                return;
-            if (firstSelected.Key == time)
-                return;
-            firstSelected.Value.parent.keyframes.Remove(firstSelected.Key);
-            firstSelected.Value.parent.keyframes.Add(time, firstSelected.Value);
+            for (int i = 0; i < this._selectedKeyframes.Count; i++)
+            {
+                KeyValuePair<float, Keyframe> pair = this._selectedKeyframes[i];
+                Keyframe potentialDuplicateKeyframe;
+                if (pair.Value.parent.keyframes.TryGetValue(time, out potentialDuplicateKeyframe) && potentialDuplicateKeyframe != pair.Value)
+                    continue;
+                pair.Value.parent.keyframes.Remove(pair.Key);
+                pair.Value.parent.keyframes.Add(time, pair.Value);
+                this._selectedKeyframes[i] = new KeyValuePair<float, Keyframe>(time, pair.Value);
+            }
 
-            firstSelected = new KeyValuePair<float, Keyframe>(time, firstSelected.Value);
-
-            this._selectedKeyframes[0] = firstSelected;
-
-            this._keyframeTimeTextField.text = $"{(int)(firstSelected.Key / 60):00}:{firstSelected.Key % 60:00.########}";
+            this.UpdateKeyframeTimeTextField();
             this.ExecuteDelayed(this.UpdateCursor2);
             this.UpdateGrid();
-        }
-
-        private void SaveKeyframeValue()
-        {
-            this._selectedKeyframes[0].Value.value = this._selectedKeyframeValue;
         }
 
         private void SaveKeyframeCurve()
         {
-            this._selectedKeyframes[0].Value.curve = new AnimationCurve(this._selectedKeyframeCurve.keys);
+            AnimationCurve modifiedCurve = this._selectedKeyframes[0].Value.curve;
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                pair.Value.curve = new AnimationCurve(modifiedCurve.keys);
         }
 
-        private void UpdateKeyframeWindow()
+        private void UpdateKeyframeWindow(bool changeShowState = true)
         {
             if (this._selectedKeyframes.Count == 0)
+            {
+                this.CloseKeyframeWindow();
                 return;
-            KeyValuePair<float, Keyframe> firstSelected = this._selectedKeyframes[0];
-            if (firstSelected.Value == null)
-                return;
+            }
+            if (changeShowState)
+                this.OpenKeyframeWindow();
 
-            this._selectedKeyframeValue = firstSelected.Value.value;
-            this._selectedKeyframeCurve = new AnimationCurve(firstSelected.Value.curve.keys);
+            IEnumerable<IGrouping<Interpolable, KeyValuePair<float, Keyframe>>> interpolableGroups = this._selectedKeyframes.GroupBy(e => e.Value.parent);
+            bool singleInterpolable = interpolableGroups.Count() == 1;
+            Interpolable first = interpolableGroups.First().Key;
+            this._keyframeInterpolableNameText.text = singleInterpolable ? (string.IsNullOrEmpty(first.alias) ? first.name : first.alias) : "Multiple selected";
+            this._keyframeSelectPrevButton.interactable = this._selectedKeyframes.Count == 1;
+            this._keyframeSelectNextButton.interactable = this._selectedKeyframes.Count == 1;
+            this._keyframeTimeTextField.interactable = interpolableGroups.All(g => g.Count() == 1);
+            this._keyframeUseCurrentTimeButton.interactable = this._keyframeTimeTextField.interactable;
+            this._keyframeDeleteButtonText.text = this._selectedKeyframes.Count == 1 ? "Delete" : "Delete all";
 
-            this._keyframeInterpolableNameText.text = firstSelected.Value.parent.name;
-            this._keyframeTimeTextField.text = $"{(int)(firstSelected.Key / 60):00}:{firstSelected.Key % 60:00.########}";
-            this._keyframeValueText.text = this._selectedKeyframeValue != null ? this._selectedKeyframeValue.ToString() : "null";
+            this.UpdateKeyframeTimeTextField();
+            this.UpdateKeyframeValueText();
             this.ExecuteDelayed(this.UpdateCurve);
             this.ExecuteDelayed(this.UpdateCursor2);
         }
 
+        private void UpdateKeyframeTimeTextField()
+        {
+            float t = this._selectedKeyframes[0].Key;
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+            {
+                if (t != pair.Key)
+                {
+                    this._keyframeTimeTextField.text = "Multiple times";
+                    return;
+                }
+            }
+            this._keyframeTimeTextField.text = $"{Mathf.FloorToInt(t / 60):00}:{t % 60:00.########}";
+        }
+
+        private void UpdateKeyframeValueText()
+        {
+            object v = this._selectedKeyframes[0].Value.value;
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+            {
+                if (v.Equals(pair.Value.value) == false)
+                {
+                    this._keyframeValueText.text = "Multiple values";
+                    return;
+                }
+            }
+            this._keyframeValueText.text = v != null ? v.ToString() : "null";
+        }
+
         private void UpdateCurve()
         {
-            for (int i = 0; i < this._curveTexture.width; i++)
+            if (this._selectedKeyframes.Count == 0)
+                return;
+            AnimationCurve curve = this._selectedKeyframes[0].Value.curve;
+            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
             {
-                float v = this._selectedKeyframeCurve.Evaluate(i / (this._curveTexture.width - 1f));
-                this._curveTexture.SetPixel(i, 0, new Color(v, v, v, v));
+                if (this.CompareCurves(curve, pair.Value.curve) == false)
+                {
+                    curve = null;
+                    break;
+                }
             }
+            int length = 0;
+            if (curve != null)
+            {
+                length = curve.length;
+                for (int i = 0; i < this._curveTexture.width; i++)
+                {
+                    float v = curve.Evaluate(i / (this._curveTexture.width - 1f));
+                    this._curveTexture.SetPixel(i, 0, new Color(v, v, v, v));
+                }
+            }
+            else
+            {
+                for (int i = 0; i < this._curveTexture.width; i++)
+                    this._curveTexture.SetPixel(i, 0, new Color(2f, 2f, 2f, 2f));
+            }
+
             this._curveTexture.Apply(false);
             this._curveContainer.material.mainTexture = this._curveTexture;
             this._curveContainer.enabled = false;
             this._curveContainer.enabled = true;
 
             int displayIndex = 0;
-            for (int i = 0; i < this._selectedKeyframeCurve.length; ++i)
+            for (int i = 0; i < length; ++i)
             {
-                UnityEngine.Keyframe curveKeyframe = this._selectedKeyframeCurve[i];
+                UnityEngine.Keyframe curveKeyframe = curve[i];
                 CurveKeyframeDisplay display;
                 if (displayIndex < this._displayedCurveKeyframes.Count)
                     display = this._displayedCurveKeyframes[displayIndex];
@@ -2663,113 +3272,120 @@ namespace Timeline
                     display.gameObject.transform.localScale = Vector3.one;
                     display.gameObject.transform.localPosition = Vector3.zero;
 
-                    int i1 = i;
-                    display.gameObject.AddComponent<PointerDownHandler>().onPointerDown += (e) =>
-                    {
-                        if (e.button == PointerEventData.InputButton.Left)
-                        {
-                            this._selectedKeyframeCurvePointIndex = i1;
-                            this.UpdateCurve();
-                        }
-                        if (i1 == 0 || i1 == this._selectedKeyframeCurve.length - 1)
-                            return;
-                        if (e.button == PointerEventData.InputButton.Middle && Input.GetKey(KeyCode.LeftControl))
-                        {
-                            this._selectedKeyframeCurve.RemoveKey(i1);
-                            this.UpdateCurve();
-                        }
-                    };
-                    display.gameObject.AddComponent<ScrollHandler>().onScroll += (e) =>
-                    {
-                        UnityEngine.Keyframe k = this._selectedKeyframeCurve[i1];
-                        float offset = e.scrollDelta.y > 0 ? Mathf.PI / 180f : -Mathf.PI / 180f;
-                        this._selectedKeyframeCurve.RemoveKey(i1);
-                        if (Input.GetKey(KeyCode.LeftControl))
-                            k.inTangent = Mathf.Tan(Mathf.Atan(k.inTangent) + offset);
-                        else if (Input.GetKey(KeyCode.LeftAlt))
-                            k.outTangent = Mathf.Tan(Mathf.Atan(k.outTangent) + offset);
-                        else
-                        {
-                            k.inTangent = Mathf.Tan(Mathf.Atan(k.inTangent) + offset);
-                            k.outTangent = Mathf.Tan(Mathf.Atan(k.outTangent) + offset);
-                        }
-                        this._selectedKeyframeCurve.AddKey(k);
-                        this.UpdateCurve();
-                    };
-                    DragHandler dragHandler = display.gameObject.AddComponent<DragHandler>();
-                    dragHandler.onDrag += (e) =>
-                    {
-                        if (i1 == 0 || i1 == this._selectedKeyframeCurve.length - 1)
-                            return;
-                        Vector2 localPoint;
-                        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._curveContainer.rectTransform, e.position, e.pressEventCamera, out localPoint))
-                        {
-                            localPoint.x = Mathf.Clamp(localPoint.x, 0f, this._curveContainer.rectTransform.rect.width);
-                            localPoint.y = Mathf.Clamp(localPoint.y, 0f, this._curveContainer.rectTransform.rect.height);
-                            if (Input.GetKey(KeyCode.LeftShift))
-                            {
-                                Vector2 curveGridCellSize = new Vector2(this._curveContainer.rectTransform.rect.width * _curveGridCellSizePercent, this._curveContainer.rectTransform.rect.height * _curveGridCellSizePercent);
-                                float mod = localPoint.x % curveGridCellSize.x;
-                                if (mod / curveGridCellSize.x > 0.5f)
-                                    localPoint.x += curveGridCellSize.x - mod;
-                                else
-                                    localPoint.x -= mod;
-                                mod = localPoint.y % curveGridCellSize.y;
-                                if (mod / curveGridCellSize.y > 0.5f)
-                                    localPoint.y += curveGridCellSize.y - mod;
-                                else
-                                    localPoint.y -= mod;
-                            }
-                            ((RectTransform)display.gameObject.transform).anchoredPosition = localPoint;
-                        }
-                    };
-                    dragHandler.onEndDrag += (e) =>
-                    {
-                        if (i1 == 0 || i1 == this._selectedKeyframeCurve.length - 1)
-                            return;
-                        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._curveContainer.rectTransform, e.position, e.pressEventCamera, out Vector2 localPoint))
-                        {
-
-                            float time = localPoint.x / this._curveContainer.rectTransform.rect.width;
-                            float value = localPoint.y / this._curveContainer.rectTransform.rect.height;
-                            if (Input.GetKey(KeyCode.LeftShift))
-                            {
-                                float mod = time % _curveGridCellSizePercent;
-                                if (mod / _curveGridCellSizePercent > 0.5f)
-                                    time += _curveGridCellSizePercent - mod;
-                                else
-                                    time -= mod;
-                                mod = value % _curveGridCellSizePercent;
-                                if (mod / _curveGridCellSizePercent > 0.5f)
-                                    value += _curveGridCellSizePercent - mod;
-                                else
-                                    value -= mod;
-                            }
-                            UnityEngine.Keyframe curveKey = new UnityEngine.Keyframe(time, value);
-                            if (curveKey.time >= 0 && curveKey.time <= 1 && curveKey.value >= 0 && curveKey.value <= 1)
-                            {
-                                UnityEngine.Keyframe originalKey = this._selectedKeyframeCurve[i1];
-                                this._selectedKeyframeCurve.RemoveKey(i1);
-
-                                curveKey.inTangent = originalKey.inTangent;
-                                curveKey.outTangent = originalKey.outTangent;
-                                this._selectedKeyframeCurve.AddKey(curveKey);
-                            }
-                            this.UpdateCurve();
-                        }
-                    };
-
-                    PointerEnterHandler handler = display.gameObject.AddComponent<PointerEnterHandler>();
-                    handler.onPointerEnter += (e) =>
-                    {
-                        this._tooltip.transform.parent.gameObject.SetActive(true);
-                        UnityEngine.Keyframe k = this._selectedKeyframeCurve[i1];
-                        this._tooltip.text = $"T: {k.time:0.000}, V: {k.value:0.###}\nIn: {Mathf.Atan(k.inTangent) * Mathf.Rad2Deg:0.#}, Out:{Mathf.Atan(k.outTangent) * Mathf.Rad2Deg:0.#}";
-                    };
-                    handler.onPointerExit += (e) => { this._tooltip.transform.parent.gameObject.SetActive(false); };
+                    display.pointerDownHandler = display.gameObject.AddComponent<PointerDownHandler>();
+                    display.scrollHandler = display.gameObject.AddComponent<ScrollHandler>();
+                    display.dragHandler = display.gameObject.AddComponent<DragHandler>();
+                    display.pointerEnterHandler = display.gameObject.AddComponent<PointerEnterHandler>();
 
                     this._displayedCurveKeyframes.Add(display);
                 }
+
+                int i1 = i;
+                display.pointerDownHandler.onPointerDown = (e) =>
+                {
+                    if (e.button == PointerEventData.InputButton.Left)
+                    {
+                        this._selectedKeyframeCurvePointIndex = i1;
+                        this.UpdateCurve();
+                    }
+                    if (i1 == 0 || i1 == curve.length - 1)
+                        return;
+                    if (e.button == PointerEventData.InputButton.Middle && Input.GetKey(KeyCode.LeftControl))
+                    {
+                        foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                            pair.Value.curve.RemoveKey(i1);
+                        this.UpdateCurve();
+                    }
+                };
+                display.scrollHandler.onScroll = (e) =>
+                {
+                    UnityEngine.Keyframe k = curve[i1];
+                    float offset = e.scrollDelta.y > 0 ? Mathf.PI / 180f : -Mathf.PI / 180f;
+                    foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                        pair.Value.curve.RemoveKey(i1);
+                    if (Input.GetKey(KeyCode.LeftControl))
+                        k.inTangent = Mathf.Tan(Mathf.Atan(k.inTangent) + offset);
+                    else if (Input.GetKey(KeyCode.LeftAlt))
+                        k.outTangent = Mathf.Tan(Mathf.Atan(k.outTangent) + offset);
+                    else
+                    {
+                        k.inTangent = Mathf.Tan(Mathf.Atan(k.inTangent) + offset);
+                        k.outTangent = Mathf.Tan(Mathf.Atan(k.outTangent) + offset);
+                    }
+                    foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                        pair.Value.curve.AddKey(k);
+                    this.UpdateCurve();
+                };
+                display.dragHandler.onDrag = (e) =>
+                {
+                    if (i1 == 0 || i1 == curve.length - 1)
+                        return;
+                    Vector2 localPoint;
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._curveContainer.rectTransform, e.position, e.pressEventCamera, out localPoint))
+                    {
+                        localPoint.x = Mathf.Clamp(localPoint.x, 0f, this._curveContainer.rectTransform.rect.width);
+                        localPoint.y = Mathf.Clamp(localPoint.y, 0f, this._curveContainer.rectTransform.rect.height);
+                        if (Input.GetKey(KeyCode.LeftShift))
+                        {
+                            Vector2 curveGridCellSize = new Vector2(this._curveContainer.rectTransform.rect.width * _curveGridCellSizePercent, this._curveContainer.rectTransform.rect.height * _curveGridCellSizePercent);
+                            float mod = localPoint.x % curveGridCellSize.x;
+                            if (mod / curveGridCellSize.x > 0.5f)
+                                localPoint.x += curveGridCellSize.x - mod;
+                            else
+                                localPoint.x -= mod;
+                            mod = localPoint.y % curveGridCellSize.y;
+                            if (mod / curveGridCellSize.y > 0.5f)
+                                localPoint.y += curveGridCellSize.y - mod;
+                            else
+                                localPoint.y -= mod;
+                        }
+                        ((RectTransform)display.gameObject.transform).anchoredPosition = localPoint;
+                    }
+                };
+                display.dragHandler.onEndDrag = (e) =>
+                {
+                    if (i1 == 0 || i1 == curve.length - 1)
+                        return;
+                    if (RectTransformUtility.ScreenPointToLocalPointInRectangle(this._curveContainer.rectTransform, e.position, e.pressEventCamera, out Vector2 localPoint))
+                    {
+
+                        float time = localPoint.x / this._curveContainer.rectTransform.rect.width;
+                        float value = localPoint.y / this._curveContainer.rectTransform.rect.height;
+                        if (Input.GetKey(KeyCode.LeftShift))
+                        {
+                            float mod = time % _curveGridCellSizePercent;
+                            if (mod / _curveGridCellSizePercent > 0.5f)
+                                time += _curveGridCellSizePercent - mod;
+                            else
+                                time -= mod;
+                            mod = value % _curveGridCellSizePercent;
+                            if (mod / _curveGridCellSizePercent > 0.5f)
+                                value += _curveGridCellSizePercent - mod;
+                            else
+                                value -= mod;
+                        }
+                        if (time > 0 && time < 1 && value >= 0 && value <= 1 && curve.keys.Any(k => k.time == time) == false)
+                        {
+                            UnityEngine.Keyframe curveKey = curve[i1];
+                            curveKey.time = time;
+                            curveKey.value = value;
+                            foreach (KeyValuePair<float, Keyframe> pair in this._selectedKeyframes)
+                            {
+                                pair.Value.curve.RemoveKey(i1);
+                                pair.Value.curve.AddKey(curveKey);
+                            }
+                        }
+                        this.UpdateCurve();
+                    }
+                };
+                display.pointerEnterHandler.onPointerEnter = (e) =>
+                {
+                    this._tooltip.transform.parent.gameObject.SetActive(true);
+                    UnityEngine.Keyframe k = curve[i1];
+                    this._tooltip.text = $"T: {k.time:0.000}, V: {k.value:0.###}\nIn: {Mathf.Atan(k.inTangent) * Mathf.Rad2Deg:0.#}, Out:{Mathf.Atan(k.outTangent) * Mathf.Rad2Deg:0.#}";
+                };
+                display.pointerEnterHandler.onPointerExit = (e) => { this._tooltip.transform.parent.gameObject.SetActive(false); };
+
                 display.image.color = i == this._selectedKeyframeCurvePointIndex ? Color.green : (Color)new Color32(44, 153, 160, 255);
                 display.gameObject.SetActive(true);
                 ((RectTransform)display.gameObject.transform).anchoredPosition = new Vector2(curveKeyframe.time * this._curveContainer.rectTransform.rect.width, curveKeyframe.value * this._curveContainer.rectTransform.rect.height);
@@ -2783,11 +3399,75 @@ namespace Timeline
             this.UpdateCurvePointInTangent();
             this.UpdateCurvePointOutTangent();
         }
+
+        private bool CompareCurves(AnimationCurve x, AnimationCurve y)
+        {
+            if (x.length != y.length)
+                return false;
+            for (int i = 0; i < x.length; i++)
+            {
+                UnityEngine.Keyframe keyX = x.keys[i];
+                UnityEngine.Keyframe keyY = y.keys[i];
+                if (keyX.time != keyY.time ||
+                    keyX.value != keyY.value ||
+                    keyX.inTangent != keyY.inTangent ||
+                    keyX.outTangent != keyY.outTangent)
+                    return false;
+            }
+            return true;
+        }
+
         #endregion
 
         #endregion
 
         #region Saves
+
+#if KOIKATSU
+        private void OnSceneLoad(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            this.SceneLoad(path, node);
+        }
+
+        private void OnSceneImport(string path)
+        {
+            PluginData data = ExtendedSave.GetSceneExtendedDataById(_extSaveKey);
+            if (data == null)
+                return;
+            XmlDocument doc = new XmlDocument();
+            doc.LoadXml((string)data.data["sceneInfo"]);
+            XmlNode node = doc.FirstChild;
+            if (node == null)
+                return;
+            this.SceneImport(path, node);
+        }
+
+        private void OnSceneSave(string path)
+        {
+            using (StringWriter stringWriter = new StringWriter())
+            using (XmlTextWriter xmlWriter = new XmlTextWriter(stringWriter))
+            {
+
+                xmlWriter.WriteStartElement("root");
+                this.SceneWrite(path, xmlWriter);
+                xmlWriter.WriteEndElement();
+
+                PluginData data = new PluginData();
+                data.version = Timeline._saveVersion;
+                data.data.Add("sceneInfo", stringWriter.ToString());
+                ExtendedSave.SetSceneExtendedDataById(_extSaveKey, data);
+            }
+        }
+#endif
+
         private void SceneLoad(string path, XmlNode node)
         {
             if (node == null)
@@ -2865,7 +3545,7 @@ namespace Timeline
                 document.Load(path);
                 this.ReadInterpolableTree(document.FirstChild, dic, this._selectedOCI);
 
-                OCIChar character = this._selectedOCI as OCIChar; ;
+                OCIChar character = this._selectedOCI as OCIChar;
                 if (character != null)
                 {
                     character.LoadAnime(document.FirstChild.ReadInt("animationGroup"),
@@ -2887,7 +3567,8 @@ namespace Timeline
                 List<KeyValuePair<int, ObjectCtrlInfo>> dic = new SortedDictionary<int, ObjectCtrlInfo>(Studio.Studio.Instance.dicObjectCtrl).ToList();
                 writer.WriteStartElement("root");
 
-                OCIChar character = this._selectedOCI as OCIChar; ;
+                OCIChar character = this._selectedOCI as OCIChar;
+                ;
                 if (character != null)
                 {
                     OICharInfo.AnimeInfo info = character.oiCharInfo.animeInfo;
@@ -2918,7 +3599,6 @@ namespace Timeline
                         break;
                 }
             }
-
         }
 
         private void WriteInterpolableTree(INode interpolableNode, XmlTextWriter writer, List<KeyValuePair<int, ObjectCtrlInfo>> dic, Func<LeafNode<Interpolable>, bool> predicate = null)
@@ -2986,7 +3666,7 @@ namespace Timeline
                                 XmlConvert.ToSingle(interpolableNode.Attributes["bgColorR"].Value),
                                 XmlConvert.ToSingle(interpolableNode.Attributes["bgColorG"].Value),
                                 XmlConvert.ToSingle(interpolableNode.Attributes["bgColorB"].Value)
-                                );
+                        );
                     }
 
                     if (interpolableNode.Attributes["alias"] != null)
@@ -3035,10 +3715,7 @@ namespace Timeline
             {
                 UnityEngine.Debug.LogError(_name + ": Couldn't load interpolable with the following XML:\n" + interpolableNode.OuterXml + "\n" + e);
                 if (added)
-                {
-                    this._interpolables.Remove(interpolable.GetHashCode());
-                    this._interpolablesTree.RemoveLeaf(interpolable);
-                }
+                    this.RemoveInterpolable(interpolable);
             }
         }
 
@@ -3142,7 +3819,11 @@ namespace Timeline
         #endregion
 
         #region Patches
+#if HONEYSELECT
         [HarmonyPatch(typeof(Expression), "Start")]
+#elif KOIKATSU
+        [HarmonyPatch(typeof(Expression), "Initialize")]
+#endif
         private static class Expression_Start_Patches
         {
             private static void Prefix(Expression __instance)
@@ -3160,7 +3841,7 @@ namespace Timeline
             }
         }
 
-        [HarmonyPatch(typeof(Expression), "LateUpdate")]
+        [HarmonyPatch(typeof(Expression), "LateUpdate"), HarmonyBefore("com.joan6694.illusionplugins.nodesconstraints")]
         private static class Expression_LateUpdate_Patches
         {
             private static void Postfix()
@@ -3219,8 +3900,6 @@ namespace Timeline
             }
         }
 
-
-
         [HarmonyPatch(typeof(SceneInfo), "Import", new[] { typeof(BinaryReader), typeof(Version) })]
         private static class SceneInfo_Import_Patches //This is here because I fucked up the save format making it impossible to import scenes correctly
         {
@@ -3231,6 +3910,72 @@ namespace Timeline
                 _newToOldKeys.Clear();
             }
         }
+
+        [HarmonyPatch(typeof(GuideSelect), "OnPointerClick", new[] { typeof(PointerEventData) })]
+        private static class GuideSelect_OnPointerClick_Patches
+        {
+            private static void Postfix()
+            {
+                GuideObject go = GuideObjectManager.Instance.selectObject;
+                if (go != null && Input.GetKey(KeyCode.LeftAlt))
+                    _self.HighlightInterpolable(_self._interpolables.FirstOrDefault(i => i.Value.parameter is GuideObject g && g == go).Value);
+            }
+        }
+
+        private static class OCI_OnDelete_Patches
+        {
+#if IPA
+            public static void ManualPatch(HarmonyInstance harmony)
+#elif BEPINEX
+            public static void ManualPatch(Harmony harmony)
+#endif
+            {
+                IEnumerable<Type> ociTypes = Assembly.GetAssembly(typeof(ObjectCtrlInfo)).GetTypes().Where(myType => myType.IsClass && !myType.IsAbstract && myType.IsSubclassOf(typeof(ObjectCtrlInfo)));
+
+                foreach (Type t in ociTypes)
+                {
+                    try
+                    {
+                        harmony.Patch(t.GetMethod("OnDelete", AccessTools.all), new HarmonyMethod(typeof(OCI_OnDelete_Patches).GetMethod(nameof(Prefix), BindingFlags.NonPublic | BindingFlags.Static)));
+                    }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogWarning("Timeline: Could not patch OnDelete of type " + t.Name + "\n" + e);
+                    }
+                }
+            }
+
+            private static void Prefix(object __instance)
+            {
+                ObjectCtrlInfo oci = __instance as ObjectCtrlInfo;
+                if (oci != null)
+                    _self.RemoveInterpolables(_self._interpolables.Where(i => i.Value.oci == oci).Select(i => i.Value).ToList());
+            }
+        }
+
+#if KOIKATSU
+        [HarmonyPatch(typeof(ShortcutKeyCtrl), "Update")]
+        private static class ShortcutKeyCtrl_Update_Patches
+        {
+            private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            {
+                List<CodeInstruction> instructionList = instructions.ToList();
+                for (int i = 0; i < instructionList.Count; i++)
+                {
+                    CodeInstruction instruction = instructionList[i];
+                    if (i != 0 && instruction.opcode == OpCodes.Call && instructionList[i - 1].opcode == OpCodes.Ldc_I4_S && (sbyte)instructionList[i - 1].operand == 99)
+                        yield return new CodeInstruction(OpCodes.Call, typeof(ShortcutKeyCtrl_Update_Patches).GetMethod(nameof(PreventKeyIfCtrl), BindingFlags.NonPublic | BindingFlags.Static));
+                    else
+                        yield return instruction;
+                }
+            }
+
+            private static bool PreventKeyIfCtrl(KeyCode key)
+            {
+                return Input.GetKey(KeyCode.LeftControl) == false && Input.GetKeyDown(key);
+            }
+        }
+#endif
         #endregion
     }
 }

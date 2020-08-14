@@ -12,7 +12,8 @@ namespace Timeline
         public readonly string owner;
         public readonly string id;
         public readonly object parameter;
-        public string name;
+        protected readonly string _name;
+        public virtual string name { get { return this._name;} }
         protected readonly InterpolableDelegate _interpolateBefore;
         protected readonly InterpolableDelegate _interpolateAfter;
         private readonly Func<ObjectCtrlInfo, bool> _isCompatibleWithTarget;
@@ -51,7 +52,7 @@ namespace Timeline
             this.owner = owner;
             this.id = id;
             this.parameter = parameter;
-            this.name = name;
+            this._name = name;
             this._interpolateBefore = interpolateBefore;
             this._interpolateAfter = interpolateAfter;
             this._isCompatibleWithTarget = isCompatibleWithTarget;

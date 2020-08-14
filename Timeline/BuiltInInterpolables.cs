@@ -15,9 +15,6 @@ namespace Timeline
         // VideoExport events on the timeline
 
         // DONE
-        // check keyframes disappearing with HSPE on chara replace (Bones, Boobs, Colliders, DynamicBones).
-        // icons to context menu
-        // color change for multiple interpolables
 
         public static void Populate()
         {
@@ -55,7 +52,7 @@ namespace Timeline
 
         private static void Global()
         {
-            Studio.CameraControl.CameraData globalCameraData = (Studio.CameraControl.CameraData)Studio.Studio.Instance.cameraCtrl.GetPrivate(name: "cameraData");
+            Studio.CameraControl.CameraData globalCameraData = (Studio.CameraControl.CameraData)Studio.Studio.Instance.cameraCtrl.GetPrivate("cameraData");
 
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
@@ -116,7 +113,11 @@ namespace Timeline
                     id: "cameraPos",
                     parameter: null,
                     name: "Camera Position",
-                    interpolateBefore: null,
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor);
+                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
+                    },
                     interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     isCompatibleWithTarget: (oci) => true,
                     getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.position,
@@ -129,7 +130,11 @@ namespace Timeline
                     id: "cameraRot",
                     parameter: null,
                     name: "Camera Rotation",
-                    interpolateBefore: null,
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor);
+                        UpdateCameraData(Studio.Studio.Instance.cameraCtrl.mainCmaera.transform);
+                    },
                     interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor),
                     isCompatibleWithTarget: (oci) => true,
                     getValue: (oci, parameter) => Studio.Studio.Instance.cameraCtrl.mainCmaera.transform.rotation,
@@ -137,12 +142,20 @@ namespace Timeline
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Quaternion)o),
                     useOciInHash: false
             ));
+
+            void UpdateCameraData(Transform cameraTransform)
+            {
+                globalCameraData.rotate = cameraTransform.localRotation.eulerAngles;
+                globalCameraData.pos = -(cameraTransform.localRotation * globalCameraData.distance - cameraTransform.localPosition);
+
+            }
+
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
                     id: "timeScale",
                     parameter: null,
                     name: "Time Scale",
-                    interpolateBefore: null,
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
                     interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => Time.timeScale = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
                     isCompatibleWithTarget: (oci) => true,
                     getValue: (oci, parameter) => Time.timeScale,
@@ -180,7 +193,7 @@ namespace Timeline
                     id: "guideObjectPos",
                     name: "Selected GuideObject Pos",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                    interpolateAfter: null,
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.pos = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     isCompatibleWithTarget: oci => oci != null,
                     getValue: (oci, parameter) => ((GuideObject)parameter).changeAmount.pos,
                     readValueFromXml: (parameter, node) => node.ReadVector3("value"),
@@ -204,7 +217,7 @@ namespace Timeline
                     id: "guideObjectRot",
                     name: "Selected GuideObject Rot",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
-                    interpolateAfter: null,
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.rot = Quaternion.SlerpUnclamped((Quaternion)leftValue, (Quaternion)rightValue, factor).eulerAngles,
                     isCompatibleWithTarget: (oci) => oci != null,
                     getValue: (oci, parameter) => Quaternion.Euler(((GuideObject)parameter).changeAmount.rot),
                     readValueFromXml: (parameter, node) => node.ReadQuaternion("value"),
@@ -228,7 +241,7 @@ namespace Timeline
                     id: "guideObjectScale",
                     name: "Selected GuideObject Scl",
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
-                    interpolateAfter: null,
+                    interpolateAfter: (oci, parameter, leftValue, rightValue, factor) => ((GuideObject)parameter).changeAmount.scale = Vector3.LerpUnclamped((Vector3)leftValue, (Vector3)rightValue, factor),
                     isCompatibleWithTarget: (oci) => oci != null,
                     getValue: (oci, parameter) => ((GuideObject)parameter).changeAmount.scale,
                     readValueFromXml: (parameter, node) => node.ReadVector3("value"),
@@ -293,6 +306,18 @@ namespace Timeline
             ));
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
+                    id: "charAnimationPattern",
+                    parameter: null,
+                    name: "Animation Pattern",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).animePattern = Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).animePattern,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)
+            ));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
                     id: "itemAnimationTime",
                     parameter: null,
                     name: "Animation Time",
@@ -331,7 +356,8 @@ namespace Timeline
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)
             ));
         }
-
+#if HONEYSELECT
+        
         private static void CharacterClothingStates()
         {
             Dictionary<CharDefine.ClothesStateKindFemale, string> femaleClothes = new Dictionary<CharDefine.ClothesStateKindFemale, string>()
@@ -349,7 +375,6 @@ namespace Timeline
                 {CharDefine.ClothesStateKindFemale.socks, "Socks"},
                 {CharDefine.ClothesStateKindFemale.shoes, "Shoes"},
             };
-
             foreach (KeyValuePair<CharDefine.ClothesStateKindFemale, string> pair in femaleClothes)
             {
                 Timeline.AddInterpolableModel(new InterpolableModel(
@@ -395,6 +420,41 @@ namespace Timeline
                 ));
             }
         }
+#elif KOIKATSU
+        private static void CharacterClothingStates()
+        {
+            Dictionary<ChaFileDefine.ClothesKind, string> clothes = new Dictionary<ChaFileDefine.ClothesKind, string>()
+            {
+                {ChaFileDefine.ClothesKind.top, "Top"},
+                {ChaFileDefine.ClothesKind.bot, "Bottom"},
+                {ChaFileDefine.ClothesKind.bra, "Bra"},
+                {ChaFileDefine.ClothesKind.shorts, "Panties"},
+                {ChaFileDefine.ClothesKind.gloves, "Gloves"},
+                {ChaFileDefine.ClothesKind.panst, "Pantyhose"},
+                {ChaFileDefine.ClothesKind.socks, "Legwear"},
+                {ChaFileDefine.ClothesKind.shoes_inner, "Shoes Inside"},
+                {ChaFileDefine.ClothesKind.shoes_outer, "Shoes Outside"},
+            };
+            foreach (KeyValuePair<ChaFileDefine.ClothesKind, string> pair in clothes)
+            {
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: "charClothes",
+                        parameter: (int)pair.Key,
+                        name: $"{pair.Value} State",
+                        interpolateBefore: InterpolateClothes,
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIChar,
+                        getValue: GetClothesValue,
+                        readValueFromXml: (parameter, node) => node.ReadByte("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (byte)o),
+                        readParameterFromXml: (oci, node) => node.ReadInt("parameter"),
+                        writeParameterToXml: (oci, writer, o) => writer.WriteValue("parameter", (int)o),
+                        getFinalName: (n, oci, parameter) => $"{clothes[(ChaFileDefine.ClothesKind)(int)parameter]} State"
+                        ));
+            }
+        }
+#endif
 
         private static void InterpolateClothes(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue, float factor)
         {
@@ -406,9 +466,14 @@ namespace Timeline
 
         private static object GetClothesValue(ObjectCtrlInfo oci, object parameter)
         {
+#if HONEYSELECT
             return ((OCIChar)oci).charFileInfoStatus.clothesState[(int)parameter];
+#elif KOIKATSU
+            return ((OCIChar)oci).charFileStatus.clothesState[(int)parameter];
+#endif
         }
 
+#if HONEYSELECT
         private static void CharacterJuice()
         {
             Dictionary<CharDefine.SiruObjKind, string> juice = new Dictionary<CharDefine.SiruObjKind, string>()
@@ -438,10 +503,45 @@ namespace Timeline
                 ));
             }
         }
+#elif KOIKATSU
+        private static void CharacterJuice()
+        {
+            Dictionary<ChaFileDefine.SiruParts, string> juice = new Dictionary<ChaFileDefine.SiruParts, string>()
+            {
+                {ChaFileDefine.SiruParts.SiruKao, "Face"},
+                {ChaFileDefine.SiruParts.SiruFrontUp, "Chest"},
+                {ChaFileDefine.SiruParts.SiruFrontDown, "Stomach"},
+                {ChaFileDefine.SiruParts.SiruBackUp, "Back"},
+                {ChaFileDefine.SiruParts.SiruBackDown, "Butt"},
+            };
+
+            foreach (KeyValuePair<ChaFileDefine.SiruParts, string> pair in juice)
+            {
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: "juice",
+                        parameter: (int)pair.Key,
+                        name: $"{pair.Value} Juice State",
+                        interpolateBefore: InterpolateJuice,
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIChar,
+                        getValue: GetJuiceValue,
+                        readValueFromXml: (parameter, node) => node.ReadByte("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (byte)o),
+                        readParameterFromXml: (oci, node) => node.ReadInt("parameter"),
+                        writeParameterToXml: (oci, writer, o) => writer.WriteValue("parameter", (int)o)
+                ));
+            }
+        }
+#endif
 
         private static void InterpolateJuice(ObjectCtrlInfo oci, object parameter, object leftValue, object rightValue, float factor)
         {
+#if HONEYSELECT
             CharDefine.SiruParts index = (CharDefine.SiruParts)(int)parameter;
+#elif KOIKATSU
+            ChaFileDefine.SiruParts index = (ChaFileDefine.SiruParts)(int)parameter;
+#endif
             byte value = (byte)leftValue;
             if ((byte)GetJuiceValue(oci, parameter) != value)
                 ((OCIChar)oci).SetSiruFlags(index, value);
@@ -449,9 +549,14 @@ namespace Timeline
 
         private static object GetJuiceValue(ObjectCtrlInfo oci, object parameter)
         {
+#if HONEYSELECT
             return ((OCIChar)oci).GetSiruFlags((CharDefine.SiruParts)(int)parameter);
+#elif KOIKATSU
+            return ((OCIChar)oci).GetSiruFlags((ChaFileDefine.SiruParts)(int)parameter);
+#endif
         }
 
+#if HONEYSELECT
         private static void CharacterStateMisc()
         {
             Timeline.AddInterpolableModel(new InterpolableModel(
@@ -508,6 +613,51 @@ namespace Timeline
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
 
         }
+#elif KOIKATSU
+        private static void CharacterStateMisc()
+        {
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "tears",
+                    parameter: null,
+                    name: "Tears",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        byte value = (byte)leftValue;
+                        if (((OCIChar)oci).GetTearsLv() != value)
+                            ((OCIChar)oci).SetTearsLv(value);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).GetTearsLv(),
+                    readValueFromXml: (parameter, node) => node.ReadByte("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (byte)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "blush",
+                    parameter: null,
+                    name: "Blush",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).SetHohoAkaRate(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).GetHohoAkaRate(),
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "femaleNipples",
+                    parameter: null,
+                    name: "Nipples",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).SetNipStand(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCICharFemale,
+                    getValue: (oci, parameter) => ((OCIChar)oci).oiCharInfo.nipple,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+        }
+#endif
 
         private static void CharacterNeck()
         {
@@ -519,12 +669,20 @@ namespace Timeline
                     interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
                     {
                         int value = (int)leftValue;
+#if HONEYSELECT
                         if (((OCIChar)oci).charFileInfoStatus.neckLookPtn != value)
+#elif KOIKATSU
+                        if (((OCIChar)oci).charFileStatus.neckLookPtn != value)
+#endif
                             ((OCIChar)oci).ChangeLookNeckPtn(value);
                     },
                     interpolateAfter: null,
                     isCompatibleWithTarget: (oci) => oci is OCIChar,
+#if HONEYSELECT
                     getValue: (oci, parameter) => ((OCIChar)oci).charFileInfoStatus.neckLookPtn,
+#elif KOIKATSU
+                    getValue: (oci, parameter) => ((OCIChar)oci).charFileStatus.neckLookPtn,
+#endif
                     readValueFromXml: (parameter, node) => node.ReadInt("value"),
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (int)o)));
         }
@@ -553,13 +711,42 @@ namespace Timeline
                     id: "characterEyesOpen",
                     parameter: null,
                     name: "Eyes Open",
-                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).charInfo.ChangeEyesOpen(value: Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).ChangeEyesOpen(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
                     interpolateAfter: null,
                     isCompatibleWithTarget: (oci) => oci is OCIChar,
                     getValue: (oci, parameter) => ((OCIChar)oci).charInfo.GetEyesOpenMax(),
                     readValueFromXml: (parameter, node) => node.ReadFloat("value"),
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+#if KOIKATSU
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "characterEyebrows",
+                    parameter: null,
+                    name: "Eyebrows",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        int value = (int)leftValue;
+                        if (((OCIChar)oci).charInfo.GetEyebrowPtn() != value)
+                            ((OCIChar)oci).charInfo.ChangeEyebrowPtn(value, false);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).charInfo.GetEyebrowPtn(),
+                    readValueFromXml: (parameter, node) => node.ReadInt("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (int)o)));
 
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "characterEyebrowsOpen",
+                    parameter: null,
+                    name: "Eyebrows Open",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIChar)oci).charInfo.ChangeEyebrowOpenMax(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIChar,
+                    getValue: (oci, parameter) => ((OCIChar)oci).charInfo.GetEyebrowOpenMax(),
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+#endif
             Timeline.AddInterpolableModel(new InterpolableModel(
                     owner: Timeline._ownerId,
                     id: "characterMouth",
@@ -624,6 +811,7 @@ namespace Timeline
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (int)o)));
         }
 
+#if HONEYSELECT
         private static void Item()
         {
             Timeline.AddInterpolableModel(new InterpolableModel(
@@ -704,8 +892,239 @@ namespace Timeline
                     getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color2.specularSharpness,
                     readValueFromXml: (parameter, node) => node.ReadFloat("value"),
                     writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+        }
+#elif KOIKATSU
+        private static void Item()
+        {
+            //TODO PanelComponent fields
+
+            for (int index = 0; index < 3; ++index)
+            {
+                int i = index;
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: $"itemColor{i + 1}",
+                        parameter: null,
+                        name: $"Color {i + 1}",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor), i),
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor[i],
+                        getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color[i],
+                        readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: $"itemPatternColor{i + 1}",
+                        parameter: null,
+                        name: $"Pattern Color {i + 1}",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor), i + 3),
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor[i] && it.usePattern[i],
+                        getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color[i + 3],
+                        readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: $"itemPatternUV{i + 1}",
+                        parameter: null,
+                        name: $"Pattern UV {i + 1}",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            OCIItem item = (OCIItem)oci;
+                            item.itemInfo.pattern[i].uv = Vector4.LerpUnclamped((Vector4)leftValue, (Vector4)rightValue, factor);
+                            item.UpdateColor();
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor[i] && it.usePattern[i],
+                        getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[i].uv,
+                        readValueFromXml: (parameter, node) => node.ReadVector4("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector4)o)));
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: $"itemPatternRotation{i + 1}",
+                        parameter: null,
+                        name: $"Pattern Rot {i + 1}",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetPatternRot(i, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor[i] && it.usePattern[i],
+                        getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[i].rot,
+                        readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+                Timeline.AddInterpolableModel(new InterpolableModel(
+                        owner: Timeline._ownerId,
+                        id: $"itemPatternClamp{i + 1}",
+                        parameter: null,
+                        name: $"Pattern Tiling {i + 1}",
+                        interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                        {
+                            OCIItem item = (OCIItem)oci;
+                            if (item.itemInfo.pattern[i].clamp != (bool)leftValue)
+                                item.SetPatternClamp(i, (bool)leftValue);
+                        },
+                        interpolateAfter: null,
+                        isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor[i] && it.usePattern[i],
+                        getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[i].rot,
+                        readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                        writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+            }
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemColor4",
+                    parameter: null,
+                    name: "Color 4",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor), 7),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.useColor4,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color[7],
+                    readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemShadowColor",
+                    parameter: null,
+                    name: "Shadow Color",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor), 6),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkShadow,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color[6],
+                    readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemAlpha",
+                    parameter: null,
+                    name: "Alpha",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetAlpha(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkAlpha,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.alpha,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemEmissionColor",
+                    parameter: null,
+                    name: "Emission Color",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetEmissionColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkEmission && it.checkEmissionColor,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.emissionColor,
+                    readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemEmissionPower",
+                    parameter: null,
+                    name: "Emission Power",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetEmissionPower(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkEmission && it.checkEmissionPower,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.emissionPower,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemLightCancel",
+                    parameter: null,
+                    name: "Light Cancel",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetLightCancel(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkLightCancel,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.lightCancel,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemLineColor",
+                    parameter: null,
+                    name: "Line Color",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetLineColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkLine,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.lineColor,
+                    readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemLineWidth",
+                    parameter: null,
+                    name: "Line Width",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetLineWidth(Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkLine,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.lineWidth,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemPanelColor",
+                    parameter: null,
+                    name: "Color",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetColor(Color.LerpUnclamped((Color)leftValue, (Color)rightValue, factor), 0),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkPanel,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.color[0],
+                    readValueFromXml: (parameter, node) => node.ReadColor("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Color)o)));
+
+
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemPanelPatternUV",
+                    parameter: null,
+                    name: "Pattern UV",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        OCIItem item = (OCIItem)oci;
+                        item.itemInfo.pattern[0].uv = Vector4.LerpUnclamped((Vector4)leftValue, (Vector4)rightValue, factor);
+                        item.UpdateColor();
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkPanel,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[0].uv,
+                    readValueFromXml: (parameter, node) => node.ReadVector4("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (Vector4)o)));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemPanelPatternRotation",
+                    parameter: null,
+                    name: "Pattern Rot",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) => ((OCIItem)oci).SetPatternRot(0, Mathf.LerpUnclamped((float)leftValue, (float)rightValue, factor)),
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkPanel,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[0].rot,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
+            Timeline.AddInterpolableModel(new InterpolableModel(
+                    owner: Timeline._ownerId,
+                    id: "itemPanelPatternClamp",
+                    parameter: null,
+                    name: "Pattern Tiling",
+                    interpolateBefore: (oci, parameter, leftValue, rightValue, factor) =>
+                    {
+                        OCIItem item = (OCIItem)oci;
+                        if (item.itemInfo.pattern[0].clamp != (bool)leftValue)
+                            item.SetPatternClamp(0, (bool)leftValue);
+                    },
+                    interpolateAfter: null,
+                    isCompatibleWithTarget: (oci) => oci is OCIItem it && it.checkPanel,
+                    getValue: (oci, parameter) => ((OCIItem)oci).itemInfo.pattern[0].rot,
+                    readValueFromXml: (parameter, node) => node.ReadFloat("value"),
+                    writeValueToXml: (parameter, writer, o) => writer.WriteValue("value", (float)o)));
 
         }
+#endif
 
         private static void Light()
         {
