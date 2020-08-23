@@ -49,7 +49,7 @@ namespace NodesConstraints
     {
         public const string _name = "NodesConstraints";
         public const string _guid = "com.joan6694.illusionplugins.nodesconstraints";
-        public const string _versionNum = "1.2.0";
+        public const string _versionNum = "1.2.1";
 #if KOIKATSU || AISHOUJO || HONEYSELECT2
         private const string _extSaveKey = "nodesConstraints";
         private const int _saveVersion = 0;
@@ -226,6 +226,7 @@ namespace NodesConstraints
         private Quaternion _debugWorldRotation;
         private Vector3 _debugLocalScale;
         private Vector3 _debugWorldScale;
+        private bool _hasTimeline = false;
         #endregion
 
         #region Unity Methods
@@ -251,7 +252,10 @@ namespace NodesConstraints
             this.ExecuteDelayed(() =>
             {
                 if (TimelineCompatibility.Init())
+                {
                     this.PopulateTimeline();
+                    this._hasTimeline = true;
+                }
             }, 10);
         }
 
@@ -338,7 +342,8 @@ namespace NodesConstraints
             if (this._selectedWorkspaceObject != this._lastSelectedWorkspaceObject && this._selectedWorkspaceObject != null)
                 this._selectedBone = this._selectedWorkspaceObject.transformTarget;
             this._lastSelectedWorkspaceObject = this._selectedWorkspaceObject;
-            this.ApplyNodesConstraints();
+            if (this._hasTimeline == false)
+                this.ApplyNodesConstraints();
 
             if (this._showUI)
             {
@@ -352,9 +357,25 @@ namespace NodesConstraints
                 this._windowRect.height = 600f;
         }
 
-        protected override void LateUpdate()
+        [HarmonyPatch]
+        private static class Timeline_Update_Postfix
         {
-            this.ApplyNodesConstraints();
+            private static bool Prepare()
+            {
+                return Type.GetType("Timeline.Timeline,Timeline") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("Timeline.Timeline,Timeline").GetMethod("Update", BindingFlags.NonPublic | BindingFlags.Instance);
+            }
+
+            private static void Postfix()
+            {
+                if (_self._studioLoaded == false)
+                    return;
+                _self.ApplyNodesConstraints();
+            }
         }
 
         protected override void OnGUI()
@@ -1442,7 +1463,7 @@ namespace NodesConstraints
             }, 8);
         }
 
-        
+
         /// <summary>
         /// Other plugins should use this to force load some data.
         /// </summary>
@@ -1731,7 +1752,7 @@ namespace NodesConstraints
                                 c.uniqueLoadId = null;
                                 return c;
                             }
-                        return null; 
+                        return null;
                     },
                     writeParameterToXml: (oci, writer, parameter) =>
                     {
@@ -1748,12 +1769,13 @@ namespace NodesConstraints
                         if (c.destroyed || c.parentTransform == null || c.childTransform == null)
                             return false;
                         return true;
-                    }, 
+                    },
                     useOciInHash: false,
                     getFinalName: (currentName, oci, parameter) =>
                     {
-                        Constraint c = (Constraint)parameter;
-                        return string.IsNullOrEmpty(c.alias) == false ? $"NC: {c.alias}" : $"NC: {c.parentTransform?.name}/{c.childTransform?.name}";
+                        if (parameter is Constraint c)
+                            return string.IsNullOrEmpty(c.alias) == false ? $"NC: {c.alias}" : $"NC: {c.parentTransform?.name}/{c.childTransform?.name}";
+                        return currentName;
                     });
         }
         #endregion
