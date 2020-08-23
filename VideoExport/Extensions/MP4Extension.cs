@@ -57,7 +57,10 @@ namespace VideoExport.Extensions
                     pixFmt = "yuv420p10le"; 
                     break;
             }
-            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}\\{prefix}%d{postfix}.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt {pixFmt} -color_range 2 -crf {this._quality} -preset {this._presetCLIOptions[(int)this._preset]} -threads {_coreCount} -progress pipe:1 \"{fileName}.mp4\"";
+            int coreCount = _coreCount;
+            if (this._codec == Codec.H265 && coreCount > 16)
+                coreCount = 16;
+            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}\\{prefix}%d{postfix}.{inputExtension}\" -tune animation {this.CompileFilters(resize, resizeX, resizeY)} -vcodec {this._codecCLIOptions[(int)this._codec]} -pix_fmt {pixFmt} -crf {this._quality} -preset {this._presetCLIOptions[(int)this._preset]} -threads {coreCount} -progress pipe:1 \"{fileName}.mp4\"";
         }
 
         public override void UpdateLanguage()

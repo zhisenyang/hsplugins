@@ -32,7 +32,7 @@ namespace VideoExport.Extensions
 
         public WEBMExtension() : base()
         {
-            this._codec = (Codec)VideoExport._configFile.AddInt("webmCodec", (int)Codec.VP9, true); 
+            this._codec = (Codec)VideoExport._configFile.AddInt("webmCodec", (int)Codec.VP9, true);
             this._quality = VideoExport._configFile.AddInt("webmQuality", 15, true);
             this._deadline = (Deadline)VideoExport._configFile.AddInt("webmDeadline", (int)Deadline.Best, true);
             this._deadlineCLIOptions = Enum.GetNames(typeof(Deadline)).Select(n => n.ToLowerInvariant()).ToArray();
@@ -41,7 +41,18 @@ namespace VideoExport.Extensions
         public override string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, byte bitDepth, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
             this._progress = 1;
-            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}\\{prefix}%d{postfix}.{inputExtension}\" {this.CompileFilters(resize, resizeX, resizeY)} -c:v libvpx{(this._codec == Codec.VP9 ? "-vp9" : " -qmin 0")} -pix_fmt {(transparency ? "yuva420p -metadata:s:v:0 alpha_mode=\"1\"" : "yuv420p")} -auto-alt-ref 0 -crf {this._quality} {(this._codec == Codec.VP8 ? "-b:v 10M" : "-b:v 0")} -deadline {this._deadlineCLIOptions[(int)this._deadline]} -threads {_coreCount} -progress pipe:1 \"{fileName}.webm\"";
+            string pixFmt;
+            switch (bitDepth)
+            {
+                default:
+                case 8:
+                    pixFmt = transparency ? "yuva420p -metadata:s:v:0 alpha_mode=\"1\"" : "yuv420p";
+                    break;
+                case 10:
+                    pixFmt = transparency ? "yuva420p10le -metadata:s:v:0 alpha_mode=\"1\"" : "yuv420p10le";
+                    break;
+            }
+            return $"-loglevel error -r {fps} -f image2 -i \"{framesFolder}\\{prefix}%d{postfix}.{inputExtension}\" {this.CompileFilters(resize, resizeX, resizeY)} -c:v libvpx{(this._codec == Codec.VP9 ? "-vp9" : " -qmin 0")} -pix_fmt {pixFmt} -auto-alt-ref 0 -crf {this._quality} {(this._codec == Codec.VP8 ? "-b:v 10M" : "-b:v 0")} -deadline {this._deadlineCLIOptions[(int)this._deadline]} -threads {_coreCount} -progress pipe:1 \"{fileName}.webm\"";
         }
 
         public override void UpdateLanguage()
@@ -57,7 +68,7 @@ namespace VideoExport.Extensions
 
         public override bool IsCompatibleWithPlugin(IScreenshotPlugin plugin, out string reason)
         {
-            if (plugin.bitDepth != 8)
+            if (this._codec == Codec.VP8 && plugin.bitDepth != 8)
             {
                 reason = VideoExport._currentDictionary.GetString(VideoExport.TranslationKey.BitDepthError);
                 return false;

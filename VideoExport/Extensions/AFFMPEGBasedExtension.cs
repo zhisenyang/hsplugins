@@ -30,7 +30,7 @@ namespace VideoExport.Extensions
 
         public virtual int progress { get { return this._progress; } }
         public bool canProcessStandardOutput { get { return true; } }
-        public bool canProcessStandardError { get{ return true; } }
+        public bool canProcessStandardError { get { return true; } }
 
         static AFFMPEGBasedExtension()
         {
@@ -108,13 +108,21 @@ namespace VideoExport.Extensions
             VideoExport._configFile.SetInt("ffmpegRotation", (int)_rotation);
         }
 
-        protected string CompileFilters(bool resize, int resizeX, int resizeY)
+        protected string CompileFilters(bool resize, int resizeX, int resizeY, string additionalFiltersPre = null, string additionalFiltersPost = null)
         {
             bool hasFilters = false;
             string res = "";
 
+            if (additionalFiltersPre != null)
+            {
+                res += additionalFiltersPre;
+                hasFilters = true;
+            }
+
             if (resize)
             {
+                if (hasFilters)
+                    res += ",";
                 res += $"scale={resizeX}x{resizeY}:flags=lanczos";
                 hasFilters = true;
             }
@@ -128,6 +136,14 @@ namespace VideoExport.Extensions
                     else
                         res += ",transpose=1";
                 }
+                hasFilters = true;
+            }
+
+            if (additionalFiltersPost != null)
+            {
+                if (hasFilters)
+                    res += ",";
+                res += additionalFiltersPost;
                 hasFilters = true;
             }
 

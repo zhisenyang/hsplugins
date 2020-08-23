@@ -1,7 +1,5 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Text;
-using ToolBox.Extensions;
 using UnityEngine;
 using VideoExport.ScreenshotPlugins;
 
@@ -51,8 +49,7 @@ namespace VideoExport.Extensions
 
         public string GetArguments(string framesFolder, string prefix, string postfix, string inputExtension, byte bitDepth, int fps, bool transparency, bool resize, int resizeX, int resizeY, string fileName)
         {
-            // Second part isn't surrounded by double quotes because gifski is absolute garbage
-            return $"{(resize ? $"-W {resizeX} -H {resizeY}" : "")} --fps {fps} -o \"{fileName}.gif\" {framesFolder}\\{prefix}*{postfix}.{inputExtension} --quiet";
+            return $"{(resize ? $"-W {resizeX} -H {resizeY}" : "")} --fps {fps} -o \"{fileName}.gif\" \"{framesFolder}\"\\{prefix}*{postfix}.{inputExtension} --quiet";
         }
 
         public void ProcessStandardOutput(char c)
