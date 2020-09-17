@@ -13,6 +13,7 @@ using HarmonyLib;
 #endif
 #if AISHOUJO || HONEYSELECT2
 using AIChara;
+using BepInEx.Bootstrap;
 #endif
 using ToolBox;
 using ToolBox.Extensions;
@@ -22,6 +23,7 @@ namespace BonesFramework
 {
 #if BEPINEX
     [BepInPlugin(_guid, _name, _version)]
+    [BepInDependency("com.deathweasel.bepinex.uncensorselector", BepInDependency.DependencyFlags.SoftDependency)]
 #endif
     public class BonesFramework : GenericPlugin
 #if IPA
@@ -43,8 +45,11 @@ namespace BonesFramework
         private static Transform _currentTransformParent;
         private static readonly Dictionary<GameObject, AdditionalObjectData> _currentAdditionalObjects = new Dictionary<GameObject, AdditionalObjectData>();
         private const string _name = "BonesFramework";
-        private const string _version = "1.4.0";
+        private const string _version = "1.4.1";
         private const string _guid = "com.joan6694.illusionplugins.bonesframework";
+#if AISHOUJO || HONEYSELECT2
+        private static Type _uncensorSelectorType;
+#endif
         #endregion
 
 #if IPA
@@ -81,14 +86,20 @@ namespace BonesFramework
                         new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeights_Postfix)));
                 harmony.Patch(AccessTools.Method(typeof(AssignedAnotherWeights), "AssignedWeightsAndSetBoundsLoop", new[] { typeof(Transform), typeof(Bounds), typeof(Transform) }),
                         new HarmonyMethod(typeof(BonesFramework), nameof(AssignedAnotherWeights_AssignedWeightsAndSetBoundsLoop_Prefix)));
-
-                Type uncensorSelectorType = Type.GetType("KK_Plugins.UncensorSelector+UncensorSelectorController,AI_UncensorSelector");
-                if (uncensorSelectorType != null)
+                Chainloader.PluginInfos.TryGetValue("com.deathweasel.bepinex.uncensorselector", out PluginInfo info);
+                if (info != null && info.Instance != null)
                 {
-                    MethodInfo uncensorSelectorReloadCharacterBody = AccessTools.Method(uncensorSelectorType, "ReloadCharacterBody");
-                    if (uncensorSelectorReloadCharacterBody != null)
+                    _uncensorSelectorType = info.Instance.GetType();
+                    Type uncensorSelectorControllerType = _uncensorSelectorType.GetNestedType("UncensorSelectorController", AccessTools.all);
+                    if (uncensorSelectorControllerType != null)
                     {
-                        harmony.Patch(uncensorSelectorReloadCharacterBody, transpiler: new HarmonyMethod(typeof(BonesFramework), nameof(UncensorSelector_ReloadCharacterBody_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
+                        UnityEngine.Debug.Log("BonesFramework: UncensorSelector found, trying to patch");
+                        MethodInfo uncensorSelectorReloadCharacterBody = AccessTools.Method(uncensorSelectorControllerType, "ReloadCharacterBody");
+                        if (uncensorSelectorReloadCharacterBody != null)
+                        {
+                            harmony.Patch(uncensorSelectorReloadCharacterBody, transpiler: new HarmonyMethod(typeof(BonesFramework), nameof(UncensorSelector_ReloadCharacterBody_Transpiler), new[] { typeof(IEnumerable<CodeInstruction>) }));
+                            UnityEngine.Debug.Log("BonesFramework: UncensorSelector patched correctly");
+                        }
                     }
                 }
 #endif
@@ -379,15 +390,13 @@ namespace BonesFramework
                 if (set == false && inst.opcode == OpCodes.Call && inst.ToString().Contains("LoadAsset"))
                 {
                     yield return new CodeInstruction(OpCodes.Ldarg_0);
-                    yield return new CodeInstruction(OpCodes.Ldloc_0);
-                    yield return new CodeInstruction(OpCodes.Ldloc_1);
                     yield return new CodeInstruction(OpCodes.Call, typeof(BonesFramework).GetMethod(nameof(UncensorSelector_ReloadCharacterBody_Injected), BindingFlags.NonPublic | BindingFlags.Static));
                     set = true;
                 }
             }
         }
 
-        private static GameObject UncensorSelector_ReloadCharacterBody_Injected(GameObject loadedObject, object __instance, string ooBase, string asset)
+        private static GameObject UncensorSelector_ReloadCharacterBody_Injected(GameObject loadedObject, object __instance)
         {
             ChaControl chaControl = (ChaControl)__instance.GetPrivateProperty("ChaControl");
             if (chaControl == null)
@@ -396,7 +405,24 @@ namespace BonesFramework
             DeleteBonesForObject(chaControl.objBodyBone);
             DestroyImmediate(chaControl.objBodyBone.GetComponent<EventTrigger>());
             _currentLoadingObject = chaControl.objBodyBone;
-            LoadAdditionalBonesForCurrent(ooBase, asset, "");
+
+            object bodyData = __instance.GetPrivateProperty("BodyData");
+            string assetBundleName;
+            string assetName;
+            if (bodyData != null)
+            {
+                assetBundleName = (string)bodyData.GetPrivate("OOBase");
+                assetName = (string)bodyData.GetPrivate("Asset");
+            }
+            else
+            {
+                assetBundleName = (string)_uncensorSelectorType.GetNestedType("Defaults", BindingFlags.Public | BindingFlags.Static).GetPrivate("OOBase");
+                if (chaControl.sex == 0)
+                    assetName = (string)_uncensorSelectorType.GetNestedType("Defaults", BindingFlags.Public | BindingFlags.Static).GetPrivate("AssetMale");
+                else
+                    assetName = (string)_uncensorSelectorType.GetNestedType("Defaults", BindingFlags.Public | BindingFlags.Static).GetPrivate("AssetFemale");
+            }
+            LoadAdditionalBonesForCurrent(assetBundleName, assetName, "");
 
             if (_currentAdditionalRootBones.Count != 0)
             {
