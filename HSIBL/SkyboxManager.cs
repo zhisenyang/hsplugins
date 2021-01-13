@@ -21,8 +21,8 @@ namespace HSIBL
             RenderSettings.skybox = this.skybox;
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Skybox;
             RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Skybox;
-
         }
+
         public void ApplySkyboxParams()
         {
             if (this.skybox != null)

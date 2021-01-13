@@ -41,6 +41,7 @@ namespace HSLRE.CustomEffects
         public float temporalBlendWeight = 0.1f;
 
         public bool visualizeVoxels = false;
+        public int visualizeGBuffers = 0;
 
         public bool updateGI = true;
 
@@ -651,6 +652,8 @@ namespace HSLRE.CustomEffects
         private volatile RenderTexture _gBuffer1 = null;
         private volatile RenderTexture _gBuffer2 = null;
         private CommandBuffer _mixGBufferCommand;
+        private Shader _getGBufferShader;
+        private Material _getGBufferMaterial;
 
         public void ApplyPreset(int index)
         {
@@ -917,6 +920,9 @@ namespace HSLRE.CustomEffects
             this._mixGBufferCommand = new CommandBuffer();
             this._mixGBufferCommand.name = "Mix GBuffer";
 
+            this._getGBufferShader = HSLRE.self._resources.LoadAsset<Shader>("GetGBuffer");
+            this._getGBufferMaterial = new Material(this._getGBufferShader);
+
             this.initChecker = new object();
         }
 
@@ -985,7 +991,7 @@ namespace HSLRE.CustomEffects
             this.CleanupTextures();
 
             UnityEngine.Object.DestroyImmediate(this._mixGBufferMaterial);
-            this.attachedCamera.RemoveAllCommandBuffers();
+            this.attachedCamera.RemoveCommandBuffer(CameraEvent.BeforeLighting, this._mixGBufferCommand);
         }
 
         void OnEnable()
@@ -1109,8 +1115,7 @@ namespace HSLRE.CustomEffects
             if (this.dontTry)
                 return;
 
-
-            this.attachedCamera.RemoveAllCommandBuffers();
+            this.attachedCamera.RemoveCommandBuffer(CameraEvent.BeforeLighting, this._mixGBufferCommand);
 
             if (this._gBuffer0 != null)
                 RenderTexture.ReleaseTemporary(this._gBuffer0);
@@ -1334,6 +1339,12 @@ namespace HSLRE.CustomEffects
             if (this.dontTry)
             {
                 Graphics.Blit(source, destination);
+                return;
+            }
+
+            if (this.visualizeGBuffers != 0)
+            {
+                Graphics.Blit(null, destination, this._getGBufferMaterial, this.visualizeGBuffers - 1);
                 return;
             }
 

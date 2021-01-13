@@ -1,55 +1,51 @@
-﻿using IllusionPlugin;
+﻿using System;
+using IllusionPlugin;
 using UnityEngine;
 using System.Reflection;
+using ToolBox;
+using ToolBox.Extensions;
 
 namespace HSIBL
 {
-    public class HSIBLPlugin : IEnhancedPlugin
+    public class HSIBLPlugin : GenericPlugin, IEnhancedPlugin
     {
-        public string Name { get { return GetType().Name; } }
-        public string Version { get { return Assembly.GetExecutingAssembly().GetName().Version.ToString(); } }
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+	    public static HSIBLPlugin _self;
 
-        public void OnLevelWasLoaded(int level)
+        public override string Name { get { return "HSIBL"; } }
+        public override string Version { get { return Assembly.GetExecutingAssembly().GetName().Version.ToString(); } }
+        public override string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+
+        protected override void Awake()
         {
-
+	        base.Awake();
+	        _self = this;
         }
 
-        public void OnUpdate() { }
-        public void OnLateUpdate() { }
-        public void OnApplicationStart() { }
-        public void OnApplicationQuit() { }
-        public void OnLevelWasInitialized(int level)
+        protected override void LevelLoaded(int level)
         {
-            switch (Application.productName)
+            switch (this.binary)
             {
-                case "StudioNEO":
-                    if (level == 3 && !GameObject.Find("HSIBL"))
-                    {
-                        GameObject hsibl = new GameObject("HSIBL");
-                        hsibl.AddComponent<HSIBL>();
-                        hsibl.AddComponent<CameraCtrlOffStudio>();
-                    }
-                    break;
-                case "HoneySelect":
-                case "Honey Select Unlimited":
+                case Binary.Game:
                     switch (level)
                     {
                         case 15:
-                            GameObject hsibl = new GameObject("HSIBL");
-                            hsibl.AddComponent<HSIBL>();
-                            hsibl.AddComponent<CameraCtrlOffGame>();
-                            break;
                         case 21:
                         case 22:
-                            hsibl = new GameObject("HSIBL");
-                            hsibl.AddComponent<HSIBL>();
-                            hsibl.AddComponent<CameraCtrlOffCM>();
+	                        this.ExecuteDelayed(() =>
+	                        {
+		                        new GameObject("HSIBL").AddComponent<HSIBL>();
+	                        });
                             break;
                     }
                     break;
+                case Binary.Studio:
+                    if (level == 3)
+	                    this.ExecuteDelayed(() =>
+	                    {
+		                    new GameObject("HSIBL").AddComponent<HSIBL>();
+	                    });
+                    break;
             }
         }
-        public void OnFixedUpdate() { }
     }
 }

@@ -2,7 +2,7 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Configuration Condition=" '$(Configuration)' == '' ">HS</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{2929DB12-18C8-4158-A934-43C2FDEEF2F5}</ProjectGuid>
     <OutputType>Library</OutputType>
@@ -13,20 +13,11 @@
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>Unity Full v3.5</TargetFrameworkProfile>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'HS|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>bin\HS\</OutputPath>
+    <DefineConstants>TRACE;HONEYSELECT;IPA</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -42,6 +33,10 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionPlugin.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="IllusionInjector">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\IllusionInjector.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="System">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\System.dll</HintPath>
       <Private>False</Private>
@@ -55,15 +50,22 @@
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityEngine.UI.Translation">
       <HintPath>D:\Program Files (x86)\HoneySelect\StudioNEO_64_Data\Managed\UnityEngine.UI.Translation.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CameraCtrlOff\CameraCtrlOffCM.cs" />
-    <Compile Include="CameraCtrlOff\CameraCtrlOffGame.cs" />
-    <Compile Include="CameraCtrlOff\CameraCtrlOffStudio.cs" />
+    <Compile Include="..\toolbox\IMGUIExtensions.cs">
+      <Link>ToolBox\IMGUIExtensions.cs</Link>
+    </Compile>
+    <Compile Include="..\ToolBox\MonoBehaviourExtensions.cs">
+      <Link>ToolBox\MonoBehaviourExtensions.cs</Link>
+    </Compile>
     <Compile Include="GUIstrings.cs" />
     <Compile Include="HSIBL.cs" />
     <Compile Include="HSIBLPlugin.cs" />

@@ -37,7 +37,8 @@ namespace HSLRE
         {
             private static void Prefix(Texture tex, ref RenderTexture ___createTex)
             {
-                if (___createTex.width != tex.width || ___createTex.height != tex.height)
+                if (tex != null && ___createTex != null &&
+                    (___createTex.width != tex.width || ___createTex.height != tex.height))
                 {
                     int width = tex.width;
                     int height = tex.height;
@@ -81,7 +82,7 @@ namespace HSLRE
                 }
             }
         }
-        
+
         [HarmonyPatch(typeof(ColorCorrectionCurves), "UpdateParameters")]
         private static class ColorCorrectionCurves_UpdateParameters_Patches
         {
@@ -240,6 +241,8 @@ namespace HSLRE
                         HSLRE.self.ssr.settings.reflectionSettings = settings;
                     }
                 }
+                if (HSLRE.self.segi != null)
+                    HSLRE.self.segi.halfResolution = false;
             }
 
             internal static void PostScreenshot()
@@ -258,6 +261,8 @@ namespace HSLRE
                     settings.maxSteps = _ssrReflectionSettingsMaxSteps;
                     HSLRE.self.ssr.settings.reflectionSettings = settings;
                 }
+                if (HSLRE.self.segi != null)
+                    HSLRE.self.segi.halfResolution = true;
                 //HSLRE.self.amplifyBloom.UpscaleBlurRadius = _amplifyBloomBloomScale;
                 //HSLRE.self.amplifyBloom.LensGlareInstance.Intensity = _lensGlareIntensity;
                 //HSLRE.self.amplifyBloom.LensGlareInstance.OverallStreakScale = _lensGlareStreakScale;
@@ -357,6 +362,45 @@ namespace HSLRE
             private static void Prefix(int ___Width, int ___Height)
             {
                 ScrenshotFix.PreScreenshot(new Vector2(___Width / (float)Screen.width, ___Height / (float)Screen.height));
+            }
+
+            private static void Postfix()
+            {
+                ScrenshotFix.PostScreenshot();
+            }
+        }
+
+        [HarmonyPatch]
+        private static class VideoExport_Bitmap_OnStartRecording_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("VideoExport.ScreenshotPlugins.Bitmap,VideoExport") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("VideoExport.ScreenshotPlugins.Bitmap,VideoExport").GetMethod("OnStartRecording", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+            }
+
+            private static void Prefix(object __instance)
+            {
+	            Vector2 currentSize = (Vector2)__instance.GetType().GetProperty("currentSize", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).GetValue(__instance, null);
+                ScrenshotFix.PreScreenshot(new Vector2(currentSize.x / Screen.width, currentSize.y / Screen.height));
+            }
+        }
+
+        [HarmonyPatch]
+        private static class VideoExport_Bitmap_OnEndRecording_Patches
+        {
+            private static bool Prepare()
+            {
+                return Type.GetType("VideoExport.ScreenshotPlugins.Bitmap,VideoExport") != null;
+            }
+
+            private static MethodInfo TargetMethod()
+            {
+                return Type.GetType("VideoExport.ScreenshotPlugins.Bitmap,VideoExport").GetMethod("OnEndRecording", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
             }
 
             private static void Postfix()

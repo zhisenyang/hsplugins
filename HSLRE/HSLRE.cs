@@ -4,30 +4,23 @@ using System.Diagnostics;
 using System.Reflection;
 using Harmony;
 using HSLRE.CustomEffects;
-using IllusionInjector;
 using IllusionPlugin;
 using ToolBox;
+using ToolBox.Extensions;
 using UnityEngine;
 using UnityStandardAssets.CinematicEffects;
 using UnityStandardAssets.ImageEffects;
 using DepthOfField = UnityStandardAssets.ImageEffects.DepthOfField;
-using Object = UnityEngine.Object;
 
 namespace HSLRE
 {
-    public class HSLRE : IEnhancedPlugin
+    public class HSLRE : GenericPlugin, IEnhancedPlugin
     {
-        public string Name { get { return "HSLRE"; } }
-        public string Version { get { return Assembly.GetExecutingAssembly().GetName().Version.ToString(); } }
-        public string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
+        public override string Name { get { return "HSLRE"; } }
+        public override string Version { get { return Assembly.GetExecutingAssembly().GetName().Version.ToString(); } }
+        public override string[] Filter { get { return new[] { "HoneySelect_64", "HoneySelect_32", "StudioNEO_32", "StudioNEO_64", "Honey Select Unlimited_64", "Honey Select Unlimited_32" }; } }
 
         #region Types
-        public enum Binary
-        {
-            Neo,
-            Game,
-        }
-
         [Flags]
         public enum EffectType
         {
@@ -109,25 +102,23 @@ namespace HSLRE
         public static HSLRE self;
 
         #region Private Variables
-        private PluginComponent _pluginComponent;
         private readonly List<MonoBehaviour> _effectsToIgnore = new List<MonoBehaviour>();
         private int _currentEffectIndex;
         private RenderTexture _tempSource;
         private RenderTexture _tempDestination;
         private RenderTexture _originalDestination;
-        internal Material _flipImageMat;
         internal AssetBundle _resources;
         #endregion
 
         #region Public Variables
         public readonly Dictionary<object, EffectData> effectsDictionary = new Dictionary<object, EffectData>();
         public bool init = false;
-        public Binary binary;
 
         public readonly List<EffectData> opaqueEffects = new List<EffectData>();
         public SEGI segi;
         public SSAOPro ssao;
         public ScreenSpaceReflection ssr;
+        public VolumetricLightRenderer volumetricLights;
         //private GlobalFog _fog;
 
         public readonly List<EffectData> generalEffects = new List<EffectData>();
@@ -143,6 +134,7 @@ namespace HSLRE
         public Antialiasing antialiasing;
         public NoiseAndGrain noiseAndGrain;
         public CameraMotionBlur motionBlur;
+        public AfterImage afterImage;
         public AmplifyBloom amplifyBloom;
         public BlurOptimized blur;
 
@@ -154,64 +146,23 @@ namespace HSLRE
         #endregion
 
         #region Unity Methods
-        public void OnLevelWasInitialized(int level)
+        protected override void Awake()
         {
-
-        }
-
-        public void OnFixedUpdate()
-        {
-
-        }
-
-        public void OnApplicationStart()
-        {
+            base.Awake();
             self = this;
+            this._resources = AssetBundle.LoadFromMemory(Assembly.GetExecutingAssembly().GetResource("HSLRE.Resources.LREResources.unity3d"));
 
-            switch (Process.GetCurrentProcess().ProcessName)
-            {
-                case "HoneySelect_32":
-                case "HoneySelect_64":
-                case "Honey Select Unlimited_32":
-                case "Honey Select Unlimited_64":
-                    this.binary = Binary.Game;
-                    break;
-                case "StudioNEO_32":
-                case "StudioNEO_64":
-                    this.binary = Binary.Neo;
-                    break;
-            }
-
-            this._resources = AssetBundle.LoadFromMemory(Properties.Resources.LREResources);
-            this._flipImageMat = new Material(this._resources.LoadAsset<Shader>("FlipImage"));
-
-
-            HarmonyInstance harmony = HarmonyInstance.Create("com.joan6694.illusionplugins.hslre");
-            foreach (Type type in Assembly.GetExecutingAssembly().GetTypes())
-            {
-                try
-                {
-                    List<HarmonyMethod> harmonyMethods = type.GetHarmonyMethods();
-                    if (harmonyMethods != null && harmonyMethods.Count > 0)
-                    {
-                        HarmonyMethod attributes = HarmonyMethod.Merge(harmonyMethods);
-                        new PatchProcessor(harmony, type, attributes).Patch();
-                    }
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.Log("LRE: Exception occured when patching: " + e.ToString());
-                }
-            }
-            this._pluginComponent = Object.FindObjectOfType<PluginComponent>();
+            var harmonyInstance = HarmonyExtensions.CreateInstance("com.joan6694.illusionplugins.hslre");
+            harmonyInstance.PatchAllSafe();
         }
 
-        public void OnApplicationQuit()
+        protected override void OnDestroy()
         {
+            base.OnDestroy();
             Settings.Save();
         }
 
-        public void OnLevelWasLoaded(int level)
+        protected override void LevelLoaded(int level)
         {
             this._effectsToIgnore.Clear();
             this.opaqueEffects.Clear();
@@ -221,7 +172,7 @@ namespace HSLRE
 
             if (mainCamera == null)
                 return;
-            this._pluginComponent.ExecuteDelayed(() =>
+            this.ExecuteDelayed(() =>
             {
                 CameraEventsDispatcher dispatcher = mainCamera.gameObject.AddComponent<CameraEventsDispatcher>();
                 dispatcher.onPreCull += this.OnPreCull;
@@ -247,6 +198,13 @@ namespace HSLRE
                     this.ssr = mainCamera.GetComponent<ScreenSpaceReflection>();
                     this.AddPostProcessingToList(true, true, this.ssr, this.ssr != null && this.ssr.enabled, EffectType.FourKDiffuse | EffectType.LRE, "ssr");
                     //this.IgnoreEffect(this.ssr);
+
+                    if (this.binary == Binary.Studio)
+                    {
+	                    this.volumetricLights = mainCamera.gameObject.AddComponent<VolumetricLightRenderer>();
+	                    this.volumetricLights.enabled = false;
+	                    this.AddPostProcessingToList(true, true, this.volumetricLights, this.volumetricLights.enabled, EffectType.FourKDiffuse | EffectType.LRE, "volumetricLights");
+                    }
                 }
 
                 this.vignette = mainCamera.GetComponent<VignetteAndChromaticAberration>();
@@ -285,6 +243,9 @@ namespace HSLRE
                     this.motionBlur = mainCamera.gameObject.AddComponent<CameraMotionBlur>();
                     this.AddPostProcessingToList(false, false, this.motionBlur, false, EffectType.FourKDiffuse | EffectType.LRE, "motionBlur");
                     this.IgnoreEffect(this.motionBlur);
+
+                    this.afterImage = new AfterImage();
+                    this.AddPostProcessingToList(false, false, this.afterImage, false, EffectType.FourKDiffuse | EffectType.LRE, "afterImage");
 
                     this.noiseAndGrain = mainCamera.gameObject.AddComponent<NoiseAndGrain>();
                     this.AddPostProcessingToList(false, false, this.noiseAndGrain, false, EffectType.FourKDiffuse | EffectType.LRE, "noiseAndGrain");
@@ -330,13 +291,15 @@ namespace HSLRE
             }, 1);
         }
 
-        public void OnUpdate()
+        protected override void Update()
         {
             if (this.segi != null && this.effectsDictionary[this.segi].enabled)
                 this.segi.Update();
+            //if (this.volumetricLights != null && this.effectsDictionary[this.volumetricLights].enabled)
+	           // this.volumetricLights.Update();
         }
 
-        public void OnLateUpdate()
+        protected override void LateUpdate()
         {
             if (this.ssao != null)
                 this.ssao.enabled = true;
@@ -377,7 +340,10 @@ namespace HSLRE
         {
             EffectData data = this.effectsDictionary[effect];
             this.generalEffects.Remove(data);
-            this.generalEffects.Insert(index, data);
+            if (index >= this.generalEffects.Count)
+	            this.generalEffects.Add(data);
+            else
+	            this.generalEffects.Insert(index, data);
         }
         #endregion
 
@@ -386,7 +352,7 @@ namespace HSLRE
         {
             switch (this.binary)
             {
-                case Binary.Neo:
+                case Binary.Studio:
                     GameObject go = GameObject.Find("StudioScene/Camera/Main Camera");
                     if (go != null)
                         return go.GetComponent<Camera>();
@@ -427,6 +393,8 @@ namespace HSLRE
         {
             if (this.segi != null && this.effectsDictionary[this.segi].enabled)
                 this.segi.OnPreRender();
+            //if (this.volumetricLights != null && this.effectsDictionary[this.volumetricLights].enabled)
+            //    this.volumetricLights.OnPreRender();
         }
 
         private void OnPostRender(Camera camera)

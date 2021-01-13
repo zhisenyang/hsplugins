@@ -565,12 +565,38 @@ namespace HSIBL
                 new GUIContent(switches[1], title.tooltip)
             }, 2, selectStyle, GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
-            if (temp == 0)
-            {
-                return false;
-            }
-            return true;
+            return temp != 0;
         }
+
+        internal static int LayerMaskValue(int value, GUIContent label, SortedList<int, string> layerNames, string option1 = "Disable", string option2 = "Enable", int columns = 2)
+        {
+	        GUILayout.BeginVertical();
+	        if (label != null)
+		        GUILayout.Label(label, labelStyle);
+	        int newValue = value;
+	        GUILayout.BeginHorizontal();
+	        GUILayout.BeginVertical();
+	        int columnSize = Mathf.CeilToInt((float)layerNames.Count / columns);
+	        int shown = 0;
+	        foreach (KeyValuePair<int, string> kvp in layerNames)
+	        {
+		        if (shown != 0 && shown % columnSize == 0)
+		        {
+			        GUILayout.EndVertical();
+			        GUILayout.BeginVertical();
+		        }
+		        if (ToggleGUI((newValue & (1 << kvp.Key)) != 0, new GUIContent($"{kvp.Key}: {kvp.Value}"), option1, option2))
+			        newValue |= 1 << kvp.Key;
+		        else
+			        newValue &= ~(1 << kvp.Key);
+		        ++shown;
+	        }
+	        GUILayout.EndVertical();
+	        GUILayout.EndHorizontal();
+	        GUILayout.EndVertical();
+	        return newValue;
+        }
+
         internal static void Gradient(Gradient gradient, string labeltext, string tooltip, bool showAlphas = true, Action onChange = null, Texture2D userGeneratedTexture = null)
         {
             GUILayout.BeginVertical();

@@ -5,6 +5,7 @@ using Config;
 using UnityEngine;
 using HSLRE.CustomEffects;
 using System.IO;
+using ToolBox;
 using UnityEngine.SceneManagement;
 using UnityStandardAssets.CinematicEffects;
 using UnityStandardAssets.ImageEffects;
@@ -900,7 +901,7 @@ namespace HSLRE
             if ((CameraClearFlags)basicSettings.CharaMakerBackgroundType != CameraClearFlags.Skybox && (CameraClearFlags)basicSettings.CharaMakerBackgroundType != CameraClearFlags.Color)
                 basicSettings.CharaMakerBackgroundType = (int)CameraClearFlags.Skybox;
             QualitySettings.antiAliasing = basicSettings.msaa;
-            if (HSLRE.self.binary == HSLRE.Binary.Game &&
+            if (HSLRE.self.binary == Binary.Game &&
                 (SceneManager.GetActiveScene().buildIndex == 21 || SceneManager.GetActiveScene().buildIndex == 22) &&
                 !basicSettings.CharaMakerReform &&
                 QualitySettings.antiAliasing == 0)
