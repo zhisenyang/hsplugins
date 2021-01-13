@@ -4,20 +4,21 @@ using System.Collections.Generic;
 
 namespace ToolBox
 {
-    public class HashedWeakReference<T>
+	public class WeakReference<T> : WeakReference
+	{
+        public WeakReference(T reference) : base(reference) { }
+
+        public new T Target { get { return (T)base.Target; } }
+	}
+
+    public class HashedWeakReference<T> : WeakReference<T>
     {
-        private readonly WeakReference _reference;
         private readonly int _hashCode;
 
-        public HashedWeakReference(T reference)
+        public HashedWeakReference(T reference) : base(reference)
         {
             this._hashCode = reference.GetHashCode();
-            this._reference = new WeakReference(reference);
         }
-
-        public bool IsAlive { get { return this._reference.IsAlive; } }
-
-        public T Target { get { return (T)this._reference.Target; } }
 
         public override int GetHashCode()
         {

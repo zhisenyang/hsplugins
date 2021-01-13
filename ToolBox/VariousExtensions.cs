@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 using System.Text;
 #if !EMOTIONCREATORS
@@ -90,6 +91,14 @@ namespace ToolBox.Extensions {
             _setupParticles.Invoke(self, null);
         }
 #endif
+
+	    public static string RemoveInvalidChars(this string self)
+	    {
+            StringBuilder builder = new StringBuilder(self);
+		    foreach (char c in Path.GetInvalidFileNameChars())
+			    builder = builder.Replace(c, '_');
+		    return builder.ToString();
+	    }
 
         public static string RelativePath(string from, string to)
         {

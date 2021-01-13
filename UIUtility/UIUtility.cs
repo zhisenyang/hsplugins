@@ -298,9 +298,9 @@ namespace UILib
             go.name = objectName;
             go.transform.SetParent(parent, false);
             // I swear this is useful.
-            // It prevents the the new mask from "combining" with existing masks.
-            // Yes, I know, it's weird issue, but I guess that's the price of creating UI at runtime.
-            foreach (Mask m in go.GetComponentsInChildren<Mask>())
+            // It prevents the new mask from "combining" with existing masks.
+            // Yes, I know, it's weird issue, but I guess that's the price of creating UIs at runtime.
+            foreach (Mask m in go.GetComponentsInChildren<Mask>(true))
             {
                 m.enabled = false;
                 m.enabled = true;
